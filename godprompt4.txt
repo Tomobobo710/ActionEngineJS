@@ -1,0 +1,2176 @@
+User: So, I have this demo/document for a game engine I have been working on:
+
+```JavaScript
+// demo.js
+/**
+* Welcome to the Action Engine!
+* The Action Engine simplifies the game development process by abstracting away the complexities of setting up and managing common "video game" software components. These vital systems can be tedious to implement, and really take the fun out of game development.
+* All essential systems are already initialized by Action Engine, including input, audio, and other background systems to allow developers to bypass several frustrating hurdles associated with creating and maintaining these neccesary (but boring) software mechanisms.
+* This allows the developer to focus on one thing: THE GAME! With the messy stuff out of the way, we can get right to the fun part!
+* The following DEMO is just an EXAMPLE of how to work with the Action Engine. All systems are well documented and heavily explained so there's no guesswork. By the end of this reading, you'll be a game making pro.
+* So dive in and start creating a masterpiece!
+*/
+
+/** THE GAME CLASS
+* The Game class is the heart of the Action Engine and serves as the entry point for your game.
+* Action Engine aims to let developers work in a way where the only domain is the Game class.
+* It is the ONLY required class, but any classes that will become intertwined with Game are welcome. Speaking of dependancies..
+* Like many popular game engines, Action Engine supplies three fully featured mathematic classes to assist with common video game operations.
+* There are 3 engine-provided math classes that the developer can depend on. `Vector2` `Vector3` and `Matrix4`. These are fully-featured, though not fully demonstrated.
+* Along with input and audio, these are the ONLY additonal classes that fall within the developer's expected available API playground.
+* There will still need to be some heavy lifting with any other classes, logic, or math that needs to be handled on a game by game basis.
+*/
+
+/**
+* class Game {}
+*
+* When the Game class is constructed, Action Engine will pass necessary information like rendering canvases and references to the input and audio systems.
+* The developer can easily integrate with and control these systems without worrying about configuration or maintenance, just focus on the game logic (and rendering).
+**/
+class Game {	
+   /******* Action Engine Game Class Constructor *******/
+   constructor(canvases, input, audio) { 
+	    /*********
+	    * Action Engine requires the Game constructor to accept the following parameters: 
+	    *
+	    * `canvases`: An object with three properties - gameCanvas, guiCanvas, and debugCanvas
+	    * These are the three layers that make up the Action Engine canvas rendering system
+	    * The canvases are automatically created and managed in the background, no need to setup your screen or anything related to window sizes or anything, it's all handled
+	    * This system allows for easy and clear separation of UI elements and actual game content, which is often a headache especially when prototyping and needing to come back to add additional layers
+	    * The guiCanvas and debugCanvas are set by the engine to be 2d contexts, to always give developers an option for 2d overlays
+	    * The guiCanvas is an optional layer that is by default hidden, but can be toggled with the (ActionDebugToggle) key (defaulted to f9) allowing for the developer to have a clear and separated canvas for debug related info
+	    * This separation allows for the developer to choose whether they want a 2d or 3d game with 2d overlays, there is plenty of room for everything
+	    *
+	    * `input`: The input system of the Action Engine
+	    * This system seamlessly handles keyboard, mouse, and touch input in the background
+	    * It provides an automatic and intuitive way for developers to detect input from a variety ofstandard input devices
+	    * This allows the developer to worry less about what key does what or how the UI is handled, or the hassles of trying to implement addtional input device support, it's already done!
+	    * To interface with the input system, Action Engine has a simple to use API which we will be showcased here in this DEMO.
+	    *
+	    * `audio`: The audio system of the Action Engine
+	    * Sound really AMPS up a game's presentation!
+	    * Action Engine handles sound generation and playback, and provides a simple and intuitive way for developers to add sound effects and music to their game.
+	    * The audio setup is alreay handled at the engine level. Sound creation is very flexible, there is even midi instrument sample support for high quality sounds, so you don't need to search around on any sketchy sites for questionably royalty free .wav files
+	    * But that's not all! The developer can get creative with the synth sampling and other sound types through an easy to use API, which will be demonstrated in the sound creation part of this demo
+	    * All that in one line?!?!? That's the power of Action Engine. Let's go on a journey through the demo together!
+	    **/
+		   
+		/************ Core Systems ************/
+		
+		// Canvas initialization
+		 
+		// The DEMO stores references to core engine systems
+		this.input = input;    // Handles keyboard, mouse, and touch input
+		this.audio = audio;    // Manages sound generation and playback
+		
+		// The main "game" layer 
+		this.canvas = canvases.gameCanvas;       //!!! This can be 2D or 3D rendered content!!!
+
+		// The two additional canvases
+		this.guiCanvas = canvases.guiCanvas;     // !!!ALWAYS 2D!!! overlay for UI elements like menus and HUD
+		this.debugCanvas = canvases.debugCanvas; // !!!ALWAYS 2D!!! overlay for development/debugging visualization
+		
+		// The demo can initialize the type of rendering context based on DEMO_RENDER_MODE
+		if (Game.DEMO_RENDER_MODE === '3d') {
+			// The 3D Game Context (It's required)
+			this.gl = this.canvas.getContext('webgl');
+			if (!this.gl) {
+				throw new Error('WebGL not supported - try setting DEMO_RENDER_MODE to "2d"');
+			}
+			// Only initialize GL-specific stuff in 3D mode
+			this.initGL();
+			// 3D cube state variables
+			this.rotationX = 0;
+			this.rotationY = 0;
+			this.orbitRadius = 4.0;  // Distance from center
+			this.orbitSpeed = 0.02;  // Speed of orbit
+			this.orbitAngle = 0;     // Current angle
+			this.position = Vector3.create(0, 0, -6); // Using engine-level Vector3 class
+		} else {
+			// The REQUIRED  Game Context in 2D DEMO_RENDER_MODE
+			this.ctx = this.canvas.getContext('2d');
+		}
+		
+		// The other two canvases are completely optional, the developer could choose to do everything, ui, debug, all that in just the gameCanvas
+		// But the demo tries to utilize these for an example of how they work, and the developer might be able to see the advantages of the three-layer system
+		  
+		// The special guiCanvas and debugCanvas canvas layers have their own 2D rendering context that is created and passed down:
+		  
+		// The GUI Context (2D overlay)
+		this.guiCtx = canvases.guiCtx;           // Always a 2D context for UI elements
+		  
+		// The Debug Context (2D overlay)
+		this.debugCtx = canvases.debugCtx; // Always a 2D context for debugging
+		
+		
+		  
+		/******** Debug Overlay Configuration ********/
+		// Configuration options for the debug overlay
+		// In the DEMO, we're using the debug overlay as a sort of "console" where messages are sent
+		// But this layer can be used in any way, really, and even be interactable!
+		// Here, the demo sets up for the console like interface:
+		this.messages = [];      // Array of debug messages to display 
+		this.maxMessages = 20;   // Maximum number of messages to keep in history
+		this.lineHeight = 20;    // Vertical pixels between debug message lines
+		this.padding = 10;       // Padding around debug message area
+		this.showDebug = false;  // Toggle debug overlay visibility
+		  
+		/*********** Demo Stats Tracking ************/
+		// The DEMO tracks click stats for the purpose of demonstrating some simple game logic
+		this.totalClicks = 0;    // Count of total button clicks
+		this.totalButtons = 3;   // Number of interactive buttons
+		  
+		/*********** Initializing Demo Components ********/
+		// Here is where the DEMO just initializes any game-specific components
+		// In this DEMO, we are initializing some demo buttons and sounds.
+
+		// Lets hear it!
+		// Initialize DEMO sounds
+		this.createGameSounds();
+		  
+		// Click me!
+		// Initialize DEMO buttons
+		this.initializeInteractiveElements();
+		
+		// Here the DEMO utilizes the built-in Vector2 class to setup the playable 2D character
+		// Ship properties
+		this.shipPosition = Vector2.create(Game.WIDTH / 2, Game.HEIGHT / 2); // Engine provides Vector2 classes for common 2D operations
+		this.shipRotation = 0;  // in radians
+		this.shipVelocity = Vector2.create();
+		this.shipDirection = Vector2.create(0, -1); // Pointing up initially
+		this.rotationSpeed = 0.05;
+		this.thrust = 0.05;
+		this.friction = 0.98;
+		
+		// In the constructor, after ship properties:
+		// Soccer ball properties
+		this.ballPosition = Vector2.create(300, 300);
+		this.ballVelocity = Vector2.create(2, 1);
+		this.ballRadius = 20;
+		this.ballRotation = 0;
+		this.ballSpinSpeed = 0.03;
+	}
+
+      
+	/******* Fixed Coordinate System *******
+    * Internally, the Action Engine uses an 800x600 canvas using fixed dimensions.
+    * The DEMO uses this to it's advantage to reference and position everything by these constants.
+    * This allows for the developer to be worry free about resolution scaling or any of the headaches that come
+    * with viewports, different screen sizes, canvas scaling, aspect ratio, and the like. Forget about it!
+    * Action Engine uses a fixed 4:3 aspect ratio and handles all window resizing and other internal "screen" 
+    * handling, leaving the developer a simple way to manage positioning that is straight forward.
+    * In the DEMO, these are stored and are put to use in future positioning calculations:
+    *******/
+    static WIDTH = 800;
+    static HEIGHT = 600;
+   
+    /******* RENDERING CONFIGURATION *******/
+    // Set this to either '2d' or '3d' to determine rendering mode
+    static DEMO_RENDER_MODE = '2d';  // Try changing this to '2d'!
+	
+	/**
+	* initGL()
+	*/
+    // In 3D mode, the DEMO relies heavily on WebGL.
+	// Though some engine-level mathematics classes are available (Vector2, Vector3, Matrix4), a lot of the mathematical heavy lifting
+	// still falls on the backs of the developers. It's kind of a "draw the rest of the f-ing owl" situation when it comes
+	// to rendering games using the Action Engine.  While the system handles lots of the boring parts of game development, 
+	// the rendering component is left up to the programmer. But one could look at it as a positive thing, where the freedom
+	// to work with JavaScript, WebGL, CanvasRenderingContext2D, and anything the heart desires removes some of the shackles
+	// that inevitably come with commiting to any software library.
+	
+	// 3D canvas initialization
+    initGL() {
+       // Vertex shader program
+       const vsSource = `
+           attribute vec4 aVertexPosition;
+           attribute vec2 aTextureCoord;
+           
+           uniform mat4 uModelViewMatrix;
+           uniform mat4 uProjectionMatrix;
+           
+           varying highp vec2 vTextureCoord;
+           
+           void main(void) {
+               gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
+               vTextureCoord = aTextureCoord;
+           }
+       `;
+
+       // Fragment shader program  
+       const fsSource = `
+           varying highp vec2 vTextureCoord;
+           
+           uniform sampler2D uSampler;
+           
+           void main(void) {
+               gl_FragColor = texture2D(uSampler, vTextureCoord);
+           }
+       `;
+
+       // Initialize shaders
+       const vertexShader = this.loadShader(this.gl.VERTEX_SHADER, vsSource);
+       const fragmentShader = this.loadShader(this.gl.FRAGMENT_SHADER, fsSource);
+
+       // Create shader program
+       this.shaderProgram = this.gl.createProgram();
+       this.gl.attachShader(this.shaderProgram, vertexShader);
+       this.gl.attachShader(this.shaderProgram, fragmentShader);
+       this.gl.linkProgram(this.shaderProgram);
+
+       if (!this.gl.getProgramParameter(this.shaderProgram, this.gl.LINK_STATUS)) {
+           throw new Error('Shader program failed to initialize');
+       }
+
+       // Get shader program info
+       this.programInfo = {
+           program: this.shaderProgram,
+           attribLocations: {
+               vertexPosition: this.gl.getAttribLocation(this.shaderProgram, 'aVertexPosition'),
+               textureCoord: this.gl.getAttribLocation(this.shaderProgram, 'aTextureCoord'),
+           },
+           uniformLocations: {
+               projectionMatrix: this.gl.getUniformLocation(this.shaderProgram, 'uProjectionMatrix'),
+               modelViewMatrix: this.gl.getUniformLocation(this.shaderProgram, 'uModelViewMatrix'),
+               uSampler: this.gl.getUniformLocation(this.shaderProgram, 'uSampler'),
+           },
+       };
+
+       // Initialize buffers
+       const positions = [
+           // Front face
+           -1.0, -1.0,  1.0,
+            1.0, -1.0,  1.0,
+            1.0,  1.0,  1.0,
+           -1.0,  1.0,  1.0,
+           
+           // Back face
+           -1.0, -1.0, -1.0,
+           -1.0,  1.0, -1.0,
+            1.0,  1.0, -1.0,
+            1.0, -1.0, -1.0,
+           
+           // Top face
+           -1.0,  1.0, -1.0,
+           -1.0,  1.0,  1.0,
+            1.0,  1.0,  1.0,
+            1.0,  1.0, -1.0,
+           
+           // Bottom face
+           -1.0, -1.0, -1.0,
+            1.0, -1.0, -1.0,
+            1.0, -1.0,  1.0,
+           -1.0, -1.0,  1.0,
+           
+           // Right face
+            1.0, -1.0, -1.0,
+            1.0,  1.0, -1.0,
+            1.0,  1.0,  1.0,
+            1.0, -1.0,  1.0,
+           
+           // Left face
+           -1.0, -1.0, -1.0,
+           -1.0, -1.0,  1.0,
+           -1.0,  1.0,  1.0,
+           -1.0,  1.0, -1.0,
+       ];
+
+       const textureCoordinates = [
+           // Front
+           0.0,  0.0,
+           1.0,  0.0,
+           1.0,  1.0,
+           0.0,  1.0,
+           // Back
+           0.0,  0.0,
+           1.0,  0.0,
+           1.0,  1.0,
+           0.0,  1.0,
+           // Top
+           0.0,  0.0,
+           1.0,  0.0,
+           1.0,  1.0,
+           0.0,  1.0,
+           // Bottom
+           0.0,  0.0,
+           1.0,  0.0,
+           1.0,  1.0,
+           0.0,  1.0,
+           // Right
+           0.0,  0.0,
+           1.0,  0.0,
+           1.0,  1.0,
+           0.0,  1.0,
+           // Left
+           0.0,  0.0,
+           1.0,  0.0,
+           1.0,  1.0,
+           0.0,  1.0,
+       ];
+
+       const indices = [
+           0,  1,  2,    0,  2,  3,    // front
+           4,  5,  6,    4,  6,  7,    // back
+           8,  9,  10,   8,  10, 11,   // top
+           12, 13, 14,   12, 14, 15,   // bottom
+           16, 17, 18,   16, 18, 19,   // right
+           20, 21, 22,   20, 22, 23,   // left
+       ];
+
+       // Create and bind vertex buffer
+       this.positionBuffer = this.gl.createBuffer();
+       this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.positionBuffer);
+       this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(positions), this.gl.STATIC_DRAW);
+
+       // Create and bind texture coordinate buffer
+       this.textureCoordBuffer = this.gl.createBuffer();
+       this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.textureCoordBuffer);
+       this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(textureCoordinates), this.gl.STATIC_DRAW);
+
+       // Create and bind index buffer
+       this.indexBuffer = this.gl.createBuffer();
+       this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer);
+       this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), this.gl.STATIC_DRAW);
+
+       // Create checkerboard texture
+       this.texture = this.gl.createTexture();
+       this.gl.bindTexture(this.gl.TEXTURE_2D, this.texture);
+
+       const pixels = new Uint8Array([
+           255, 255, 255, 255,  0,   0,   0,   255,
+           0,   0,   0,   255,  255, 255, 255, 255,
+       ]);
+       const level = 0;
+       const internalFormat = this.gl.RGBA;
+       const width = 2;
+       const height = 2;
+       const border = 0;
+       const srcFormat = this.gl.RGBA;
+       const srcType = this.gl.UNSIGNED_BYTE;
+       
+       this.gl.texImage2D(this.gl.TEXTURE_2D, level, internalFormat,
+                         width, height, border, srcFormat, srcType,
+                         pixels);
+
+       this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.NEAREST);
+       this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.NEAREST);
+   }
+
+   loadShader(type, source) {
+       const shader = this.gl.createShader(type);
+       this.gl.shaderSource(shader, source);
+       this.gl.compileShader(shader);
+
+       if (!this.gl.getShaderParameter(shader, this.gl.COMPILE_STATUS)) {
+           this.gl.deleteShader(shader);
+           throw new Error('Shader failed to compile');
+       }
+
+       return shader;
+   }
+
+   /*-----------------
+   * THE THREE-LAYER INPUT SYSTEM:
+   * -----------------
+   * Action Engine uses a sophisticated three-layer input system that mimics how a typical 
+   * game's interface is (ideally) structured:
+   * 
+   * DEBUG LAYER (Top) -> GUI LAYER (Middle) -> GAME LAYER (Bottom)
+   *
+   * When input events occur, they cascade through these layers in order. If an upper
+   * layer handles the event (like clicking a debug button), lower layers won't receive it.
+   * This prevents background elements from catching input meant for UI or debug controls.
+   *
+   * Each registered element maps to a specific rendering layer, defaulting to:
+   * 
+   * - GUI elements (guiCanvas): Menus, HUD, interface components  
+   *
+   * The guiCanvas is the default layer target when no explicit layer parameter is passed to registerElement()
+   *
+   * Elements targeting non-default layers require explicit layer specification in registerElement():
+   *
+   * - Debug elements (debugCanvas): Debugging tools, development overlays  [layer='debug']
+   * - Game elements (gameCanvas): In-game objects, playfield interactions  [layer='game']
+   *
+   * The DEMO shows this by having elements on all three layers:
+   * - A debug toggle button on the debug layer
+   * - Menu buttons on the GUI layer
+   * - Clickable game elements on the game layer
+   *
+   * When registering elements, developers can specify which layer they belong to:
+   * registerElement('buttonId', element, 'gui')  // Default layer
+   * registerElement('gameObject', element, 'game')
+   * registerElement('debugButton', element, 'debug')
+   *
+   * Pointer coordinates are automatically translated between layers, so developers
+   * don't need to handle different coordinate spaces or canvas scaling. The input
+   * system provides consistent coordinates across all layers.
+   */
+
+	/**
+	* initializeInteractiveElements()
+	*/
+	initializeInteractiveElements() {
+		
+	   /******* BUTTON TEMPLATE SETUP *******/
+	   // Create a shared template for consistent button styling
+	   // The developer could have different templates for different button types
+	   const buttonTemplate = {
+		   width: 120,          // Standard button width - you can customize these!
+		   height: 40,          // Standard button height
+		   color: '#00f0f0',    // Default button color  
+		   hovered: false       // Tracks mouse hover state for visual feedback
+	   };
+
+	   /******* CENTERED BUTTON CREATION *******/
+	   // Main button demonstrates screen-centered positioning
+	   // Uses Game.WIDTH/HEIGHT for reliable positioning regardless of screen size
+	   this.button1 = {
+		   ...buttonTemplate,                                   // Use our template as base
+		   x: (Game.WIDTH - buttonTemplate.width) / 2,         // Center horizontally
+		   y: (Game.HEIGHT - buttonTemplate.height) / 2,       // Center vertically
+		   text: 'Click Me 1'                                  // Button label
+	   };
+	   
+	   /******* FIXED POSITION BUTTONS *******/
+	   // Secondary buttons showing absolute positioning
+	   this.button2 = {
+		   ...buttonTemplate,
+		   x: 340,              // Fixed x position
+		   y: 180,              // Fixed y position
+		   text: 'Click Me 2'   
+	   };
+	   
+	   this.button3 = {
+		   ...buttonTemplate,
+		   x: 340,
+		   y: 80,
+		   text: 'Click Me 3'
+	   };
+
+	   /******* INACTIVE BUTTON CREATION *******/
+	   // Create a special button to demonstrate the active/inactive element system
+	   // This button starts in a disabled state and can be toggled by Button 1
+	   // Uses different colors to provide clear visual feedback of its current state
+	   this.inactiveButton = {
+			...buttonTemplate,                    // Share standard button properties
+			x: 340,                              // Fixed x position
+			y: 480,                              // Positioned below other buttons
+			text: 'Inactive',                    // Label indicates its purpose
+			isActive: false,                     // Start in disabled state
+			color: '#666666'                     // Grayed out when inactive
+	   };
+
+	   /******* INPUT SYSTEM REGISTRATION *******/
+	   // Register buttons with input system for interaction tracking
+	   // The bounds function lets the input system know where each button is
+	   // In the background, action engine has a clearly defined cascading input system
+	   // Events flow from debugCanvas -> guiCanvas -> gameCanvas, in that order
+	   
+	   // Register main game button
+	   this.input.registerElement('button1', {
+		   bounds: () => ({                    // Bounds provided as function for dynamic updates
+			   x: this.button1.x,         // Current x position
+			   y: this.button1.y,         // Current y position
+			   width: this.button1.width, // Button width
+			   height: this.button1.height // Button height
+		   })
+	   });
+
+	   // Register secondary buttons same way
+	   this.input.registerElement('button2', {
+		   bounds: () => ({
+			   x: this.button2.x,
+			   y: this.button2.y,
+			   width: this.button2.width,
+			   height: this.button2.height
+		   })
+	   });
+
+	   this.input.registerElement('button3', {
+		   bounds: () => ({
+			   x: this.button3.x,
+			   y: this.button3.y,
+			   width: this.button3.width,
+			   height: this.button3.height
+		   })
+	   });
+	   
+	   // Add inactive button to input tracking system
+	   // Even when inactive, the element's bounds are still tracked
+	   this.input.registerElement('inactiveButton', {
+			bounds: () => ({
+				x: this.inactiveButton.x,
+				y: this.inactiveButton.y,
+				width: this.inactiveButton.width,
+				height: this.inactiveButton.height
+			})
+	   });
+
+	   
+	   /******* DEBUG LAYER BUTTON *******/
+	   // Create a button specifically for the debug layer
+	   // Shows how to work with different canvas layers
+	   this.debugButton = {
+		   x: Game.WIDTH - 130,                // Position from right edge
+		   y: Game.HEIGHT - 50,                // Position from bottom
+		   width: 120,
+		   height: 40,
+		   text: 'Hide GUI',                   // Toggle button text
+		   color: '#ff4444',                   // Different color for visibility
+		   hovered: false,
+		   guiHidden: false                    // Track GUI visibility state
+	   };
+
+	   /******* GAME LAYER ELEMENT *******/
+	   // Create an interactive element in the game layer
+	   // NOTE: This demo uses can use a 2D context for the game layer, which makes this feature work great!
+	   // While the gameCanvas layer supports WebGL/3D contexts, interactive elements
+	   // in 3D space will still work and listen for interactions, but won't be visible on the gameCanvas...
+	   // We are working on a fix, but for now experiment with 3D game layer elements at your own risk!
+	   this.gameElement = {
+		   x: 600,
+		   y: 100,
+		   width: 100,
+		   height: 100,
+		   text: 'Stop Sounds', // Careful with text rendering in 3D context!
+		   color: '#44ff44',
+		   hovered: false
+	   };
+
+	   /******* REGISTER LAYER-SPECIFIC ELEMENTS *******/
+	   // Register elements to specific layers for proper interaction handling
+	   
+	   // Debug layer button registration
+	   this.input.registerElement('debugButton', {
+		   bounds: () => ({
+			   x: this.debugButton.x,
+			   y: this.debugButton.y,
+			   width: this.debugButton.width,
+			   height: this.debugButton.height
+		   })
+	   }, 'debug');  // Specify debug layer
+
+	   // Game layer element registration
+	   this.input.registerElement('gameElement', {
+		   bounds: () => ({
+			   x: this.gameElement.x,
+			   y: this.gameElement.y,
+			   width: this.gameElement.width,
+			   height: this.gameElement.height
+		   })
+	   }, 'game');  // Specify game layer
+	}
+
+
+
+	/*-----------------
+	* AUDIO INTEGRATION:
+	* -----------------
+	* Action Engine includes a powerful and flexible audio system for adding sound effects and music to your game.
+	* 
+	* Sound in games is a critical part of the overall presentation, and it's often 
+	* overlooked or pushed onto the back-burner due to a plethora of difficulties.
+	* The Action Engine audio system solves these common challenges with multiple synthesis methods:
+	*
+	* SYNTHESIS OPTIONS:
+	* - Basic Waveforms: Create simple tones using sine, triangle, and square waves
+	* - FM Synthesis: Generate rich, dynamic sounds through frequency modulation
+	* - Complex Synthesis: Layer multiple oscillators for full, harmonic sounds
+	* - Noise Generation: Create white, pink, or brown noise for effects
+	* - Frequency Sweeps: Create dramatic pitch slides and transitions
+	*
+	* MIDI CAPABILITIES:
+	* - Full 128-instrument library built-in
+	* - High quality sampled instruments from pianos to drums
+	* - Multi-channel playback support
+	* - No external sound files needed
+	*
+	* AUDIO CONTROL:
+	* - Real-time parameter control
+	* - Stereo panning
+	* - Volume envelopes (ADSR)
+	* - Effects processing (reverb, echo, filters)
+	* - Individual sound control (play(), stopSound('sound') and stopAllSounds())
+	*
+	* SEQUENCING:
+	* - SonicPi-style scripting for complex arrangements
+	* - Tempo and timing control
+	* - Multiple concurrent tracks
+	* - Effect chains and processing
+	*
+	* The DEMO maps various sounds to inputs to showcase these capabilities:
+	* - One-shot sound effects for edge-triggered actions
+	* - Different synthesis types for varied sound design
+	* - MIDI instrument playback
+	* - Complex musical arrangements
+	* 
+	* !!! PERFORMANCE NOTE !!!
+	* The demo provides many sounds, but be warned that using MIDI sounds and
+	* complicated sequence scripts is incrementally more costly at initial app load time!
+	* For example, this demo takes a few seconds to load on modern hardware.
+	* It's recommended to balance sound complexity with performance needs.
+	* 
+	* Let's dive in and make some noise! 🎵
+	* -----------------
+	*/
+
+	/*-----------------
+	* createGameSounds()
+	* -----------------
+	*/
+	createGameSounds() {
+	/*-----------------
+	* THE SOUND CREATION PLAYGROUND! 
+	* -----------------
+	* This method demonstrates the various ways to create and manage sounds in the engine.
+	* We'll explore different synthesis methods and show how to build both simple effects
+	* and complex musical arrangements.
+	*
+	* The examples progress from simple to complex:
+	* 1. Basic waveform synthesis
+	* 2. FM synthesis for dynamic sounds
+	* 3. Multi-oscillator layered sounds
+	* 4. Noise and sweep effects
+	* 5. MIDI instrument playback
+	* 6. Full musical sequences
+	*
+	* Each sound type has its own use case:
+	* - Basic synthesis: UI sounds, simple effects
+	* - FM synthesis: Sci-fi sounds, complex tones
+	* - Multi-oscillator: Rich sound effects, musical notes
+	* - Noise/Sweeps: Environmental effects, transitions
+	* - MIDI: High quality musical elements
+	* - Sequences: Background music, complex events
+	*
+	* !!! OPTIMIZATION NOTE !!!
+	* Layer your sound complexity based on game needs:
+	* - Simple synthesis is very lightweight
+	* - MIDI instruments take more memory
+	* - Complex sequences need more processing
+	* Consider using simpler sounds for frequent events
+	* and save complex sounds for important moments
+	* -----------------
+	*/
+		
+		/******* DIFFERENT SOUND TYPE CREATION *******/
+		// Each of these methods demonstrates a different type of sound synthesis
+		// available in the Action Engine audio system
+
+		// FM (Frequency Modulation) synthesis creates rich, dynamic sounds
+		// Great for sci-fi effects or complex tones
+		this.audio.createFMSound('fmSound', {
+			carrierFreq: 440,      // Base frequency
+			modulatorFreq: 100,    // Modulating frequency
+			modulationIndex: 100,  // How intense the modulation is
+			type: 'sine',          // Carrier wave type
+			duration: 0.5,
+			envelope: {
+				attack: 0.1,
+				decay: 0.2,
+				sustain: 0.6,
+				release: 0.2
+			}
+		});
+
+		// Complex sounds combine multiple oscillators for rich harmonics
+		// Perfect for creating full, layered sounds
+		this.audio.createComplexSound('complexSound', {
+			frequencies: [440, 880, 1320],  // Stack of frequencies
+			types: ['sine', 'triangle', 'square'],  // Different wave types
+			mix: [0.5, 0.3, 0.2],  // Volume mix of each oscillator
+			duration: 0.8,
+			envelope: {
+				attack: 0.1,
+				decay: 0.2,
+				sustain: 0.5,
+				release: 0.3
+			}
+		});
+
+		// Noise generation for effects like wind, water, explosions
+		this.audio.createNoiseSound('noiseSound', {
+			noiseType: 'white',  // white, pink, or brown noise
+			duration: 0.5,
+			envelope: {
+				attack: 0.05,
+				decay: 0.1,
+				sustain: 0.7,
+				release: 0.2
+			},
+			filterOptions: {
+				frequency: 1000,  // Filter cutoff frequency
+				Q: 1,            // Filter resonance
+				type: 'lowpass'  // Filter type
+			}
+		});
+
+		// Frequency sweeps for dramatic effects
+		this.audio.createSweepSound('sweepSound', {
+			startFreq: 200,   // Starting frequency
+			endFreq: 800,     // Ending frequency
+			type: 'triangle', // Wave type
+			duration: 0.6,
+			envelope: {
+				attack: 0.1,
+				decay: 0.2,
+				sustain: 0.4,
+				release: 0.2
+			}
+		});
+		
+	   /******* SIMPLE SOUND EFFECTS *******/
+	   // Let's start with a classic platformer jump!
+	   // Frequency sweep from low to high = nice 'jump' feeling
+	   this.audio.createSweepSound('jump', {
+		   startFreq: 220,          // Start at A3
+		   endFreq: 880,           // Sweep up to A5
+		   type: 'triangle',       // Triangle wave sounds nice and smooth
+		   duration: 0.25,         // Quick and snappy
+		   envelope: {             // Shape the sound's volume over time
+			   attack: 0.05,       // Quick start
+			   decay: 0.1,         // Fast falloff
+			   sustain: 0.8,       // Hold most of the volume
+			   release: 0.1        // Quick end
+		   }
+	   });
+
+	   /******* DRAMATIC POWER-UP EFFECT *******/
+	   // Stack multiple oscillators for a rich, dramatic sound
+	   this.audio.createComplexSound('sound2', {
+		   frequencies: [440, 587, 880, 1174],    // Stack of harmonious frequencies
+		   types: ['triangle', 'sine', 'triangle', 'sine'],  // Mix different waves
+		   mix: [0.4, 0.3, 0.2, 0.1],            // Fade each higher frequency
+		   duration: 0.4,
+		   envelope: {
+			   attack: 0.01,      // Almost instant attack
+			   decay: 0.2,
+			   sustain: 0.6,
+			   release: 0.19
+		   }
+	   });
+
+	   /******* RETRO GAME SOUNDS *******/
+	   // Create an SNES-style acceleration sound
+	   // Multiple oscillators create that classic 16-bit feel
+	   this.audio.createComplexSound('sound3', {
+		   frequencies: [220, 330, 440],          // Power of three
+		   types: ['triangle', 'square', 'triangle'],  // Mix of waves
+		   mix: [0.5, 0.2, 0.1],                 // Emphasize base frequency
+		   duration: 0.35,
+		   envelope: {
+			   attack: 0.08,
+			   decay: 0.15,
+			   sustain: 0.6,
+			   release: 0.12
+		   }
+	   });
+
+	   /******* FM SYNTHESIS MAGIC *******/
+	   // Use frequency modulation for otherworldly sounds
+	   // Great for sci-fi effects or mystery reveals
+	   this.audio.createFMSound('sound4', {
+		   carrierFreq: 185,         // Base frequency
+		   modulatorFreq: 92.5,      // Modulating frequency
+		   modulationIndex: 100,     // How 'wild' the modulation gets
+		   type: 'sine',
+		   duration: 0.6,
+		   envelope: {
+			   attack: 0.15,         // Slow build
+			   decay: 0.25,
+			   sustain: 0.6,
+			   release: 0.2
+		   }
+	   });
+
+	   /******* TRANSFORMATION EFFECT *******/
+	   // Create an ethereal sound perfect for power-ups or transformations
+	   this.audio.createComplexSound('sound5', {
+		   frequencies: [220, 330, 440, 660],     // Harmonious stack
+		   types: ['sine', 'sine', 'triangle', 'sine'],
+		   mix: [0.4, 0.3, 0.2, 0.1],            // Fade higher frequencies
+		   duration: 0.7,
+		   envelope: {
+			   attack: 0.2,          // Slow, majestic build
+			   decay: 0.3,
+			   sustain: 0.4,
+			   release: 0.2
+		   }
+	   });
+
+	   /******* CRYSTAL SHIMMER *******/
+	   // High, bright frequencies create a sparkling effect
+	   this.audio.createComplexSound('sound6', {
+		   frequencies: [294, 370, 440],          // High, bright frequencies
+		   types: ['sine', 'triangle', 'sine'],
+		   mix: [0.45, 0.35, 0.2],
+		   duration: 0.5,
+		   envelope: {
+			   attack: 0.1,
+			   decay: 0.2,
+			   sustain: 0.5,
+			   release: 0.2
+		   }
+	   });
+
+	   /******* VICTORY FANFARE *******/
+	   // A triumphant sound using multiple harmonious frequencies
+	   this.audio.createComplexSound('victory', {
+		   frequencies: [330, 440, 550, 660, 880],
+		   types: ['triangle', 'sine', 'triangle', 'sine', 'triangle'],
+		   mix: [0.3, 0.25, 0.2, 0.15, 0.1],
+		   duration: 0.7,
+		   envelope: {
+			   attack: 0.1,
+			   decay: 0.25,
+			   sustain: 0.5,
+			   release: 0.3
+		   }
+	   });
+
+	   /******* MIDI INSTRUMENT SHOWCASE *******/
+	   // Now let's play with some high-quality MIDI instruments!
+	   
+	   // Complex synth and pad mix
+	   this.audio.createSound('MidiSynthMix', {
+		   script: `
+			   use_bpm 120
+			   sample :pad, note: 60, amp: 0.3, duration: 4
+			   sample :soft_synth, note: 72, amp: 0.3
+			   sleep 1
+			   sample :soft_synth, note: 76, amp: 0.25
+			   sleep 1
+		   `,
+		   samples: {
+			   'pad': {
+				   soundType: 'midi',
+				   instrument: 'pad_3_polysynth',    // Rich, atmospheric pad
+				   amp: 0.3
+			   },
+			   'soft_synth': {
+				   type: 'sin',                      // Mix with synthetic sound
+				   frequency: 440,
+				   decay: 1.5,
+				   amp: 0.3
+			   }
+		   }
+	   }, 'sonicpi');
+
+	   // Clean piano hit
+	   this.audio.createSound('PianoHit', {
+		   script: `
+			   use_bpm 120
+			   sample :piano, note: 60, amp: 0.5
+		   `,
+		   samples: {
+			   'piano': {
+				   soundType: 'midi',
+				   instrument: 'acoustic_grand_piano',  // Beautiful grand piano
+				   amp: 0.5
+			   }
+		   }
+	   }, 'sonicpi');
+
+	   // Majestic trumpet call
+	   this.audio.createSound('TrumpetCall', {
+		   script: `
+			   use_bpm 120
+			   sample :trumpet, note: 67, amp: 0.4
+			   sleep 0.2
+			   sample :trumpet, note: 72, amp: 0.5
+		   `,
+		   samples: {
+			   'trumpet': {
+				   soundType: 'midi',
+				   instrument: 'trumpet',             // Bright, bold trumpet
+				   amp: 0.4
+			   }
+		   }
+	   }, 'sonicpi');
+
+	   /******* FULL SONG DEMO *******/
+	   // Bringing it all together in a complete musical arrangement!
+	   this.audio.createSound('SimpleSong', {
+		   script: `
+			   use_bpm 80
+			   
+			   define :melody do
+				   sample :piano, note: 67, amp: 0.4
+				   sleep 2
+				   sample :piano, note: 72, amp: 0.3
+				   sleep 2
+				   sample :bells, note: 84, amp: 0.2
+				   sleep 2
+				   sample :bells, note: 79, amp: 0.2
+				   sleep 2
+			   end
+			   
+			   8.times do
+				   sample :bass, note: 48, amp: 0.4
+				   sample :strings, note: 60, amp: 0.3, duration: 8
+				   melody
+			   end
+		   `,
+		   samples: {
+			   'piano': {
+				   soundType: 'midi',
+				   instrument: 'acoustic_grand_piano',  // Main melody
+				   amp: 0.4
+			   },
+			   'bells': {
+				   soundType: 'midi',
+				   instrument: 'tubular_bells',        // Sparkly accents
+				   amp: 0.2
+			   },
+			   'bass': {
+				   soundType: 'midi',
+				   instrument: 'acoustic_bass',        // Strong bass line
+				   amp: 0.4
+			   },
+			   'strings': {
+				   soundType: 'midi',
+				   instrument: 'string_ensemble_1',    // Lush backing
+				   amp: 0.3
+			   }
+		   }
+	   }, 'sonicpi');
+	   
+	   /*-----------------
+		* BONUS SOUND DESIGN GUIDE:
+		* -----------------
+		* Creating good game audio is both art and science. Here are some proven approaches
+		* for different common game sound needs:
+		*
+		* UI SOUNDS:
+		* - Keep them short (0.1s - 0.3s)
+		* - Use simple waveforms (sine or triangle)
+		* - Quick attack, minimal decay
+		* Example for a "select" sound:
+		*/
+		this.audio.createSweepSound('selectBlip', {
+			startFreq: 440,    // A4 note
+			endFreq: 880,      // Up to A5
+			type: 'sine',      // Clean sine wave
+			duration: 0.15,    // Very short
+			envelope: {
+				attack: 0.01,  // Almost immediate
+				decay: 0.14,   // Most of duration
+				sustain: 0,    // No sustain needed
+				release: 0     // No release needed
+			}
+		});
+
+		/*
+		* IMPACT SOUNDS:
+		* - Start with noise for the "hit"
+		* - Add a tonal element for character
+		* - Quick attack, medium decay
+		*/
+		this.audio.createComplexSound('impact', {
+			frequencies: [100, 200, 300],        // Low frequencies for impact
+			types: ['square', 'sine', 'sine'],   // Square wave adds "punch"
+			mix: [0.6, 0.3, 0.1],               // Emphasize lower frequencies
+			duration: 0.4,
+			envelope: {
+				attack: 0.01,   // Immediate hit
+				decay: 0.2,     // Quick falloff
+				sustain: 0.2,   // Some body
+				release: 0.19   // Smooth end
+			}
+		});
+
+		/*
+		* AMBIENT SOUNDS:
+		* - Use noise with heavy filtering
+		* - Longer durations
+		* - Smooth transitions
+		*/
+		this.audio.createNoiseSound('wind', {
+			noiseType: 'pink',    // Pink noise sounds more natural
+			duration: 2.0,
+			envelope: {
+				attack: 0.5,      // Slow fade in
+				decay: 0.5,
+				sustain: 0.7,     // Maintain presence
+				release: 1.0      // Slow fade out
+			},
+			filterOptions: {
+				frequency: 800,   // Remove harsh high frequencies
+				Q: 0.5,          // Gentle resonance
+				type: 'lowpass'
+			}
+		});
+
+		/*
+		* MUSICAL ELEMENTS:
+		* - Use FM synthesis for rich tones
+		* - Pay attention to musical intervals
+		* - Longer attack/release for smoothness
+		*/
+		this.audio.createFMSound('synthPad', {
+			carrierFreq: 440,      // Base note A4
+			modulatorFreq: 220,    // Modulate at half frequency
+			modulationIndex: 50,   // Moderate modulation
+			type: 'sine',
+			duration: 1.0,
+			envelope: {
+				attack: 0.2,       // Smooth fade in
+				decay: 0.3,
+				sustain: 0.6,
+				release: 0.5
+			}
+		});
+
+		/*
+		* EFFECT CHAINS:
+		* Action Engine supports chaining multiple effects. Some useful combinations:
+		*
+		* Spacious Atmosphere:
+		*/
+		const spaciousSound = {
+			script: `
+				use_bpm 60
+				with_fx :reverb, room: 0.8 do
+					with_fx :echo, phase: 0.5, decay: 2 do
+						sample :pad_3_polysynth, note: 50, amp: 0.3
+					end
+				end
+			`,
+			samples: {
+				'pad': {
+					soundType: 'midi',
+					instrument: 'pad_3_polysynth',
+					amp: 0.3
+				}
+			}
+		};
+
+		/*
+		* Power Up Effect:
+		*/
+		const powerUp = {
+			script: `
+				use_bpm 120
+				with_fx :echo, phase: 0.125 do
+					with_fx :wobble, phase: 0.5 do
+						sample :synth_strings_1, note: 60
+						sleep 0.25
+						sample :synth_strings_1, note: 67
+					end
+				end
+			`
+		};
+
+		/*
+		* COMMON PITFALLS TO AVOID:
+		* 1. Too much frequency overlap - space out your frequencies
+		* 2. Harsh attacks - use at least 0.01s attack time
+		* 3. Abrupt endings - always use some release time
+		* 4. Overusing effects - subtlety often works better
+		* 5. Too much low frequency content - can muddy the mix
+		*/
+	}
+
+
+    /**
+    * Here the DEMO Adds a timestamped message to the debug message queue
+    * Maintains maximum message limit by removing oldest messages to display on the debugCanvas
+    */
+    addMessage(msg) {
+       this.messages.unshift(`[${new Date().toLocaleTimeString()}] ${msg}`);
+       if (this.messages.length > this.maxMessages) {
+           this.messages.pop();
+       }
+    }
+
+	/*
+	* update()
+	* The beating heart of the DEMO! This method showcases different ways to work with 
+	* the input and audio systems through an interactive button demonstration.
+	*/
+	update() {
+		
+		/*-----------------
+		* A WORD ABOUT CONTROLS:
+		* -----------------
+		* In the background, Action Engine handles all input types descretely, and passes the "input" to the Game class
+		* In essence, `input` is just a state of all possible input devices, with keyboard, touch, and mouse pointer support (and more).
+		* In addition to supporting these input types ALL Action Engine games have additional engine-level "Virtual Input Controls",
+		* which are reported to the input state as if they were keyboard inputs o you don't have to worry about desining games in a way that would "require" a keyboard.
+		* This DEMO attempts to provide the developer with examples to support as many platforms and as many types of input devices as possible.
+		*
+		* ALL Action Engine games have additional engine-level "Virtual UI Controls" for convienient functions like muting the game, showing the virtual controls, fullscreen, and pause.
+		* These buttons all internally interface with Action Engine in some way, but their input state can still be checked and responded to.
+		*
+		* And on top of all that, the input state will contain information on the status of the registered "interactable elements" as well.
+		* Let's walk through it in action:
+		*/
+		
+		/******* CONTINUOUS INPUT DETECTION *******/
+		// Here the DEMO checks directional input to detect continuous input
+		// Developers generally use this type of input checking in games for determining continuous input.
+		// It's helpful for anything where the developer just needs to know if the user is CURRENTLY pressing an input.
+		// The DEMO checks these inputs and uses the results in simple ways.
+		// In 3D, the DEMO updates the background cube's rotation based on directional inputs
+		// In 2D, the DEMO updates the 2D character with a little bit of Vector2 use
+		
+		// In both 2D and 3D modes, the demo adds a message to display on the debugCanvas
+		if (this.input.isKeyPressed('DirUp')) {
+			this.addMessage('DirUp IS PRESSED');
+			this.rotationX -= 0.04; // Rotate cube up
+			const thrustVector = Vector2.create(this.shipDirection.x, this.shipDirection.y);
+			thrustVector.scale(this.thrust);
+			this.shipVelocity.add(thrustVector); // Add ship forward thrust
+		}
+		if (this.input.isKeyPressed('DirDown')) {
+			this.addMessage('DirDown IS PRESSED');
+			this.rotationX += 0.04; // Rotate cube down
+			const thrustVector = Vector2.create(this.shipDirection.x, this.shipDirection.y);
+			thrustVector.scale(-this.thrust * 0.5);  // Half power in reverse
+			this.shipVelocity.add(thrustVector); 	// Add ship reverse thrust
+		}
+		if (this.input.isKeyPressed('DirLeft')) {
+			this.addMessage('DirLeft IS PRESSED');
+			this.rotationY -= 0.04; // Rotate cube left
+			this.shipRotation -= this.rotationSpeed;
+			this.shipDirection.rotate(-this.rotationSpeed); // Rotate ship left
+		}
+		if (this.input.isKeyPressed('DirRight')) {
+			this.addMessage('DirRight IS PRESSED');
+			this.rotationY += 0.04; // Rotate cube right
+			this.shipRotation += this.rotationSpeed;
+			this.shipDirection.rotate(this.rotationSpeed); // Rotate ship right
+		}
+		
+		/*-----------------
+		* IT GETS DEEPER:
+		* -----------------
+		* Often, developers need to respond quickly to user input, and it's critical that they have as much information to work with as possible.
+		* Input handling works in web browsers in an event driven way and it can be difficult to get up and running with JavaScript input handling for games.
+		* Most game developers need a way to decern between whether the user has "just pressed a button" or if the user is "holding a button".
+		* Like many other game engines, Action Engine offers a way to detect if inputs were "just pressed" or if they are currently "pressed" with adequately named API calls.
+		* This means the developer doesn't have to worry about making silly gate logic to prevent the user from "spamming" an action. 
+		* The developer can just see if the user has let go of the button or not, and choose to only execute actions when the button gets pressed, and not held down.
+		* Throughout the DEMO, this "pressed/just pressed" concept will be utilized to reveal the breadth of options the developer has for detecting input states.
+		* It will all make sense after seeing it in action:
+		*/
+		
+		// The DEMO plays sounds on isKeyJustPressed() rather than on isKeyPressed() for one sound so it does not repeatedly play the sound every frame.
+		if (this.input.isKeyJustPressed('DirUp')) {
+			this.addMessage('DirUp JUST pressed');
+			this.audio.play('TrumpetCall'); // A lot better on the ears 
+		}
+		if (this.input.isKeyJustPressed('DirDown')) {
+			this.addMessage('DirDown JUST pressed');
+			this.audio.play('PianoHit');
+		}	    
+		if (this.input.isKeyJustPressed('DirLeft')) {
+			this.addMessage('DirLeft JUST pressed');
+			this.audio.play('MidiSynthMix');
+		}	    
+		if (this.input.isKeyJustPressed('DirRight')) {
+			this.addMessage('DirRight JUST pressed');
+			this.audio.play('SimpleSong');
+		}	    
+		
+		/*-----------------
+		* ABSTRACTION ACTION:
+		* -----------------
+		* As you just saw, the input system REQUIRES semantic action names instead of raw key codes.
+		* These are the default case-sensitive key mappings that `input` will be tracking:
+		* - Direction actions: 'DirUp', 'DirDown', 'DirLeft', 'DirRight'
+		* - Game actions: 'Action1', 'Action2', 'Action3', 'Action4' (no more)
+		* - Special actions: 'ActionDebugToggle'
+		* - "Virtual UI Control" element states
+		* - The names of the registered interactable elements
+		* 
+		* These are the key mappings the developer should expect for Action Engine to utilize.
+		* The developer cannot change the keymapping!
+		* Stick with these supplied input actions and you're in for a smooth ride.
+		*
+		* Let's go over it again with the "Action" buttons:
+		* -----------------
+		*/
+
+	   /******* ACTION BUTTON MAPPING DEMO *******/
+	   // Action1-4 are semantic game controls mapped to keys at the engine level.
+	   // The DEMO shows the different types of options developers have in checking "keyboard" key states
+	   //
+	   // The example demonstrates how isKeyJustPressed() lets us know that the key
+	   // is "down" but ONLY IF the key was previously not "down" the last frame.
+	   // This helps with game actions like shooting or jumping, where you don't
+	   // want multiple responses from a single "key press".
+	   
+	   // Using isKeyJustPressed() for edge-trigger detection
+	   if (this.input.isKeyJustPressed('Action1')) {   
+		   this.addMessage('Button 1 JUST pressed'); 
+		   this.audio.play('jump');
+	   }
+	   if (this.input.isKeyJustPressed('Action2')) {           
+		  this.addMessage('Button 2 JUST pressed');  
+		  this.audio.play('sound2');
+	   }
+	   if (this.input.isKeyJustPressed('Action3')) {           
+		   this.addMessage('Button 3 JUST pressed');
+		   this.audio.play('sound3');
+	   }
+	   
+	   // But just for good measure, the DEMO shows that the semantic "Action Buttons" can also be checked for continuous input
+	   // Here isKeyPresed() will be checked without regard for the previous state of the key
+	   if (this.input.isKeyPressed('Action4')) {               
+		   this.addMessage('Button 4 IS PRESSED'); 
+		   this.audio.play('sound4');  // DING DING DING DING DING              
+	   }
+
+	   /******* THE SPECIAL DEBUG KEY *******/
+	   // The engine-level debugCanvas provides a separate canvas intended for displaying development information.
+	   // This DEMO uses it to show a rudimentary "debug message" log.
+	   // This canvas is by default hidden at boot time. This is why the Action Engine provides a special semantic key (ActionDebugToggle).
+	   // It may not look like the rest of the "Action Buttons", but internally, it is handled similarly.
+	   // Meaning it is still updated in the input state. This allows the developer to utilize it to toggle the visibility of the debugCanvas.
+	   // The DEMO shows how to check the input state for this key, though it uses it for it's intended purpose.
+	   // Since ActionDebugToggle is handled similar to the other "Action Buttons", it COULD be used for custom purposes.
+	   
+	   // The special ActionDebugToggle key is checked and toggles the debugCanvas visibility.
+	   if (this.input.isKeyJustPressed('ActionDebugToggle')) { // JUST PRESSED 
+		   this.showDebug = !this.showDebug;                      
+		   if (!this.showDebug) {                                 
+			   this.debugCtx.clearRect(0, 0, Game.WIDTH, Game.HEIGHT);  
+		   }
+	   }
+
+	   /******* POINTER CHECKING *******/
+	   // The Action Engine input state also contains information about the state of the "mouse pointer".
+	   // But internally, touch input updates this area of the input state as well.
+	   // The DEMO shows how to check the input state for pointer information:
+	   
+	   // Get precise pointer coordinates in game space
+	   const pointerPos = this.input.getPointerPosition();      
+	   if (pointerPos.x !== this.lastPointerX || pointerPos.y !== this.lastPointerY) {  
+		   this.addMessage(`Pointer at: ${Math.round(pointerPos.x)}, ${Math.round(pointerPos.y)}`);  // Show a debug message when the pointer changes positions
+		   this.lastPointerX = pointerPos.x;                    
+		   this.lastPointerY = pointerPos.y;                    
+	   }
+	   
+	   // Check the continuous state of the pointer "click" or "touch"
+	   if (this.input.isPointerDown()) {
+		   this.addMessage('Pointer IS PRESSED'); // continuous check
+	   }
+	   
+	   // Check if the state of the pointer changed from the previous frame and is "just clicked" or "just touched"
+	   if (this.input.isPointerJustDown()) {
+		   this.addMessage('Pointer JUST pressed'); // JUST down
+	   }
+
+	   
+	   
+	   // But wait, there's more!
+	   /******* POINTER BOUNDS DETECTION *******/
+	   // Action Engine's input state allows the developer to quickly check whether the pointer is in a specific area.
+	   // The isPointInBounds() method returns the result of whether the defined bounds.
+	   // Think of it like collision checking for the mouse pointer!
+	   
+	   //Here the DEMO shows how you could check to see if the mouse pointer entered or exited a given boundry
+	   const mousePos = this.input.getPointerPosition();
+	   const isInBounds = this.input.isPointInBounds(  // Track pointer intersection with the UI element 'button1'
+		   mousePos.x,
+		   mousePos.y,
+		   {
+			   x: this.button1.x,
+			   y: this.button1.y,
+			   width: this.button1.width,
+			   height: this.button1.height
+		   }
+	   );
+	   
+	   // Track bounds state changes
+	   if (isInBounds !== this.lastInBounds) {
+		   this.addMessage(`Pointer ${isInBounds ? 'entered' : 'left'} button bounds`); // Add a message when the pointer enters or exits the bounds
+		   this.lastInBounds = isInBounds;
+	   }
+
+	   /******* VIRTUAL UI CONTROL SYSTEM *******/
+	   // Action Engine games will ALWAYS be accompanied by engine-level "Virtual UI Controls".
+	   // In addition to all the other inputs that are supported, the input state will contain information about
+	   // these predefined engine-level "Virtual UI Control" buttons (which are all toggleable buttons).
+	   // Internally, most of these handle engine-level features but can be additionally be checked and used for any in-game functionality
+	   // The names of these elements are engine defined, and cannot be changed.
+	   // Note that these also have the pressed/just pressed variations:
+	   
+
+	   // "Virtual UI" input handling
+	   if (this.input.isUIButtonPressed('soundToggle')) { 
+		   this.addMessage('Sound button pressed');
+	   }
+	   
+	   if (this.input.isUIButtonPressed('fullscreenToggle')) { // Using isUIButtonPressed
+		   this.addMessage('Fullscreen button pressed');
+	   }
+	   if (this.input.isUIButtonJustPressed('controlsToggle')) { // Using isUIButtonJustPressed
+		   this.addMessage('Controls button pressed');
+	   }
+	   
+	   // But counter-intuitively, the Virtual UI `pauseButton` does not do what it says on the tin.
+	   // The engine-level functionality of this `pausebutton` still leaves the pause logic for the game up to the developer.
+	   // The intention is for the developer to use it as the "pause" button in their game, but leave all systems running internally so the developer can still customize logic flow when paused.
+	   if (this.input.isUIButtonJustPressed('pauseButton')) { 
+		   this.addMessage('Pause button just pressed');
+	   }
+	   
+	   
+	   /*-----------------
+	   * THE INTERACTIVE "ELEMENT" SYSTEM:
+	   * -----------------
+	   * Action Engine's input handling systems also track the state of registered "elements".
+	   * It's kind of a fancy way to say "button" because that's mostly it's intended purpose, though they are fairly customizable.
+	   * The DEMO shows different ways to utilize the element information from the input state.
+	   * This allows for these features which are demonstrated in the DEMO:
+	   * - Hoverable buttons that provide visual feedback
+	   * - Click/tap detection with both edge (just pressed) and continuous (held) states
+	   * - Automatic touch/mouse/pointer handling
+	   * - Multiple UI layers (game, GUI, debug) for organized interaction zones
+	   * 
+	   * But the sky's the limit! We're hoping the system has enough flex to really let the developer get creative!
+	   */
+	  
+	   // The DEMO uses these elements as "buttons" to showcase the element interaction system.
+	   // But developers could use this setup for any "clickable/tappable" object
+	  
+	   // When the registered element named 'button1' is "just pressed"
+	   if (this.input.isElementJustPressed('button1')) {
+			const newActiveState = !this.input.isElementActive('inactiveButton');
+			this.input.state.elements.gui.get('inactiveButton').isActive = newActiveState;  // Update the input state with this button's isActive property
+			this.inactiveButton.color = newActiveState ? '#00f0f0' : '#666666';  // Update the button's appearance
+			this.addMessage(`Inactive button ${newActiveState ? 'enabled' : 'disabled'}`); // Add a message to debug log to show state changes
+			this.totalClicks++; // Simple button click counter
+	   }
+	   if (this.input.isElementJustPressed('button2')) {         
+		   this.addMessage('Button 2 was just pressed!');        
+		   this.audio.play('sound5');                           
+		   this.totalClicks++; // Only fires once per button being "just pressed", meaning it won't repeat this action                                  
+	   }
+	   
+	   if (this.input.isElementJustPressed('button3')) {
+		   this.totalClicks++;
+	   }
+	   
+	   // Yet another example of button "hold detection" for sustained actions
+	   if (this.input.isElementPressed('button3')) {
+		   this.addMessage('Button 3 is being held down'); // Don't update the click counter here because of the repeated input
+		   this.audio.play('sound6');
+	   }
+	   
+	   /******* ELEMENT HOVER STATE TRACKING *******/
+	   // The input system tracks hover states internally.
+	   // The developer could use this information to to know when the pointer is "hovering" over any element.
+	   // The intention is to make it easy for the developer to create objects that have visual feedback.
+	   
+	   // The DEMO stores these states so later on in drawButton() it changes these button colors when the are "hovered"
+	   this.button1.hovered = this.input.isElementHovered('button1');  // Continuous hover checks
+	   this.button2.hovered = this.input.isElementHovered('button2');         
+	   this.button3.hovered = this.input.isElementHovered('button3');         
+
+	   // isElementJustHovered() detects the exact moment hovering begins for edge-triggering
+	   // The DEMO logs the "just hovered" event to demonstrate the one-shot hover detection
+	   if (this.input.isElementJustHovered('button1')) {     // JUST HOVERED
+			this.addMessage('Button JUST hovered');              
+	   }
+
+	   
+	   /******* ELEMENT ACTIVE STATE CHECKS *******/
+	   // isElementActive() lets you check if an element is enabled for interaction
+	   // The developer could use this to create UI systems with elements that can be toggled
+	   // The actual "clicking" logic still fires, but this API call allows a quick check to see if the action should be allowed or not
+	   
+	   // The DEMO just adds a message showing the status of the button:
+	   if (this.input.isElementPressed('inactiveButton')) { // Continuous check
+			if (this.input.isElementActive('inactiveButton')) {
+				this.addMessage('Clicking an active button!');
+			} else {
+				this.addMessage('Button is inactive - click Button 1 to activate it!');
+			}
+	   }
+
+	   // When active, the button functions like any other interactive element
+	   if (this.input.isElementJustPressed('inactiveButton') && this.input.isElementActive('inactiveButton')) { // JUST PRESSED
+			this.audio.play('victory');
+			this.totalClicks++;
+	   }
+	   
+	   /******* SPECIAL ELEMENT STATE CHECKING *******/
+	   
+	   // These elements are specially registered to canvases other than the guiCanvas layer.
+	   // Action Engine still treats them the same internally, and thier information is added to the input state.
+	   // These actions will "click through" Action Engine's three-layer system.
+	   // Remember: Events flow from debugCanvas -> guiCanvas -> gameCanvas, in that order.
+	   
+	   // Here the DEMO uses the special 'gameElement' element to stop the sounds in the audio system:
+	   if (this.input.isElementJustPressed('gameElement', 'game')) {
+		   this.audio.stopAllSounds();
+		   this.addMessage('gameCanvas element pressed! All sounds stopped.');
+		   this.totalClicks++; // This button still can effect logic regardless of it's layer
+	   }
+	   
+	   // Here the DEMO checks the input state of the special `debugButton` element that is only visible on the debugCanvas
+	   if (this.input.isElementJustPressed('debugButton', 'debug')) {
+		   this.debugButton.guiHidden = !this.debugButton.guiHidden;
+		   this.debugButton.text = this.debugButton.guiHidden ? 'Show GUI' : 'Hide GUI';
+		   this.guiCanvas.style.display = this.debugButton.guiHidden ? 'none' : 'block';  // Show or hide the guiCanvas
+		   this.addMessage('Debug button toggled GUI visibility');
+	   }
+
+	   /*-----------------
+	   * A REVIEW ON HOW TO HANDLE INPUT:
+	   * -----------------
+	   * The input state can be checked at any time for a reliable way for the developer to handle user input.
+	   *
+	   * Here is what the developer can expect to find in the input state:
+	   * 
+	   *  - Keyboard Key states (including "Virtual Input Control" keys and the engine-level (ActionToggleDebug) key which is toggled off on boot)
+	   *  - Multiple pointer type state support (mouse or touch)
+	   *  - Virtual UI Control button states
+	   *  - Registered "element" states
+	   *
+	   * Generally speaking, there should be enough information in the input state to handle just about every kind of input the developer should need.
+	   * With all this input information, games should be easily useable on multiple platforms. It's a smorgasboard of digital delight!
+	   * -----------------
+	   */
+		
+	   // There might even be too much info! I guess it's better to be redundant, options are always nice.
+	   // Here the DEMO cleverly uses the information in the game state to achieve similar checks to other available API calls
+	   if (this.button1.hovered && this.input.isPointerDown()) { // Combine hover and click states to achieve a similar result to isElementPressed()
+		   this.addMessage('Special check works too!');
+	   }
+	   
+	   // Demo specific 3D cube update orbit logic
+	   if (Game.DEMO_RENDER_MODE === '3d') {
+		   // Update orbit angle
+		   this.orbitAngle += this.orbitSpeed;
+		
+		   // Calculate new position using Action Engine provided Vector3
+		   this.position.x = Math.cos(this.orbitAngle) * this.orbitRadius;
+		   this.position.z = Math.sin(this.orbitAngle) * this.orbitRadius - 6;
+		
+		   // Update cube rotation
+		   this.rotationX += 0.01;
+		   this.rotationY += 0.01;
+	   } else {
+		   
+		   // Apply ship velocity and friction
+		   this.shipPosition.add(this.shipVelocity);
+		   this.shipVelocity.scale(this.friction);
+
+		   // Wrap ship around screen
+		   if (this.shipPosition.x < 0) this.shipPosition.x = Game.WIDTH;
+		   if (this.shipPosition.x > Game.WIDTH) this.shipPosition.x = 0;
+		   if (this.shipPosition.y < 0) this.shipPosition.y = Game.HEIGHT;
+		   if (this.shipPosition.y > Game.HEIGHT) this.shipPosition.y = 0;
+		   
+		   // In update(), after ship position wrapping:
+			// Update ball position
+			this.ballPosition.add(this.ballVelocity);
+			this.ballRotation += this.ballSpinSpeed;
+
+			// Ball screen wrapping
+			if (this.ballPosition.x < -this.ballRadius) this.ballPosition.x = Game.WIDTH + this.ballRadius;
+			if (this.ballPosition.x > Game.WIDTH + this.ballRadius) this.ballPosition.x = -this.ballRadius;
+			if (this.ballPosition.y < -this.ballRadius) this.ballPosition.y = Game.HEIGHT + this.ballRadius;
+			if (this.ballPosition.y > Game.HEIGHT + this.ballRadius) this.ballPosition.y = -this.ballRadius;
+
+			// Ship-ball collision detection
+			const dx = this.shipPosition.x - this.ballPosition.x;
+			const dy = this.shipPosition.y - this.ballPosition.y;
+			const distance = Math.sqrt(dx * dx + dy * dy);
+
+			if (distance < this.ballRadius + 20) { // 20 is approximate ship radius
+				// Calculate collision angle
+				const collisionAngle = Math.atan2(dy, dx);
+				
+				// Ball rebounds off ship
+				const speed = Math.sqrt(this.ballVelocity.x * this.ballVelocity.x + 
+									  this.ballVelocity.y * this.ballVelocity.y);
+				this.ballVelocity.x = -Math.cos(collisionAngle) * speed;
+				this.ballVelocity.y = -Math.sin(collisionAngle) * speed;
+				
+				// Add ship's velocity to ball
+				this.ballVelocity.add(this.shipVelocity);
+				
+				// Play bounce sound
+				this.audio.play('sound3');
+			}
+	   }
+	}
+
+	/**
+	 * drawButton(button)
+	 *
+	 * Renders a button with hover effects and centered text on the GUI layer
+	 * @param {Object} button - The button object to render
+	 *
+	 * Before we got here, we stored some information on the "hover" state of our buttons class-wide.
+	 * The DEMO will use the information it stores from the input state to draw the buttons in a different style when "hovered".
+	 */
+	drawButton(button) {
+		// Use guiCtx instead of ctx since buttons are UI elements
+		this.guiCtx.save();
+
+		// Draw button background with "hover" effect
+		this.guiCtx.fillStyle = button.hovered ? '#00b0b0' : button.color;
+		this.guiCtx.strokeStyle = '#ffffff';
+		this.guiCtx.lineWidth = 2;
+
+		this.guiCtx.beginPath();
+		this.guiCtx.roundRect(
+			button.x,
+			button.y,
+			button.width,
+			button.height,
+			8
+		);
+		this.guiCtx.fill();
+		this.guiCtx.stroke();
+
+		// Draw centered button text
+		this.guiCtx.fillStyle = '#ffffff';
+		this.guiCtx.font = '20px Orbitron';
+		this.guiCtx.textAlign = 'center';
+		this.guiCtx.textBaseline = 'middle';
+		this.guiCtx.fillText(
+			button.text,
+			button.x + button.width/2,
+			button.y + button.height/2
+		);
+
+		this.guiCtx.restore();
+	}
+
+
+	 /**
+	 * drawCube()
+	 *
+	 * Renders a 3D textured cube with rotation when DEMO_RENDER_MODE is set to 3d. 
+	 * Here the DEMO relies on the built-in Matrix4 class which is immediately acessable through the Action Engine.
+	 * Matrix4 is one of the 3 engine-level provided mathematics classes.
+	 */
+	drawCube() {
+		this.gl.clearColor(0.0, 0.0, 0.0, 1.0);
+		this.gl.clearDepth(1.0);
+		this.gl.enable(this.gl.DEPTH_TEST);
+		this.gl.depthFunc(this.gl.LEQUAL);
+
+		this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+
+		const fieldOfView = 45 * Math.PI / 180;
+		const aspect = this.gl.canvas.clientWidth / this.gl.canvas.clientHeight;
+		const zNear = 0.1;
+		const zFar = 100.0;
+		const projectionMatrix = Matrix4.create();
+
+		Matrix4.perspective(projectionMatrix,
+						fieldOfView,
+						aspect,
+						zNear,
+						zFar);
+
+		const modelViewMatrix = Matrix4.create();
+
+		Matrix4.translate(modelViewMatrix,
+					   modelViewMatrix,
+					   [-0.0, 0.0, -6.0]);
+
+		Matrix4.rotate(modelViewMatrix,
+					modelViewMatrix,
+					this.rotationX,
+					[1, 0, 0]);
+
+		Matrix4.rotate(modelViewMatrix, // Matrix4 has all these methods, and many other commonly utilized methods for game development
+					modelViewMatrix,
+					this.rotationY,
+					[0, 1, 0]);
+
+       // Bind position buffer
+       this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.positionBuffer);
+       this.gl.vertexAttribPointer(
+           this.programInfo.attribLocations.vertexPosition,
+           3,
+           this.gl.FLOAT,
+           false,
+           0,
+           0);
+       this.gl.enableVertexAttribArray(this.programInfo.attribLocations.vertexPosition);
+
+       // Bind texture coordinate buffer
+       this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.textureCoordBuffer);
+       this.gl.vertexAttribPointer(
+           this.programInfo.attribLocations.textureCoord,
+           2,
+           this.gl.FLOAT,
+           false,
+           0,
+           0);
+       this.gl.enableVertexAttribArray(this.programInfo.attribLocations.textureCoord);
+
+       // Bind index buffer
+       this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer);
+
+       this.gl.useProgram(this.programInfo.program);
+
+       this.gl.uniformMatrix4fv(
+           this.programInfo.uniformLocations.projectionMatrix,
+           false,
+           projectionMatrix);
+       this.gl.uniformMatrix4fv(
+           this.programInfo.uniformLocations.modelViewMatrix,
+           false,
+           modelViewMatrix);
+
+       this.gl.activeTexture(this.gl.TEXTURE0);
+       this.gl.bindTexture(this.gl.TEXTURE_2D, this.texture);
+       this.gl.uniform1i(this.programInfo.uniformLocations.uSampler, 0);
+
+       this.gl.drawElements(this.gl.TRIANGLES, 36, this.gl.UNSIGNED_SHORT, 0);
+   }
+
+	/*
+	* draw()
+	*/
+	
+	draw() {
+		/*
+		* Remember, Action Engine supports both 2D and 3D rendering.
+		* The demo shows the potential of the three-layer system by separating drawing accross these layers.
+		* Here the different but complimentary core concepts are drawn separately, layer by layer.
+		* Each layer serves a specific purpose, and the three-layer system allows for harmony.
+		*/
+		
+		/******* GAME LAYER RENDERING *******/
+		/*
+		* GAME LAYER (this.ctx or this.gl):
+		* - This is the main game's content rendering canvas
+		* - The DEMO can be configured to show the Action Engine's compatiblity with both 2D and 3D canvases
+		* - 2D Mode: Perfect for sprite-based games, platformers, etc
+		* - 3D Mode: Great for WebGL content, 3D games, etc
+		* In the DEMO, the context type is automatically handled and set to either 2D and 3D based on DEMO_RENDER_MODE
+		*/
+		if (Game.DEMO_RENDER_MODE === '3d') {
+			// 3D rendering path
+			this.drawScene3D();
+		} else {
+			// 2D rendering path
+			this.drawScene2D();
+		}
+		
+		/******* GUI LAYER RENDERING *******/
+		/*
+		*  THE GUI LAYER (this.guiCtx):
+		* - Always 2D for crisp UI rendering
+		* - Intended use: Buttons, menus, HUD elements
+		* - Stays pixel-perfect in both render modes
+		*/
+		this.drawGUILayer();
+		
+		/******* DEBUG LAYER RENDERING *******/
+		/*
+		* THE DEBUG LAYER (this.debugCtx):
+		* - Development tools and debug info
+		* - Toggle with F9
+		* - Always renders on top
+		*/
+		if (this.showDebug) {
+			this.drawDebugLayer();
+		}
+	}
+	
+	/**
+	* drawScene3D()
+	* 
+	* WEBGL RENDERING IMPLEMENTATION
+	* - Manages the WebGL state
+	* - Heavily relies on WebGL operations
+	* - Uses the Action Engine provided Matrix4 operations
+	* - Renders 3D objects (currently a demo cube)
+	* - Handles camera and perspective
+	**/
+	// The DEMO handles all 3D rendering for the game layer when gameCanvas is in 3D mode.
+	drawScene3D() {
+		// Clear and set up WebGL state
+		this.gl.clearColor(0.0, 0.0, 0.0, 1.0);
+		this.gl.clearDepth(1.0);
+		this.gl.enable(this.gl.DEPTH_TEST);
+		this.gl.depthFunc(this.gl.LEQUAL);
+		this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+
+		// Set up camera perspective
+		const fieldOfView = 45 * Math.PI / 180;
+		const aspect = this.gl.canvas.clientWidth / this.gl.canvas.clientHeight;
+		const projectionMatrix = Matrix4.perspective(
+			Matrix4.create(),
+			fieldOfView,
+			aspect,
+			0.1,  // Near clipping plane
+			100.0 // Far clipping plane
+		);
+
+		// Create and transform the model view matrix
+		const modelViewMatrix = Matrix4.create();
+		Matrix4.translate(modelViewMatrix, modelViewMatrix, 
+		[this.position.x, this.position.y, this.position.z]);
+		Matrix4.rotate(modelViewMatrix, modelViewMatrix, this.rotationX, [1, 0, 0]);
+		Matrix4.rotate(modelViewMatrix, modelViewMatrix, this.rotationY, [0, 1, 0]);
+
+		// Bind vertex buffers and attributes
+		this.bindBuffersForCube();
+		
+		// Set shader program and uniforms
+		this.gl.useProgram(this.programInfo.program);
+		this.setMatrixUniforms(projectionMatrix, modelViewMatrix);
+		
+		// Draw the cube
+		this.gl.drawElements(this.gl.TRIANGLES, 36, this.gl.UNSIGNED_SHORT, 0);
+	}
+
+	/**
+	* drawScene2D()
+	* 
+	* EXAMPLE OF 2D CANVAS RENDERING IMPLEMENTATION
+	* Handles all 2D rendering for the game layer when gameCanvas is in 2D mode.
+	* - Hevily relies on CanvasRenderingContext2D (ctx)
+	* - Clears and sets up 2D canvas
+	* - Renders game elements in 2D space
+	* - Supports sprites, shapes, and text
+	**/
+	drawScene2D() {
+		// Clear the 2D canvas
+		this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+		
+		// Add a space-like background
+		this.ctx.fillStyle = '#000033';
+		this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+		// Draw ship
+		this.ctx.save();
+		this.ctx.translate(this.shipPosition.x, this.shipPosition.y);
+		this.ctx.rotate(this.shipRotation);
+		
+		// Draw triangular ship
+		this.ctx.beginPath();
+		this.ctx.moveTo(0, -20);  // nose
+		this.ctx.lineTo(-15, 20); // left wing
+		this.ctx.lineTo(15, 20);  // right wing
+		this.ctx.closePath();
+		
+		this.ctx.strokeStyle = '#00ff00';
+		this.ctx.lineWidth = 2;
+		this.ctx.stroke();
+		
+		// Draw thrust if moving forward
+		if (this.input.isKeyPressed('DirUp')) {
+			this.ctx.beginPath();
+			this.ctx.moveTo(-8, 20);
+			this.ctx.lineTo(0, 30);
+			this.ctx.lineTo(8, 20);
+			this.ctx.strokeStyle = '#ff0000';
+			this.ctx.stroke();
+		}
+		
+		this.ctx.restore();
+		// Draw soccer ball
+	this.ctx.save();
+	this.ctx.translate(this.ballPosition.x, this.ballPosition.y);
+	this.ctx.rotate(this.ballRotation);
+
+	// Create pseudo-3D effect with gradient
+	const gradient = this.ctx.createRadialGradient(
+		-5, -5, 1,
+		-5, -5, this.ballRadius * 2
+	);
+	gradient.addColorStop(0, '#ffffff');
+	gradient.addColorStop(1, '#cccccc');
+
+	// Draw main ball circle
+	this.ctx.beginPath();
+	this.ctx.arc(0, 0, this.ballRadius, 0, Math.PI * 2);
+	this.ctx.fillStyle = gradient;
+	this.ctx.fill();
+
+	// Draw pentagon pattern
+	const segments = 5;
+	const angleStep = (Math.PI * 2) / segments;
+	for (let i = 0; i < segments; i++) {
+		const angle = i * angleStep;
+		
+		this.ctx.beginPath();
+		this.ctx.moveTo(0, 0);
+		this.ctx.lineTo(
+			Math.cos(angle) * this.ballRadius,
+			Math.sin(angle) * this.ballRadius
+		);
+		this.ctx.lineTo(
+			Math.cos(angle + angleStep) * this.ballRadius,
+			Math.sin(angle + angleStep) * this.ballRadius
+		);
+		this.ctx.closePath();
+		this.ctx.fillStyle = i % 2 === 0 ? '#000000' : '#ffffff';
+		this.ctx.globalAlpha = 0.3;
+		this.ctx.fill();
+	}
+
+	// Draw highlight
+	this.ctx.beginPath();
+	this.ctx.arc(-5, -5, this.ballRadius/3, 0, Math.PI * 2);
+	this.ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+	this.ctx.fill();
+
+	this.ctx.restore();
+		// Draw 2D game elements
+		this.ctx.save();
+		this.drawGameElement2D();
+		this.ctx.restore();
+	}
+
+	/**
+	* drawGameElement2D()
+	* 
+	* EXAMPLE OF 2D GAME ELEMENT RENDERING
+	* Example of how to render interactive game elements in 2D mode.
+	* Demonstrates:
+	* - Shape drawing
+	* - Hover effects
+	* - Text rendering
+	**/
+	
+	// Action Engine relies heavily on CanvasRenderingContext2D (ctx) for most of it's drawing operations
+	drawGameElement2D() {
+		this.ctx.fillStyle = this.input.isElementHovered('gameElement', 'game') 
+			? '#66ff66' 
+			: this.gameElement.color;
+			
+		this.ctx.fillRect(
+			this.gameElement.x,
+			this.gameElement.y,
+			this.gameElement.width,
+			this.gameElement.height
+		);
+		
+		// Add text to the element
+		this.ctx.fillStyle = '#000000';
+		this.ctx.font = '16px Orbitron';
+		this.ctx.textAlign = 'center';
+		this.ctx.fillText(
+			this.gameElement.text,
+			this.gameElement.x + this.gameElement.width/2,
+			this.gameElement.y + this.gameElement.height/2
+		);
+	}
+
+	/**
+	* drawGUILayer()
+	* 
+	* EXAMPLE UTILIZING THE GUI RENDERING SYSTEM
+	* Here the DEMO draws all UI elements consistently across both render modes
+	* The guiCanvas is a 2D context, so even when rendering 3D we can easily draw 2D UI and interactive elements.
+	* - Renders buttons, stats, and other UI elements
+	* - Maintains crisp rendering regardless of game layer mode
+	* - Handles hover effects and interactive elements
+	**/
+	drawGUILayer() {
+		// Clear the GUI canvas
+		this.guiCtx.clearRect(0, 0, this.guiCanvas.width, this.guiCanvas.height);
+		
+		/******* RENDER ALL BUTTONS *******/
+		// Draw all interactive elements including our special inactive button
+		// The standard drawButton method handles hover effects and text rendering
+		// Buttons are drawn in order of definition
+		[this.button1, this.button2, this.button3, this.inactiveButton].forEach(button => {
+			this.drawButton(button);
+		});
+		
+		// Draw stats display
+		this.drawStatsDisplay();
+	}
+
+	/**
+	* drawDebugLayer()
+	* 
+	* EXAMPLE UTILIZING THE DEBUG VISUALIZATION SYSTEM
+	* Here the DEMO draws development tools and real-time debugging information to the always available debugCanvas.
+	* - Renders debug messages
+	* - Shows system state
+	* - Displays performance metrics
+	**/
+	drawDebugLayer() {
+		// Clear the debug canvas
+		this.debugCtx.clearRect(0, 0, this.debugCanvas.width, this.debugCanvas.height);
+		
+		// Draw debug button
+		this.drawDebugButton();
+		
+		// Draw message log
+		this.drawDebugMessages();
+	}
+	
+	
+	/**
+	* bindBuffersForCube()
+	*
+	* WEBGL BUFFER BINDING
+	* Here the DEMO handles the setup and binding of all vertex buffers needed for cube rendering.
+	* Though some operations like Matrix4 or Vector2/3 are provided, most of the custom math responsibilities are still left
+	* up to the developer.
+	* - Binds vertex positions
+	* - Binds texture coordinates
+	* - Sets up element array for indexed drawing
+	**/
+	bindBuffersForCube() {
+		// Bind position buffer
+		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.positionBuffer);
+		this.gl.vertexAttribPointer(
+			this.programInfo.attribLocations.vertexPosition,
+			3,        // 3 components per vertex
+			this.gl.FLOAT,
+			false,    // Don't normalize
+			0,        // No stride
+			0         // Start at beginning of buffer
+		);
+		this.gl.enableVertexAttribArray(this.programInfo.attribLocations.vertexPosition);
+
+		// Bind texture coordinate buffer
+		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.textureCoordBuffer);
+		this.gl.vertexAttribPointer(
+			this.programInfo.attribLocations.textureCoord,
+			2,        // 2 components per texture coord
+			this.gl.FLOAT,
+			false,    // Don't normalize
+			0,        // No stride
+			0         // Start at beginning of buffer
+		);
+		this.gl.enableVertexAttribArray(this.programInfo.attribLocations.textureCoord);
+
+		// Bind index buffer
+		this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer);
+	}
+
+	/**
+	* setMatrixUniforms(projectionMatrix, modelViewMatrix)
+	*
+	* DEMO SPECIFIC
+	* 
+	* @param {Float32Array} projectionMatrix - The camera projection matrix
+	* @param {Float32Array} modelViewMatrix - The model-view transformation matrix
+	*
+	* setMatrixUniforms() is created here because it is NOT part of the 3 engine-level accessable mathematics classes
+	*
+	* Here the DEMO updates the shader uniforms with current transformation matrices:
+	**/
+	setMatrixUniforms(projectionMatrix, modelViewMatrix) {
+		this.gl.uniformMatrix4fv(
+			this.programInfo.uniformLocations.projectionMatrix,
+			false,
+			projectionMatrix
+		);
+		this.gl.uniformMatrix4fv(
+			this.programInfo.uniformLocations.modelViewMatrix,
+			false,
+			modelViewMatrix
+		);
+
+		// Set up texture
+		this.gl.activeTexture(this.gl.TEXTURE0);
+		this.gl.bindTexture(this.gl.TEXTURE_2D, this.texture);
+		this.gl.uniform1i(this.programInfo.uniformLocations.uSampler, 0);
+	}
+
+	/**
+	* drawStatsDisplay()
+	* DEMO SPECIFIC FUNCTIONALITY
+	* EXAMPLE OF DRAWING TO THE GUICANVAS
+	* Here the DEMO draws to the always 2D guiCanvas, regardless of gameCanvas being in 3d or 2d
+	* allowing for example UI or other interactive elements separately in the three-layer system.
+	* Renders a basic ugly stats overlay in the corner.
+	* Shows game statistics like total clicks and button count.
+	**/
+	
+	// Action Engine still relies heavily on CanvasRenderingContext2D (ctx) for most of it's drawing operations
+	drawStatsDisplay() {
+		this.guiCtx.save();
+		this.guiCtx.font = '20px Orbitron';
+		
+		// Calculate stats box dimensions
+		const statsText = `Total Clicks: ${this.totalClicks}`;
+		const buttonText = `Buttons: ${this.totalButtons}`;
+		const textWidth = Math.max(
+			this.guiCtx.measureText(statsText).width,
+			this.guiCtx.measureText(buttonText).width
+		);
+		
+		const padding = 15;
+		const boxHeight = 70;
+		const boxWidth = textWidth + (padding * 2);
+		const boxX = this.guiCanvas.width - boxWidth - 20;
+		const boxY = 20;
+
+		// Create a semi-transparent box
+		this.guiCtx.fillStyle = 'rgba(10, 10, 42, 0.85)';
+		this.guiCtx.beginPath();
+		this.guiCtx.roundRect(boxX, boxY, boxWidth, boxHeight, 8);
+		this.guiCtx.fill();
+
+		// Add a subtle border
+		this.guiCtx.strokeStyle = 'rgba(0, 240, 240, 0.3)';
+		this.guiCtx.lineWidth = 2;
+		this.guiCtx.stroke();
+
+		// Draw stats text
+		this.guiCtx.fillStyle = '#00f0f0';
+		this.guiCtx.textAlign = 'left';
+		this.guiCtx.fillText(statsText, boxX + padding, boxY + 30);
+		this.guiCtx.fillText(buttonText, boxX + padding, boxY + 55);
+
+		this.guiCtx.restore();
+	}
+
+	/**
+	* drawDebugButton()
+	* 
+	* Here the DEMO shows the utilization of interactive elements on the debugCanvas.
+	* The debugCanvas is totally separate from the guiCanvas, so you can separate out your debug logic display cleanly.
+	* But that's not all! The developer can even register interactable elements directly to the debug layer!
+	* Being on any layer doesn't limit the potential of the elements usefulness to the other layers.
+	* This means that interacting with or checking the state of elements on ANY layer can influence logic for any and ALL layers.
+	* The DEMO intends to show how the developer can use the debug UI interactive element to control other aspects
+    * of the system, like toggling the visibility of the UI layer, though the demo is just drawing it here, Action Engine's three-layer system's
+	* usefulnees cannot be understated.
+	*/
+	
+	// Renders the debug layer UI toggle button
+	drawDebugButton() {
+		this.debugCtx.save();
+		this.debugCtx.fillStyle = this.debugButton.color;
+		if (this.input.isElementHovered('debugButton', 'debug')) {
+			this.debugCtx.fillStyle = '#ff6666';
+		}
+		this.debugCtx.fillRect(
+			this.debugButton.x,
+			this.debugButton.y,
+			this.debugButton.width,
+			this.debugButton.height
+		);
+		this.debugCtx.fillStyle = '#ffffff';
+		this.debugCtx.font = '16px Orbitron';
+		this.debugCtx.textAlign = 'center';
+		this.debugCtx.fillText(
+			this.debugButton.text,
+			this.debugButton.x + this.debugButton.width/2,
+			this.debugButton.y + this.debugButton.height/2
+		);
+		this.debugCtx.restore();
+	}
+
+	/**
+	* drawDebugMessages()
+	* 
+	* The DEMO uses the debugCanvas for something more traditional: a crappy debug console.
+	* This canvas being one part of the three-layer system allows for the developer to keep the verbose debug information separate from the guiCanvas or gameCanvas.
+	* The intended use of the debugCanvas would be to show helpful debug information, but be able to quickly show/hide the walls of text.
+	* In update(), the demo checks if the user presses the (ActionDebugToggle) key, and toggles the visibility of the debugCanvas.
+	* Reminder: The the debugCanvas is by default hidden, information displayed on this canvas will only be seen if the debugCanvas is visible.
+	*/
+	
+	// The DEMO draws the crudely constructed "debug message log"
+	drawDebugMessages() {
+		this.debugCtx.font = '14px monospace';
+		this.debugCtx.fillStyle = '#00ff00';
+		
+		this.messages.forEach((msg, i) => {
+			this.debugCtx.fillText(
+				msg, 
+				this.padding, 
+				this.debugCanvas.height - (this.padding + i * this.lineHeight)
+			);
+		});
+
+		// Draw debug header
+		this.debugCtx.fillText(
+			`Debug Mode (F9 to toggle)`, 
+			this.padding, 
+			this.padding + 20
+		);
+	}
+	
+   /**
+    * A standard "game loop" that drives updates and rendering.
+    */
+   loop() {
+       this.update();
+       this.draw();
+       requestAnimationFrame(() => this.loop());
+   }
+}
+
+
+// Export Game class
+window.Game = Game;
+```
+
+So like, the idea was to be able to tell AI like, yo, all this stuff is working great, study how the Game class works and then make a game using the system we've built here by ONLY supplying the Game class (and any other classes Game needs that aren't part of the existing system).
+
+The key insight is: The example shows the PATTERNS for input handling and animation - use those patterns but feel free to respond to input however your game needs to.
+
+Your purpose is to complete a TASK of creating a programming project by utilizing the classes in the Action Engine that you have no idea about, so you must follow the PATTERN of the Template.
+
+Additonal classes which complement the Game class is ok. I think by the end of this you should feel confident that you could make ANOTHER GAME using the API available and referenced in the template.
+
+Upon detailed inspection you can see that the template isn't just showing a working example - it's showing the required patterns for working with the EXTERNAL input, audio, and display systems. Follow these patterns first, THEN add your game mechanics on top.
+
+Structure the game around core foundational data points and state management. Each game element should have clear, well-defined properties that serve as single sources of truth (position, velocity, state, etc.). Use consistent data structures that can be easily referenced, modified, and extended.
+
+The codebase should be lean but complete - every variable and function should serve an immediate purpose while maintaining clean interfaces for future expansion.
+
+Example architecture priorities:
+	- Central game state object with predictable structure
+	- Entity components with standardized properties
+	- Collision, position, and boundary data that can be reliably referenced
+	- Clear relationships between game elements (player->projectiles, enemies->drops)
+	- State machines for complex behaviors
+
+AVOID premature abstraction or speculative utility functions. Code should be minimal but robust, with each data point serving as a reliable foundation for current gameplay and future features. Write only what's needed now, but ensure what's written is solid enough to build upon later.
+
+
+
+
+It theory, your TASK will be easy. Normally cumbersome game framework buildouts like input and audio and everything are handled for you. It's the game developer's dream, to just ONLY work on the game and game logic.
+
+	- External systems handle scaling the fixed-size gameCanvas (as well as guiCanvas and debugCanvas canvases) to fit ANY display properly. 
+	
+	- You can expect to do anything you need to to these canvases and not experience any interference with external Action Engine systems.
+
+	- All the inputs will be handled by the external InputManager (here refered to as `input`) which handles maintaining an input state. The Game class will just check the state of inputs for input handling through an API. Reference the template example for all input types, there is an example for each one.
+
+	- All sounds and playback will be handled by the external SoundManager (here refered to as 'audio') wich maintains an audio library and handles playback. Reference the template API calls to this external class for creating your sounds and playing them.
+
+
+I don't want you to take any design or programming logic from the demo, especially any sytlistic or design decisions. It's intended design is as a DEMO, but in reality it's purpose is to be a documented artifact to help explain how to interface with Action Engine's systems.
+
+I want you to see the example so you can get a feel of the correct ways to interface with Action Engine, but I don't want the terrible style to like to stifle your creativity.
+
+Instead I want to inform you of these few requirements:
+
+	- DirUp/DLR and Action1-4 are the hardcoded inputs you have available as far as "key inputs" go, touch/mouse is supported also
+
+	- All visuals, ui and interactable objects MUST be contained in the constructor's provided `canvas`
+
+	- Set up the game with a fixed 800x600 internal resolution that never changes:
+		- Use this fixed coordinate space as your reliable "world" size
+		- Game logic always runs at this fixed size
+		
+	- The game will work, and be playable, from start screen to gameplay to game over
+
+    - There will be NO PLACEHOLDER code
+       - Structure all responses with clear priority order - tackle critical systems first, then build outward
+       - Stay focused on completing each priority level before moving to the next.
+
+	- The games demonstrated are in 2D, but 3D is totally possible, don't limit yourself
+
+!!!I don't want an example, not a basic starting point, but a finished product fully polished stunning release build.!!!
+
+I want you to work with the Action Engine and make a game.  Tell me about how much sense everything makes to you and how you understand the concept and the api calls. Tell me how you understand that the strict, but solid game design philosophy requirements elaborated here are not just for making not just games, but all software, and how you're ready to take on a project that maintains these constraints. Then ask me what game we are going to make.
