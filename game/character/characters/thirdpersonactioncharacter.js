@@ -18,13 +18,12 @@ class ThirdPersonActionCharacter extends ActionCharacter {
             upwardStrength: 10,
             downwardStrength: 10,
             forceSmoothing: 0.1,
-            rayLength: 20,
-            
-            
+            rayLength: 20
         });
         this.cameraDistance = 40;
         this.cameraHeight = 10;
-        
+        this.cameraRotationX = 0; // Vertical rotation
+        this.cameraRotationY = 0; // Horizontal rotation
         // Get the body out of the controller
         this.body = this.controller.body;
         this.body.position.set(0, 500, 0);
@@ -46,7 +45,45 @@ class ThirdPersonActionCharacter extends ActionCharacter {
             this.camera.handleDetachedInput(input, deltaTime);
             return;
         }
+        // Handle pointer lock with Action7 (C key)
+if (input.isKeyJustPressed("Action7")) {
+    if (document.pointerLockElement) {
+        document.exitPointerLock();
+    } else {
+        document.body.requestPointerLock();
+    }
+}
 
+        
+
+        // Update camera rotation based on pointer movement when locked
+         if (document.pointerLockElement) {
+        // Use a constant factor for mouse sensitivity
+        const mouseSensitivity = 0.002;
+
+        // Get movement since last frame, not absolute position
+        const movement = {
+            x: input.pointer.movementX || 0,
+            y: input.pointer.movementY || 0
+        };
+
+        // Update camera rotation based on mouse movement
+        this.cameraRotationY -= movement.x * mouseSensitivity;
+        this.cameraRotationX -= movement.y * mouseSensitivity;
+        
+        // Limit vertical rotation
+        this.cameraRotationX = Math.max(-Math.PI/2.5, Math.min(Math.PI/2.5, this.cameraRotationX));
+
+        // Debug output
+        console.log('Mouse Movement:', movement);
+        console.log('Camera Rotation:', {
+            x: this.cameraRotationX,
+            y: this.cameraRotationY
+        });
+    }
+
+
+        // Get input direction relative to camera
         const viewMatrix = this.camera.getViewMatrix();
         const moveDir = new Goblin.Vector3();
 
@@ -68,6 +105,12 @@ class ThirdPersonActionCharacter extends ActionCharacter {
             moveDir.z -= viewMatrix.right.z;
         }
 
+        // Normalize the movement vector if moving diagonally
+        if (moveDir.lengthSquared() > 0) {
+            moveDir.normalize();
+        }
+
+        
         this.controller.move(moveDir, deltaTime);
 
         if (input.isKeyPressed("Action1")) {
@@ -80,27 +123,30 @@ class ThirdPersonActionCharacter extends ActionCharacter {
     }
 
     update(deltaTime) {
+    this.controller.update();
+    
+    if (this.body) {
+        const pos = this.body.position;
+        this.position.set(pos.x, pos.y, pos.z);
+        this.basePosition.set(this.position.x, this.position.y - this.size / 2, this.position.z);
         
-        this.controller.update();
+        // Use camera rotation for character facing
+        this.rotation = this.cameraRotationY;
+        this.updateFacingDirection();
         
-        if (this.body) {
-            const pos = this.body.position;
-            this.position.set(pos.x, pos.y, pos.z);
-            this.basePosition.set(this.position.x, this.position.y - this.size / 2, this.position.z);
-
-            const rot = this.body.rotation;
-            this.rotation = Math.atan2(2 * (rot.w * rot.y + rot.x * rot.z), 1 - 2 * (rot.y * rot.y + rot.x * rot.x));
-
-            this.updateFacingDirection();
-            this.updateTerrainInfo();
-        }
-
-        // Handle camera
+        // Update camera position and target
         if (!this.camera.isDetached) {
-            const cameraOffset = new Vector3(-Math.sin(this.rotation) * this.cameraDistance, this.cameraHeight, -Math.cos(this.rotation) * this.cameraDistance);
-
+            const cameraOffset = new Vector3(
+                Math.sin(this.cameraRotationY) * Math.cos(this.cameraRotationX) * this.cameraDistance,
+                Math.sin(this.cameraRotationX) * this.cameraDistance + this.cameraHeight,
+                Math.cos(this.cameraRotationY) * Math.cos(this.cameraRotationX) * this.cameraDistance
+            );
+            
             this.camera.position = this.position.add(cameraOffset);
             this.camera.target = this.position.add(new Vector3(0, this.height / 2, 0));
         }
+        
+        this.updateTerrainInfo();
     }
+}
 }
