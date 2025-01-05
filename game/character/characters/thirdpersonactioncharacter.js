@@ -10,11 +10,21 @@ class ThirdPersonActionCharacter extends ActionCharacter {
             height: this.height,
             depth: this.size,
             mass: 1,
-            moveSpeed: 0.5, // Reduced from 5
-            jumpForce: 30, // Reduced from 300
-            ghostOffset: 5
+            moveSpeed: 0.5,
+            maxSpeed: 30,
+            jump_force: 3,
+            springDamper: 0.5,
+            rideHeight: 4,
+            upwardStrength: 10,
+            downwardStrength: 10,
+            forceSmoothing: 0.1,
+            rayLength: 20,
+            
+            
         });
-
+        this.cameraDistance = 40;
+        this.cameraHeight = 10;
+        
         // Get the body out of the controller
         this.body = this.controller.body;
         this.body.position.set(0, 500, 0);
@@ -70,6 +80,9 @@ class ThirdPersonActionCharacter extends ActionCharacter {
     }
 
     update(deltaTime) {
+        
+        this.controller.update();
+        
         if (this.body) {
             const pos = this.body.position;
             this.position.set(pos.x, pos.y, pos.z);
@@ -84,7 +97,7 @@ class ThirdPersonActionCharacter extends ActionCharacter {
 
         // Handle camera
         if (!this.camera.isDetached) {
-            const cameraOffset = new Vector3(-Math.sin(this.rotation) * 20, 10, -Math.cos(this.rotation) * 20);
+            const cameraOffset = new Vector3(-Math.sin(this.rotation) * this.cameraDistance, this.cameraHeight, -Math.cos(this.rotation) * this.cameraDistance);
 
             this.camera.position = this.position.add(cameraOffset);
             this.camera.target = this.position.add(new Vector3(0, this.height / 2, 0));

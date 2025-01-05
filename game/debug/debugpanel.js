@@ -599,7 +599,7 @@ class DebugPanel {
                 const maxHeight = this.game.terrain.generator.getBaseWorldHeight();
                 const heightPercent = Math.round((terrainHeight / maxHeight) * 100);
                 addLine("Ground Height", `${this.roundTo(terrainHeight, 2)} (${this.roundTo(heightPercent, 1)}%)`);
-
+                */
                 // Camera metrics
                 this.ctx.fillStyle = "#00ff00";
                 addLine("Camera", "");
@@ -623,7 +623,7 @@ class DebugPanel {
                 const camHeight = this.game.camera.position.y - this.game.character.position.y;
                 addLine("Cam Distance", this.roundTo(camDist, 2));
                 addLine("Cam Height", this.roundTo(camHeight, 2));
-
+                
                 // World metrics
                 this.ctx.fillStyle = "#00ff00";
                 addLine("World", "");
@@ -631,9 +631,9 @@ class DebugPanel {
 
                 // Current terrain/biome
                 const characterBase = this.game.character.position.y - this.game.character.size / 2;
-                const heightPercentAtPlayer = (characterBase / maxHeight) * 100;
-                addLine("Height %", Math.round(heightPercentAtPlayer));
-*/
+                //const heightPercentAtPlayer = (characterBase / maxHeight) * 100;
+                //addLine("Height %", Math.round(heightPercentAtPlayer));
+
                 // Triangle info
                 this.ctx.fillStyle = "#00ff00";
                 addLine("Current Triangle", "");

@@ -9,7 +9,7 @@ class ActionCharacter {
         this.facingDirection = new Vector3(0, 0, 1);
         this.rotation = 0;
         this.size = 4;
-        this.height = 8;
+        this.height = 6;
         this.scale = 1; // og 0.575
 
         this.characterModel = this.createDefaultCharacterModel();
@@ -26,7 +26,7 @@ class ActionCharacter {
         // Character model is made out of Triangles
         const halfSize = this.size / 2;
         const halfHeight = this.height / 2;
-        const yOffset = -1; // I mean it works.. but why we gotta offset by 1? All my homies hate off by one errors
+        const yOffset = 0; // I mean it works.. but why we gotta offset by 1? All my homies hate off by one errors
         // Define vertices
         const v = {
             ftl: new Vector3(-halfSize, halfHeight + yOffset, halfSize), // 0
