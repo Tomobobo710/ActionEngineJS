@@ -41,12 +41,15 @@ class POIManager {
     }
 
     generateFishingSpots() {
-        const fishingLocations = this.fishingGenerator.findFishingLocations(50);
-        fishingLocations.forEach(triangle => {
-            const center = this.calculateTriangleCenter(triangle);
-            new FishingSpotMarker(this.physicsWorld, center);
-        });
-    }
+    const fishingLocations = this.fishingGenerator.findFishingLocations(50);
+    this.fishingSpots = []; // Add array to track spots if needed
+    
+    fishingLocations.forEach(triangle => {
+        const center = this.calculateTriangleCenter(triangle);
+        const spot = new FishingSpotManager(this.physicsWorld, center);
+        this.fishingSpots.push(spot); // Optional: track spots for later cleanup
+    });
+}
 
     calculateTriangleCenter(triangle) {
         return new Vector3(

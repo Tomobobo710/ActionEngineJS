@@ -13,7 +13,10 @@ class ActionPhysicsWorld3D {
         this.fixedTimeStep = fixedTimestep;
         this.physicsAccumulator = 0;
         this.lastPhysicsTime = performance.now();
+    
+        this.constraints = new Set(); // Add a set to track constraints
     }
+    
 
     update(deltaTime) {
         if (!this.world) return;
@@ -37,6 +40,16 @@ class ActionPhysicsWorld3D {
             });
         }
     }
+
+    addConstraint(constraint) {
+            if (!constraint) {
+                console.warn("[PhysicsWorld] Attempted to add null constraint");
+                return;
+            }
+            console.log("[PhysicsWorld] Adding constraint:", constraint);
+            this.constraints.add(constraint);
+            this.world.addConstraint(constraint);
+        }
 
     addObject(object) {
         this.objects.add(object);
@@ -75,7 +88,16 @@ class ActionPhysicsWorld3D {
     removeRigidBody(body) {
         this.world.removeRigidBody(body);
     }
-
+    
+    removeConstraint(constraint) {
+        if (!constraint) {
+            console.warn("[PhysicsWorld] Attempted to remove null constraint");
+            return;
+        }
+        this.constraints.delete(constraint);
+        this.world.removeConstraint(constraint);
+    }
+    
     removeObject(object) {
         this.objects.delete(object);
         if (object.body) {
@@ -88,12 +110,19 @@ class ActionPhysicsWorld3D {
             this.world.removeRigidBody(this.terrainBody);
             this.terrainBody = null;
         }
-
+        
         this.objects.forEach(obj => {
             if (obj.body) {
                 this.world.removeRigidBody(obj.body);
             }
         });
+        
+        // Clear all constraints
+        this.constraints.forEach(constraint => {
+            this.world.removeConstraint(constraint);
+        });
+        
+        this.constraints.clear();
         this.objects.clear();
     }
 
