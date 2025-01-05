@@ -19,6 +19,10 @@ class ActionInputHandler {
 			["ShiftLeft", ["Action2"]], // face button down
 			["KeyE", ["Action3"]], // face button right
 			["KeyQ", ["Action4"]], // face button up
+            ["KeyZ", ["Action5"]], // Left Bumper
+            ["KeyX", ["Action6"]], // Right Bumper
+            ["KeyC", ["Action7"]], // Back Button
+            ["KeyF", ["Action8"]], // Start Button
 			["F9", ["ActionDebugToggle"]], // Add this line
 
 			// Numpad keys
