@@ -12,7 +12,6 @@ class ThirdPersonActionCharacter extends ActionCharacter {
             mass: 1,
             moveSpeed: 0.5,
             maxSpeed: 30,
-            jump_force: 3,
             springDamper: 0.5,
             rideHeight: 4,
             upwardStrength: 10,
@@ -30,16 +29,19 @@ class ThirdPersonActionCharacter extends ActionCharacter {
         this.isFirstPerson = false;
         
         
-        // Get the body out of the controller
+        // Get the character body from the controller
         this.body = this.controller.body;
         this.body.position.set(0, 500, 0);
-
+        
         // Fine tune physics properties if needed
         this.body.linear_damping = 0.1;
         this.body.angular_damping = 1;
         this.body.friction = 0.5;
         this.body.restitution = 0.2;
-
+        
+        // Add character body to physics world
+        game.physicsWorld.getWorld().addRigidBody(this.body);
+        
         this.debug = true;
     }
 
@@ -120,16 +122,18 @@ class ThirdPersonActionCharacter extends ActionCharacter {
         this.controller.move(moveDir, deltaTime);
 
         if (input.isKeyPressed("Action1")) {
-            this.controller.jump();
+            //this.controller.jump();
         }
 
         if (input.isKeyJustPressed("ActionDebugToggle")) {
             console.log("Character Debug:", this.controller.getDebugInfo());
         }
+        
+        this.controller.update();
     }
 
     update(deltaTime) {
-        this.controller.update();
+        //this.controller.update();
 
         if (this.body) {
             const pos = this.body.position;
