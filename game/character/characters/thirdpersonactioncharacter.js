@@ -26,7 +26,10 @@ class ThirdPersonActionCharacter extends ActionCharacter {
         this.cameraRotationY = 0; // Horizontal rotation
         this.lastPointerX = null;
         this.lastPointerY = null;
-
+        this.firstPersonHeight = this.height * 0.5; 
+        this.isFirstPerson = false;
+        
+        
         // Get the body out of the controller
         this.body = this.controller.body;
         this.body.position.set(0, 500, 0);
@@ -48,6 +51,11 @@ class ThirdPersonActionCharacter extends ActionCharacter {
             this.camera.handleDetachedInput(input, deltaTime);
             return;
         }
+        
+        if (input.isKeyJustPressed("Action6")) {
+            this.isFirstPerson = !this.isFirstPerson;
+        }
+        
         // Handle pointer lock with Action7 (C key)
         if (input.isKeyJustPressed("Action7")) {
             if (document.pointerLockElement) {
@@ -61,18 +69,24 @@ class ThirdPersonActionCharacter extends ActionCharacter {
         if (document.pointerLockElement) {
             const mouseSensitivity = 0.01;
             const movement = input.getLockedPointerMovement();
-            console.log("Mouse Y movement:", movement.y); 
+
             // Only update camera when lastPointer values change
             if (this.lastPointerX !== movement.x || this.lastPointerY !== movement.y) {
                 this.cameraRotationY -= movement.x * mouseSensitivity;
-                this.cameraRotationX -= movement.y * mouseSensitivity;
+
+                // Invert Y movement in first person mode
+                if (this.isFirstPerson) {
+                    this.cameraRotationX += movement.y * mouseSensitivity; // Note the + instead of -
+                } else {
+                    this.cameraRotationX -= movement.y * mouseSensitivity; // Third person remains the same
+                }
 
                 // Update last positions
                 this.lastPointerX = movement.x;
                 this.lastPointerY = movement.y;
             }
 
-            // 89.9 degrees in radians is approximately 1.57 (π/2 is 90 degrees)
+            // Keep the existing clamp for vertical rotation
             this.cameraRotationX = Math.max(-1.57, Math.min(1.57, this.cameraRotationX));
         }
 
@@ -126,19 +140,34 @@ class ThirdPersonActionCharacter extends ActionCharacter {
             this.rotation = this.cameraRotationY;
             this.updateFacingDirection();
 
-            // Update camera position and target
+            // Update camera position and target based on mode
             if (!this.camera.isDetached) {
-                const cameraOffset = new Vector3(
-                    Math.sin(this.cameraRotationY) * Math.cos(this.cameraRotationX) * this.cameraDistance,
-                    -Math.sin(this.cameraRotationX) * this.cameraDistance + this.cameraHeight,
-                    Math.cos(this.cameraRotationY) * Math.cos(this.cameraRotationX) * this.cameraDistance
-                );
+                if (this.isFirstPerson) {
+                    // First-person camera positioning
+                    this.camera.position = this.position.add(new Vector3(0, this.firstPersonHeight, 0));
+                    
+                    // Calculate look target using rotation
+                    const lookDir = new Vector3(
+                        Math.sin(this.cameraRotationY) * Math.cos(this.cameraRotationX),
+                        -Math.sin(this.cameraRotationX),
+                        Math.cos(this.cameraRotationY) * Math.cos(this.cameraRotationX)
+                    );
+                    this.camera.target = this.camera.position.add(lookDir);
+                } else {
+                    // Existing third-person camera positioning
+                    const cameraOffset = new Vector3(
+                        Math.sin(this.cameraRotationY) * Math.cos(this.cameraRotationX) * this.cameraDistance,
+                        -Math.sin(this.cameraRotationX) * this.cameraDistance + this.cameraHeight,
+                        Math.cos(this.cameraRotationY) * Math.cos(this.cameraRotationX) * this.cameraDistance
+                    );
 
-                this.camera.position = this.position.add(cameraOffset);
-                this.camera.target = this.position.add(new Vector3(0, this.height / 2, 0));
+                    this.camera.position = this.position.add(cameraOffset);
+                    this.camera.target = this.position.add(new Vector3(0, this.height / 2, 0));
+                }
             }
 
             this.updateTerrainInfo();
         }
     }
+
 }
