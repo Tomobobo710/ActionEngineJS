@@ -11,37 +11,36 @@ class ActionInputHandler {
         this.uiControlsContainer = document.getElementById("UIControlsContainer");
 
         this.actionMap = new Map([
-			["KeyW", ["DirUp"]],
-			["KeyS", ["DirDown"]],
-			["KeyA", ["DirLeft"]],
-			["KeyD", ["DirRight"]],
-			["Space", ["Action1"]], // face button left
-			["ShiftLeft", ["Action2"]], // face button down
-			["KeyE", ["Action3"]], // face button right
-			["KeyQ", ["Action4"]], // face button up
+            ["KeyW", ["DirUp"]],
+            ["KeyS", ["DirDown"]],
+            ["KeyA", ["DirLeft"]],
+            ["KeyD", ["DirRight"]],
+            ["Space", ["Action1"]], // face button left
+            ["ShiftLeft", ["Action2"]], // face button down
+            ["KeyE", ["Action3"]], // face button right
+            ["KeyQ", ["Action4"]], // face button up
             ["KeyZ", ["Action5"]], // Left Bumper
             ["KeyX", ["Action6"]], // Right Bumper
             ["KeyC", ["Action7"]], // Back Button
             ["KeyF", ["Action8"]], // Start Button
-			["F9", ["ActionDebugToggle"]], // Add this line
+            ["F9", ["ActionDebugToggle"]], // Add this line
 
-			// Numpad keys
-			["Numpad0", ["Numpad0"]],
-			["Numpad1", ["Numpad1"]],
-			["Numpad2", ["Numpad2"]],
-			["Numpad3", ["Numpad3"]],
-			["Numpad4", ["Numpad4"]],
-			["Numpad5", ["Numpad5"]],
-			["Numpad6", ["Numpad6"]],
-			["Numpad7", ["Numpad7"]],
-			["Numpad8", ["Numpad8"]],
-			["Numpad9", ["Numpad9"]],
-			["NumpadDecimal", ["NumpadDecimal"]], // Numpad period/del
-			["NumpadEnter", ["NumpadEnter"]], // Numpad enter
-			["NumpadAdd", ["NumpadAdd"]], // Numpad plus
-			["NumpadSubtract", ["NumpadSubtract"]] // Numpad minus
-		]);
-
+            // Numpad keys
+            ["Numpad0", ["Numpad0"]],
+            ["Numpad1", ["Numpad1"]],
+            ["Numpad2", ["Numpad2"]],
+            ["Numpad3", ["Numpad3"]],
+            ["Numpad4", ["Numpad4"]],
+            ["Numpad5", ["Numpad5"]],
+            ["Numpad6", ["Numpad6"]],
+            ["Numpad7", ["Numpad7"]],
+            ["Numpad8", ["Numpad8"]],
+            ["Numpad9", ["Numpad9"]],
+            ["NumpadDecimal", ["NumpadDecimal"]], // Numpad period/del
+            ["NumpadEnter", ["NumpadEnter"]], // Numpad enter
+            ["NumpadAdd", ["NumpadAdd"]], // Numpad plus
+            ["NumpadSubtract", ["NumpadSubtract"]] // Numpad minus
+        ]);
 
         this.state = {
             keys: new Map(),
@@ -311,70 +310,82 @@ class ActionInputHandler {
             }
         });
 
-        this.canvases.debugCanvas.addEventListener("touchstart", (e) => {
-            e.preventDefault();
-            const pos = this.getCanvasPosition(e.touches[0]);
-            this.state.pointer.x = pos.x;
-            this.state.pointer.y = pos.y;
-            this.state.pointer.isDown = true;
-            this.state.pointer.downTimestamp = performance.now();
+        this.canvases.debugCanvas.addEventListener(
+            "touchstart",
+            (e) => {
+                e.preventDefault();
+                const pos = this.getCanvasPosition(e.touches[0]);
+                this.state.pointer.x = pos.x;
+                this.state.pointer.y = pos.y;
+                this.state.pointer.isDown = true;
+                this.state.pointer.downTimestamp = performance.now();
 
-            let handledByDebug = false;
-            this.state.elements.debug.forEach((element) => {
-                if (this.isPointInBounds(pos.x, pos.y, element.bounds())) {
-                    element.isPressed = true;
-                    element.pressTimestamp = performance.now();
-                    handledByDebug = true;
+                let handledByDebug = false;
+                this.state.elements.debug.forEach((element) => {
+                    if (this.isPointInBounds(pos.x, pos.y, element.bounds())) {
+                        element.isPressed = true;
+                        element.pressTimestamp = performance.now();
+                        handledByDebug = true;
+                    }
+                });
+
+                if (!handledByDebug) {
+                    const newEvent = new TouchEvent("touchstart", e);
+                    this.canvases.guiCanvas.dispatchEvent(newEvent);
                 }
-            });
+            },
+            { passive: false }
+        );
 
-            if (!handledByDebug) {
-                const newEvent = new TouchEvent("touchstart", e);
-                this.canvases.guiCanvas.dispatchEvent(newEvent);
-            }
-        }, { passive: false });
+        this.canvases.debugCanvas.addEventListener(
+            "touchend",
+            (e) => {
+                e.preventDefault();
+                this.state.pointer.isDown = false;
+                this.state.pointer.downTimestamp = null;
 
-        this.canvases.debugCanvas.addEventListener("touchend", (e) => {
-            e.preventDefault();
-            this.state.pointer.isDown = false;
-            this.state.pointer.downTimestamp = null;
+                let handledByDebug = false;
+                this.state.elements.debug.forEach((element) => {
+                    if (element.isPressed) {
+                        element.isPressed = false;
+                        handledByDebug = true;
+                    }
+                });
 
-            let handledByDebug = false;
-            this.state.elements.debug.forEach((element) => {
-                if (element.isPressed) {
-                    element.isPressed = false;
-                    handledByDebug = true;
+                if (!handledByDebug) {
+                    const newEvent = new TouchEvent("touchend", e);
+                    this.canvases.guiCanvas.dispatchEvent(newEvent);
                 }
-            });
+            },
+            { passive: false }
+        );
 
-            if (!handledByDebug) {
-                const newEvent = new TouchEvent("touchend", e);
-                this.canvases.guiCanvas.dispatchEvent(newEvent);
-            }
-        }, { passive: false });
+        this.canvases.debugCanvas.addEventListener(
+            "touchmove",
+            (e) => {
+                e.preventDefault();
+                const pos = this.getCanvasPosition(e.touches[0]);
+                this.state.pointer.x = pos.x;
+                this.state.pointer.y = pos.y;
 
-        this.canvases.debugCanvas.addEventListener("touchmove", (e) => {
-            e.preventDefault();
-            const pos = this.getCanvasPosition(e.touches[0]);
-            this.state.pointer.x = pos.x;
-            this.state.pointer.y = pos.y;
+                let handledByDebug = false;
+                this.state.elements.debug.forEach((element) => {
+                    const wasHovered = element.isHovered;
+                    element.isHovered = this.isPointInBounds(pos.x, pos.y, element.bounds());
 
-            let handledByDebug = false;
-            this.state.elements.debug.forEach((element) => {
-                const wasHovered = element.isHovered;
-                element.isHovered = this.isPointInBounds(pos.x, pos.y, element.bounds());
+                    if (!wasHovered && element.isHovered) {
+                        element.hoverTimestamp = performance.now();
+                        handledByDebug = true;
+                    }
+                });
 
-                if (!wasHovered && element.isHovered) {
-                    element.hoverTimestamp = performance.now();
-                    handledByDebug = true;
+                if (!handledByDebug) {
+                    const newEvent = new TouchEvent("touchmove", e);
+                    this.canvases.guiCanvas.dispatchEvent(newEvent);
                 }
-            });
-
-            if (!handledByDebug) {
-                const newEvent = new TouchEvent("touchmove", e);
-                this.canvases.guiCanvas.dispatchEvent(newEvent);
-            }
-        }, { passive: false });
+            },
+            { passive: false }
+        );
 
         // GUI LAYER
         this.canvases.guiCanvas.addEventListener("mousemove", (e) => {
@@ -444,70 +455,82 @@ class ActionInputHandler {
             }
         });
 
-        this.canvases.guiCanvas.addEventListener("touchstart", (e) => {
-            e.preventDefault();
-            const pos = this.getCanvasPosition(e.touches[0]);
-            this.state.pointer.x = pos.x;
-            this.state.pointer.y = pos.y;
-            this.state.pointer.isDown = true;
-            this.state.pointer.downTimestamp = performance.now();
+        this.canvases.guiCanvas.addEventListener(
+            "touchstart",
+            (e) => {
+                e.preventDefault();
+                const pos = this.getCanvasPosition(e.touches[0]);
+                this.state.pointer.x = pos.x;
+                this.state.pointer.y = pos.y;
+                this.state.pointer.isDown = true;
+                this.state.pointer.downTimestamp = performance.now();
 
-            let handledByGui = false;
-            this.state.elements.gui.forEach((element) => {
-                if (this.isPointInBounds(pos.x, pos.y, element.bounds())) {
-                    element.isPressed = true;
-                    element.pressTimestamp = performance.now();
-                    handledByGui = true;
+                let handledByGui = false;
+                this.state.elements.gui.forEach((element) => {
+                    if (this.isPointInBounds(pos.x, pos.y, element.bounds())) {
+                        element.isPressed = true;
+                        element.pressTimestamp = performance.now();
+                        handledByGui = true;
+                    }
+                });
+
+                if (!handledByGui) {
+                    const newEvent = new TouchEvent("touchstart", e);
+                    this.canvases.gameCanvas.dispatchEvent(newEvent);
                 }
-            });
+            },
+            { passive: false }
+        );
 
-            if (!handledByGui) {
-                const newEvent = new TouchEvent("touchstart", e);
-                this.canvases.gameCanvas.dispatchEvent(newEvent);
-            }
-        }, { passive: false });
+        this.canvases.guiCanvas.addEventListener(
+            "touchend",
+            (e) => {
+                e.preventDefault();
+                this.state.pointer.isDown = false;
+                this.state.pointer.downTimestamp = null;
 
-        this.canvases.guiCanvas.addEventListener("touchend", (e) => {
-            e.preventDefault();
-            this.state.pointer.isDown = false;
-            this.state.pointer.downTimestamp = null;
+                let handledByGui = false;
+                this.state.elements.gui.forEach((element) => {
+                    if (element.isPressed) {
+                        element.isPressed = false;
+                        handledByGui = true;
+                    }
+                });
 
-            let handledByGui = false;
-            this.state.elements.gui.forEach((element) => {
-                if (element.isPressed) {
-                    element.isPressed = false;
-                    handledByGui = true;
+                if (!handledByGui) {
+                    const newEvent = new TouchEvent("touchend", e);
+                    this.canvases.gameCanvas.dispatchEvent(newEvent);
                 }
-            });
+            },
+            { passive: false }
+        );
 
-            if (!handledByGui) {
-                const newEvent = new TouchEvent("touchend", e);
-                this.canvases.gameCanvas.dispatchEvent(newEvent);
-            }
-        }, { passive: false });
+        this.canvases.guiCanvas.addEventListener(
+            "touchmove",
+            (e) => {
+                e.preventDefault();
+                const pos = this.getCanvasPosition(e.touches[0]);
+                this.state.pointer.x = pos.x;
+                this.state.pointer.y = pos.y;
 
-        this.canvases.guiCanvas.addEventListener("touchmove", (e) => {
-            e.preventDefault();
-            const pos = this.getCanvasPosition(e.touches[0]);
-            this.state.pointer.x = pos.x;
-            this.state.pointer.y = pos.y;
+                let handledByGui = false;
+                this.state.elements.gui.forEach((element) => {
+                    const wasHovered = element.isHovered;
+                    element.isHovered = this.isPointInBounds(pos.x, pos.y, element.bounds());
 
-            let handledByGui = false;
-            this.state.elements.gui.forEach((element) => {
-                const wasHovered = element.isHovered;
-                element.isHovered = this.isPointInBounds(pos.x, pos.y, element.bounds());
+                    if (!wasHovered && element.isHovered) {
+                        element.hoverTimestamp = performance.now();
+                        handledByGui = true;
+                    }
+                });
 
-                if (!wasHovered && element.isHovered) {
-                    element.hoverTimestamp = performance.now();
-                    handledByGui = true;
+                if (!handledByGui) {
+                    const newEvent = new TouchEvent("touchmove", e);
+                    this.canvases.gameCanvas.dispatchEvent(newEvent);
                 }
-            });
-
-            if (!handledByGui) {
-                const newEvent = new TouchEvent("touchmove", e);
-                this.canvases.gameCanvas.dispatchEvent(newEvent);
-            }
-        }, { passive: false });
+            },
+            { passive: false }
+        );
 
         // GAME LAYER
         this.canvases.gameCanvas.addEventListener("mousemove", (e) => {
@@ -556,49 +579,78 @@ class ActionInputHandler {
             });
         });
 
-        this.canvases.gameCanvas.addEventListener("touchstart", (e) => {
-            e.preventDefault();
-            const pos = this.getCanvasPosition(e.touches[0]);
-            this.state.pointer.x = pos.x;
-            this.state.pointer.y = pos.y;
-            this.state.pointer.isDown = true;
-            this.state.pointer.downTimestamp = performance.now();
+        this.canvases.gameCanvas.addEventListener(
+            "touchstart",
+            (e) => {
+                e.preventDefault();
+                const pos = this.getCanvasPosition(e.touches[0]);
+                this.state.pointer.x = pos.x;
+                this.state.pointer.y = pos.y;
+                this.state.pointer.isDown = true;
+                this.state.pointer.downTimestamp = performance.now();
 
-            this.state.elements.game.forEach((element) => {
-                if (this.isPointInBounds(pos.x, pos.y, element.bounds())) {
-                    element.isPressed = true;
-                    element.pressTimestamp = performance.now();
-                }
-            });
-        }, { passive: false });
+                this.state.elements.game.forEach((element) => {
+                    if (this.isPointInBounds(pos.x, pos.y, element.bounds())) {
+                        element.isPressed = true;
+                        element.pressTimestamp = performance.now();
+                    }
+                });
+            },
+            { passive: false }
+        );
 
-        this.canvases.gameCanvas.addEventListener("touchend", (e) => {
-            e.preventDefault();
-            this.state.pointer.isDown = false;
-            this.state.pointer.downTimestamp = null;
+        this.canvases.gameCanvas.addEventListener(
+            "touchend",
+            (e) => {
+                e.preventDefault();
+                this.state.pointer.isDown = false;
+                this.state.pointer.downTimestamp = null;
 
-            this.state.elements.game.forEach((element) => {
-                if (element.isPressed) {
-                    element.isPressed = false;
-                }
-            });
-        }, { passive: false });
+                this.state.elements.game.forEach((element) => {
+                    if (element.isPressed) {
+                        element.isPressed = false;
+                    }
+                });
+            },
+            { passive: false }
+        );
 
-        this.canvases.gameCanvas.addEventListener("touchmove", (e) => {
-            e.preventDefault();
-            const pos = this.getCanvasPosition(e.touches[0]);
-            this.state.pointer.x = pos.x;
-            this.state.pointer.y = pos.y;
+        this.canvases.gameCanvas.addEventListener(
+            "touchmove",
+            (e) => {
+                e.preventDefault();
+                const pos = this.getCanvasPosition(e.touches[0]);
+                this.state.pointer.x = pos.x;
+                this.state.pointer.y = pos.y;
 
-            this.state.elements.game.forEach((element) => {
-                const wasHovered = element.isHovered;
-                element.isHovered = this.isPointInBounds(pos.x, pos.y, element.bounds());
+                this.state.elements.game.forEach((element) => {
+                    const wasHovered = element.isHovered;
+                    element.isHovered = this.isPointInBounds(pos.x, pos.y, element.bounds());
 
-                if (!wasHovered && element.isHovered) {
-                    element.hoverTimestamp = performance.now();
-                }
-            });
-        }, { passive: false });
+                    if (!wasHovered && element.isHovered) {
+                        element.hoverTimestamp = performance.now();
+                    }
+                });
+            },
+            { passive: false }
+        );
+        document.addEventListener("mousemove", (e) => {
+            if (document.pointerLockElement) {
+                this.state.pointer.movementX = e.movementX;
+                this.state.pointer.movementY = e.movementY;
+            }
+        });
+    }
+
+    getLockedPointerMovement() {
+        if (!document.pointerLockElement) {
+            return { x: 0, y: 0 };
+        }
+        // Return the raw movement values
+        return {
+            x: this.state.pointer.movementX,
+            y: this.state.pointer.movementY
+        };
     }
 
     getCanvasPosition(e) {
