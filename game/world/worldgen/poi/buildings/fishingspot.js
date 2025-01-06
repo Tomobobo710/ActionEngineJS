@@ -279,11 +279,11 @@ class FishingSpotManager {
 
     setupContactListeners() {
         this.flag.body.addListener("contact", (other_body, contact) => {
-            console.log("Flag Hit!");
+            //console.log("Flag Hit!");
         });
 
         this.pole.body.addListener("contact", (other_body, contact) => {
-            console.log("Pole Hit!");
+            //console.log("Pole Hit!");
         });
     }
 
