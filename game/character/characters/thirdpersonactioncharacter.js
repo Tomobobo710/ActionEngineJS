@@ -59,9 +59,9 @@ class ThirdPersonActionCharacter extends ActionCharacter {
 
         // Update camera rotation based on pointer movement when locked
         if (document.pointerLockElement) {
-            const mouseSensitivity = 0.002;
+            const mouseSensitivity = 0.01;
             const movement = input.getLockedPointerMovement();
-
+            console.log("Mouse Y movement:", movement.y); 
             // Only update camera when lastPointer values change
             if (this.lastPointerX !== movement.x || this.lastPointerY !== movement.y) {
                 this.cameraRotationY -= movement.x * mouseSensitivity;
@@ -72,8 +72,8 @@ class ThirdPersonActionCharacter extends ActionCharacter {
                 this.lastPointerY = movement.y;
             }
 
-            // Limit vertical rotation
-            this.cameraRotationX = Math.max(-Math.PI / 2.5, Math.min(Math.PI / 2.5, this.cameraRotationX));
+            // 89.9 degrees in radians is approximately 1.57 (π/2 is 90 degrees)
+            this.cameraRotationX = Math.max(-1.57, Math.min(1.57, this.cameraRotationX));
         }
 
         // Get input direction relative to camera
@@ -130,7 +130,7 @@ class ThirdPersonActionCharacter extends ActionCharacter {
             if (!this.camera.isDetached) {
                 const cameraOffset = new Vector3(
                     Math.sin(this.cameraRotationY) * Math.cos(this.cameraRotationX) * this.cameraDistance,
-                    Math.sin(this.cameraRotationX) * this.cameraDistance + this.cameraHeight,
+                    -Math.sin(this.cameraRotationX) * this.cameraDistance + this.cameraHeight,
                     Math.cos(this.cameraRotationY) * Math.cos(this.cameraRotationX) * this.cameraDistance
                 );
 
