@@ -7,32 +7,31 @@ class ActionPhysicsWorld3D {
         this.world = new Goblin.World(broadphase, narrowphase, solver);
         
         this.world.gravity = new Goblin.Vector3(0, -9.81, 0);
+        
         this.objects = new Set();
-
-        // Add physics timing variables
+        this.constraints = new Set();
+        
+        // Physics timing variables
         this.fixedTimeStep = fixedTimestep;
         this.physicsAccumulator = 0;
         this.lastPhysicsTime = performance.now();
-    
-        this.constraints = new Set(); // Add a set to track constraints
+        this.isPaused = false;
     }
     
 
     update(deltaTime) {
-        if (!this.world) return;
+        if (!this.world || this.isPaused) return;
 
         const currentTime = performance.now();
-        const frameTime = (currentTime - this.lastPhysicsTime) / 1000;
+        const frameTime = Math.min((currentTime - this.lastPhysicsTime) / 1000, 0.25); // Cap at 250ms
         this.lastPhysicsTime = currentTime;
 
-        // Accumulate time and run fixed timesteps
         this.physicsAccumulator += frameTime;
         
         while (this.physicsAccumulator >= this.fixedTimeStep) {
             this.world.step(this.fixedTimeStep);
             this.physicsAccumulator -= this.fixedTimeStep;
 
-            // Update visual positions of all physics objects
             this.objects.forEach(object => {
                 if (object.body) {
                     object.updateVisual();

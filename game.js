@@ -16,7 +16,21 @@ class Game {
         this.pendingAudio = audio;
 
         this.physicsWorld = new ActionPhysicsWorld3D();
-
+        this.isPaused = false;
+        
+        // Visibility change listener
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                this.pause();
+            } else {
+                this.resume();
+            }
+        });
+        
+        // Blur/focus listeners for additional safety
+        window.addEventListener('blur', () => this.pause());
+        window.addEventListener('focus', () => this.resume());
+        
         this.initializeGame();
     }
 
@@ -103,16 +117,30 @@ class Game {
         this.createTestSphere();
         this.createTestSphere();
     }
+    
+    pause() {
+        this.isPaused = true;
+        this.physicsWorld.pause();
+        console.log("[Game] Paused");
+    }
+
+    resume() {
+        this.isPaused = false;
+        this.lastTime = performance.now();
+        this.physicsWorld.resume();
+        console.log("[Game] Resumed");
+    }
+    
     update() {
         const currentTime = performance.now();
-        this.deltaTime = (currentTime - this.lastTime) / 1000;
+        this.deltaTime = Math.min((currentTime - this.lastTime) / 1000, 0.25); // Cap at 250ms
         this.lastTime = currentTime;
 
-        this.physicsWorld.update();
-
-        this.handleInput();
-
-        this.weatherSystem.update(this.deltaTime, this.terrain);
+        if (!this.isPaused) {
+            this.physicsWorld.update(this.deltaTime);
+            this.handleInput();
+            this.weatherSystem.update(this.deltaTime, this.terrain);
+        }
     }
 
     handleInput() {

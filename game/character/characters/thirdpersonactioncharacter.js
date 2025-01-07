@@ -4,7 +4,8 @@ class ThirdPersonActionCharacter extends ActionCharacter {
         this.game = game;
         console.log("World:", game.physicsWorld.getWorld());
         console.log("Broadphase:", game.physicsWorld.broadphase);
-        // Create controller with the right dimensions
+        
+        // Create controller
         this.controller = new Goblin.CharacterController(game.physicsWorld.getWorld(), {
             width: this.size,
             height: this.height,
@@ -19,6 +20,7 @@ class ThirdPersonActionCharacter extends ActionCharacter {
             forceSmoothing: 0.1,
             rayLength: 20
         });
+        
         this.cameraDistance = 40;
         this.cameraHeight = 10;
         this.cameraRotationX = 0; // Vertical rotation
@@ -27,7 +29,6 @@ class ThirdPersonActionCharacter extends ActionCharacter {
         this.lastPointerY = null;
         this.firstPersonHeight = this.height * 0.5; 
         this.isFirstPerson = false;
-        
         
         // Get the character body from the controller
         this.body = this.controller.body;
