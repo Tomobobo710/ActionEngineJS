@@ -23,8 +23,8 @@ class ThirdPersonActionCharacter extends ActionCharacter {
         
         this.cameraDistance = 40;
         this.cameraHeight = 10;
-        this.cameraRotationX = 0; // Vertical rotation
-        this.cameraRotationY = 0; // Horizontal rotation
+        this.cameraPitch = 0;
+        this.cameraYaw = 0;   
         this.lastPointerX = null;
         this.lastPointerY = null;
         this.firstPersonHeight = this.height * 0.5; 
@@ -73,24 +73,23 @@ class ThirdPersonActionCharacter extends ActionCharacter {
             const mouseSensitivity = 0.01;
             const movement = input.getLockedPointerMovement();
 
-            // Only update camera when lastPointer values change
             if (this.lastPointerX !== movement.x || this.lastPointerY !== movement.y) {
-                this.cameraRotationY -= movement.x * mouseSensitivity;
+                // Horizontal movement affects yaw
+                this.cameraYaw -= movement.x * mouseSensitivity;
 
-                // Invert Y movement in first person mode
+                // Vertical movement affects pitch
                 if (this.isFirstPerson) {
-                    this.cameraRotationX += movement.y * mouseSensitivity; // Note the + instead of -
+                    this.cameraPitch += movement.y * mouseSensitivity;
                 } else {
-                    this.cameraRotationX -= movement.y * mouseSensitivity; // Third person remains the same
+                    this.cameraPitch -= movement.y * mouseSensitivity;
                 }
 
-                // Update last positions
                 this.lastPointerX = movement.x;
                 this.lastPointerY = movement.y;
             }
 
-            // Keep the existing clamp for vertical rotation
-            this.cameraRotationX = Math.max(-1.57, Math.min(1.57, this.cameraRotationX));
+            // Clamp vertical rotation (pitch)
+            this.cameraPitch = Math.max(-1.57, Math.min(1.57, this.cameraPitch));
         }
 
         // Get input direction relative to camera
@@ -133,44 +132,37 @@ class ThirdPersonActionCharacter extends ActionCharacter {
     }
 
     update(deltaTime) {
+    if (this.body) {
+        const pos = this.body.position;
+        this.position.set(pos.x, pos.y, pos.z);
+        this.basePosition.set(this.position.x, this.position.y - this.size / 2, this.position.z);
 
-        if (this.body) {
-            const pos = this.body.position;
-            this.position.set(pos.x, pos.y, pos.z);
-            this.basePosition.set(this.position.x, this.position.y - this.size / 2, this.position.z);
+        // Use yaw for character facing
+        this.rotation = this.cameraYaw;
+        this.updateFacingDirection();
 
-            // Use camera rotation for character facing
-            this.rotation = this.cameraRotationY;
-            this.updateFacingDirection();
+        if (!this.camera.isDetached) {
+            if (this.isFirstPerson) {
+                this.camera.position = this.position.add(new Vector3(0, this.firstPersonHeight, 0));
+                
+                const lookDir = new Vector3(
+                    Math.sin(this.cameraYaw) * Math.cos(this.cameraPitch),
+                    -Math.sin(this.cameraPitch),
+                    Math.cos(this.cameraYaw) * Math.cos(this.cameraPitch)
+                );
+                this.camera.target = this.camera.position.add(lookDir);
+            } else {
+                const cameraOffset = new Vector3(
+                    Math.sin(this.cameraYaw) * Math.cos(this.cameraPitch) * this.cameraDistance,
+                    -Math.sin(this.cameraPitch) * this.cameraDistance + this.cameraHeight,
+                    Math.cos(this.cameraYaw) * Math.cos(this.cameraPitch) * this.cameraDistance
+                );
 
-            // Update camera position and target based on mode
-            if (!this.camera.isDetached) {
-                if (this.isFirstPerson) {
-                    // First-person camera positioning
-                    this.camera.position = this.position.add(new Vector3(0, this.firstPersonHeight, 0));
-                    
-                    // Calculate look target using rotation
-                    const lookDir = new Vector3(
-                        Math.sin(this.cameraRotationY) * Math.cos(this.cameraRotationX),
-                        -Math.sin(this.cameraRotationX),
-                        Math.cos(this.cameraRotationY) * Math.cos(this.cameraRotationX)
-                    );
-                    this.camera.target = this.camera.position.add(lookDir);
-                } else {
-                    // Existing third-person camera positioning
-                    const cameraOffset = new Vector3(
-                        Math.sin(this.cameraRotationY) * Math.cos(this.cameraRotationX) * this.cameraDistance,
-                        -Math.sin(this.cameraRotationX) * this.cameraDistance + this.cameraHeight,
-                        Math.cos(this.cameraRotationY) * Math.cos(this.cameraRotationX) * this.cameraDistance
-                    );
-
-                    this.camera.position = this.position.add(cameraOffset);
-                    this.camera.target = this.position.add(new Vector3(0, this.height / 2, 0));
-                }
+                this.camera.position = this.position.add(cameraOffset);
+                this.camera.target = this.position.add(new Vector3(0, this.height / 2, 0));
             }
-
-            this.updateTerrainInfo();
         }
+    }
     }
 
 }
