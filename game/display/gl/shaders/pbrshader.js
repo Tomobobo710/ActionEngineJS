@@ -225,5 +225,5 @@ void main() {
 }
 
 // Register the shader
-console.log("[PBRShader] Registering PBR shader..");
+//console.log("[PBRShader] Registering PBR shader..");
 ShaderRegistry.register("pbr", PBRShader);

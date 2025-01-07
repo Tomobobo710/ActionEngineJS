@@ -111,5 +111,5 @@ class VirtualBoyShader {
 }
 
 // Auto-register at end of file
-console.log('[VirtualBoyShader] Registering Virtal Boy shader..');
+//console.log('[VirtualBoyShader] Registering Virtal Boy shader..');
 ShaderRegistry.register('virtualboy', VirtualBoyShader);
