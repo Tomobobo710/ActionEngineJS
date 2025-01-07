@@ -138,7 +138,8 @@ class ThirdPersonActionCharacter extends ActionCharacter {
             this.basePosition.set(this.position.x, this.position.y - this.size / 2, this.position.z);
 
             // Use yaw for character facing
-            this.rotation = this.cameraYaw;
+            this.rotation = this.cameraYaw + Math.PI;
+            
             this.updateFacingDirection();
 
             if (!this.camera.isDetached) {
@@ -146,9 +147,9 @@ class ThirdPersonActionCharacter extends ActionCharacter {
                     this.camera.position = this.position.add(new Vector3(0, this.firstPersonHeight, 0));
 
                     const lookDir = new Vector3(
-                        Math.sin(this.cameraYaw) * Math.cos(this.cameraPitch),
+                        Math.sin(this.cameraYaw + Math.PI) * Math.cos(this.cameraPitch),
                         -Math.sin(this.cameraPitch),
-                        Math.cos(this.cameraYaw) * Math.cos(this.cameraPitch)
+                        Math.cos(this.cameraYaw + Math.PI) * Math.cos(this.cameraPitch)
                     );
                     this.camera.target = this.camera.position.add(lookDir);
                 } else {
