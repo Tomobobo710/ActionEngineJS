@@ -45,7 +45,7 @@ class ActionPhysicsWorld3D {
                 console.warn("[PhysicsWorld] Attempted to add null constraint");
                 return;
             }
-            console.log("[PhysicsWorld] Adding constraint:", constraint);
+            //console.log("[PhysicsWorld] Adding constraint:", constraint);
             this.constraints.add(constraint);
             this.world.addConstraint(constraint);
         }
@@ -53,7 +53,7 @@ class ActionPhysicsWorld3D {
     addObject(object) {
         this.objects.add(object);
         if (object.body) {
-            console.log("[PhysicsWorld] Adding object body:", object.body);
+            //console.log("[PhysicsWorld] Adding object body:", object.body);
             this.world.addRigidBody(object.body);
         }
     }
@@ -70,9 +70,9 @@ class ActionPhysicsWorld3D {
 
     addTerrainBody(body, group = 0, mask = 0) {
         
-        console.log("[PhysicsWorld] Adding terrain body:", body);
+        //console.log("[PhysicsWorld] Adding terrain body:", body);
         if (this.terrainBody) {
-            console.log("[PhysicsWorld] Removing old terrain body");
+            //console.log("[PhysicsWorld] Removing old terrain body");
             this.world.removeRigidBody(this.terrainBody);
         }
         this.terrainBody = body;
@@ -90,7 +90,7 @@ class ActionPhysicsWorld3D {
     
     removeConstraint(constraint) {
         if (!constraint) {
-            console.warn("[PhysicsWorld] Attempted to remove null constraint");
+            //console.warn("[PhysicsWorld] Attempted to remove null constraint");
             return;
         }
         this.constraints.delete(constraint);

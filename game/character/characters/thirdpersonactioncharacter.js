@@ -12,13 +12,13 @@ class ThirdPersonActionCharacter extends ActionCharacter {
             depth: this.size,
             mass: 1,
             moveSpeed: 0.5,
-            maxSpeed: 30,
+            maxSpeed: 50,
             springDamper: 0.5,
             rideHeight: 4,
             upwardStrength: 10,
             downwardStrength: 10,
             forceSmoothing: 0.1,
-            rayLength: 20
+            rayLength: 10
         });
 
         this.firstPersonHeight = this.height * 0.5;
@@ -29,7 +29,7 @@ class ThirdPersonActionCharacter extends ActionCharacter {
         this.cameraHeight = 10;
         this.cameraPitch = 0;
         this.cameraYaw = 0;
-
+        
         // Store pointer position for camera movment
         this.lastPointerX = null;
         this.lastPointerY = null;
@@ -78,7 +78,7 @@ class ThirdPersonActionCharacter extends ActionCharacter {
             const movement = input.getLockedPointerMovement();
 
             if (this.lastPointerX !== movement.x || this.lastPointerY !== movement.y) {
-                console.log(`Mouse Movement: x=${movement.x}, y=${movement.y}`);
+                //console.log(`Mouse Movement: x=${movement.x}, y=${movement.y}`);
 
                 this.cameraYaw -= movement.x * mouseSensitivity;
 

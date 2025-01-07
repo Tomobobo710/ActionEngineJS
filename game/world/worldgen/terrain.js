@@ -72,38 +72,38 @@ class Terrain {
             }
         }
     }
-    
+
     findNearbyTriangles(x, z) {
         // Convert world coordinates to grid coordinates
-        const gridX = Math.floor((x / this.baseWorldScale + this.gridResolution / 2) * (64/this.gridResolution));
-        const gridZ = Math.floor((z / this.baseWorldScale + this.gridResolution / 2) * (64/this.gridResolution));
+        const gridX = Math.floor((x / this.baseWorldScale + this.gridResolution / 2) * (64 / this.gridResolution));
+        const gridZ = Math.floor((z / this.baseWorldScale + this.gridResolution / 2) * (64 / this.gridResolution));
 
         const nearbyTriangles = [];
-        
+
         // Each grid cell has 2 triangles
         // Check current cell and adjacent cells
         for (let dz = -1; dz <= 1; dz++) {
             for (let dx = -1; dx <= 1; dx++) {
                 const checkX = gridX + dx;
                 const checkZ = gridZ + dz;
-                
+
                 // Skip if out of bounds
                 if (checkX < 0 || checkX >= 64 || checkZ < 0 || checkZ >= 64) continue;
-                
+
                 // Calculate triangle indices for this cell
                 // Each cell (x,z) contains triangles at:
                 // - Top triangle: (z * 128 + x * 2)
                 // - Bottom triangle: (z * 128 + x * 2 + 1)
-                const baseIndex = (checkZ * 128) + (checkX * 2);
-                
-                nearbyTriangles.push(this.triangles[baseIndex]);     // Top triangle
+                const baseIndex = checkZ * 128 + checkX * 2;
+
+                nearbyTriangles.push(this.triangles[baseIndex]); // Top triangle
                 nearbyTriangles.push(this.triangles[baseIndex + 1]); // Bottom triangle
             }
         }
 
         return nearbyTriangles;
     }
-    
+
     getColorForHeight(height) {
         // Handle extremes first
         if (height <= 0) return BIOME_TYPES.OCEAN.base;
@@ -145,45 +145,40 @@ class Terrain {
 
         return this.heightMap[mapZ][mapX];
     }
-    
+
     createPhysicsMesh() {
-    // Create flat arrays just like demo
-    const vertices = [];
-    const indices = [];
-    
-    // Add all vertices to flat array first
-    this.vertices.forEach((vertex) => {
-        vertices.push(vertex.x, vertex.y, vertex.z);
-    });
-    
-    // Create Goblin vertices array similar to demo
-    const goblinVertices = vertices.map((_, index) => {
-        if (index % 3 === 0) {
-            return new Goblin.Vector3(
-                vertices[index],
-                vertices[index + 1],
-                vertices[index + 2]
-            );
+        // Create flat arrays just like demo
+        const vertices = [];
+        const indices = [];
+
+        // Add all vertices to flat array first
+        this.vertices.forEach((vertex) => {
+            vertices.push(vertex.x, vertex.y, vertex.z);
+        });
+
+        // Create Goblin vertices array similar to demo
+        const goblinVertices = vertices
+            .map((_, index) => {
+                if (index % 3 === 0) {
+                    return new Goblin.Vector3(vertices[index], vertices[index + 1], vertices[index + 2]);
+                }
+            })
+            .filter(Boolean);
+
+        // Keep your original triangle indices handling
+        for (const triangle of this.triangles) {
+            for (let i = 0; i < 3; i++) {
+                const vertex = triangle.vertices[i];
+                const index = this.vertices.findIndex((v) => v.x === vertex.x && v.y === vertex.y && v.z === vertex.z);
+                indices.push(index);
+            }
         }
-    }).filter(Boolean);
-    
-    // Keep your original triangle indices handling
-    for (const triangle of this.triangles) {
-        for (let i = 0; i < 3; i++) {
-            const vertex = triangle.vertices[i];
-            const index = this.vertices.findIndex(v => 
-                v.x === vertex.x && 
-                v.y === vertex.y && 
-                v.z === vertex.z
-            );
-            indices.push(index);
-        }
+        
+        //console.log("Terrain vertices:", vertices);
+        //console.log("Terrain indices:", indices);
+        const terrainShape = new Goblin.MeshShape(goblinVertices, indices);
+        const terrainBody = new Goblin.RigidBody(terrainShape, 0);
+
+        return terrainBody;
     }
-        console.log("Terrain vertices:", vertices);
-console.log("Terrain indices:", indices);
-    const terrainShape = new Goblin.MeshShape(goblinVertices, indices);
-    const terrainBody = new Goblin.RigidBody(terrainShape, 0);
-    
-    return terrainBody;
-}
 }

@@ -99,10 +99,10 @@ class Game {
         this.shaderManager.updateTerrainBuffers(this.terrain);
 
         // Create physics terrain
-        console.log("[Game] Creating terrain physics mesh...");
+        //console.log("[Game] Creating terrain physics mesh...");
         const terrainBody = this.terrain.createPhysicsMesh();
         this.physicsWorld.addTerrainBody(terrainBody, 1, -1);
-        console.log("[Game] Terrain physics mesh added to world");
+        //console.log("[Game] Terrain physics mesh added to world");
 
         // Generate all POIs
         const poiManager = new POIManager(this.terrain, this.physicsWorld);
