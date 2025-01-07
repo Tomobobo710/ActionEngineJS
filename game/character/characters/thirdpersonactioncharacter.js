@@ -129,11 +129,9 @@ class ThirdPersonActionCharacter extends ActionCharacter {
             console.log("Character Debug:", this.controller.getDebugInfo());
         }
         
-        this.controller.update();
     }
 
     update(deltaTime) {
-        //this.controller.update();
 
         if (this.body) {
             const pos = this.body.position;
