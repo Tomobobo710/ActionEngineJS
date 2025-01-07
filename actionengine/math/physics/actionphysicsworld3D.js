@@ -104,6 +104,16 @@ class ActionPhysicsWorld3D {
         }
     }
 
+    pause() {
+        this.isPaused = true;
+    }
+
+    resume() {
+        this.isPaused = false;
+        this.lastPhysicsTime = performance.now();
+        this.physicsAccumulator = 0;
+    }
+    
     reset() {
         if (this.terrainBody) {
             this.world.removeRigidBody(this.terrainBody);
