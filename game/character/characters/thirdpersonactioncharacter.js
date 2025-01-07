@@ -2,8 +2,6 @@ class ThirdPersonActionCharacter extends ActionCharacter {
     constructor(terrain, camera, game) {
         super(terrain, camera);
         this.game = game;
-        console.log("World:", game.physicsWorld.getWorld());
-        console.log("Broadphase:", game.physicsWorld.broadphase);
 
         // Create controller
         this.controller = new Goblin.CharacterController(game.physicsWorld.getWorld(), {
