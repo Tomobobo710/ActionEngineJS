@@ -2,7 +2,7 @@ class ThirdPersonActionCharacter extends ActionCharacter {
     constructor(terrain, camera, game) {
         super(terrain, camera);
         this.game = game;
-
+        this.debugInfo = null;
         // Create controller
         this.controller = new Goblin.CharacterController(game.physicsWorld.getWorld(), {
             width: this.size,
@@ -39,7 +39,7 @@ class ThirdPersonActionCharacter extends ActionCharacter {
         // Fine tune physics properties if needed
         this.body.linear_damping = 0.1;
         this.body.angular_damping = 1;
-        this.body.friction = 0.5;
+        this.body.friction = 0;
         this.body.restitution = 0.2;
 
         // Add character body to physics world
@@ -164,5 +164,14 @@ class ThirdPersonActionCharacter extends ActionCharacter {
                 }
             }
         }
+        
+        // Store debug info
+        if (this.controller) {
+            this.debugInfo = this.controller.getDebugInfo();
+        }
+    }
+    
+    getDebugInfo() {
+        return this.debugInfo;
     }
 }

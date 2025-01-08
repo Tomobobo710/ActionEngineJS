@@ -539,6 +539,49 @@ class DebugPanel {
                 addLine("FPS", this.roundTo(this.getFPS(), 1));
                 addLine("Delta Time", this.roundTo(this.game.deltaTime * 1000, 1) + "ms");
 
+                // Get the character's debug info
+        const characterDebug = this.game.character.getDebugInfo();
+        if (characterDebug) {
+            // Physics info section
+            this.ctx.fillStyle = "#00ff00";
+            addLine("Physics", "");
+            this.ctx.fillStyle = "#ffffff";
+            
+            // Position
+            addVector("Position", characterDebug.physics.position);
+            addVector("Velocity", characterDebug.physics.velocity);
+
+            // Movement info section
+            this.ctx.fillStyle = "#00ff00";
+            addLine("Movement", "");
+            this.ctx.fillStyle = "#ffffff";
+            if (characterDebug.movement.raw_force) {
+                addVector("Raw Force", characterDebug.movement.raw_force);
+            }
+            if (characterDebug.movement.projected_movement) {
+                addVector("Projected Move", characterDebug.movement.projected_movement);
+            }
+
+            // Spring info section
+            this.ctx.fillStyle = "#00ff00";
+            addLine("Ground Spring", "");
+            this.ctx.fillStyle = "#ffffff";
+            addLine("Hit Distance", characterDebug.spring.hit_distance);
+            addLine("Height Error", characterDebug.spring.height_error);
+            addLine("Spring Force", characterDebug.spring.spring_force);
+
+            // Contact info section
+            this.ctx.fillStyle = "#00ff00";
+            addLine("Contact", "");
+            this.ctx.fillStyle = "#ffffff";
+            addVector("Normal", characterDebug.contact.normal);
+            if (characterDebug.contact.hit.point !== "n/a") {
+                addVector("Hit Point", characterDebug.contact.hit.point);
+                addVector("Hit Normal", characterDebug.contact.hit.normal);
+                addLine("Hit Distance", characterDebug.contact.hit.distance);
+            }
+        }
+                
                 /*
                 // Character info
                 this.ctx.fillStyle = "#00ff00";
