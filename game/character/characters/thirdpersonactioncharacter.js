@@ -11,12 +11,11 @@ class ThirdPersonActionCharacter extends ActionCharacter {
             mass: 1,
             moveSpeed: 0.5,
             maxSpeed: 50,
-            springDamper: 0.5,
+            springDamper: 1,
+            springStrength: 10,
             rideHeight: 4,
-            upwardStrength: 10,
-            downwardStrength: 10,
             forceSmoothing: 0.1,
-            rayLength: 10
+            rayLength: 6
         });
 
         this.firstPersonHeight = this.height * 0.5;

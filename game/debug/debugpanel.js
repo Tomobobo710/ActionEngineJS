@@ -390,8 +390,6 @@ class DebugPanel {
                 this.game.renderer3d.lightingManager.updateLightMatrix();
             }
 
-            
-            
             // Draw slider label
             this.ctx.fillStyle = "#ffffff";
             this.ctx.font = "12px monospace";
@@ -533,107 +531,67 @@ class DebugPanel {
 
                 // Performance metrics
                 this.ctx.fillStyle = "#00ff00";
-                addLine("Performance", "");
                 addLine("Use 2D Renderer", this.game.use2DRenderer ? "Enabled" : "Disabled");
                 this.ctx.fillStyle = "#ffffff";
                 addLine("FPS", this.roundTo(this.getFPS(), 1));
                 addLine("Delta Time", this.roundTo(this.game.deltaTime * 1000, 1) + "ms");
 
                 // Get the character's debug info
-        const characterDebug = this.game.character.getDebugInfo();
-        if (characterDebug) {
-            // Physics info section
-            this.ctx.fillStyle = "#00ff00";
-            addLine("Physics", "");
-            this.ctx.fillStyle = "#ffffff";
-            
-            // Position
-            addVector("Position", characterDebug.physics.position);
-            addVector("Velocity", characterDebug.physics.velocity);
+                const characterDebug = this.game.character.getDebugInfo();
+                if (characterDebug) {
+                    // Physics info section
+                    this.ctx.fillStyle = "#00ff00";
+                    addLine("Physics", "");
+                    this.ctx.fillStyle = "#ffffff";
 
-            // Movement info section
-            this.ctx.fillStyle = "#00ff00";
-            addLine("Movement", "");
-            this.ctx.fillStyle = "#ffffff";
-            if (characterDebug.movement.raw_force) {
-                addVector("Raw Force", characterDebug.movement.raw_force);
-            }
-            if (characterDebug.movement.projected_movement) {
-                addVector("Projected Move", characterDebug.movement.projected_movement);
-            }
+                    // Position
+                    addVector("Position", characterDebug.physics.position);
+                    addVector("Velocity", characterDebug.physics.velocity);
 
-            // Spring info section
-            this.ctx.fillStyle = "#00ff00";
-            addLine("Ground Spring", "");
-            this.ctx.fillStyle = "#ffffff";
-            addLine("Hit Distance", characterDebug.spring.hit_distance);
-            addLine("Height Error", characterDebug.spring.height_error);
-            addLine("Spring Force", characterDebug.spring.spring_force);
+                    // Movement info section
+                    this.ctx.fillStyle = "#ffffff";
+                    if (characterDebug.movement.input_direction) {
+                        addVector("Raw Input", characterDebug.movement.input_direction);
+                    }
+                    addVector("Raw Move", characterDebug.movement.raw_move);
+                    addVector("Projected Move", characterDebug.movement.projected_move);
+                    if (characterDebug.movement.applied_force) {
+                        addVector("Applied Force", characterDebug.movement.applied_force);
+                    }
+                    // Spring info section
+                    this.ctx.fillStyle = "#00ff00";
+                    addLine("Ground Spring", "");
+                    this.ctx.fillStyle = "#ffffff";
+                    addLine("Hit Distance", characterDebug.spring.hit_distance);
+                    addLine("Height Error", characterDebug.spring.height_error);
+                    addLine("Spring Force", characterDebug.spring.spring_force);
 
-            // Contact info section
-            this.ctx.fillStyle = "#00ff00";
-            addLine("Contact", "");
-            this.ctx.fillStyle = "#ffffff";
-            addVector("Normal", characterDebug.contact.normal);
-            if (characterDebug.contact.hit.point !== "n/a") {
-                addVector("Hit Point", characterDebug.contact.hit.point);
-                addVector("Hit Normal", characterDebug.contact.hit.normal);
-                addLine("Hit Distance", characterDebug.contact.hit.distance);
-            }
-        }
-                
-                /*
-                // Character info
+                    // Contact info section
+                    this.ctx.fillStyle = "#00ff00";
+                    addLine("Contact", "");
+                    this.ctx.fillStyle = "#ffffff";
+                    addVector("Normal", characterDebug.contact.normal);
+
+                    // Safe check for hit data
+                    if (characterDebug.contact.hit && characterDebug.contact.hit.point) {
+                        addVector("Hit Point", characterDebug.contact.hit.point);
+                        if (characterDebug.contact.hit.normal) {
+                            addVector("Hit Normal", characterDebug.contact.hit.normal);
+                        }
+                        if (
+                            characterDebug.contact.hit.distance !== null &&
+                            characterDebug.contact.hit.distance !== undefined
+                        ) {
+                            addLine("Hit Distance", characterDebug.contact.hit.distance);
+                        }
+                    }
+                }
+
+                // Camera metrics
                 this.ctx.fillStyle = "#00ff00";
-                addLine("Character", "");
-                this.ctx.fillStyle = "#ffffff";
-
-                // Position info
-                addVector("World Pos", {
-                    x: this.game.character.position.x,
-                    y: this.game.character.position.y,
-                    z: this.game.character.position.z
-                });
-
-                // Physics info
-                const velocity = this.game.character.body.getLinearVelocity();
-                addVector("Velocity", {
-                    x: velocity.x(),
-                    y: velocity.y(),
-                    z: velocity.z()
-                });
-
-                // Calculate speed from velocity
-                const speed = Math.sqrt(
-                    velocity.x() * velocity.x() + velocity.y() * velocity.y() + velocity.z() * velocity.z()
-                );
-                addLine("Speed", this.roundTo(speed, 2));
-
-                // Ground contact
-                addLine("Ground Contact", this.game.character.controller.isOnGround() ? "Yes" : "No");
-
-                // Character state
-                addLine("Jump State", this.game.character.controller.isOnGround() ? "Grounded" : "Airborne");
-
-                // Camera info
-                this.ctx.fillStyle = "#00ff00";
-                addLine("Camera Control", "");
+                addLine("Camera", "");
                 this.ctx.fillStyle = "#ffffff";
                 addLine("Camera Mode", this.game.character.camera.isDetached ? "Detached" : "Following");
-                addLine(
-                    "Orbit Angle",
-                    this.roundTo((this.game.character.controller.cameraAngle * 180) / Math.PI, 1) + "°"
-                );
-                addLine("Camera Distance", this.roundTo(this.game.character.controller.cameraDistance, 1));
-                // Camera Details
-                this.ctx.fillStyle = "#00ff00";
-                addLine("Camera Details", "");
-                this.ctx.fillStyle = "#ffffff";
-                addLine(
-                    "Orbit Angle",
-                    this.roundTo((this.game.character.controller.cameraAngle * 180) / Math.PI, 1) + "°"
-                );
-
                 // Height info with percentage
                 const terrainHeight = this.game.terrain.getHeightAt(
                     this.game.character.position.x,
@@ -642,11 +600,6 @@ class DebugPanel {
                 const maxHeight = this.game.terrain.generator.getBaseWorldHeight();
                 const heightPercent = Math.round((terrainHeight / maxHeight) * 100);
                 addLine("Ground Height", `${this.roundTo(terrainHeight, 2)} (${this.roundTo(heightPercent, 1)}%)`);
-                */
-                // Camera metrics
-                this.ctx.fillStyle = "#00ff00";
-                addLine("Camera", "");
-                this.ctx.fillStyle = "#ffffff";
                 addVector("Cam Pos", {
                     x: this.roundTo(this.game.camera.position.x, 2),
                     y: this.roundTo(this.game.camera.position.y, 2),
@@ -666,12 +619,7 @@ class DebugPanel {
                 const camHeight = this.game.camera.position.y - this.game.character.position.y;
                 addLine("Cam Distance", this.roundTo(camDist, 2));
                 addLine("Cam Height", this.roundTo(camHeight, 2));
-                
-                // World metrics
-                this.ctx.fillStyle = "#00ff00";
-                addLine("World", "");
-                this.ctx.fillStyle = "#ffffff";
-
+                addLine("Camera Mode", this.game.character.camera.isDetached ? "Detached" : "Following");
                 // Current terrain/biome
                 const characterBase = this.game.character.position.y - this.game.character.size / 2;
                 //const heightPercentAtPlayer = (characterBase / maxHeight) * 100;
