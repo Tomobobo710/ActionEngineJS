@@ -10,7 +10,7 @@ class ThirdPersonActionCharacter extends ActionCharacter {
             depth: this.size,
             mass: 1,
             jumpForce: 60,
-            moveSpeed: 0.5,
+            moveSpeed: 50,
             maxSpeed: 50,
             springDamper: 1,
             springStrength: 10,
@@ -141,22 +141,22 @@ class ThirdPersonActionCharacter extends ActionCharacter {
             const pos = this.body.position;
 
             // Check if we're below 0
-        if (pos.y < 0) {
-            // Get current triangle
-            const currentTriangle = this.getCurrentTriangle();
-            if (currentTriangle) {
-                // Set position 10 units above exact height on triangle
-                const heightOnTriangle = this.getHeightOnTriangle(currentTriangle, pos.x, pos.z);
-                pos.y = heightOnTriangle + 10;
-                
-                // Reset velocities
-                this.body.linear_velocity.set(0, 0, 0);
-                this.body.angular_velocity.set(0, 0, 0);
-                
-                // Force state to falling
-                this.controller.changeState('falling');
+            if (pos.y < 0) {
+                // Get current triangle
+                const currentTriangle = this.getCurrentTriangle();
+                if (currentTriangle) {
+                    // Set position 10 units above exact height on triangle
+                    const heightOnTriangle = this.getHeightOnTriangle(currentTriangle, pos.x, pos.z);
+                    pos.y = heightOnTriangle + 10;
+
+                    // Reset velocities
+                    this.body.linear_velocity.set(0, 0, 0);
+                    this.body.angular_velocity.set(0, 0, 0);
+
+                    // Force state to falling
+                    this.controller.changeState("falling");
+                }
             }
-        }
 
             this.position.set(pos.x, pos.y, pos.z);
             this.basePosition.set(this.position.x, this.position.y - this.size / 2, this.position.z);
