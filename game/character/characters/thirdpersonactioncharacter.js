@@ -27,7 +27,7 @@ class ThirdPersonActionCharacter extends ActionCharacter {
         this.cameraHeight = 10;
         this.cameraPitch = 0;
         this.cameraYaw = 0;
-        
+
         // Store pointer position for camera movment
         this.lastPointerX = null;
         this.lastPointerY = null;
@@ -45,7 +45,7 @@ class ThirdPersonActionCharacter extends ActionCharacter {
         const gravityMultiplier = 1;
         this.body.setGravity(
             worldGravity.x * gravityMultiplier,
-            worldGravity.y * gravityMultiplier, 
+            worldGravity.y * gravityMultiplier,
             worldGravity.z * gravityMultiplier
         );
         // Add character body to physics world
@@ -130,8 +130,6 @@ class ThirdPersonActionCharacter extends ActionCharacter {
         }
         this.controller.handleInput(moveDir);
 
-        
-
         if (input.isKeyJustPressed("ActionDebugToggle")) {
             console.log("Character Debug:", this.controller.getDebugInfo());
         }
@@ -141,12 +139,31 @@ class ThirdPersonActionCharacter extends ActionCharacter {
         this.controller.update(deltaTime);
         if (this.body) {
             const pos = this.body.position;
+
+            // Check if we're below 0
+        if (pos.y < 0) {
+            // Get current triangle
+            const currentTriangle = this.getCurrentTriangle();
+            if (currentTriangle) {
+                // Set position 10 units above exact height on triangle
+                const heightOnTriangle = this.getHeightOnTriangle(currentTriangle, pos.x, pos.z);
+                pos.y = heightOnTriangle + 10;
+                
+                // Reset velocities
+                this.body.linear_velocity.set(0, 0, 0);
+                this.body.angular_velocity.set(0, 0, 0);
+                
+                // Force state to falling
+                this.controller.changeState('falling');
+            }
+        }
+
             this.position.set(pos.x, pos.y, pos.z);
             this.basePosition.set(this.position.x, this.position.y - this.size / 2, this.position.z);
 
             // Use yaw for character facing
             this.rotation = this.cameraYaw + Math.PI;
-            
+
             this.updateFacingDirection();
 
             if (!this.camera.isDetached) {
@@ -171,13 +188,13 @@ class ThirdPersonActionCharacter extends ActionCharacter {
                 }
             }
         }
-        
+
         // Store debug info
         if (this.controller) {
             this.debugInfo = this.controller.getDebugInfo();
         }
     }
-    
+
     getDebugInfo() {
         return this.debugInfo;
     }
