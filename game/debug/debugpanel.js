@@ -539,6 +539,16 @@ class DebugPanel {
                 // Get the character's debug info
                 const characterDebug = this.game.character.getDebugInfo();
                 if (characterDebug) {
+                    this.ctx.fillStyle = "#00ff00";
+                    addLine("State", "");
+                    this.ctx.fillStyle = "#ffffff";
+                    addLine("Current State", characterDebug.state.current);
+                    if (characterDebug.state.lastTransition) {
+                        addLine("Last State", characterDebug.state.lastTransition.from || "None");
+                        const timeSinceTransition = Date.now() - characterDebug.state.lastTransition.time;
+                        addLine("Time In State", Math.round(timeSinceTransition) + "ms");
+                    }
+
                     // Physics info section
                     this.ctx.fillStyle = "#00ff00";
                     addLine("Physics", "");
