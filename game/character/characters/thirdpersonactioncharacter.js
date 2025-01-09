@@ -119,7 +119,7 @@ class ThirdPersonActionCharacter extends ActionCharacter {
             moveDir.normalize();
         }
         if (input.isKeyJustPressed("Action1")) {
-            //this.controller.jump(); // not implemented
+            this.controller.wishJump(); // not implemented
         }
         this.controller.handleInput(moveDir);
 
