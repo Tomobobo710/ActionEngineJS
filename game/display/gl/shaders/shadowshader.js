@@ -1,4 +1,4 @@
-// game/display/gl/shaders/debugshadowmapshader.js
+// game/display/gl/shaders/shadowshader.js
 class ShadowShader {    
     getShadowVertexShader() {
         return `${this.isWebGL2 ? "#version 300 es\n" : ""}
