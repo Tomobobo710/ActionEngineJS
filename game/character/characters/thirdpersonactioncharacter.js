@@ -9,6 +9,7 @@ class ThirdPersonActionCharacter extends ActionCharacter {
             height: this.height,
             depth: this.size,
             mass: 1,
+            jumpForce: 60,
             moveSpeed: 0.5,
             maxSpeed: 50,
             springDamper: 1,
@@ -36,11 +37,17 @@ class ThirdPersonActionCharacter extends ActionCharacter {
         this.body.position.set(0, 500, 0);
 
         // Fine tune physics properties if needed
-        this.body.linear_damping = 0.1;
-        this.body.angular_damping = 1;
+        this.body.linear_damping = 0.01;
+        this.body.angular_damping = 0;
         this.body.friction = 0;
         this.body.restitution = 0.2;
-
+        const worldGravity = game.physicsWorld.getWorld().gravity;
+        const gravityMultiplier = 1;
+        this.body.setGravity(
+            worldGravity.x * gravityMultiplier,
+            worldGravity.y * gravityMultiplier, 
+            worldGravity.z * gravityMultiplier
+        );
         // Add character body to physics world
         game.physicsWorld.getWorld().addRigidBody(this.body);
 
