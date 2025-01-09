@@ -31,7 +31,9 @@ class ThirdPersonActionCharacter extends ActionCharacter {
         // Store pointer position for camera movment
         this.lastPointerX = null;
         this.lastPointerY = null;
-
+        this.swipeStartX = null;
+        this.swipeStartY = null;
+        
         // Get the character body from the controller
         this.body = this.controller.body;
         this.body.position.set(0, 500, 0);
@@ -98,7 +100,43 @@ class ThirdPersonActionCharacter extends ActionCharacter {
 
             this.cameraPitch = Math.max(-1.57, Math.min(1.57, this.cameraPitch));
         }
+        
+        // Handle swipe camera control
+        if (!document.pointerLockElement) {
+            const pointerPos = input.getPointerPosition();
+            
+            // Start tracking swipe
+            if (input.isPointerJustDown()) {
+                this.swipeStartX = pointerPos.x;
+                this.swipeStartY = pointerPos.y;
+            }
+            
+            // Update camera during swipe
+            if (input.isPointerDown() && this.swipeStartX !== null) {
+                const deltaX = pointerPos.x - this.swipeStartX;
+                const deltaY = pointerPos.y - this.swipeStartY;
+                
+                const swipeSensitivity = 0.005;
+                this.cameraYaw -= deltaX * swipeSensitivity;
+                
+                if (this.isFirstPerson) {
+                    this.cameraPitch += deltaY * swipeSensitivity;
+                } else {
+                    this.cameraPitch -= deltaY * swipeSensitivity;
+                }
 
+                this.cameraPitch = Math.max(-1.57, Math.min(1.57, this.cameraPitch));
+                
+                // Update start position for next frame
+                this.swipeStartX = pointerPos.x;
+                this.swipeStartY = pointerPos.y;
+            } else {
+                // Reset swipe tracking when pointer is released
+                this.swipeStartX = null;
+                this.swipeStartY = null;
+            }
+        }
+        
         // Get input direction relative to camera
         const viewMatrix = this.camera.getViewMatrix();
         const moveDir = new Goblin.Vector3();
