@@ -118,12 +118,12 @@ class ThirdPersonActionCharacter extends ActionCharacter {
         if (moveDir.lengthSquared() > 0) {
             moveDir.normalize();
         }
-
-        this.controller.move(moveDir, deltaTime);
-
-        if (input.isKeyPressed("Action1")) {
+        if (input.isKeyJustPressed("Action1")) {
             //this.controller.jump(); // not implemented
         }
+        this.controller.handleInput(moveDir);
+
+        
 
         if (input.isKeyJustPressed("ActionDebugToggle")) {
             console.log("Character Debug:", this.controller.getDebugInfo());
@@ -131,6 +131,7 @@ class ThirdPersonActionCharacter extends ActionCharacter {
     }
 
     update(deltaTime) {
+        this.controller.update(deltaTime);
         if (this.body) {
             const pos = this.body.position;
             this.position.set(pos.x, pos.y, pos.z);

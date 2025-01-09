@@ -622,9 +622,6 @@ class DebugPanel {
                 addLine("Camera Mode", this.game.character.camera.isDetached ? "Detached" : "Following");
                 // Current terrain/biome
                 const characterBase = this.game.character.position.y - this.game.character.size / 2;
-                //const heightPercentAtPlayer = (characterBase / maxHeight) * 100;
-                //addLine("Height %", Math.round(heightPercentAtPlayer));
-
                 // Triangle info
                 this.ctx.fillStyle = "#00ff00";
                 addLine("Current Triangle", "");
