@@ -25,7 +25,7 @@ class ActionPhysicsObject3D extends RenderableObject {
             });
         });
         
-        this.physicsWorld.addObject(this);
+        //this.physicsWorld.addObject(this);
     }
 
     updateVisual() {
@@ -63,7 +63,7 @@ class ActionPhysicsObject3D extends RenderableObject {
         });
         this.physicsWorld.shaderManager?.updateRenderableBuffers(this);
     }
-
+    
     rotateVector(vector, rotation) {
     // Create Goblin vector
     const v = new Goblin.Vector3(vector.x, vector.y, vector.z);
