@@ -18,20 +18,17 @@ class ActionPhysicsWorld3D {
         this.isPaused = false;
     }
     
-
     update(deltaTime) {
         if (!this.world || this.isPaused) return;
-
+        
         const currentTime = performance.now();
         const frameTime = Math.min((currentTime - this.lastPhysicsTime) / 1000, 0.25); // Cap at 250ms
         this.lastPhysicsTime = currentTime;
-
         this.physicsAccumulator += frameTime;
         
         while (this.physicsAccumulator >= this.fixedTimeStep) {
             this.world.step(this.fixedTimeStep);
             this.physicsAccumulator -= this.fixedTimeStep;
-
             this.objects.forEach(object => {
                 if (object.body) {
                     object.updateVisual();
@@ -39,7 +36,7 @@ class ActionPhysicsWorld3D {
             });
         }
     }
-
+    
     addConstraint(constraint) {
             if (!constraint) {
                 console.warn("[PhysicsWorld] Attempted to add null constraint");
