@@ -602,12 +602,6 @@ class Game {
 	 * - MIDI instrument playback
 	 * - Complex musical arrangements
 	 *
-	 * !!! PERFORMANCE NOTE !!!
-	 * The demo provides many sounds, but be warned that using MIDI sounds and
-	 * complicated sequence scripts is incrementally more costly at initial app load time!
-	 * For example, this demo takes a few seconds to load on modern hardware.
-	 * It's recommended to balance sound complexity with performance needs.
-	 *
 	 * Let's dive in and make some noise! 🎵
 	 * -----------------
 	 */
