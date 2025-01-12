@@ -166,7 +166,6 @@ class ShaderManager {
         return this.characterIndexCount;
     }
 
-    // Add to ShaderManager class, alongside updateTerrainBuffers and updateCharacterBuffers
     updateRenderableBuffers(renderable) {
     const positions = new Float32Array(renderable.triangles.length * 9);
     const normals = new Float32Array(renderable.triangles.length * 9);
@@ -218,6 +217,26 @@ class ShaderManager {
     return this.renderableIndexCount;
 }
 
+    deleteBuffers() {
+    // Delete terrain buffers
+    this.gl.deleteBuffer(this.terrainBuffers.position);
+    this.gl.deleteBuffer(this.terrainBuffers.normal);
+    this.gl.deleteBuffer(this.terrainBuffers.color);
+    this.gl.deleteBuffer(this.terrainBuffers.indices);
+
+    // Delete character buffers
+    this.gl.deleteBuffer(this.characterBuffers.position);
+    this.gl.deleteBuffer(this.characterBuffers.normal);
+    this.gl.deleteBuffer(this.characterBuffers.color);
+    this.gl.deleteBuffer(this.characterBuffers.indices);
+
+    // Delete renderable buffers
+    this.gl.deleteBuffer(this.renderableBuffers.position);
+    this.gl.deleteBuffer(this.renderableBuffers.normal);
+    this.gl.deleteBuffer(this.renderableBuffers.color);
+    this.gl.deleteBuffer(this.renderableBuffers.indices);
+}
+    
     getBufferInfo() {
         return {
             terrainBuffers: this.terrainBuffers,
