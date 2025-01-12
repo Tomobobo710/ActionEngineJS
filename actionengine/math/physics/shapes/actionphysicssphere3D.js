@@ -78,8 +78,8 @@ class ActionPhysicsSphere3D extends ActionPhysicsObject3D {
             });
         });
         
-        this.physicsWorld.addObject(this);
-        this.updateVisual();
+        //this.physicsWorld.addObject(this);
+        //this.updateVisual();
     }
 
     updateVisual() {
