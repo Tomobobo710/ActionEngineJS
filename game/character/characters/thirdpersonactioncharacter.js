@@ -37,7 +37,11 @@ class ThirdPersonActionCharacter extends ActionCharacter {
         // Get the character body from the controller
         this.body = this.controller.body;
         this.body.position.set(0, 500, 0);
-
+        
+        // Add debug tracking
+        this.body.debugName = `CharacterBody_${Date.now()}`;
+        this.body.createdAt = Date.now();
+        
         // Fine tune physics properties if needed
         this.body.linear_damping = 0.01;
         this.body.angular_damping = 0;
