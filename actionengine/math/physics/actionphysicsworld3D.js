@@ -1,10 +1,10 @@
 // actionengine/math/physics/actionphysicsworld3D.js
 class ActionPhysicsWorld3D {
     constructor(fixedTimestep = 1 / 60) {
-        const broadphase = new Goblin.SAPBroadphase();
-        const narrowphase = new Goblin.NarrowPhase();
-        const solver = new Goblin.IterativeSolver();
-        this.world = new Goblin.World(broadphase, narrowphase, solver);
+        this.broadphase = new Goblin.SAPBroadphase();
+        this.narrowphase = new Goblin.NarrowPhase();
+        this.solver = new Goblin.IterativeSolver();
+        this.world = new Goblin.World(this.broadphase, this.narrowphase, this.solver);
 
         this.world.gravity = new Goblin.Vector3(0, -98.1, 0);
 
@@ -134,6 +134,11 @@ class ActionPhysicsWorld3D {
     }
 
     reset() {
+        // nuke it
+        this.broadphase = new Goblin.SAPBroadphase();
+        this.narrowphase = new Goblin.NarrowPhase();
+        this.solver = new Goblin.IterativeSolver();
+        
         // Clear all object pools
         Object.keys(Goblin.ObjectPool.pools).forEach(key => {
             Goblin.ObjectPool.pools[key].length = 0;
