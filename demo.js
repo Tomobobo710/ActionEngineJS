@@ -143,6 +143,9 @@ class Game {
 		this.ballRadius = 20;
 		this.ballRotation = 0;
 		this.ballSpinSpeed = 0.03;
+		
+		// Start the game loop
+		this.loop();
 	}
 
 	/******* Fixed Coordinate System *******
