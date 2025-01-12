@@ -174,10 +174,12 @@ class Terrain {
             }
         }
         
-        //console.log("Terrain vertices:", vertices);
-        //console.log("Terrain indices:", indices);
         const terrainShape = new Goblin.MeshShape(goblinVertices, indices);
-        const terrainBody = new Goblin.RigidBody(terrainShape, 0);
+    const terrainBody = new Goblin.RigidBody(terrainShape, 0);
+    
+    // Add debug tracking
+    terrainBody.debugName = `TerrainBody_${Date.now()}`;
+    terrainBody.createdAt = Date.now();
 
         return terrainBody;
     }
