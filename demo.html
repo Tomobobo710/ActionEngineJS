@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>ActionEngine Game</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div id="appContainer">
+        <div id="UIControlsContainer"></div>
+    </div>
+	
+	
+	# 3rd party libs
+    
+    # sf2-player https://github.com/JanVeb/sf2-player
+	<script src="lib/sf2-player/parser.js"></script>
+	<script src="lib/sf2-player/riff.js"></script>
+	<script src="lib/sf2-player/reverb.js"></script>
+	<script src="lib/sf2-player/sound_font_synth_note.js"></script>
+	<script src="lib/sf2-player/sound_font_synth.js"></script>
+	<script src="lib/sf2-player/sf2-player.js"></script>
+	<script src="lib/sf2-player/soundfont/soundfont.js"></script>
+	
+    # Goblin fork of https://github.com/chandlerprall/GoblinPhysics
+    # https://github.com/Tomobobo710/GoblinPhysics
+    <script src="lib/goblin/goblin.js"></script>
+	
+	####Action Engine Modules####
+	# Action Engine Math
+	<script src="actionengine/math/geometry/triangle.js"></script>
+	<script src="actionengine/math/vector2.js"></script>
+	<script src="actionengine/math/vector3.js"></script>
+	<script src="actionengine/math/matrix4.js"></script>
+    <script src="actionengine/math/quaternion.js"></script>
+    <script src="actionengine/math/mathutils.js"></script>
+    
+    # Action Engine Rendering (Triangles)
+    <!-- Rendererables -->
+    <script src="actionengine/display/graphics/renderableobject.js"></script>
+    
+    <!-- 2D Software Renderer -->
+	<script src="actionengine/display/graphics/renderers/actionrenderer2D.js"></script>
+    
+    <!-- 3D WebGL Renderer -->
+	<script src="actionengine/display/graphics/renderers/actionrenderer3D/actionrenderer3D.js"></script>
+    <script src="actionengine/display/graphics/renderers/actionrenderer3D/terrainrenderer3D.js"></script>
+    <script src="actionengine/display/graphics/renderers/actionrenderer3D/characterrenderer3D.js"></script>
+    <script src="actionengine/display/graphics/renderers/actionrenderer3D/objectrenderer3D.js"></script>
+    <script src="actionengine/display/graphics/renderers/actionrenderer3D/weatherrenderer3D.js"></script>
+    <script src="actionengine/display/graphics/renderers/actionrenderer3D/debugrenderer3D.js"></script>
+    <script src="actionengine/display/graphics/renderers/actionrenderer3D/canvasmanager3D.js"></script>
+    <script src="actionengine/display/graphics/renderers/actionrenderer3D/programmanager.js"></script>
+    <script src="actionengine/display/graphics/renderers/actionrenderer3D/programregistry.js"></script>
+    <script src="actionengine/display/graphics/renderers/actionrenderer3D/lightingmanager.js"></script>  
+    
+    # Action Engine Physics (goblin)
+    <script src="actionengine/math/physics/actionphysicsworld3D.js"></script>
+    <script src="actionengine/math/physics/actionphysicsobject3D.js"></script>
+    <script src="actionengine/math/physics/shapes/actionphysicsplane3D.js"></script>
+    <script src="actionengine/math/physics/shapes/actionphysicsbox3D.js"></script>
+    <script src="actionengine/math/physics/shapes/actionphysicssphere3D.js"></script>
+	<script src="actionengine/math/physics/actionphysics.js"></script>
+   
+    # Action Engine Sound
+    <script src="actionengine/sound/audiomanager.js"></script>
+	
+	# Action Engine Input
+    <script src="actionengine/input/inputhandler.js"></script>
+	
+    # Action Engine Camera
+    <script src="actionengine/display/graphics/actioncamera.js"></script>
+    
+    # Action Engine 3-Layer Canvas System
+	<script src="actionengine/display/canvasmanager.js"></script>
+	
+	# Action Engine Bootstrap
+	<script src="actionengine/core/app.js"></script>
+	#############################
+	
+
+	####Game Specific Modules####
+	# Game Character
+	<script src="game/character/basecharacter/actioncharacter.js"></script>
+	<script src="game/character/characters/thirdpersonactioncharacter.js"></script>
+	<script src="game/character/controllers/thirdpersonactioncharactercontroller.js"></script>
+	
+	# Game World Generator
+	<script src="game/world/worldgen/biometypes.js"></script>
+	<script src="game/world/worldgen/noisegenerator.js"></script>
+	<script src="game/world/worldgen/worldgenerator.js"></script>
+	<script src="game/world/worldgen/baseterraingenerator.js"></script>
+	<script src="game/world/worldgen/noisebasedgenerator.js"></script>
+	<script src="game/world/worldgen/tileworldgenerator.js"></script>
+	<script src="game/world/worldgen/islandgenerator.js"></script>
+	<script src="game/world/worldgen/terrain.js"></script>
+	
+    # Points of Interest
+    <script src="game/world/worldgen/poi/poimanager.js"></script>
+    <script src="game/world/worldgen/poi/generators/base/basepoigenerator.js"></script>
+    <script src="game/world/worldgen/poi/generators/townpoigenerator.js"></script>
+    <script src="game/world/worldgen/poi/generators/dungeonpoigenerator.js"></script>
+    <script src="game/world/worldgen/poi/generators/fishingpoigenerator.js"></script>
+    <script src="game/world/worldgen/poi/buildings/dungeonbuilding.js"></script>
+    <script src="game/world/worldgen/poi/buildings/fishingspot.js"></script>
+    <script src="game/world/worldgen/poi/buildings/townbuilding.js"></script>
+     
+	# Weather
+	<script src="game/world/weather/weathersystem.js"></script>
+	<script src="game/world/weather/weatherparticle.js"></script>
+	
+	# GL Shader Management
+	<!-- Core registry and manager -->
+    <script src="game/display/gl/shaderregistry.js"></script>
+    <script src="game/display/gl/shadermanager.js"></script>
+
+    <!-- Default shader implementations -->
+    <script src="game/display/gl/shaders/defaultshader.js"></script>
+    <script src="game/display/gl/shaders/shadowshader.js"></script>
+    <script src="game/display/gl/shaders/debugshadowmapshader.js"></script>
+    <script src="game/display/gl/shaders/particleshader.js"></script>
+    
+    <!-- Game shader implementations -->
+    <script src="game/display/gl/shaders/virtualboyshader.js"></script>
+    <script src="game/display/gl/shaders/pbrshader.js"></script>
+	
+	# Game Debug
+	<script src="game/debug/debugpanel.js"></script>
+	
+	# Game Bootstrap
+	<script src="demo.js"></script>
+	#############################
+
+</body>
+</html>
