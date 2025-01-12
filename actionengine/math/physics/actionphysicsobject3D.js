@@ -24,8 +24,6 @@ class ActionPhysicsObject3D extends RenderableObject {
                 ));
             });
         });
-        
-        //this.physicsWorld.addObject(this);
     }
 
     updateVisual() {
