@@ -47,15 +47,13 @@ class POIManager {
        });
    }
 
-   generateFishingSpots() {
-       this.fishingSpots = [];
-       const fishingLocations = this.fishingGenerator.findFishingLocations(50);
-       fishingLocations.forEach((triangle) => {
-           const center = this.calculateTriangleCenter(triangle);
-           const spot = new FishingSpotManager(this.physicsWorld, center);
-           this.fishingSpots.push(spot);
-       });
-   }
+    generateFishingSpots() {
+        const fishingLocations = this.fishingGenerator.findFishingLocations(50);
+        fishingLocations.forEach(triangle => {
+            const center = this.calculateTriangleCenter(triangle);
+            new FishingSpotMarker(this.physicsWorld, center);
+        });
+    }
 
    calculateTriangleCenter(triangle) {
        return new Vector3(
