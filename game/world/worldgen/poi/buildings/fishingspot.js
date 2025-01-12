@@ -73,37 +73,37 @@ class FishingSpotMarker extends ActionPhysicsObject3D {
 
         // Physics setup
         // Create Goblin compound shape
-const compoundShape = new Goblin.CompoundShape();
+        const compoundShape = new Goblin.CompoundShape();
 
-const poleShape = new Goblin.BoxShape(poleWidth, poleHeight, poleDepth);
-const flagShape = new Goblin.BoxShape(flagWidth, flagHeight, flagThickness);
+        const poleShape = new Goblin.BoxShape(poleWidth, poleHeight, poleDepth);
+        const flagShape = new Goblin.BoxShape(flagWidth, flagHeight, flagThickness);
 
-// Add shapes at their relative positions using addChildShape
-compoundShape.addChildShape(
-    poleShape,
-    new Goblin.Vector3(0, 0, 0),
-    new Goblin.Quaternion(0, 0, 0, 1)
-);
+        // Add shapes at their relative positions using addChildShape
+        compoundShape.addChildShape(poleShape, new Goblin.Vector3(0, 0, 0), new Goblin.Quaternion(0, 0, 0, 1));
 
-compoundShape.addChildShape(
-    flagShape,
-    new Goblin.Vector3(poleWidth/2 + flagWidth/2, poleHeight/2 - flagHeight/2, 0),
-    new Goblin.Quaternion(0, 0, 0, 1)
-);
-
-this.body = new Goblin.RigidBody(compoundShape, 0);
-this.body.position.set(position.x, position.y + poleHeight/2, position.z);
-this.body.addListener(
-            'contact',
-            function( other_body, contact ) {
-                // this body has come in `contact with` other_body and the details are provided by `contact`
-                console.log("FishingSpot");
-            }
+        compoundShape.addChildShape(
+            flagShape,
+            new Goblin.Vector3(poleWidth / 2 + flagWidth / 2, poleHeight / 2 - flagHeight / 2, 0),
+            new Goblin.Quaternion(0, 0, 0, 1)
         );
+
+        this.body = new Goblin.RigidBody(compoundShape, 0);
+        this.body.position.set(position.x, position.y + poleHeight / 2, position.z);
+        this.body.addListener("contact", function (other_body, contact) {
+            // this body has come in `contact with` other_body and the details are provided by `contact`
+            console.log("FishingSpot");
+        });
         this.physicsWorld.addObject(this);
         this.updateVisual();
     }
 }
+
+/* // Revert to FishingSpotMarker for the time being
+
+// Chill on this for now cause this implementation at least is creating references that GC can't rm.
+// It's not even the hinge, it's some other operation issue and I just can't debug connections through
+// all this stuff my whole life when the old FishingSpotMarker is perfect so I'm bailing on it - tom
+
 
 class FishingSpotManager extends ActionPhysicsObject3D {
    constructor(physicsWorld, position) {
@@ -194,7 +194,7 @@ class FishingSpotManager extends ActionPhysicsObject3D {
        this.rigidBodies = [this.poleBody, this.flagBody];
        this.poleBody = null;
        this.flagBody = null;
-       /*
+       
        const hingeAxis = new Goblin.Vector3(0, 1, 0);
        const hingePoint = new Goblin.Vector3(this.poleWidth/2, this.poleHeight/2, 0);
        const connectionPoint = new Goblin.Vector3(-this.flagWidth/2, 0, 0);
@@ -206,7 +206,7 @@ class FishingSpotManager extends ActionPhysicsObject3D {
            this.flagBody,
            connectionPoint
        );
-       */
+       
        
        
        //this.constraints = [this.hingeConstraint];
@@ -223,3 +223,4 @@ class FishingSpotManager extends ActionPhysicsObject3D {
        }
    }
 }
+*/
