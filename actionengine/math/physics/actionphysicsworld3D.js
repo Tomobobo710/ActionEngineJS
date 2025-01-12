@@ -134,6 +134,11 @@ class ActionPhysicsWorld3D {
     }
 
     reset() {
+        // Clear all object pools
+        Object.keys(Goblin.ObjectPool.pools).forEach(key => {
+            Goblin.ObjectPool.pools[key].length = 0;
+        });
+        
         if (this.terrainBody) {
             this.world.removeRigidBody(this.terrainBody);
             this.terrainBody = null;
