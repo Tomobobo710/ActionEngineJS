@@ -96,8 +96,8 @@ class ActionPhysicsBox3D extends ActionPhysicsObject3D {
         this.body.angular_damping = 0.01;
 
         this.storeOriginalData();
-        this.physicsWorld.addObject(this);
-        this.updateVisual();
+        //this.physicsWorld.addObject(this);
+        //this.updateVisual();
     }
 
     storeOriginalData() {
