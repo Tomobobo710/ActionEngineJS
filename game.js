@@ -74,8 +74,16 @@ class Game {
     
     generateWorld() {
         if (this.physicsWorld) {
-            this.physicsWorld.reset();
+        // First destroy any existing contacts
+        let manifold = this.physicsWorld.world.narrowphase.contact_manifolds.first;
+        while (manifold) {
+            for (let i = 0; i < manifold.points.length; i++) {
+                manifold.points[i].destroy();
+            }
+            manifold = manifold.next_manifold;
         }
+        this.physicsWorld.reset();
+    }
         
         // Generate new terrain
         const isIsland = Math.random() < 0.5;
@@ -93,26 +101,33 @@ class Game {
         if (!isIsland) {
             baseConfig.generator = "tiled";
         }
-        
+            
+        // Create visual for terrain
         this.terrain = new Terrain(baseConfig);
         this.shaderManager.updateTerrainBuffers(this.terrain);
         
-        // Create physics terrain
-        //console.log("[Game] Creating terrain physics mesh...");
+        // Create terrain physics object
         const terrainBody = this.terrain.createPhysicsMesh();
         this.physicsWorld.addTerrainBody(terrainBody, 1, -1);
-        //console.log("[Game] Terrain physics mesh added to world");
-        // Generate all POIs
-        const poiManager = new POIManager(this.terrain, this.physicsWorld);
-        poiManager.generateAllPOIs();
         
+        
+        if (this.poiManager) {
+            this.poiManager.cleanup();
+        }
+        
+        // Create and store POI manager reference
+        this.poiManager = new POIManager(this.terrain, this.physicsWorld);
+        this.poiManager.generateAllPOIs();
+        
+        // Set Character's terrain
         if (this.character) {
             this.character.terrain = this.terrain;
             this.shaderManager.updateCharacterBuffers(this.character);
         }
-        this.physicsSpheres = [];
+        
+        this.sphere = null;
         this.createTestSphere();
-        this.createTestSphere();
+        //this.createTestSphere();
     }
     
     pause() {
@@ -223,22 +238,22 @@ class Game {
     }
     
     createTestSphere() {
-        // Create a new sphere but store reference in an array instead of overwriting
-        if (!this.physicsSpheres) {
-            this.physicsSpheres = [];
-        }
-        
-        const sphere = new ActionPhysicsSphere3D(
-            this.physicsWorld,
-            5, // radius
-            1, // mass
-            new Vector3(
-                Math.random() * 20 - 10, // random x position -10 to 10
-                500, // height
-                Math.random() * 20 - 10 // random z position -10 to 10
-            )
-        );
-        
-        this.physicsSpheres.push(sphere);
+    if (this.sphere) {
+        this.physicsWorld.removeObject(this.sphere);
+        this.sphere = null;
     }
+    
+    this.sphere = new ActionPhysicsSphere3D(this.physicsWorld, 5, 1, new Vector3(
+        Math.random() * 20 - 10,
+        500,
+        Math.random() * 20 - 10
+    ));
+    
+    // Add tracking info directly to the rigidbody
+    this.sphere.body.debugName = `Sphere_${Date.now()}`;
+    this.sphere.body.createdAt = Date.now();
+    
+    this.physicsWorld.addObject(this.sphere);
+    console.log(`Created sphere: ${this.sphere.body.debugName}`);
+}
 }
