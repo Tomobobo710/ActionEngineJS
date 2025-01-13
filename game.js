@@ -51,11 +51,11 @@ class Game {
         this.shaderManager = new ShaderManager(this.renderer3d.gl);
         this.shaderManager.registerAllShaders(this.renderer3d);
         this.physicsWorld.setShaderManager(this.shaderManager);
-        
+
         this.camera = new ActionCamera();
-        
+
         this.seed = 420;
-        
+
         this.generateWorld();
 
         // Create character
@@ -72,9 +72,7 @@ class Game {
         this.showDebugPanel = false;
         this.use2DRenderer = false;
         console.log("[Game] Game initialization completed, starting game loop...");
-        
-        
-        
+
         this.loop();
     }
 
@@ -93,7 +91,7 @@ class Game {
 
         // Generate new terrain
         const baseConfig = {
-            seed: this.seed,
+            seed: this.seed
         };
 
         // Create visual for terrain
@@ -214,7 +212,7 @@ class Game {
             this.debugPanel.clear();
         }
     }
-    
+
     loop() {
         this.update();
         this.draw();
