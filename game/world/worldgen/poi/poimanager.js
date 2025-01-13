@@ -1,7 +1,8 @@
 class POIManager {
-   constructor(terrain, physicsWorld) {
+   constructor(terrain, physicsWorld, worldMode) {
        this.terrain = terrain;
        this.physicsWorld = physicsWorld;
+       this.worldMode = worldMode;
        
        // Flags for enabling/disabling POI types
        this.enableTowns = true;
@@ -29,7 +30,7 @@ class POIManager {
            const width = 6 + Math.random() * 4;
            const height = 10 + Math.random() * 6;
            const depth = 6 + Math.random() * 4;
-           const town = new TownBuilding(this.physicsWorld, width, height, depth, center);
+           const town = new TownBuilding(this.physicsWorld, this.worldMode, width, height, depth, center);
            this.towns.push(town);
        });
    }
@@ -42,7 +43,7 @@ class POIManager {
            const width = 8 + Math.random() * 4;
            const height = 6 + Math.random() * 3;
            const depth = 8 + Math.random() * 4;
-           const dungeon = new DungeonBuilding(this.physicsWorld, width, height, depth, center);
+           const dungeon = new DungeonBuilding(this.physicsWorld, this.worldMode, width, height, depth, center);
            this.dungeons.push(dungeon);
        });
    }
@@ -51,7 +52,7 @@ class POIManager {
         const fishingLocations = this.fishingGenerator.findFishingLocations(50);
         fishingLocations.forEach(triangle => {
             const center = this.calculateTriangleCenter(triangle);
-            new FishingSpotMarker(this.physicsWorld, center);
+            new FishingSpotMarker(this.physicsWorld, this.worldMode, center);
         });
     }
 
