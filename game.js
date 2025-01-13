@@ -51,8 +51,11 @@ class Game {
         this.shaderManager = new ShaderManager(this.renderer3d.gl);
         this.shaderManager.registerAllShaders(this.renderer3d);
         this.physicsWorld.setShaderManager(this.shaderManager);
-
+        
         this.camera = new ActionCamera();
+        
+        this.seed = 420;
+        
         this.generateWorld();
 
         // Create character
@@ -69,6 +72,9 @@ class Game {
         this.showDebugPanel = false;
         this.use2DRenderer = false;
         console.log("[Game] Game initialization completed, starting game loop...");
+        
+        
+        
         this.loop();
     }
 
@@ -86,21 +92,9 @@ class Game {
         }
 
         // Generate new terrain
-        const isIsland = Math.random() < 0.5;
         const baseConfig = {
-            seed: Math.floor(Math.random() * 10000),
-            gridResolution: 128,
-            baseWorldHeight: 400,
-            baseWorldScale: 128,
-            landmassSize: 0.8 + Math.random() * 0.1,
-            transitionSharpness: 0.7 + Math.random() * 0.4,
-            terrainBreakupScale: 1.0 + Math.random() * 4.0,
-            terrainBreakupIntensity: 0.2 + Math.random() * 0.6
+            seed: this.seed,
         };
-
-        if (!isIsland) {
-            baseConfig.generator = "tiled";
-        }
 
         // Create visual for terrain
         this.terrain = new Terrain(baseConfig);
@@ -126,7 +120,6 @@ class Game {
 
         this.sphere = null;
         this.createTestSphere();
-        //this.createTestSphere();
     }
 
     pause() {
@@ -169,6 +162,7 @@ class Game {
         }
 
         if (this.input.isKeyJustPressed("Action4")) {
+            this.seed = Math.floor(Math.random() * 10000);
             this.generateWorld();
         }
         if (this.input.isKeyJustPressed("Action2")) {
@@ -254,6 +248,6 @@ class Game {
         this.sphere.body.createdAt = Date.now();
 
         this.physicsWorld.addObject(this.sphere);
-        console.log(`Created sphere: ${this.sphere.body.debugName}`);
+        //console.log(`Created sphere: ${this.sphere.body.debugName}`);
     }
 }
