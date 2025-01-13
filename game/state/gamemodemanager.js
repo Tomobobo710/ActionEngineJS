@@ -48,7 +48,8 @@ class GameModeManager {
                 this.activeMode = new WorldMode(
                     this.gameMaster.canvases,
                     this.gameMaster.input,
-                    this.gameMaster.audio
+                    this.gameMaster.audio,
+                    this
                 );
                 break;
             case 'fishing':
