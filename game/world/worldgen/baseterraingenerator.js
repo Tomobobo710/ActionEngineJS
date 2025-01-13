@@ -2,12 +2,26 @@
 // Base class with core functionality
 class BaseTerrainGenerator {
     constructor(config = {}) {
-        // Core settings
+        // Store config for debug panel
+        this.config = config;
+        
+        // Initialize seeded RNG first
+        const rng = new SeededRandom(config.seed || Math.floor(Math.random() * 10000));
+        
+        config.generator = rng.next() >= 0.5 ? "tiled" : undefined || undefined;
+        
+        // Store the seed and generate base parameters
+        this.seed = config.seed || rng.next() * 10000;
         this.gridResolution = config.gridResolution || 128;
-        this.seed = config.seed || Math.random() * 10000;
-
-        // Height settings
+        this.baseWorldScale = config.baseWorldScale || 128;
         this.baseWorldHeight = config.baseWorldHeight || 400;
+        
+        // Generate other parameters with seeded randomness if not provided
+        this.landmassSize = config.landmassSize || (0.8 + rng.next() * 0.1);
+        this.transitionSharpness = config.transitionSharpness || (0.7 + rng.next() * 0.4);
+        this.terrainBreakupScale = config.terrainBreakupScale || (1.0 + rng.next() * 4.0);
+        this.terrainBreakupIntensity = config.terrainBreakupIntensity || (0.2 + rng.next() * 0.6);
+        
         this.waterLevel = 0; // Always 0 for water
     }
 
