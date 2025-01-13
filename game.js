@@ -200,7 +200,7 @@ class Game {
                 ...bufferInfo,
                 camera: this.camera,
                 character: this.character,
-                renderableObjects: this.physicsWorld.objects, // Use the physics world's Set
+                renderableObjects: Array.from(this.physicsWorld.objects), // Use the physics world's Set
                 showDebugPanel: this.showDebugPanel,
                 weatherSystem: this.weatherSystem
             });
