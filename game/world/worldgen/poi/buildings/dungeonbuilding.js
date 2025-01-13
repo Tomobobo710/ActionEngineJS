@@ -1,5 +1,5 @@
 class DungeonBuilding extends ActionPhysicsObject3D {
-    constructor(physicsWorld, width = 10, height = 6, depth = 10, position) {
+    constructor(physicsWorld, worldMode, width = 10, height = 6, depth = 10, position) {
         const hw = width / 2;
         const hh = height / 2;
         const hd = depth / 2;
@@ -49,6 +49,10 @@ class DungeonBuilding extends ActionPhysicsObject3D {
             function( other_body, contact ) {
                 // this body has come in `contact with` other_body and the details are provided by `contact`
                 console.log("Dungeon");
+                // Queue the mode switch for next frame
+                requestAnimationFrame(() => {
+                    worldMode.gameModeManager.switchMode('battle');
+                });
             }
         );
         this.physicsWorld.addObject(this);
