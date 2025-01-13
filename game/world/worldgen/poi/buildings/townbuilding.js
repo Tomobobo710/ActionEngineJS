@@ -1,5 +1,5 @@
 class TownBuilding extends ActionPhysicsObject3D {
-    constructor(physicsWorld, width = 8, height = 12, depth = 8, position) {
+    constructor(physicsWorld, worldMode, width = 8, height = 12, depth = 8, position) {
         const hw = width / 2;
         const hh = height / 2;
         const hd = depth / 2;
