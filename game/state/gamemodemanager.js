@@ -80,10 +80,30 @@ class GameModeManager {
     }
     
     update(deltaTime) {
-        if (this.activeMode) {
-            this.activeMode.update(deltaTime);
+    if (this.activeMode) {
+        this.activeMode.update(deltaTime);
+
+        // Check if battle mode is finished
+        if (this.currentMode === 'battle') {
+            const battleMode = this.activeMode;
+            if (battleMode.battle?.state === 'victory' && 
+                battleMode.battle?.transitionProgress >= 1 && 
+                !battleMode.battle.victoryHandled) {
+                
+                battleMode.battle.victoryHandled = true;
+                setTimeout(() => {
+                    this.switchMode('world');
+                }, 1000);
+            }
+        }
+        // Check for fishing mode exit
+        else if (this.currentMode === 'fishing') {
+            if (this.gameMaster.input.isKeyJustPressed('Action5')) {
+                this.switchMode('world');
+            }
         }
     }
+}
 
     draw() {
         if (this.activeMode) {
