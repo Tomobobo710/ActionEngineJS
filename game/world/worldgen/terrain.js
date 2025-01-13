@@ -8,7 +8,13 @@ class Terrain {
         this.gridResolution = config.gridResolution || 128;
         this.baseWorldScale = config.baseWorldScale || 128;
 
-        // Generate terrain data
+        // Determine generator type
+        if (config.generator === undefined) {
+            const seed = config.seed || Math.floor(Math.random() * 10000);
+            this.config.generator = seed % 2 === 0 ? "tiled" : undefined;
+        }
+
+        // Pass config to generate terrain data
         if (config.generator === "tiled") {
             this.generator = new TileWorldGenerator(config);
         } else {
@@ -173,13 +179,13 @@ class Terrain {
                 indices.push(index);
             }
         }
-        
+
         const terrainShape = new Goblin.MeshShape(goblinVertices, indices);
-    const terrainBody = new Goblin.RigidBody(terrainShape, 0);
-    
-    // Add debug tracking
-    terrainBody.debugName = `TerrainBody_${Date.now()}`;
-    terrainBody.createdAt = Date.now();
+        const terrainBody = new Goblin.RigidBody(terrainShape, 0);
+
+        // Add debug tracking
+        terrainBody.debugName = `TerrainBody_${Date.now()}`;
+        terrainBody.createdAt = Date.now();
 
         return terrainBody;
     }
