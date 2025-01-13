@@ -41,7 +41,7 @@ class DungeonBuilding extends ActionPhysicsObject3D {
         super(physicsWorld, triangles);
 
         // Physics setup
-        const shape = new Goblin.BoxShape(hw * 2, height, hd * 2);
+        const shape = new Goblin.BoxShape(width / 2, height / 2, depth / 2);
         this.body = new Goblin.RigidBody(shape, 0);
         this.body.position.set(position.x, position.y + hh, position.z);
         this.body.addListener(
