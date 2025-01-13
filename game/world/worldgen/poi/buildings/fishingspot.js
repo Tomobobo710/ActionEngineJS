@@ -1,5 +1,5 @@
 class FishingSpotMarker extends ActionPhysicsObject3D {
-    constructor(physicsWorld, position) {
+    constructor(physicsWorld, worldMode, position) {
         const poleWidth = 0.3;
         const poleHeight = 4;
         const poleDepth = 0.3;
@@ -92,6 +92,9 @@ class FishingSpotMarker extends ActionPhysicsObject3D {
         this.body.addListener("contact", function (other_body, contact) {
             // this body has come in `contact with` other_body and the details are provided by `contact`
             console.log("FishingSpot");
+            requestAnimationFrame(() => {
+                    worldMode.gameModeManager.switchMode('fishing');
+                });
         });
         this.physicsWorld.addObject(this);
         this.updateVisual();
