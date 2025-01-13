@@ -214,16 +214,7 @@ class Game {
             this.debugPanel.clear();
         }
     }
-
-    startPhysicsLoop() {
-        setInterval(() => {
-            const currentTime = performance.now();
-            const deltaTime = (currentTime - this.lastPhysicsTime) / 1000;
-            this.lastPhysicsTime = currentTime;
-            this.physicsWorld.update(this.fixedTimeStep);
-        }, this.fixedTimeStep * 1000); // Convert to milliseconds
-    }
-
+    
     loop() {
         this.update();
         this.draw();
