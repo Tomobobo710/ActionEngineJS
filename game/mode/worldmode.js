@@ -1,9 +1,10 @@
 // game/mode/worldmode.js
 class WorldMode {
-    constructor(canvases, input, audio) {
+    constructor(canvases, input, audio, gameModeManager) {
         this.canvases = canvases;
         this.input = input;
         this.audio = audio;
+        this.gameModeManager = gameModeManager;
         this.physicsWorld = new ActionPhysicsWorld3D();
         this.isPaused = false;
 
@@ -80,7 +81,7 @@ class WorldMode {
         if (this.poiManager) {
             this.poiManager.cleanup();
         }
-        this.poiManager = new POIManager(this.terrain, this.physicsWorld);
+        this.poiManager = new POIManager(this.terrain, this.physicsWorld, this);
         this.poiManager.generateAllPOIs();
 
         if (this.character) {
