@@ -819,4 +819,30 @@ class ActionInputHandler {
     isPointerDown() {
         return this.state.pointer.isDown;
     }
+
+    // Remove a single element
+    removeElement(id, layer = "gui") {
+        if (!this.state.elements[layer]) {
+            console.warn(`[ActionInputHandler] Layer ${layer} doesn't exist`);
+            return false;
+        }
+        return this.state.elements[layer].delete(id);
+    }
+
+    // Clear all elements from a specific layer
+    clearLayerElements(layer = "gui") {
+        if (!this.state.elements[layer]) {
+            console.warn(`[ActionInputHandler] Layer ${layer} doesn't exist`);
+            return false;
+        }
+        this.state.elements[layer].clear();
+        return true;
+    }
+
+    // Clear all elements from all layers
+    clearAllElements() {
+        Object.keys(this.state.elements).forEach((layer) => {
+            this.state.elements[layer].clear();
+        });
+    }
 }
