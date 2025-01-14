@@ -13,11 +13,11 @@ class BattleInputManager {
         const isTouching = this.input.isPointerDown();
         const justTouched = this.input.isPointerJustDown();
 
-        // Add cancel button hover check
+        // Cancel button hover check
         if (this.battle.showCancelButton) {
             const bounds = {
-                x: 102,
-                y: 600 - 170,
+                x: 2,
+                y: 600 - 185,
                 width: 200,
                 height: 30
             };
@@ -36,8 +36,8 @@ class BattleInputManager {
         // Add this for cancel button handling
         if (this.battle.showCancelButton) {
             const isHovered = this.input.isPointInBounds(mousePos.x, mousePos.y, {
-                x: 102,
-                y: this.battle.HEIGHT - 170,
+                x: 2,
+                y: this.battle.HEIGHT - 185,
                 width: 200,
                 height: 30
             });
@@ -86,14 +86,14 @@ class BattleInputManager {
         const commands = ["fight", "magic", "item", "run"];
 
         commands.forEach((command, i) => {
-            const bounds = {
-                x: 60,
-                y: 600 - 140 + i * 35 + 15,
-                width: 100,
-                height: 30
-            };
+    const bounds = {
+        x: 10,  // Match the registration
+        y: 600 - 140 + i * 35,
+        width: 100,
+        height: 30
+    };
 
-            const isInBounds = this.input.isPointInBounds(mousePos.x, mousePos.y, bounds);
+    const isInBounds = this.input.isPointInBounds(mousePos.x, mousePos.y, bounds);
             if (isInBounds !== this.battle[`last${command}Bounds`]) {
                 if (isInBounds) {
                     this.battle.hoveredMenuOption = command;
@@ -176,8 +176,8 @@ class BattleInputManager {
             const actualIndex = visibleIndex + currentPage * this.battle.maxVisibleSpells;
             const isSecondColumn = visibleIndex >= spellsPerColumn;
             const bounds = {
-                x: isSecondColumn ? 355 : 195,
-                y: 600 - 140 + (visibleIndex % spellsPerColumn) * 35 + 15,
+                x: isSecondColumn ? 280 : 120, // Match registration
+                y: 600 - 140 + (visibleIndex % spellsPerColumn) * 35,
                 width: 150,
                 height: 30
             };
@@ -260,11 +260,11 @@ class BattleInputManager {
             .filter((enemy) => !enemy.isDead)
             .forEach((enemy, i) => {
                 const isInBounds = this.input.isPointInBounds(mousePos.x, mousePos.y, {
-                    x: enemy.pos.x,
-                    y: enemy.pos.y,
-                    width: 48,
-                    height: 48
-                });
+        x: 176,  // Match registration
+        y: 126 + i * 80,  // Match registration
+        width: 48,
+        height: 48
+    });
 
                 if (isInBounds !== enemy.lastInBounds) {
                     if (isInBounds) {
@@ -282,11 +282,11 @@ class BattleInputManager {
             if (!ally || ally.isDead) return; // Skip empty slots or dead allies
 
             const isInBounds = this.input.isPointInBounds(mousePos.x, mousePos.y, {
-                x: ally.pos.x,
-                y: ally.pos.y,
-                width: 32,
-                height: 32
-            });
+        x: 584,  // Match registration
+        y: 134 + i * 100,  // Match registration
+        width: 32,
+        height: 32
+    });
 
             if (isInBounds !== ally.lastInBounds) {
                 if (isInBounds) {
@@ -386,12 +386,11 @@ class BattleInputManager {
             const actualIndex = visibleIndex + currentPage * this.battle.maxVisibleItems;
             const isSecondColumn = visibleIndex >= itemsPerColumn;
             const bounds = {
-                x: isSecondColumn ? 355 : 195,
-                y: 600 - 140 + (visibleIndex % itemsPerColumn) * 35 + 15,
+                x: isSecondColumn ? 280 : 120, // Match registration
+                y: 600 - 140 + (visibleIndex % itemsPerColumn) * 35,
                 width: 150,
                 height: 30
             };
-
             const isInBounds = this.input.isPointInBounds(mousePos.x, mousePos.y, bounds);
             if (isInBounds !== this.battle[`lastItem${actualIndex}Bounds`]) {
                 if (isInBounds) {
@@ -496,8 +495,8 @@ class BattleInputManager {
     }
     handleItemScrollArrows(mousePos, currentPage, totalPages) {
         const arrowBounds = {
-            up: { x: 455, y: 600 - 130, width: 30, height: 20 },
-            down: { x: 455, y: 600 - 25, width: 30, height: 20 }
+            up: { x: 440, y: 600 - 130, width: 30, height: 20 },
+            down: { x: 440, y: 600 - 35, width: 30, height: 20 }
         };
 
         // Handle up arrow
@@ -529,8 +528,8 @@ class BattleInputManager {
 
     handleScrollArrows(mousePos, currentPage, totalPages) {
         const arrowBounds = {
-            up: { x: 455, y: 600 - 130, width: 30, height: 20 },
-            down: { x: 455, y: 600 - 25, width: 30, height: 20 }
+            up: { x: 440, y: 600 - 130, width: 30, height: 20 },
+            down: { x: 440, y: 600 - 35, width: 30, height: 20 }
         };
 
         // Up arrow hover
