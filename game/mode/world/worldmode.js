@@ -269,7 +269,9 @@ class WorldMode {
             document.body.removeChild(this.gameCanvas2D);
             this.gameCanvas2D = null;
         }
-
+        
+        this.input.clearAllElements();
+        
         // Clear canvas references
         this.gameCanvas3D = null;
         this.gameCanvas3DCtx = null;
