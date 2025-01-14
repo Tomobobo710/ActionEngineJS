@@ -1833,6 +1833,8 @@ class FishingMode {
            this.guiContext.clearRect(0, 0, 800, 600);
        }
 
+       this.input.clearAllElements();
+       
        // Clear references
        this.canvas = null;
        this.guiCanvas = null;
