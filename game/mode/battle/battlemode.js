@@ -158,8 +158,8 @@ class BattleMode {
     registerUIElements() {
         // Cancel button - positioned above menu, with wider area
         const cancelBoundsFn = () => ({
-            x: 102, // Moved left 8px (from 110)
-            y: Game.HEIGHT - 170, // Moved up 5px (from -165)
+            x: 2,  // 102 - 100 (old center - half width)
+            y: Game.HEIGHT - 185, // old y - half height
             width: 200,
             height: 30
         });
@@ -170,13 +170,13 @@ class BattleMode {
         const menuItems = ["Fight", "Magic", "Item", "Run"];
         menuItems.forEach((item, i) => {
             const boundsFn = () => ({
-                x: 60, // 10 + 100/2 (left + width/2)
-                y: Game.HEIGHT - 140 + i * 35 + 15, // y + height/2
+                x: 10,  // 60 - 50 (center - half width)
+                y: Game.HEIGHT - 140 + i * 35, // removed the +15
                 width: 100,
                 height: 30
             });
             this.input.registerElement(`menu_${item.toLowerCase()}`, { bounds: boundsFn });
-            this.uiElements.set(`menu_${item.toLowerCase()}`, boundsFn);
+            this.uiElements.set(`menu_${item.toLowerCase()}`, boundsFn);  // This is essential!
         });
 
         // Submenu slots (for magic/items) - centered coordinates
@@ -184,77 +184,78 @@ class BattleMode {
         const menuStartY = Game.HEIGHT - 140;
         const maxMenuItems = Math.floor(140 / menuItemHeight);
 
-        for (let i = 0; i < maxMenuItems; i++) {
-            const boundsFn = () => ({
-                x: 195, // 120 + 150/2 (left + width/2)
-                y: menuStartY + i * menuItemHeight + 15, // y + height/2
-                width: 150,
-                height: 30
-            });
-            this.input.registerElement(`submenu_slot_${i}`, { bounds: boundsFn });
-            this.uiElements.set(`submenu_slot_${i}`, boundsFn);
-        }
+        // First column registration
+for (let i = 0; i < maxMenuItems; i++) {
+    const boundsFn = () => ({
+        x: 120, // 195 - 75 (old center - half width)
+        y: menuStartY + i * menuItemHeight, // removed the +15 center offset
+        width: 150,
+        height: 30
+    });
+    this.input.registerElement(`submenu_slot_${i}`, { bounds: boundsFn });
+    this.uiElements.set(`submenu_slot_${i}`, boundsFn);
+}
 
-        // Second column of spell slots
-        for (let i = 0; i < maxMenuItems; i++) {
-            const boundsFn = () => ({
-                x: 355, // Update this to match the visual spacing from drawBattleMenu
-                y: menuStartY + i * menuItemHeight + 15,
-                width: 150,
-                height: 30
-            });
-            this.input.registerElement(`submenu_slot_${i + maxMenuItems}`, { bounds: boundsFn });
-            this.uiElements.set(`submenu_slot_${i + maxMenuItems}`, boundsFn);
-        }
+// Second column registration
+for (let i = 0; i < maxMenuItems; i++) {
+    const boundsFn = () => ({
+        x: 280, // 355 - 75 (old center - half width)
+        y: menuStartY + i * menuItemHeight, // removed the +15 center offset
+        width: 150,
+        height: 30
+    });
+    this.input.registerElement(`submenu_slot_${i + maxMenuItems}`, { bounds: boundsFn });
+    this.uiElements.set(`submenu_slot_${i + maxMenuItems}`, boundsFn);
+}
 
         // Add scroll arrows to uiElements
         const arrowX = 455; // Consistent X position
         const arrowWidth = 30;
         const arrowHeight = 20;
 
-        // Up arrow - centered coordinates
-        const upArrowBoundsFn = () => ({
-            x: arrowX, // Center point
-            y: Game.HEIGHT - 120, // Centered at top of menu
-            width: arrowWidth,
-            height: arrowHeight
-        });
-        this.input.registerElement("spell_scroll_up", { bounds: upArrowBoundsFn });
-        this.uiElements.set("spell_scroll_up", upArrowBoundsFn);
+        // Up arrow registration
+const upArrowBoundsFn = () => ({
+    x: 440, // 455 - 15 (old center - half width)
+    y: Game.HEIGHT - 130, // old y - 10 (half height)
+    width: arrowWidth,
+    height: arrowHeight
+});
+this.input.registerElement("spell_scroll_up", { bounds: upArrowBoundsFn });
+this.uiElements.set("spell_scroll_up", upArrowBoundsFn);
 
-        // Down arrow - centered coordinates
-        const downArrowBoundsFn = () => ({
-            x: arrowX, // Center point
-            y: Game.HEIGHT - 25, // Centered near bottom of menu
-            width: arrowWidth,
-            height: arrowHeight
-        });
-        this.input.registerElement("spell_scroll_down", { bounds: downArrowBoundsFn });
-        this.uiElements.set("spell_scroll_down", downArrowBoundsFn);
+// Down arrow registration
+const downArrowBoundsFn = () => ({
+    x: 440, // 455 - 15 (old center - half width)
+    y: Game.HEIGHT - 35, // old y - 10 (half height)
+    width: arrowWidth,
+    height: arrowHeight
+});
+this.input.registerElement("spell_scroll_down", { bounds: downArrowBoundsFn });
+this.uiElements.set("spell_scroll_down", downArrowBoundsFn);
 
-        // Enemies - all possible positions (typically up to 4)
-        for (let i = 0; i < 4; i++) {
-            const boundsFn = () => ({
-                x: 200, // Base enemy X position
-                y: 150 + i * 80, // Spread vertically like in setupInitialPositions
-                width: 48,
-                height: 48
-            });
-            this.input.registerElement(`enemy_${i}`, { bounds: boundsFn });
-            this.uiElements.set(`enemy_${i}`, boundsFn);
-        }
+        // Enemy registration
+for (let i = 0; i < 4; i++) {
+    const boundsFn = () => ({
+        x: 176, // 200 - 24 (old center - half width)
+        y: 126 + i * 80, // 150 - 24 + i * 80 (old center - half height)
+        width: 48,
+        height: 48
+    });
+    this.input.registerElement(`enemy_${i}`, { bounds: boundsFn });
+    this.uiElements.set(`enemy_${i}`, boundsFn);
+}
 
-        // Party members - all possible positions
-        for (let i = 0; i < 4; i++) {
-            const boundsFn = () => ({
-                x: 600, // Base party X position
-                y: 150 + i * 100, // Spread vertically like in setupInitialPositions
-                width: 32,
-                height: 32
-            });
-            this.input.registerElement(`char_${i}`, { bounds: boundsFn });
-            this.uiElements.set(`char_${i}`, boundsFn);
-        }
+// Party registration
+for (let i = 0; i < 4; i++) {
+    const boundsFn = () => ({
+        x: 584, // 600 - 16 (old center - half width)
+        y: 134 + i * 100, // 150 - 16 + i * 100 (old center - half height)
+        width: 32,
+        height: 32
+    });
+    this.input.registerElement(`char_${i}`, { bounds: boundsFn });
+    this.uiElements.set(`char_${i}`, boundsFn);
+}
     }
     drawDebugHitboxes() {
         const ctx = this.ctx;
@@ -281,8 +282,8 @@ class BattleMode {
             }
 
             ctx.lineWidth = 2;
-            // Offset the drawing position by half width/height
-            ctx.strokeRect(bounds.x - bounds.width / 2, bounds.y - bounds.height / 2, bounds.width, bounds.height);
+            
+ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
 
             ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
             ctx.font = "12px monospace";
