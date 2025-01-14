@@ -13,7 +13,7 @@ class GameMaster {
            rotation: 0
        };
 
-       // Start with world mode
+       // Kickstart game with battle mode
        this.modeManager.switchMode('battle');
 
        // Set up visibility handlers
