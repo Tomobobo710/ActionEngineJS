@@ -14,7 +14,7 @@ class GameMaster {
        };
 
        // Start with world mode
-       this.modeManager.switchMode('world');
+       this.modeManager.switchMode('battle');
 
        // Set up visibility handlers
        document.addEventListener("visibilitychange", () => {
