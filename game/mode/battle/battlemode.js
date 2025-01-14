@@ -400,7 +400,9 @@ ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
         if (this.ctx) {
             this.ctx.clearRect(0, 0, 800, 600);
         }
-
+        
+        this.input.clearAllElements();
+        
         // Clear references
         this.canvas = null;
         this.ctx = null;
