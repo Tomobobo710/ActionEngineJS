@@ -1,115 +1,45 @@
 // game/mode/battle/battlemode.js
 class BattleMode {
     constructor(canvases, input, audio) {
-        this.debugMode = false;
-        this.uiElements = new Map();
-        // We'll use the GUI canvas for everything
-        this.canvas = canvases.guiCanvas;
-        this.ctx = this.canvas.getContext("2d");
-        this.input = input;
-        this.audio = audio;
+    this.debugMode = false;
+    this.uiElements = new Map();
+    // We'll use the GUI canvas for everything
+    this.canvas = canvases.guiCanvas;
+    this.ctx = this.canvas.getContext("2d");
+    this.input = input;
+    this.audio = audio;
 
-        // Initialize core systems
-        this.state = "battle";
-        this.sprites = {};
-        this.backgrounds = {};
-        this.loadSprites();
+    // Initialize core systems
+    this.state = "battle";
+    this.sprites = {};
+    this.backgrounds = {};
+    this.loadSprites();
 
-        // Create default party data
-        this.defaultParty = [
-            {
-                name: "Cecil",
-                type: "warrior",
-                level: 10,
-                maxHp: 150,
-                maxMp: 30,
-                strength: 15,
-                magic: 8,
-                speed: 12,
-                skills: ["Attack", "Defend"],
-                spells: ["fire"]
-            },
-            {
-                name: "Rosa",
-                type: "mage",
-                level: 10,
-                maxHp: 90,
-                maxMp: 80,
-                strength: 6,
-                magic: 18,
-                speed: 10,
-                skills: ["Attack"],
-                spells: ["fire", "ice", "lightning", "poison", "heal", "quake", "wind", "water", "holy"]
-            },
-            {
-                name: "Edge",
-                type: "thief",
-                level: 10,
-                maxHp: 110,
-                maxMp: 45,
-                strength: 13,
-                magic: 10,
-                speed: 16,
-                skills: ["Attack", "Steal"],
-                spells: ["lightning", "poison"]
-            }
-        ];
+    this.defaultParty = DEFAULT_PARTY;
+    this.enemyTemplates = ENEMY_TEMPLATES;
+    this.partyInventory = new Inventory();
 
-        this.enemyTemplates = {
-            slime: {
-                type: "slime",
-                maxHp: 30,
-                maxMp: 20,
-                strength: 8,
-                magic: 5,
-                speed: 12,
-                spells: ["poison"]
-            },
-            bat: {
-                type: "bat",
-                maxHp: 45,
-                maxMp: 35,
-                strength: 12,
-                magic: 8,
-                speed: 14,
-                spells: ["wind"]
-            },
-            goblin: {
-                type: "goblin",
-                maxHp: 65,
-                maxMp: 25,
-                strength: 14,
-                magic: 6,
-                speed: 16,
-                spells: ["fire"]
-            }
-        };
+    // Create party with default inventory
+    this.persistentParty = this.defaultParty.map((char) => ({
+        ...char,
+        sprite: this.sprites[char.type]
+    }));
 
-        this.partyInventory = new Inventory();
+    Object.defineProperty(this.persistentParty, "inventory", {
+        value: this.partyInventory,
+        enumerable: false
+    });
 
-        // Create party with default inventory
-        this.persistentParty = this.defaultParty.map((char) => ({
-            ...char,
-            sprite: this.sprites[char.type]
-        }));
+    // Add starter items
+    STARTER_INVENTORY.forEach(({ item, quantity }) => {
+        this.persistentParty.inventory.addItem(item, quantity);
+    });
 
-        Object.defineProperty(this.persistentParty, "inventory", {
-            value: this.partyInventory,
-            enumerable: false
-        });
-
-        // Add starter items
-        this.persistentParty.inventory.addItem("potion", 5);
-        this.persistentParty.inventory.addItem("megaPotion", 2);
-        this.persistentParty.inventory.addItem("poison", 3);
-        this.persistentParty.inventory.addItem("bomb", 2);
-
-        // Start initial battle
-        this.startNewBattle();
-
-        // Register UI elements
-        this.registerUIElements();
-    }
+    // Start initial battle
+    this.startNewBattle();
+    // Register UI elements
+    this.registerUIElements();
+}
 
     loadSprites() {
         // Load hero sprites
@@ -145,6 +75,7 @@ class BattleMode {
 
         return enemies;
     }
+
     startNewBattle() {
         // Add sprites to party data
         const party = this.defaultParty.map((char) => ({
@@ -155,108 +86,128 @@ class BattleMode {
         const enemies = this.generateEnemyParty();
         this.battle = new BattleSystem(this.persistentParty, enemies, this.audio, this.input, this.partyInventory);
     }
+
     registerUIElements() {
-        // Cancel button - positioned above menu, with wider area
-        const cancelBoundsFn = () => ({
-            x: 2,  // 102 - 100 (old center - half width)
-            y: Game.HEIGHT - 185, // old y - half height
-            width: 200,
-            height: 30
-        });
-        this.input.registerElement("cancel_button", { bounds: cancelBoundsFn });
-        this.uiElements.set("cancel_button", cancelBoundsFn);
+    // Helper function to register UI elements
+    const registerBoundsGroup = (config) => {
+        const { count, startX, startY, width, height, spacing, prefix, itemNames } = config;
+        const createBoundsFunction = function(index) {
+            return function() {
+                return {
+                    x: startX,
+                    y: startY + index * spacing,
+                    width: width,
+                    height: height
+                };
+            };
+        };
 
-        // Main menu - centered coordinates
-        const menuItems = ["Fight", "Magic", "Item", "Run"];
-        menuItems.forEach((item, i) => {
-            const boundsFn = () => ({
-                x: 10,  // 60 - 50 (center - half width)
-                y: Game.HEIGHT - 140 + i * 35, // removed the +15
-                width: 100,
+        for (let i = 0; i < count; i++) {
+            const boundsFn = createBoundsFunction(i);
+            // If itemNames is provided, use those for the IDs
+            const elementId = itemNames ? 
+                `${prefix}${itemNames[i].toLowerCase()}` : 
+                `${prefix}${i}`;
+            this.input.registerElement(elementId, { bounds: boundsFn });
+            this.uiElements.set(elementId, boundsFn);
+        }
+    };
+
+    // Register cancel button
+    const createCancelBounds = function() {
+        return function() {
+            return {
+                x: 2,
+                y: Game.HEIGHT - 185,
+                width: 200,
                 height: 30
-            });
-            this.input.registerElement(`menu_${item.toLowerCase()}`, { bounds: boundsFn });
-            this.uiElements.set(`menu_${item.toLowerCase()}`, boundsFn);  // This is essential!
-        });
+            };
+        };
+    };
+    const cancelBoundsFn = createCancelBounds();
+    this.input.registerElement("cancel_button", { bounds: cancelBoundsFn });
+    this.uiElements.set("cancel_button", cancelBoundsFn);
 
-        // Submenu slots (for magic/items) - centered coordinates
-        const menuItemHeight = 35;
-        const menuStartY = Game.HEIGHT - 140;
-        const maxMenuItems = Math.floor(140 / menuItemHeight);
-
-        // First column registration
-for (let i = 0; i < maxMenuItems; i++) {
-    const boundsFn = () => ({
-        x: 120, // 195 - 75 (old center - half width)
-        y: menuStartY + i * menuItemHeight, // removed the +15 center offset
-        width: 150,
-        height: 30
+    // Register main menu items
+    const menuItems = ["Fight", "Magic", "Item", "Run"];
+    registerBoundsGroup({
+        count: menuItems.length,
+        startX: 10,
+        startY: Game.HEIGHT - 140,
+        width: 100,
+        height: 30,
+        spacing: 35,
+        prefix: "menu_",
+        itemNames: menuItems  // Pass the menu item names
     });
-    this.input.registerElement(`submenu_slot_${i}`, { bounds: boundsFn });
-    this.uiElements.set(`submenu_slot_${i}`, boundsFn);
-}
 
-// Second column registration
-for (let i = 0; i < maxMenuItems; i++) {
-    const boundsFn = () => ({
-        x: 280, // 355 - 75 (old center - half width)
-        y: menuStartY + i * menuItemHeight, // removed the +15 center offset
+    // Rest of the registration remains the same since they use numeric indices
+    const maxMenuItems = Math.floor(140 / 35);
+    registerBoundsGroup({
+        count: maxMenuItems,
+        startX: 120,
+        startY: Game.HEIGHT - 140,
         width: 150,
-        height: 30
+        height: 30,
+        spacing: 35,
+        prefix: "submenu_slot_"
     });
-    this.input.registerElement(`submenu_slot_${i + maxMenuItems}`, { bounds: boundsFn });
-    this.uiElements.set(`submenu_slot_${i + maxMenuItems}`, boundsFn);
-}
 
-        // Add scroll arrows to uiElements
-        const arrowX = 455; // Consistent X position
-        const arrowWidth = 30;
-        const arrowHeight = 20;
+    registerBoundsGroup({
+        count: maxMenuItems,
+        startX: 280,
+        startY: Game.HEIGHT - 140,
+        width: 150,
+        height: 30,
+        spacing: 35,
+        prefix: `submenu_slot_${maxMenuItems}`
+    });
 
-        // Up arrow registration
-const upArrowBoundsFn = () => ({
-    x: 440, // 455 - 15 (old center - half width)
-    y: Game.HEIGHT - 130, // old y - 10 (half height)
-    width: arrowWidth,
-    height: arrowHeight
-});
-this.input.registerElement("spell_scroll_up", { bounds: upArrowBoundsFn });
-this.uiElements.set("spell_scroll_up", upArrowBoundsFn);
-
-// Down arrow registration
-const downArrowBoundsFn = () => ({
-    x: 440, // 455 - 15 (old center - half width)
-    y: Game.HEIGHT - 35, // old y - 10 (half height)
-    width: arrowWidth,
-    height: arrowHeight
-});
-this.input.registerElement("spell_scroll_down", { bounds: downArrowBoundsFn });
-this.uiElements.set("spell_scroll_down", downArrowBoundsFn);
-
-        // Enemy registration
-for (let i = 0; i < 4; i++) {
-    const boundsFn = () => ({
-        x: 176, // 200 - 24 (old center - half width)
-        y: 126 + i * 80, // 150 - 24 + i * 80 (old center - half height)
+    registerBoundsGroup({
+        count: 4,
+        startX: 176,
+        startY: 126,
         width: 48,
-        height: 48
+        height: 48,
+        spacing: 80,
+        prefix: "enemy_"
     });
-    this.input.registerElement(`enemy_${i}`, { bounds: boundsFn });
-    this.uiElements.set(`enemy_${i}`, boundsFn);
-}
 
-// Party registration
-for (let i = 0; i < 4; i++) {
-    const boundsFn = () => ({
-        x: 584, // 600 - 16 (old center - half width)
-        y: 134 + i * 100, // 150 - 16 + i * 100 (old center - half height)
+    registerBoundsGroup({
+        count: 4,
+        startX: 584,
+        startY: 134,
         width: 32,
-        height: 32
+        height: 32,
+        spacing: 100,
+        prefix: "char_"
     });
-    this.input.registerElement(`char_${i}`, { bounds: boundsFn });
-    this.uiElements.set(`char_${i}`, boundsFn);
+
+    // Register scroll arrows
+    const arrowWidth = 30;
+    const arrowHeight = 20;
+    const createArrowBounds = function(y) {
+        return function() {
+            return {
+                x: 440,
+                y: y,
+                width: arrowWidth,
+                height: arrowHeight
+            };
+        };
+    };
+
+    const arrowConfigs = [
+        { id: "spell_scroll_up", y: Game.HEIGHT - 130 },
+        { id: "spell_scroll_down", y: Game.HEIGHT - 35 }
+    ];
+
+    arrowConfigs.forEach(config => {
+        const arrowBoundsFn = createArrowBounds(config.y);
+        this.input.registerElement(config.id, { bounds: arrowBoundsFn });
+        this.uiElements.set(config.id, arrowBoundsFn);
+    });
 }
-    }
     drawDebugHitboxes() {
         const ctx = this.ctx;
 
@@ -282,8 +233,8 @@ for (let i = 0; i < 4; i++) {
             }
 
             ctx.lineWidth = 2;
-            
-ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
+
+            ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
 
             ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
             ctx.font = "12px monospace";
@@ -400,9 +351,9 @@ ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
         if (this.ctx) {
             this.ctx.clearRect(0, 0, 800, 600);
         }
-        
+
         this.input.clearAllElements();
-        
+
         // Clear references
         this.canvas = null;
         this.ctx = null;
