@@ -5,7 +5,7 @@ class GameModeManager {
         this.currentMode = null;
         this.activeMode = null;
 
-        this.modes = ["world", "fishing", "battle"];
+        this.modes = ["battle", "world", "fishing"];
         this.currentModeIndex = 0;
     }
 
