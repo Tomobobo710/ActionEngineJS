@@ -12,121 +12,139 @@ class ActionCharacter {
         this.height = 6;
         this.scale = 1; // og 0.575
 
-        this.characterModel = this.createDefaultCharacterModel();
-        
+        const loader = new GLBLoader();
+
+        // From base64
+        this.characterModel = loader.loadModel(suzaneModel);
+
+        //this.characterModel = this.createDefaultCharacterModel();
+
         // Terrain info
         this.gridPosition = { x: 0, z: 0 };
         this.currentBiome = null;
         this.heightPercent = 0;
         this.terrainHeight = 0;
-        this.updateTerrainInfo(); 
+        this.updateTerrainInfo();
     }
     createDefaultCharacterModel() {
-    const segments = 8;  // Number of segments around the capsule
-    const triangles = [];
-    const radius = this.size / 2;
-    const cylinderHeight = this.height - this.size;  // Subtract diameter to account for hemispheres
-    const halfCylinderHeight = cylinderHeight / 2;
-    
-    // Helper function to create vertex on hemisphere
-    const createSphereVertex = (phi, theta, yOffset) => {
-        return new Vector3(
-            radius * Math.sin(phi) * Math.cos(theta),
-            yOffset + (radius * Math.cos(phi)),
-            radius * Math.sin(phi) * Math.sin(theta)
-        );
-    };
+        const segments = 16; // Number of segments around the capsule
+        const triangles = [];
+        const radius = this.size / 2;
+        const cylinderHeight = this.height - this.size; // Subtract diameter to account for hemispheres
+        const halfCylinderHeight = cylinderHeight / 2;
 
-    // Create top hemisphere
-    for (let lat = 0; lat <= segments/2; lat++) {
-        const phi = (lat / segments) * Math.PI;
-        const nextPhi = ((lat + 1) / segments) * Math.PI;
-        
-        for (let lon = 0; lon < segments; lon++) {
-            const theta = (lon / segments) * 2 * Math.PI;
-            const nextTheta = ((lon + 1) / segments) * 2 * Math.PI;
-            
-            if (lat === 0) {
-                // Top cap triangle (this one was correct)
-                triangles.push(new Triangle(
-                    new Vector3(0, halfCylinderHeight + radius, 0),
-                    createSphereVertex(Math.PI/segments, nextTheta, halfCylinderHeight),
-                    createSphereVertex(Math.PI/segments, theta, halfCylinderHeight),
-                    "#FFFF00"
-                ));
-            } else {
-                // Hemisphere body triangles (fixing winding order)
-                const v1 = createSphereVertex(phi, theta, halfCylinderHeight);
-                const v2 = createSphereVertex(nextPhi, theta, halfCylinderHeight);
-                const v3 = createSphereVertex(nextPhi, nextTheta, halfCylinderHeight);
-                const v4 = createSphereVertex(phi, nextTheta, halfCylinderHeight);
-                triangles.push(new Triangle(v1, v3, v2, "#FFFF00")); // Swapped v2 and v3
-                triangles.push(new Triangle(v1, v4, v3, "#FFFF00")); // Swapped v3 and v4
+        // Helper function to create vertex on hemisphere
+        const createSphereVertex = (phi, theta, yOffset) => {
+            return new Vector3(
+                radius * Math.sin(phi) * Math.cos(theta),
+                yOffset + radius * Math.cos(phi),
+                radius * Math.sin(phi) * Math.sin(theta)
+            );
+        };
+
+        // Create top hemisphere
+        for (let lat = 0; lat <= segments / 2; lat++) {
+            const phi = (lat / segments) * Math.PI;
+            const nextPhi = ((lat + 1) / segments) * Math.PI;
+
+            for (let lon = 0; lon < segments; lon++) {
+                const theta = (lon / segments) * 2 * Math.PI;
+                const nextTheta = ((lon + 1) / segments) * 2 * Math.PI;
+
+                if (lat === 0) {
+                    // Top cap triangle (this one was correct)
+                    triangles.push(
+                        new Triangle(
+                            new Vector3(0, halfCylinderHeight + radius, 0),
+                            createSphereVertex(Math.PI / segments, nextTheta, halfCylinderHeight),
+                            createSphereVertex(Math.PI / segments, theta, halfCylinderHeight),
+                            "#FFFF00"
+                        )
+                    );
+                } else {
+                    // Hemisphere body triangles (fixing winding order)
+                    const v1 = createSphereVertex(phi, theta, halfCylinderHeight);
+                    const v2 = createSphereVertex(nextPhi, theta, halfCylinderHeight);
+                    const v3 = createSphereVertex(nextPhi, nextTheta, halfCylinderHeight);
+                    const v4 = createSphereVertex(phi, nextTheta, halfCylinderHeight);
+                    triangles.push(new Triangle(v1, v3, v2, "#FFFF00")); // Swapped v2 and v3
+                    triangles.push(new Triangle(v1, v4, v3, "#FFFF00")); // Swapped v3 and v4
+                }
             }
         }
-    }
 
-    // Create cylinder body (fixing winding order)
-    for (let lon = 0; lon < segments; lon++) {
-        const theta = (lon / segments) * 2 * Math.PI;
-        const nextTheta = ((lon + 1) / segments) * 2 * Math.PI;
-        
-        const topLeft = new Vector3(
-            radius * Math.cos(theta),
-            halfCylinderHeight,
-            radius * Math.sin(theta)
-        );
-        const topRight = new Vector3(
-            radius * Math.cos(nextTheta),
-            halfCylinderHeight,
-            radius * Math.sin(nextTheta)
-        );
-        const bottomLeft = new Vector3(
-            radius * Math.cos(theta),
-            -halfCylinderHeight,
-            radius * Math.sin(theta)
-        );
-        const bottomRight = new Vector3(
-            radius * Math.cos(nextTheta),
-            -halfCylinderHeight,
-            radius * Math.sin(nextTheta)
-        );
-        
-        triangles.push(new Triangle(topLeft, topRight, bottomLeft, "#FF0000")); // Swapped bottomLeft and topRight
-        triangles.push(new Triangle(bottomLeft, topRight, bottomRight, "#FF0000")); // Reordered vertices
-    }
-
-    // Create bottom hemisphere
-    for (let lat = segments/2; lat <= segments; lat++) {
-        const phi = (lat / segments) * Math.PI;
-        const nextPhi = ((lat + 1) / segments) * Math.PI;
-        
+        // Create cylinder body (fixing winding order)
         for (let lon = 0; lon < segments; lon++) {
             const theta = (lon / segments) * 2 * Math.PI;
             const nextTheta = ((lon + 1) / segments) * 2 * Math.PI;
-            
-            if (lat === segments - 1) {
-                // Bottom cap triangle (this one was correct)
-                triangles.push(new Triangle(
+
+            const topLeft = new Vector3(radius * Math.cos(theta), halfCylinderHeight, radius * Math.sin(theta));
+            const topRight = new Vector3(
+                radius * Math.cos(nextTheta),
+                halfCylinderHeight,
+                radius * Math.sin(nextTheta)
+            );
+            const bottomLeft = new Vector3(radius * Math.cos(theta), -halfCylinderHeight, radius * Math.sin(theta));
+            const bottomRight = new Vector3(
+                radius * Math.cos(nextTheta),
+                -halfCylinderHeight,
+                radius * Math.sin(nextTheta)
+            );
+
+            triangles.push(new Triangle(topLeft, topRight, bottomLeft, "#FF0000")); // Swapped bottomLeft and topRight
+            triangles.push(new Triangle(bottomLeft, topRight, bottomRight, "#FF0000")); // Reordered vertices
+        }
+
+        // Create bottom hemisphere
+        // Change the range to stop BEFORE the last segment
+        for (let lat = segments / 2; lat < segments - 1; lat++) {
+            // Changed <= to < and segments to segments-1
+            const phi = (lat / segments) * Math.PI;
+            const nextPhi = ((lat + 1) / segments) * Math.PI;
+
+            for (let lon = 0; lon < segments; lon++) {
+                const theta = (lon / segments) * 2 * Math.PI;
+                const nextTheta = ((lon + 1) / segments) * 2 * Math.PI;
+
+                if (lat === segments - 1) {
+                    // Bottom cap triangle
+                    triangles.push(
+                        new Triangle(
+                            new Vector3(0, -halfCylinderHeight - radius, 0),
+                            createSphereVertex(Math.PI - Math.PI / segments, theta, -halfCylinderHeight),
+                            createSphereVertex(Math.PI - Math.PI / segments, nextTheta, -halfCylinderHeight),
+                            "#FF0000"
+                        )
+                    );
+                } else {
+                    // Hemisphere body triangles
+                    const v1 = createSphereVertex(phi, theta, -halfCylinderHeight);
+                    const v2 = createSphereVertex(nextPhi, theta, -halfCylinderHeight);
+                    const v3 = createSphereVertex(nextPhi, nextTheta, -halfCylinderHeight);
+                    const v4 = createSphereVertex(phi, nextTheta, -halfCylinderHeight);
+                    triangles.push(new Triangle(v1, v3, v2, "#FF0000"));
+                    triangles.push(new Triangle(v1, v4, v3, "#FF0000"));
+                }
+            }
+        }
+
+        // Then separately create just the bottom cap triangles once
+        for (let lon = 0; lon < segments; lon++) {
+            const theta = (lon / segments) * 2 * Math.PI;
+            const nextTheta = ((lon + 1) / segments) * 2 * Math.PI;
+
+            triangles.push(
+                new Triangle(
                     new Vector3(0, -halfCylinderHeight - radius, 0),
-                    createSphereVertex(Math.PI - Math.PI/segments, theta, -halfCylinderHeight),
-                    createSphereVertex(Math.PI - Math.PI/segments, nextTheta, -halfCylinderHeight),
+                    createSphereVertex(Math.PI - Math.PI / segments, theta, -halfCylinderHeight),
+                    createSphereVertex(Math.PI - Math.PI / segments, nextTheta, -halfCylinderHeight),
                     "#FF0000"
-                ));
-            } else {
-                // Hemisphere body triangles (fixing winding order)
-                const v1 = createSphereVertex(phi, theta, -halfCylinderHeight);
-                const v2 = createSphereVertex(nextPhi, theta, -halfCylinderHeight);
-                const v3 = createSphereVertex(nextPhi, nextTheta, -halfCylinderHeight);
-                const v4 = createSphereVertex(phi, nextTheta, -halfCylinderHeight);
-                triangles.push(new Triangle(v1, v3, v2, "#FF0000")); // Swapped v2 and v3
-                triangles.push(new Triangle(v1, v4, v3, "#FF0000")); // Swapped v3 and v4
-            }
+                )
+            );
         }
-    }
 
-    return triangles;
-}
+        return triangles;
+    }
     createDefaultBoxCharacterModel() {
         // Character model is made out of Triangles
         const halfSize = this.size / 2;
@@ -175,31 +193,31 @@ class ActionCharacter {
 
         return a * v1.y + b * v2.y + c * v3.y;
     }
-    
-    getModelMatrix() {
-    const matrix = Matrix4.create();
-    const rotationMatrix = Matrix4.create();
 
-    // Apply initial vertical offset
-    Matrix4.translate(matrix, matrix, [0, this.height / 8, 0]);
-    
-    // Apply position
-    Matrix4.translate(matrix, matrix, this.position.toArray());
-    
-    // Apply full rotation from physics body if it exists
-    if (this.body) {
-        Matrix4.fromQuat(rotationMatrix, this.body.rotation);
-        Matrix4.multiply(matrix, matrix, rotationMatrix);
-    } else {
-        // Fall back to simple Y rotation if no physics body
-        Matrix4.rotateY(matrix, matrix, this.rotation);
+    getModelMatrix() {
+        const matrix = Matrix4.create();
+        const rotationMatrix = Matrix4.create();
+
+        // Apply initial vertical offset
+        Matrix4.translate(matrix, matrix, [0, this.height / 8, 0]);
+
+        // Apply position
+        Matrix4.translate(matrix, matrix, this.position.toArray());
+
+        // Apply full rotation from physics body if it exists
+        if (this.body) {
+            Matrix4.fromQuat(rotationMatrix, this.body.rotation);
+            Matrix4.multiply(matrix, matrix, rotationMatrix);
+        } else {
+            // Fall back to simple Y rotation if no physics body
+            Matrix4.rotateY(matrix, matrix, this.rotation);
+        }
+
+        // Apply scale
+        Matrix4.scale(matrix, matrix, [this.scale, this.scale, this.scale]);
+
+        return matrix;
     }
-    
-    // Apply scale
-    Matrix4.scale(matrix, matrix, [this.scale, this.scale, this.scale]);
-    
-    return matrix;
-}
 
     getModel() {
         return this.characterModel;
@@ -300,11 +318,11 @@ class ActionCharacter {
         }
         return null;
     }
-    
+
     sign(p, v1, v2) {
         return (p.x - v2.x) * (v1.z - v2.z) - (v1.x - v2.x) * (p.z - v2.z);
     }
-    
+
     getCurrentAndNearbyTriangles() {
         // Get world position
         const x = this.position.x;
@@ -312,7 +330,7 @@ class ActionCharacter {
 
         return this.terrain.findNearbyTriangles(x, z);
     }
-    
+
     getCenterPosition() {
         return this.position;
     }
