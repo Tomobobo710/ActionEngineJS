@@ -15,8 +15,9 @@ class ActionCharacter {
         const loader = new GLBLoader();
 
         // From base64
-        this.characterModel = loader.loadModel(suzaneModel);
-
+        this.characterModel = loader.loadModel(foxModel);
+        
+        // capsule
         //this.characterModel = this.createDefaultCharacterModel();
 
         // Terrain info
@@ -193,7 +194,11 @@ class ActionCharacter {
 
         return a * v1.y + b * v2.y + c * v3.y;
     }
-
+    
+    /**
+     * Returns the model transformation matrix used by both 2D and 3D renderers
+     * for positioning and orienting the character in world space
+     */
     getModelMatrix() {
         const matrix = Matrix4.create();
         const rotationMatrix = Matrix4.create();
@@ -219,6 +224,9 @@ class ActionCharacter {
         return matrix;
     }
 
+    /**
+     * Returns the raw triangle geometry, primarily used by 2D software rendering
+     */
     getModel() {
         return this.characterModel;
     }
