@@ -106,10 +106,4 @@ class ActionPhysicsSphere3D extends ActionPhysicsObject3D {
             });
         });
     }
-
-    rotateVector(vector, rotation) {
-        const v = new Goblin.Vector3(vector.x, vector.y, vector.z);
-        rotation.transformVector3(v);
-        return new Vector3(v.x, v.y, v.z);
-    }
 }
