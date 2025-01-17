@@ -1,5 +1,5 @@
 // game/character/basecharacter/actioncharacter.js
-class ActionCharacter extends RenderableObject{
+class ActionCharacter extends RenderableObject {
     constructor(terrain, camera) {
         super();
         this.camera = camera;
@@ -11,13 +11,13 @@ class ActionCharacter extends RenderableObject{
         this.rotation = 0;
         this.size = 4;
         this.height = 6;
-        this.scale = 1; // og 0.575
+        this.scale = 1;
 
         const loader = new GLBLoader();
 
         // From base64
         this.characterModel = loader.loadModel(foxModel);
-        
+
         // capsule
         //this.characterModel = this.createDefaultCharacterModel();
 
@@ -28,162 +28,23 @@ class ActionCharacter extends RenderableObject{
         this.terrainHeight = 0;
         this.updateTerrainInfo();
     }
-    createDefaultCharacterModel() {
-        const segments = 16; // Number of segments around the capsule
-        const triangles = [];
-        const radius = this.size / 2;
-        const cylinderHeight = this.height - this.size; // Subtract diameter to account for hemispheres
-        const halfCylinderHeight = cylinderHeight / 2;
-
-        // Helper function to create vertex on hemisphere
-        const createSphereVertex = (phi, theta, yOffset) => {
-            return new Vector3(
-                radius * Math.sin(phi) * Math.cos(theta),
-                yOffset + radius * Math.cos(phi),
-                radius * Math.sin(phi) * Math.sin(theta)
-            );
-        };
-
-        // Create top hemisphere
-        for (let lat = 0; lat <= segments / 2; lat++) {
-            const phi = (lat / segments) * Math.PI;
-            const nextPhi = ((lat + 1) / segments) * Math.PI;
-
-            for (let lon = 0; lon < segments; lon++) {
-                const theta = (lon / segments) * 2 * Math.PI;
-                const nextTheta = ((lon + 1) / segments) * 2 * Math.PI;
-
-                if (lat === 0) {
-                    // Top cap triangle (this one was correct)
-                    triangles.push(
-                        new Triangle(
-                            new Vector3(0, halfCylinderHeight + radius, 0),
-                            createSphereVertex(Math.PI / segments, nextTheta, halfCylinderHeight),
-                            createSphereVertex(Math.PI / segments, theta, halfCylinderHeight),
-                            "#FFFF00"
-                        )
-                    );
-                } else {
-                    // Hemisphere body triangles (fixing winding order)
-                    const v1 = createSphereVertex(phi, theta, halfCylinderHeight);
-                    const v2 = createSphereVertex(nextPhi, theta, halfCylinderHeight);
-                    const v3 = createSphereVertex(nextPhi, nextTheta, halfCylinderHeight);
-                    const v4 = createSphereVertex(phi, nextTheta, halfCylinderHeight);
-                    triangles.push(new Triangle(v1, v3, v2, "#FFFF00")); // Swapped v2 and v3
-                    triangles.push(new Triangle(v1, v4, v3, "#FFFF00")); // Swapped v3 and v4
-                }
-            }
-        }
-
-        // Create cylinder body (fixing winding order)
-        for (let lon = 0; lon < segments; lon++) {
-            const theta = (lon / segments) * 2 * Math.PI;
-            const nextTheta = ((lon + 1) / segments) * 2 * Math.PI;
-
-            const topLeft = new Vector3(radius * Math.cos(theta), halfCylinderHeight, radius * Math.sin(theta));
-            const topRight = new Vector3(
-                radius * Math.cos(nextTheta),
-                halfCylinderHeight,
-                radius * Math.sin(nextTheta)
-            );
-            const bottomLeft = new Vector3(radius * Math.cos(theta), -halfCylinderHeight, radius * Math.sin(theta));
-            const bottomRight = new Vector3(
-                radius * Math.cos(nextTheta),
-                -halfCylinderHeight,
-                radius * Math.sin(nextTheta)
-            );
-
-            triangles.push(new Triangle(topLeft, topRight, bottomLeft, "#FF0000")); // Swapped bottomLeft and topRight
-            triangles.push(new Triangle(bottomLeft, topRight, bottomRight, "#FF0000")); // Reordered vertices
-        }
-
-        // Create bottom hemisphere
-        // Change the range to stop BEFORE the last segment
-        for (let lat = segments / 2; lat < segments - 1; lat++) {
-            // Changed <= to < and segments to segments-1
-            const phi = (lat / segments) * Math.PI;
-            const nextPhi = ((lat + 1) / segments) * Math.PI;
-
-            for (let lon = 0; lon < segments; lon++) {
-                const theta = (lon / segments) * 2 * Math.PI;
-                const nextTheta = ((lon + 1) / segments) * 2 * Math.PI;
-
-                if (lat === segments - 1) {
-                    // Bottom cap triangle
-                    triangles.push(
-                        new Triangle(
-                            new Vector3(0, -halfCylinderHeight - radius, 0),
-                            createSphereVertex(Math.PI - Math.PI / segments, theta, -halfCylinderHeight),
-                            createSphereVertex(Math.PI - Math.PI / segments, nextTheta, -halfCylinderHeight),
-                            "#FF0000"
-                        )
-                    );
-                } else {
-                    // Hemisphere body triangles
-                    const v1 = createSphereVertex(phi, theta, -halfCylinderHeight);
-                    const v2 = createSphereVertex(nextPhi, theta, -halfCylinderHeight);
-                    const v3 = createSphereVertex(nextPhi, nextTheta, -halfCylinderHeight);
-                    const v4 = createSphereVertex(phi, nextTheta, -halfCylinderHeight);
-                    triangles.push(new Triangle(v1, v3, v2, "#FF0000"));
-                    triangles.push(new Triangle(v1, v4, v3, "#FF0000"));
-                }
-            }
-        }
-
-        // Then separately create just the bottom cap triangles once
-        for (let lon = 0; lon < segments; lon++) {
-            const theta = (lon / segments) * 2 * Math.PI;
-            const nextTheta = ((lon + 1) / segments) * 2 * Math.PI;
-
-            triangles.push(
-                new Triangle(
-                    new Vector3(0, -halfCylinderHeight - radius, 0),
-                    createSphereVertex(Math.PI - Math.PI / segments, theta, -halfCylinderHeight),
-                    createSphereVertex(Math.PI - Math.PI / segments, nextTheta, -halfCylinderHeight),
-                    "#FF0000"
-                )
-            );
-        }
-
-        return triangles;
+    
+    // Required interface methods
+    applyInput(input, deltaTime) {
+        throw new Error("Must be implemented by subclass");
     }
-    createDefaultBoxCharacterModel() {
-        // Character model is made out of Triangles
-        const halfSize = this.size / 2;
-        const halfHeight = this.height / 2;
-        const yOffset = 0; // I mean it works.. but why we gotta offset by 1? All my homies hate off by one errors
-        // Define vertices
-        const v = {
-            ftl: new Vector3(-halfSize, halfHeight + yOffset, halfSize), // 0
-            ftr: new Vector3(halfSize, halfHeight + yOffset, halfSize), // 1
-            fbl: new Vector3(-halfSize, -halfHeight + yOffset, halfSize), // 2
-            fbr: new Vector3(halfSize, -halfHeight + yOffset, halfSize), // 3
-            btl: new Vector3(-halfSize, halfHeight + yOffset, -halfSize), // 4
-            btr: new Vector3(halfSize, halfHeight + yOffset, -halfSize), // 5
-            bbl: new Vector3(-halfSize, -halfHeight + yOffset, -halfSize), // 6
-            bbr: new Vector3(halfSize, -halfHeight + yOffset, -halfSize) // 7
-        };
-        return [
-            // Front face (yellow)
-            new Triangle(v.ftl, v.fbl, v.ftr, "#FFFF00"),
-            new Triangle(v.fbl, v.fbr, v.ftr, "#FFFF00"),
-            // Back face
-            new Triangle(v.btr, v.bbl, v.btl, "#FF0000"),
-            new Triangle(v.btr, v.bbr, v.bbl, "#FF0000"),
-            // Right face
-            new Triangle(v.ftr, v.fbr, v.btr, "#FF0000"),
-            new Triangle(v.fbr, v.bbr, v.btr, "#FF0000"),
-            // Left face
-            new Triangle(v.btl, v.bbl, v.ftl, "#FF0000"),
-            new Triangle(v.ftl, v.bbl, v.fbl, "#FF0000"),
-            // Top face
-            new Triangle(v.ftl, v.ftr, v.btr, "#FF0000"),
-            new Triangle(v.ftl, v.btr, v.btl, "#FF0000"),
-            // Bottom face
-            new Triangle(v.fbl, v.bbl, v.fbr, "#FF0000"),
-            new Triangle(v.bbl, v.bbr, v.fbr, "#FF0000")
-        ];
+
+    update(deltaTime) {
+        throw new Error("Must be implemented by subclass");
     }
+
+    draw(ctx, camera) {
+        throw new Error("Must be implemented by subclass");
+    }
+
+    
+
+    
 
     getHeightOnTriangle(triangle, x, z) {
         const [v1, v2, v3] = triangle.vertices;
@@ -195,7 +56,6 @@ class ActionCharacter extends RenderableObject{
 
         return a * v1.y + b * v2.y + c * v3.y;
     }
-
 
     /**
      * Returns the raw triangle geometry, primarily used by 2D software rendering
@@ -245,18 +105,7 @@ class ActionCharacter extends RenderableObject{
         }
     }
 
-    // Required interface methods that must be implemented
-    applyInput(input, deltaTime) {
-        throw new Error("Must be implemented by subclass");
-    }
-
-    update(deltaTime) {
-        throw new Error("Must be implemented by subclass");
-    }
-
-    draw(ctx, camera) {
-        throw new Error("Must be implemented by subclass");
-    }
+    
 
     getCurrentTriangle() {
         const triangles = this.terrain.triangles;
@@ -288,11 +137,11 @@ class ActionCharacter extends RenderableObject{
 
                 return {
                     vertices: [v1, v2, v3],
-                    indices: [0, 1, 2], // Modified since we no longer have face indices
+                    indices: [0, 1, 2],
                     minY: Math.min(v1.y, v2.y, v3.y),
                     maxY: Math.max(v1.y, v2.y, v3.y),
                     avgY: avgHeight,
-                    normal: triangle.normal, // Using triangle's calculated normal
+                    normal: triangle.normal,
                     biome: biomeType
                 };
             }
@@ -302,17 +151,5 @@ class ActionCharacter extends RenderableObject{
 
     sign(p, v1, v2) {
         return (p.x - v2.x) * (v1.z - v2.z) - (v1.x - v2.x) * (p.z - v2.z);
-    }
-
-    getCurrentAndNearbyTriangles() {
-        // Get world position
-        const x = this.position.x;
-        const z = this.position.z;
-
-        return this.terrain.findNearbyTriangles(x, z);
-    }
-
-    getCenterPosition() {
-        return this.position;
     }
 }
