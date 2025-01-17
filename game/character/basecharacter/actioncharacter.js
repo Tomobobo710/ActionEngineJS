@@ -14,12 +14,7 @@ class ActionCharacter extends RenderableObject {
         this.scale = 1;
 
         const loader = new GLBLoader();
-
-        // From base64
-        this.characterModel = loader.loadModel(foxModel);
-
-        // capsule
-        //this.characterModel = this.createDefaultCharacterModel();
+        this.characterModel = loader.loadModel(foxModel); // model is a global base64 string
 
         // Terrain info
         this.gridPosition = { x: 0, z: 0 };
@@ -41,10 +36,6 @@ class ActionCharacter extends RenderableObject {
     draw(ctx, camera) {
         throw new Error("Must be implemented by subclass");
     }
-
-    
-
-    
 
     getHeightOnTriangle(triangle, x, z) {
         const [v1, v2, v3] = triangle.vertices;
@@ -105,8 +96,6 @@ class ActionCharacter extends RenderableObject {
         }
     }
 
-    
-
     getCurrentTriangle() {
         const triangles = this.terrain.triangles;
         // Direct triangle access
@@ -116,9 +105,9 @@ class ActionCharacter extends RenderableObject {
             const v3 = triangle.vertices[2];
 
             const p = this.position;
-            const d1 = this.sign(p, v1, v2);
-            const d2 = this.sign(p, v2, v3);
-            const d3 = this.sign(p, v3, v1);
+            const d1 = MathUtils.sign(p, v1, v2);
+            const d2 = MathUtils.sign(p, v2, v3);
+            const d3 = MathUtils.sign(p, v3, v1);
 
             const hasNeg = d1 < 0 || d2 < 0 || d3 < 0;
             const hasPos = d1 > 0 || d2 > 0 || d3 > 0;
@@ -147,9 +136,5 @@ class ActionCharacter extends RenderableObject {
             }
         }
         return null;
-    }
-
-    sign(p, v1, v2) {
-        return (p.x - v2.x) * (v1.z - v2.z) - (v1.x - v2.x) * (p.z - v2.z);
     }
 }
