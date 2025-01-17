@@ -482,7 +482,7 @@ class ActionRenderer2D {
 
 	drawCharacter(character, camera, visibleTriangles) {
 		const modelMatrix = character.getModelMatrix();
-		const characterModel = character.getModel();
+		const characterModel = character.getCharacterModelTriangles();
 		const lightDir = new Vector3(0.5, 1.0, 0.5).normalize();
 
 		for (const triangle of characterModel) {
