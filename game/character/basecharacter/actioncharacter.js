@@ -13,9 +13,8 @@ class ActionCharacter extends RenderableObject {
         this.height = 6;
         this.scale = 1;
 
-        const loader = new GLBLoader();
-        this.characterModel = loader.loadModel(foxModel); // model is a global base64 string
-
+        this.characterModel = GLBLoader.loadModel(foxModel); // model is a global base64 string
+        console.log(this.characterModel.animations);
         // Terrain info
         this.gridPosition = { x: 0, z: 0 };
         this.currentBiome = null;
@@ -51,8 +50,8 @@ class ActionCharacter extends RenderableObject {
     /**
      * Returns the raw triangle geometry, primarily used by 2D software rendering
      */
-    getModel() {
-        return this.characterModel;
+    getCharacterModelTriangles() {
+        return this.characterModel.triangles;
     }
 
     updateFacingDirection() {
