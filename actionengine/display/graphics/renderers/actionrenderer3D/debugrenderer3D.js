@@ -87,7 +87,7 @@ class DebugRenderer3D {
     }
 
     drawDirectionIndicator(character, camera, lineShader, currentTime) {
-        const center = character.getCenterPosition();
+        const center = character.position;
         const directionEnd = new Vector3(
             center.x + character.facingDirection.x * character.size * 2,
             center.y,

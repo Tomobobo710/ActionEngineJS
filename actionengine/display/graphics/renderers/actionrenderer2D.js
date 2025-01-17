@@ -459,7 +459,7 @@ class ActionRenderer2D {
 
 	drawDirectionIndicator(character, camera) {
 		// Draw direction indicator
-		const center = character.getCenterPosition();
+		const center = character.postion;
 		const directionEnd = new Vector3(
 			center.x + character.facingDirection.x * character.size * 2,
 			center.y, // Keep y level for visual clarity
