@@ -8,7 +8,9 @@ class MathUtils {
         return start + (end - start) * t;
     }
 
-    // Add more math utilities as needed
+    static sign(p, v1, v2) {
+        return (p.x - v2.x) * (v1.z - v2.z) - (v1.x - v2.x) * (p.z - v2.z);
+    }
 }
 
 class SeededRandom {
