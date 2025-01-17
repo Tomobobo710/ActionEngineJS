@@ -1,4 +1,33 @@
 class ActionModel3D {
+    /**
+     * Creates a new ActionModel3D instance
+     */
+    constructor() {
+        /**
+         * Array of Triangle objects representing the model's geometry
+         * @type {Triangle[]}
+         * @private
+         */
+        this.triangles = [];
+
+        /**
+         * Object mapping animation names to their keyframe data
+         * @type {Object.<string, {
+         *   name: string,
+         *   duration: number,
+         *   channels: Array<{
+         *     target: string,
+         *     times: number[],
+         *     positions?: number[][],
+         *     rotations?: number[][],
+         *     scales?: number[][]
+         *   }>
+         * }>}
+         * @private
+         */
+        this.animations = {};
+    }
+    
     createBoxModel(size, height) {
         // Character model is made out of Triangles
         const halfSize = size / 2;
