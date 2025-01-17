@@ -139,7 +139,7 @@ class ShaderManager {
     }
 
     updateCharacterBuffers(character) {
-        const characterModel = character.getModel();
+        const characterModel = character.getCharacterModelTriangles();
 
         const vertices = new Float32Array(characterModel.flatMap((triangle) => triangle.getVertexArray()));
         const normals = new Float32Array(characterModel.flatMap((triangle) => triangle.getNormalArray()));
