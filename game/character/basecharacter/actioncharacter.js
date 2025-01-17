@@ -22,7 +22,7 @@ class ActionCharacter extends RenderableObject {
         this.terrainHeight = 0;
         this.updateTerrainInfo();
     }
-    
+
     // Required interface methods
     applyInput(input, deltaTime) {
         throw new Error("Must be implemented by subclass");
@@ -51,8 +51,34 @@ class ActionCharacter extends RenderableObject {
      * Returns the raw triangle geometry, primarily used by 2D software rendering
      */
     getCharacterModelTriangles() {
-        return this.characterModel.triangles;
+    const originalTriangles = this.characterModel.triangles;
+    const transformedTriangles = [];
+    
+    // Get rotation angle from facing direction
+    const angle = Math.atan2(this.facingDirection.x, this.facingDirection.z);
+    
+    // Create rotation matrix
+    const transform = Matrix4.create();
+    Matrix4.rotateY(transform, transform, angle);
+    
+    // Transform each triangle
+    for (const triangle of originalTriangles) {
+        const transformedVerts = triangle.vertices.map(vertex => 
+            Vector3.transformMat4(vertex, transform)
+        );
+        
+        transformedTriangles.push(
+            new Triangle(
+                transformedVerts[0],
+                transformedVerts[1],
+                transformedVerts[2],
+                triangle.color
+            )
+        );
     }
+    
+    return transformedTriangles;
+}
 
     updateFacingDirection() {
         this.facingDirection = new Vector3(
@@ -75,7 +101,7 @@ class ActionCharacter extends RenderableObject {
 
         return this.terrain.heightMap[z][x];
     }
-
+    
     updateTerrainInfo() {
         this.gridPosition.x = Math.floor(
             this.basePosition.x / this.terrain.baseWorldScale + this.terrain.gridResolution / 2
