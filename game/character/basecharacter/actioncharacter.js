@@ -1,6 +1,7 @@
 // game/character/basecharacter/actioncharacter.js
-class ActionCharacter {
+class ActionCharacter extends RenderableObject{
     constructor(terrain, camera) {
+        super();
         this.camera = camera;
         this.terrain = terrain;
 
@@ -194,35 +195,7 @@ class ActionCharacter {
 
         return a * v1.y + b * v2.y + c * v3.y;
     }
-    
-    /**
-     * Returns the model transformation matrix used by both 2D and 3D renderers
-     * for positioning and orienting the character in world space
-     */
-    getModelMatrix() {
-        const matrix = Matrix4.create();
-        const rotationMatrix = Matrix4.create();
 
-        // Apply initial vertical offset
-        Matrix4.translate(matrix, matrix, [0, this.height / 8, 0]);
-
-        // Apply position
-        Matrix4.translate(matrix, matrix, this.position.toArray());
-
-        // Apply full rotation from physics body if it exists
-        if (this.body) {
-            Matrix4.fromQuat(rotationMatrix, this.body.rotation);
-            Matrix4.multiply(matrix, matrix, rotationMatrix);
-        } else {
-            // Fall back to simple Y rotation if no physics body
-            Matrix4.rotateY(matrix, matrix, this.rotation);
-        }
-
-        // Apply scale
-        Matrix4.scale(matrix, matrix, [this.scale, this.scale, this.scale]);
-
-        return matrix;
-    }
 
     /**
      * Returns the raw triangle geometry, primarily used by 2D software rendering
