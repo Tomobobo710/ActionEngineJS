@@ -8,7 +8,7 @@ class ActionPhysicsObject3D extends RenderableObject {
         this.triangles = triangles;
         this.originalNormals = [];
         this.originalVerts = [];
-
+        this.position = new Vector3(0,0,0);
         this.triangles.forEach((triangle) => {
             this.originalNormals.push(new Vector3(triangle.normal.x, triangle.normal.y, triangle.normal.z));
 
