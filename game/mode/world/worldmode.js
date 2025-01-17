@@ -108,8 +108,9 @@ class WorldMode {
         const currentTime = performance.now();
         this.deltaTime = Math.min((currentTime - this.lastTime) / 1000, 0.25);
         this.lastTime = currentTime;
-
+        
         if (!this.isPaused) {
+            this.shaderManager.updateCharacterBuffers(this.character);
             this.physicsWorld.update(this.deltaTime);
             this.handleInput();
             this.weatherSystem.update(this.deltaTime, this.terrain);
