@@ -3,10 +3,10 @@ class ActionRenderer3D {
     constructor(canvas) {
         // Initialize canvas manager
         this.canvasManager = new CanvasManager3D(canvas);
-        
+
         // Get GL context from canvas manager
         this.gl = this.canvasManager.getContext();
-        
+
         // Initialize all managers and renderers
         this.programManager = new ProgramManager(this.gl, this.canvasManager.isWebGL2());
         this.lightingManager = new LightingManager(this.gl, this.canvasManager.isWebGL2());
@@ -24,92 +24,104 @@ class ActionRenderer3D {
     }
 
     render(renderData) {
-    const {
-        terrainBuffers,
-        terrainIndexCount,
-        characterBuffers,
-        characterIndexCount,
-        renderableBuffers,
-        renderableIndexCount,
-        camera,
-        character,
-        renderableObjects,
-        showDebugPanel,
-        weatherSystem
-    } = renderData;
+        const {
+            terrainBuffers,
+            terrainIndexCount,
+            characterBuffers,
+            characterIndexCount,
+            renderableBuffers,
+            renderableIndexCount,
+            camera,
+            character,
+            renderableObjects,
+            showDebugPanel,
+            weatherSystem
+        } = renderData;
 
-    // Update lighting and time
-    this.lightingManager.update();
-    this.currentTime = (performance.now() - this.startTime) / 1000.0;
+        // Update lighting and time
+        this.lightingManager.update();
+        this.currentTime = (performance.now() - this.startTime) / 1000.0;
 
-    // Get current shader set
-    const shaderSet = this.programRegistry.getCurrentShaderSet();
+        // Get current shader set
+        const shaderSet = this.programRegistry.getCurrentShaderSet();
 
-    // SHADOW PASS
-    if (shaderSet === this.programRegistry.shaders.get("pbr")) {
-        this.canvasManager.bindFramebuffer(this.lightingManager.getShadowFramebuffer());
-        this.canvasManager.setViewport(
-            this.lightingManager.getShadowMapSize(),
-            this.lightingManager.getShadowMapSize()
-        );
-        this.canvasManager.clear();
+        // SHADOW PASS
+        if (shaderSet === this.programRegistry.shaders.get("pbr")) {
+            this.canvasManager.bindFramebuffer(this.lightingManager.getShadowFramebuffer());
+            this.canvasManager.setViewport(
+                this.lightingManager.getShadowMapSize(),
+                this.lightingManager.getShadowMapSize()
+            );
+            this.canvasManager.clear();
 
-        this.gl.useProgram(shaderSet.shadow.program);
+            this.gl.useProgram(shaderSet.shadow.program);
 
-        // Render terrain shadows if terrain exists
-        if (terrainBuffers && terrainIndexCount) {
-            this.terrainRenderer.renderShadowPass(terrainBuffers, terrainIndexCount, shaderSet);
-        }
+            // Render terrain shadows if terrain exists
+            if (terrainBuffers && terrainIndexCount) {
+                this.terrainRenderer.renderShadowPass(terrainBuffers, terrainIndexCount, shaderSet);
+            }
 
-        // Render character shadows if character exists
-        if (character && characterBuffers && characterIndexCount) {
-            this.characterRenderer.renderShadowPass(character, characterBuffers, characterIndexCount, shaderSet);
-        }
+            // Render character shadows if character exists
+            if (character && characterBuffers && characterIndexCount) {
+                this.characterRenderer.renderShadowPass(character, characterBuffers, characterIndexCount, shaderSet);
+            }
 
-        // Render renderable object shadows if they exist
-        if (renderableObjects?.length && renderableBuffers && renderableIndexCount) {
-            for (const object of renderableObjects) {
-                if (object) {
-                    this.objectRenderer.renderShadowPass(object, renderableBuffers, renderableIndexCount, shaderSet);
+            // Render renderable object shadows if they exist
+            if (renderableObjects?.length && renderableBuffers && renderableIndexCount) {
+                for (const object of renderableObjects) {
+                    if (object) {
+                        this.objectRenderer.renderShadowPass(
+                            object,
+                            renderableBuffers,
+                            renderableIndexCount,
+                            shaderSet
+                        );
+                    }
                 }
             }
         }
-    }
 
-    // MAIN RENDER PASS
-    this.canvasManager.resetToDefaultFramebuffer();
-    this.canvasManager.clear();
+        // MAIN RENDER PASS
+        this.canvasManager.resetToDefaultFramebuffer();
+        this.canvasManager.clear();
 
-    // Render terrain if it exists
-    if (terrainBuffers && terrainIndexCount) {
-        this.terrainRenderer.render(terrainBuffers, terrainIndexCount, camera, shaderSet, this.currentTime);
-    }
+        // Render terrain if it exists
+        if (terrainBuffers && terrainIndexCount) {
+            this.terrainRenderer.render(terrainBuffers, terrainIndexCount, camera, shaderSet, this.currentTime);
+        }
 
-    // Render character if it exists
-    if (character && characterBuffers && characterIndexCount) {
-        this.characterRenderer.render(character, characterBuffers, characterIndexCount, camera, shaderSet, this.currentTime);
-    }
+        // Render character if it exists
+        if (character && characterBuffers && characterIndexCount) {
+            this.characterRenderer.render(
+                character,
+                characterBuffers,
+                characterIndexCount,
+                camera,
+                shaderSet,
+                this.currentTime
+            );
+        }
 
-    // Render objects if they exist
-    if (renderableObjects?.length && renderableBuffers && renderableIndexCount) {
-        for (const object of renderableObjects) {
-            if (object) {
-                this.objectRenderer.render(object, camera, shaderSet, this.currentTime);
+        // Render objects if they exist
+        if (renderableObjects?.length && renderableBuffers && renderableIndexCount) {
+            for (const object of renderableObjects) {
+                if (object) {
+                    this.objectRenderer.render(object, camera, shaderSet, this.currentTime);
+                }
             }
         }
-    }
 
-    // Render weather if it exists
-    if (weatherSystem) {
-        this.weatherRenderer.render(weatherSystem, camera);
-    }
-
-    // Debug visualization if enabled
-    if (showDebugPanel) {
-        if (camera) {
-            this.debugRenderer.drawDebugLines(camera, character, this.currentTime);
+        // Render weather if it exists
+        if (weatherSystem) {
+            this.weatherRenderer.render(weatherSystem, camera);
         }
-        this.debugRenderer.drawDebugShadowMap();
+
+        // Debug visualization if enabled
+        if (showDebugPanel) {
+            if (camera) {
+                this.debugRenderer.drawDebugLines(camera, character, this.currentTime);
+            }
+            this.debugRenderer.drawDebugShadowMap();
+        }
     }
-}
 }
