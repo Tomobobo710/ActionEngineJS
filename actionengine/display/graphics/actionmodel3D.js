@@ -10,21 +10,6 @@ class ActionModel3D {
          */
         this.triangles = [];
 
-        /**
-         * Object mapping animation names to their keyframe data
-         * @type {Object.<string, {
-         *   name: string,
-         *   duration: number,
-         *   channels: Array<{
-         *     target: string,
-         *     times: number[],
-         *     positions?: number[][],
-         *     rotations?: number[][],
-         *     scales?: number[][]
-         *   }>
-         * }>}
-         * @private
-         */
         this.animations = {};
         this.nodes = [];        // Array of all nodes/bones
         this.nodeMap = {};      // Quick lookup of nodes by name/id
