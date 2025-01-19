@@ -26,6 +26,11 @@ class ActionModel3D {
          * @private
          */
         this.animations = {};
+        this.nodes = [];        // Array of all nodes/bones
+        this.nodeMap = {};      // Quick lookup of nodes by name/id
+        this.joints = [];           // Array of joint indices that affect vertices
+        this.weights = [];          // How much each joint affects each vertex
+        this.inverseBindMatrices = []; // Starting pose of each joint
     }
     
     createBoxModel(size, height) {
