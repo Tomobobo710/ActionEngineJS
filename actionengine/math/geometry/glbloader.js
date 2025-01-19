@@ -70,6 +70,79 @@ class GLBLoader {
                 );
             }
         }
+        
+        // Load node hierarchy
+    if (gltf.nodes) {
+        for (let i = 0; i < gltf.nodes.length; i++) {
+            const gltfNode = gltf.nodes[i];
+            const node = {
+                name: gltfNode.name || `node_${i}`,
+                index: i,
+                children: gltfNode.children || [],
+                parent: null,  // We'll set this in a second pass
+                
+                // Transform data
+                translation: gltfNode.translation || [0, 0, 0],
+                rotation: gltfNode.rotation || [0, 0, 0, 1],    // Quaternion
+                scale: gltfNode.scale || [1, 1, 1]
+            };
+            
+            model.nodes.push(node);
+            model.nodeMap[node.name] = node;
+        }
+
+        // Second pass to set up parent references
+        for (const node of model.nodes) {
+            for (const childIndex of node.children) {
+                model.nodes[childIndex].parent = node.index;
+            }
+        }
+    }
+        // Load skin data if present
+    if (gltf.skins && gltf.skins.length > 0) {
+        
+        const skin = gltf.skins[0];  // Usually just one skin
+        console.log("Raw skin data:", skin);
+        // Get joints (which nodes are used for skinning)
+        model.joints = skin.joints;
+
+        // Load inverse bind matrices (initial pose)
+        if (skin.inverseBindMatrices !== undefined) {
+            console.log("Found inverse bind matrices accessor:", skin.inverseBindMatrices);
+            const ibmData = GLBLoader.getAttributeData(skin.inverseBindMatrices, gltf, binaryData);
+            console.log("Raw IBM data length:", ibmData.length);
+            // Convert flat array to 4x4 matrices
+            for (let i = 0; i < ibmData.length; i += 16) {
+                model.inverseBindMatrices.push(Array.from(ibmData.slice(i, i + 16)));
+            }
+        }
+
+        // Load vertex weights
+        const primitive = gltf.meshes[0].primitives[0];  // Assuming single mesh/primitive for now
+        if (primitive.attributes.JOINTS_0 && primitive.attributes.WEIGHTS_0) {
+            const jointIndices = GLBLoader.getAttributeData(primitive.attributes.JOINTS_0, gltf, binaryData);
+            const weights = GLBLoader.getAttributeData(primitive.attributes.WEIGHTS_0, gltf, binaryData);
+            
+            // Store joint/weight data per vertex
+            for (let i = 0; i < jointIndices.length; i += 4) {
+                model.weights.push({
+                    joints: [
+                        jointIndices[i],
+                        jointIndices[i + 1],
+                        jointIndices[i + 2],
+                        jointIndices[i + 3]
+                    ],
+                    weights: [
+                        weights[i],
+                        weights[i + 1],
+                        weights[i + 2],
+                        weights[i + 3]
+                    ]
+                });
+            }
+        }
+    }
+
         // Load animations
         if (gltf.animations) {
             for (const animation of gltf.animations) {
@@ -388,22 +461,28 @@ class GLBLoader {
      * @private
      */
     static getAttributeData(accessorIndex, gltf, binaryData) {
-        const accessor = gltf.accessors[accessorIndex];
-        const bufferView = gltf.bufferViews[accessor.bufferView];
+    const accessor = gltf.accessors[accessorIndex];
+    const bufferView = gltf.bufferViews[accessor.bufferView];
 
-        const componentsCount = {
-            SCALAR: 1,
-            VEC2: 2,
-            VEC3: 3,
-            VEC4: 4
-        }[accessor.type];
+    const componentsCount = {
+        SCALAR: 1,
+        VEC2: 2,
+        VEC3: 3,
+        VEC4: 4,
+        MAT4: 16
+    }[accessor.type];
 
-        return new Float32Array(
-            binaryData,
-            (bufferView.byteOffset || 0) + (accessor.byteOffset || 0),
-            accessor.count * componentsCount
-        );
+    if (!componentsCount) {
+        console.warn(`Unknown accessor type: ${accessor.type}`);
+        return new Float32Array(0);
     }
+
+    return new Float32Array(
+        binaryData,
+        (bufferView.byteOffset || 0) + (accessor.byteOffset || 0),
+        accessor.count * componentsCount
+    );
+}
 
     /**
      * Extracts vertex indices from the binary buffer
