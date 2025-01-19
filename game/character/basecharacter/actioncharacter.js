@@ -15,6 +15,14 @@ class ActionCharacter extends RenderableObject {
 
         this.characterModel = GLBLoader.loadModel(foxModel); // model is a global base64 string
         console.log(this.characterModel.animations);
+        
+        console.log(this.characterModel.nodes);
+        console.log(this.characterModel.nodeMap);
+        
+        console.log(this.characterModel.joints);
+        console.log(this.characterModel.weights);
+        console.log(this.characterModel.inverseBindMatrices);
+        
         // Terrain info
         this.gridPosition = { x: 0, z: 0 };
         this.currentBiome = null;
