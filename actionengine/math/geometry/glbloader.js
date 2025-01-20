@@ -43,142 +43,258 @@ class GLBLoader {
         const model = new ActionModel3D();
         const { gltf, binaryData } = GLBLoader.parseGLB(arrayBuffer);
 
-        for (const mesh of gltf.meshes) {
-            for (const primitive of mesh.primitives) {
-                const positions = GLBLoader.getAttributeData(primitive.attributes.POSITION, gltf, binaryData);
-                const indices = GLBLoader.getIndexData(primitive.indices, gltf, binaryData);
-                const uvs = GLBLoader.getUVs(primitive, gltf, binaryData);
-                const vertexColors = GLBLoader.getVertexColors(primitive, gltf, binaryData);
-                const { materialColor, textureData, textureWidth, textureHeight } = GLBLoader.getMaterialData(
-                    primitive,
-                    gltf,
-                    binaryData,
-                    uvs,
-                    indices
-                );
-
-                GLBLoader.createTriangles(
-                    model.triangles,
-                    positions,
-                    indices,
-                    vertexColors,
-                    uvs,
-                    materialColor,
-                    textureData,
-                    textureWidth,
-                    textureHeight
-                );
-            }
-        }
-
-        // Load node hierarchy
+        // 1. Load all nodes first and set up lookups
         if (gltf.nodes) {
             for (let i = 0; i < gltf.nodes.length; i++) {
                 const gltfNode = gltf.nodes[i];
                 const node = {
-                    name: gltfNode.name || `node_${i}`,
                     index: i,
-                    children: gltfNode.children || [],
-                    parent: null, // We'll set this in a second pass
+                    name: gltfNode.name || `node_${i}`,
 
-                    // Transform data
+                    // Core properties
+                    isMesh: gltfNode.mesh !== undefined,
+                    isJoint: false, // Set during skin processing
+                    isRoot: true, // Will be false if has parent
+
+                    // Data references
+                    meshIndex: gltfNode.mesh !== undefined ? gltfNode.mesh : null,
+                    skinIndex: gltfNode.skin !== undefined ? gltfNode.skin : null,
+
+                    // Hierarchy
+                    parent: null,
+                    children: gltfNode.children || [],
+
+                    // Transform
                     translation: gltfNode.translation || [0, 0, 0],
-                    rotation: gltfNode.rotation || [0, 0, 0, 1], // Quaternion
+                    rotation: gltfNode.rotation || [0, 0, 0, 1],
                     scale: gltfNode.scale || [1, 1, 1]
                 };
 
                 model.nodes.push(node);
                 model.nodeMap[node.name] = node;
+
+                // Add to type-specific arrays
+                if (node.isMesh) model.meshNodes.push(i);
+                if (node.skinIndex !== null) model.skinNodes.push(i);
             }
 
-            // Second pass to set up parent references
+            // Set up parent relationships and find roots
             for (const node of model.nodes) {
                 for (const childIndex of node.children) {
                     model.nodes[childIndex].parent = node.index;
+                    model.nodes[childIndex].isRoot = false;
                 }
-            }
-        }
-        // Load skin data if present
-        if (gltf.skins && gltf.skins.length > 0) {
-            const skin = gltf.skins[0]; // Usually just one skin
-            console.log("[GLBLoader] Raw skin data:", skin);
-            // Get joints (which nodes are used for skinning)
-            model.joints = skin.joints;
-
-            // Load inverse bind matrices (initial pose)
-            if (skin.inverseBindMatrices !== undefined) {
-                console.log("[GLBLoader] Found inverse bind matrices accessor:", skin.inverseBindMatrices);
-                const ibmData = GLBLoader.getAttributeData(skin.inverseBindMatrices, gltf, binaryData);
-                console.log("[GLBLoader] Raw IBM data length:", ibmData.length);
-                // Convert flat array to 4x4 matrices
-                for (let i = 0; i < ibmData.length; i += 16) {
-                    model.inverseBindMatrices.push(Array.from(ibmData.slice(i, i + 16)));
-                }
-            }
-
-            // Load vertex weights
-            const primitive = gltf.meshes[0].primitives[0]; // Assuming single mesh/primitive for now
-            if (primitive.attributes.JOINTS_0 && primitive.attributes.WEIGHTS_0) {
-                const jointIndices = GLBLoader.getAttributeData(primitive.attributes.JOINTS_0, gltf, binaryData);
-                const weights = GLBLoader.getAttributeData(primitive.attributes.WEIGHTS_0, gltf, binaryData);
-
-                // Store joint/weight data per vertex
-                for (let i = 0; i < jointIndices.length; i += 4) {
-                    model.weights.push({
-                        joints: [jointIndices[i], jointIndices[i + 1], jointIndices[i + 2], jointIndices[i + 3]],
-                        weights: [weights[i], weights[i + 1], weights[i + 2], weights[i + 3]]
-                    });
+                if (node.isRoot) {
+                    model.rootNodes.push(node.index);
                 }
             }
         }
 
-        // Load animations
+        // 2. Load all meshes
+        if (gltf.meshes) {
+            for (const mesh of gltf.meshes) {
+                const meshData = {
+                    index: model.meshes.length,
+                    nodeIndices: [], // Which nodes use this mesh
+                    primitives: [] // Geometry data
+                };
+
+                // Find nodes using this mesh
+                meshData.nodeIndices = model.nodes
+                    .filter((node) => node.meshIndex === meshData.index)
+                    .map((node) => node.index);
+
+                // Load all primitives
+                for (const primitive of mesh.primitives) {
+                    const primData = {
+                        // Existing geometry data
+                        positions: GLBLoader.getAttributeData(primitive.attributes.POSITION, gltf, binaryData),
+                        indices: GLBLoader.getIndexData(primitive.indices, gltf, binaryData),
+                        uvs: GLBLoader.getUVs(primitive, gltf, binaryData),
+                        vertexColors: GLBLoader.getVertexColors(primitive, gltf, binaryData),
+
+                        // Material/color data
+                        material:
+                            primitive.material !== undefined
+                                ? {
+                                      color: null, // Will be set from material properties
+                                      texture: null // Will be set from texture data
+                                  }
+                                : null,
+
+                        // Skinning data
+                        skinning: primitive.attributes.JOINTS_0
+                            ? {
+                                  joints: GLBLoader.getAttributeData(primitive.attributes.JOINTS_0, gltf, binaryData),
+                                  weights: GLBLoader.getAttributeData(primitive.attributes.WEIGHTS_0, gltf, binaryData)
+                              }
+                            : null
+                    };
+
+                    // Get material data if present
+                    if (primitive.material !== undefined) {
+                        const material = gltf.materials[primitive.material];
+                        if (material?.pbrMetallicRoughness?.baseColorFactor) {
+                            const [r, g, b] = material.pbrMetallicRoughness.baseColorFactor;
+                            primData.material.color = `#${Math.floor(r * 255)
+                                .toString(16)
+                                .padStart(2, "0")}${Math.floor(g * 255)
+                                .toString(16)
+                                .padStart(2, "0")}${Math.floor(b * 255)
+                                .toString(16)
+                                .padStart(2, "0")}`;
+                        }
+
+                        if (material?.pbrMetallicRoughness?.baseColorTexture) {
+                            const { data, width, height } = GLBLoader.getTextureData(
+                                material,
+                                gltf,
+                                binaryData,
+                                primData.uvs,
+                                primData.indices
+                            );
+                            primData.material.texture = {
+                                data: data,
+                                width: width,
+                                height: height
+                            };
+                        }
+                    }
+
+                    meshData.primitives.push(primData);
+                }
+
+                model.meshes.push(meshData);
+            }
+        }
+
+        // 3. Load all skins and set up joint relationships
+        if (gltf.skins) {
+            for (const gltfSkin of gltf.skins) {
+                const skin = {
+                    index: model.skins.length,
+                    joints: gltfSkin.joints,
+                    rootNode: gltfSkin.skeleton
+                };
+
+                // Mark nodes as joints and set up joint->skin relationship
+                for (const jointIndex of skin.joints) {
+                    model.nodes[jointIndex].isJoint = true;
+                    if (!model.jointNodes.includes(jointIndex)) {
+                        model.jointNodes.push(jointIndex);
+                    }
+                    model.jointToSkinIndex[jointIndex] = skin.index;
+                }
+
+                // Load inverse bind matrices
+                if (gltfSkin.inverseBindMatrices !== undefined) {
+                    const ibmData = GLBLoader.getAttributeData(gltfSkin.inverseBindMatrices, gltf, binaryData);
+                    for (let i = 0; i < skin.joints.length; i++) {
+                        const jointIndex = skin.joints[i];
+                        const matrixStart = i * 16;
+                        model.inverseBindMatrices[jointIndex] = Array.from(
+                            ibmData.slice(matrixStart, matrixStart + 16)
+                        );
+                    }
+                }
+
+                model.skins.push(skin);
+            }
+
+            // Set up node->skin relationships
+            for (const node of model.nodes) {
+                if (node.skinIndex !== null) {
+                    model.nodeToSkinIndex[node.index] = node.skinIndex;
+                }
+            }
+        }
+
+        // 4. Load vertex skinning data
+        for (const mesh of model.meshes) {
+            for (const primitive of mesh.primitives) {
+                if (primitive.skinning) {
+                    // Store per-vertex joint influences
+                    for (let i = 0; i < primitive.skinning.joints.length; i += 4) {
+                        model.vertexJoints.push([
+                            primitive.skinning.joints[i],
+                            primitive.skinning.joints[i + 1],
+                            primitive.skinning.joints[i + 2],
+                            primitive.skinning.joints[i + 3]
+                        ]);
+
+                        model.vertexWeights.push([
+                            primitive.skinning.weights[i],
+                            primitive.skinning.weights[i + 1],
+                            primitive.skinning.weights[i + 2],
+                            primitive.skinning.weights[i + 3]
+                        ]);
+                    }
+                }
+            }
+        }
+
+        // 5. Create triangles from mesh data
+        for (let meshIndex = 0; meshIndex < gltf.meshes.length; meshIndex++) {
+            const gltfMesh = gltf.meshes[meshIndex];
+            const meshData = model.meshes[meshIndex];
+
+            for (let primitiveIndex = 0; primitiveIndex < gltfMesh.primitives.length; primitiveIndex++) {
+                const primitive = gltfMesh.primitives[primitiveIndex];
+                const primData = meshData.primitives[primitiveIndex];
+
+                const { materialColor, textureData, textureWidth, textureHeight } = GLBLoader.getMaterialData(
+                    primitive,
+                    gltf,
+                    binaryData,
+                    primData.uvs,
+                    primData.indices
+                );
+
+                GLBLoader.createTriangles(
+                    model.triangles,
+                    primData.positions,
+                    primData.indices,
+                    primData.vertexColors,
+                    primData.uvs,
+                    materialColor,
+                    textureData,
+                    textureWidth,
+                    textureHeight,
+                    model
+                );
+            }
+        }
+
+        // 6. Load animations
         if (gltf.animations) {
-            for (const animation of gltf.animations) {
+            for (const anim of gltf.animations) {
                 const animData = {
-                    name: animation.name || "unnamed",
+                    name: anim.name || `anim_${Object.keys(model.animations).length}`,
                     duration: 0,
                     channels: []
                 };
 
-                for (const channel of animation.channels) {
-                    const sampler = animation.samplers[channel.sampler];
+                for (const channel of anim.channels) {
+                    const sampler = anim.samplers[channel.sampler];
                     const target = channel.target;
 
-                    // Get keyframe times
-                    const times = GLBLoader.getAttributeData(sampler.input, gltf, binaryData);
-
-                    // Get keyframe data based on path type (position, rotation, scale)
-                    const values = GLBLoader.getAttributeData(sampler.output, gltf, binaryData);
-
                     const channelData = {
-                        target: target.node,
-                        times: Array.from(times)
+                        nodeIndex: target.node,
+                        property: target.path,
+                        times: Array.from(GLBLoader.getAttributeData(sampler.input, gltf, binaryData)),
+                        values: Array.from(GLBLoader.getAttributeData(sampler.output, gltf, binaryData))
                     };
 
-                    // Organize values based on animation type
-                    switch (target.path) {
-                        case "translation":
-                            channelData.positions = GLBLoader.groupVec3Values(values);
-                            break;
-                        case "rotation":
-                            channelData.rotations = GLBLoader.groupVec4Values(values);
-                            break;
-                        case "scale":
-                            channelData.scales = GLBLoader.groupVec3Values(values);
-                            break;
-                    }
-
                     animData.channels.push(channelData);
-                    animData.duration = Math.max(animData.duration, times[times.length - 1]);
+                    animData.duration = Math.max(animData.duration, channelData.times[channelData.times.length - 1]);
                 }
 
                 model.animations[animData.name] = animData;
             }
         }
+
         return model;
     }
-
     /**
      * Parses a GLB file into its JSON and binary components
      * @param {ArrayBuffer} arrayBuffer - Raw GLB file data
@@ -392,9 +508,17 @@ class GLBLoader {
         materialColor,
         textureData,
         textureWidth,
-        textureHeight
+        textureHeight,
+        model
     ) {
         for (let i = 0; i < indices.length; i += 3) {
+            // Create vertex keys for mapping
+            const vertexKeys = [
+                `${positions[indices[i] * 3]},${positions[indices[i] * 3 + 1]},${positions[indices[i] * 3 + 2]}`,
+                `${positions[indices[i + 1] * 3]},${positions[indices[i + 1] * 3 + 1]},${positions[indices[i + 1] * 3 + 2]}`,
+                `${positions[indices[i + 2] * 3]},${positions[indices[i + 2] * 3 + 1]},${positions[indices[i + 2] * 3 + 2]}`
+            ];
+
             const vertices = [
                 new Vector3(positions[indices[i] * 3], positions[indices[i] * 3 + 1], positions[indices[i] * 3 + 2]),
                 new Vector3(
@@ -437,7 +561,38 @@ class GLBLoader {
                 color = materialColor;
             }
 
-            triangles.push(new Triangle(vertices[0], vertices[1], vertices[2], color));
+            const triangle = new Triangle(vertices[0], vertices[1], vertices[2], color);
+            const triangleIndex = triangles.length;
+            triangles.push(triangle);
+            // Also store in originalTriangles
+            model.originalTriangles.push(triangle);
+            // Update vertexToTriangleMap
+            vertexKeys.forEach((vertexKey) => {
+                if (!model.vertexToTriangleMap[vertexKey]) {
+                    model.vertexToTriangleMap[vertexKey] = [];
+                }
+                model.vertexToTriangleMap[vertexKey].push(triangleIndex);
+            });
+
+            // Update nodeToVertexMap using skin data
+            if (model.vertexJoints && model.vertexWeights) {
+                vertexKeys.forEach((vertexKey, vIdx) => {
+                    const vertexIndex = indices[i + vIdx];
+                    const joints = model.vertexJoints[vertexIndex];
+                    const weights = model.vertexWeights[vertexIndex];
+
+                    // Map vertex to nodes based on highest weight influence
+                    for (let j = 0; j < joints.length; j++) {
+                        if (weights[j] > 0) {
+                            const nodeIndex = joints[j];
+                            if (!model.nodeToVertexMap[nodeIndex]) {
+                                model.nodeToVertexMap[nodeIndex] = new Set();
+                            }
+                            model.nodeToVertexMap[nodeIndex].add(vertexKey);
+                        }
+                    }
+                });
+            }
         }
     }
 
