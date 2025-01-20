@@ -14,14 +14,27 @@ class ActionCharacter extends RenderableObject {
         this.scale = 1;
 
         this.characterModel = GLBLoader.loadModel(foxModel); // model is a global base64 string
-        console.log("[ActionCharacter] Character model animations: ", this.characterModel.animations);
+  
+
 
         console.log("[ActionCharacter] Character model nodes: ", this.characterModel.nodes);
+        console.log("[ActionCharacter] Character model root nodes: ", this.characterModel.rootNodes);
+        console.log("[ActionCharacter] Character model mesh nodes: ", this.characterModel.meshNodes);
+        console.log("[ActionCharacter] Character model joint nodes: ", this.characterModel.jointNodes);
+        console.log("[ActionCharacter] Character model skin nodes: ", this.characterModel.skinNodes);
         console.log("[ActionCharacter] Character model nodeMap: ", this.characterModel.nodeMap);
-
-        console.log("[ActionCharacter] Character model joints: ", this.characterModel.joints);
-        console.log("[ActionCharacter] Character model weights: ", this.characterModel.weights);
+        console.log("[ActionCharacter] Character model meshes: ", this.characterModel.meshes);
+        console.log("[ActionCharacter] Character model original triangles: ", this.characterModel.originalTriangles);
+        console.log("[ActionCharacter] Character model current triangles: ", this.characterModel.triangles);
+        console.log("[ActionCharacter] Character model animations: ", this.characterModel.animations);
+        console.log("[ActionCharacter] Character model skins: ", this.characterModel.skins);
+        console.log("[ActionCharacter] Character model jointToSkinIndex: ", this.characterModel.jointToSkinIndex);
+        console.log("[ActionCharacter] Character model nodeToSkinIndex: ", this.characterModel.nodeToSkinIndex);
         console.log("[ActionCharacter] Character model inverseBindMatrices: ", this.characterModel.inverseBindMatrices);
+        console.log("[ActionCharacter] Character model vertexJoints: ", this.characterModel.vertexJoints);
+        console.log("[ActionCharacter] Character model vertexWeights: ", this.characterModel.vertexWeights);
+        console.log("[ActionCharacter] Character model vertexToTriangleMap: ", this.characterModel.vertexToTriangleMap);
+        console.log("[ActionCharacter] Character model nodeToVertexMap: ", this.characterModel.nodeToVertexMap);
 
         // Terrain info
         this.gridPosition = { x: 0, z: 0 };
