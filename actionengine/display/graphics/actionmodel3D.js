@@ -1,23 +1,15 @@
 class ActionModel3D {
-    /**
-     * Creates a new ActionModel3D instance
-     */
     constructor() {
-        /**
-         * Array of Triangle objects representing the model's geometry
-         * @type {Triangle[]}
-         * @private
-         */
         this.triangles = [];
 
         this.animations = {};
-        this.nodes = [];        // Array of all nodes/bones
-        this.nodeMap = {};      // Quick lookup of nodes by name/id
-        this.joints = [];           // Array of joint indices that affect vertices
-        this.weights = [];          // How much each joint affects each vertex
+        this.nodes = []; // Array of all nodes/bones
+        this.nodeMap = {}; // Quick lookup of nodes by name/id
+        this.joints = []; // Array of joint indices that affect vertices
+        this.weights = []; // How much each joint affects each vertex
         this.inverseBindMatrices = []; // Starting pose of each joint
     }
-    
+
     createBoxModel(size, height) {
         // Character model is made out of Triangles
         const halfSize = size / 2;
