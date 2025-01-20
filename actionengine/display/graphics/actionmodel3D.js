@@ -1,15 +1,37 @@
 class ActionModel3D {
     constructor() {
-        this.triangles = [];
+        // Node structure
+        this.nodes = [];  // All nodes with full properties 
+        this.rootNodes = [];  // Top-level node indices
+        this.meshNodes = [];  // Nodes with meshes
+        this.jointNodes = []; // Nodes used as bones
+        this.skinNodes = [];  // Nodes using skins
+        this.nodeMap = {};    // Look up nodes by name
 
-        this.animations = {};
-        this.nodes = []; // Array of all nodes/bones
-        this.nodeMap = {}; // Quick lookup of nodes by name/id
-        this.joints = []; // Array of joint indices that affect vertices
-        this.weights = []; // How much each joint affects each vertex
-        this.inverseBindMatrices = []; // Starting pose of each joint
+        // Mesh data
+        this.meshes = [];     // Complete mesh data for each mesh
+        this.originalTriangles = [];  // Initial triangle geometry
+        this.triangles = [];  // Current triangle geometry
+        
+        // Original skin definitions 
+        this.skins = [];      // Complete skin definitions from GLB
+
+        // Bone/joint relationships
+        this.jointToSkinIndex = {};    // Which skin each joint belongs to
+        this.nodeToSkinIndex = {};     // Which skin each node uses
+        this.inverseBindMatrices = {}; // Joint index -> its starting pose matrix
+        
+        // Per-vertex skinning data
+        this.vertexJoints = [];  // Which joints affect each vertex
+        this.vertexWeights = []; // How much each joint affects each vertex
+
+        // Animation data
+        this.animations = {};    // All animation data
+        
+        this.vertexToTriangleMap = {}; // Maps vertex positions to array of triangle indices that use that vertex
+        this.nodeToVertexMap = {}; // Maps node indices to Set of vertex positions influenced by that node based on skinning data
     }
-
+    
     createBoxModel(size, height) {
         // Character model is made out of Triangles
         const halfSize = size / 2;
