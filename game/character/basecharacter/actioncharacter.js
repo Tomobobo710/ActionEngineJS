@@ -14,15 +14,15 @@ class ActionCharacter extends RenderableObject {
         this.scale = 1;
 
         this.characterModel = GLBLoader.loadModel(foxModel); // model is a global base64 string
-        console.log(this.characterModel.animations);
-        
-        console.log(this.characterModel.nodes);
-        console.log(this.characterModel.nodeMap);
-        
-        console.log(this.characterModel.joints);
-        console.log(this.characterModel.weights);
-        console.log(this.characterModel.inverseBindMatrices);
-        
+        console.log("[ActionCharacter] Character model animations: ", this.characterModel.animations);
+
+        console.log("[ActionCharacter] Character model nodes: ", this.characterModel.nodes);
+        console.log("[ActionCharacter] Character model nodeMap: ", this.characterModel.nodeMap);
+
+        console.log("[ActionCharacter] Character model joints: ", this.characterModel.joints);
+        console.log("[ActionCharacter] Character model weights: ", this.characterModel.weights);
+        console.log("[ActionCharacter] Character model inverseBindMatrices: ", this.characterModel.inverseBindMatrices);
+
         // Terrain info
         this.gridPosition = { x: 0, z: 0 };
         this.currentBiome = null;
@@ -59,34 +59,27 @@ class ActionCharacter extends RenderableObject {
      * Returns the raw triangle geometry, primarily used by 2D software rendering
      */
     getCharacterModelTriangles() {
-    const originalTriangles = this.characterModel.triangles;
-    const transformedTriangles = [];
-    
-    // Get rotation angle from facing direction
-    const angle = Math.atan2(this.facingDirection.x, this.facingDirection.z);
-    
-    // Create rotation matrix
-    const transform = Matrix4.create();
-    Matrix4.rotateY(transform, transform, angle);
-    
-    // Transform each triangle
-    for (const triangle of originalTriangles) {
-        const transformedVerts = triangle.vertices.map(vertex => 
-            Vector3.transformMat4(vertex, transform)
-        );
-        
-        transformedTriangles.push(
-            new Triangle(
-                transformedVerts[0],
-                transformedVerts[1],
-                transformedVerts[2],
-                triangle.color
-            )
-        );
+        const originalTriangles = this.characterModel.triangles;
+        const transformedTriangles = [];
+
+        // Get rotation angle from facing direction
+        const angle = Math.atan2(this.facingDirection.x, this.facingDirection.z);
+
+        // Create rotation matrix
+        const transform = Matrix4.create();
+        Matrix4.rotateY(transform, transform, angle);
+
+        // Transform each triangle
+        for (const triangle of originalTriangles) {
+            const transformedVerts = triangle.vertices.map((vertex) => Vector3.transformMat4(vertex, transform));
+
+            transformedTriangles.push(
+                new Triangle(transformedVerts[0], transformedVerts[1], transformedVerts[2], triangle.color)
+            );
+        }
+
+        return transformedTriangles;
     }
-    
-    return transformedTriangles;
-}
 
     updateFacingDirection() {
         this.facingDirection = new Vector3(
@@ -109,7 +102,7 @@ class ActionCharacter extends RenderableObject {
 
         return this.terrain.heightMap[z][x];
     }
-    
+
     updateTerrainInfo() {
         this.gridPosition.x = Math.floor(
             this.basePosition.x / this.terrain.baseWorldScale + this.terrain.gridResolution / 2
