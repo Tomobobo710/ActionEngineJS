@@ -15,8 +15,8 @@ class ActionCharacter extends RenderableObject {
         this.scale = 1;
 
         this.characterModel = GLBLoader.loadModel(foxModel);
-    this.currentAnimationIndex = 0;
-    this.animationStartTime = performance.now() / 1000;
+        this.currentAnimationIndex = 0;
+        this.animationStartTime = performance.now() / 1000;
         // Terrain info
         this.gridPosition = { x: 0, z: 0 };
         this.currentBiome = null;
@@ -49,81 +49,101 @@ class ActionCharacter extends RenderableObject {
         return a * v1.y + b * v2.y + c * v3.y;
     }
 
-   getCharacterModelTriangles() {
-    const currentTime = performance.now() / 1000;
-    if (this.characterModel.animations.length > 0) {
-        const anim = this.characterModel.animations[this.currentAnimationIndex];
-        const animationTime = currentTime - this.animationStartTime;
-        
-        if (animationTime > anim.duration) {
-            this.currentAnimationIndex = (this.currentAnimationIndex + 1) % this.characterModel.animations.length;
-            this.animationStartTime = currentTime;
+    /**
+     * Gets the transformed triangles for rendering the character model.
+     * Handles animation updates, skeletal transformations, and model orientation.
+     *
+     * The process:
+     * 1. Updates animation state and advances animation timeline
+     * 2. Updates skeletal pose based on animation
+     * 3. Applies bone transforms to vertices (skinning)
+     * 4. Applies model orientation transform
+     * 5. Returns final transformed triangles for rendering
+     *
+     * @returns {Triangle[]} Array of transformed triangles ready for rendering
+     */
+    getCharacterModelTriangles() {
+        // Handle animation timing and updates
+        const currentTime = performance.now() / 1000;
+        if (this.characterModel.animations.length > 0) {
+            const anim = this.characterModel.animations[this.currentAnimationIndex];
+            const animationTime = currentTime - this.animationStartTime;
+
+            // Switch to next animation if current one is complete
+            if (animationTime > anim.duration) {
+                this.currentAnimationIndex = (this.currentAnimationIndex + 1) % this.characterModel.animations.length;
+                this.animationStartTime = currentTime;
+            }
+
+            // Update node transforms based on animation
+            anim.update(animationTime, this.characterModel.nodes);
         }
 
-        anim.update(animationTime, this.characterModel.nodes);
-    }
+        // Update skin matrices after animation
+        if (this.characterModel.skins.length > 0) {
+            this.characterModel.skins[0].update(this.characterModel.nodes);
+        }
 
-    if (this.characterModel.skins.length > 0) {
-        this.characterModel.skins[0].update(this.characterModel.nodes);
-    }
+        // Calculate model orientation transform
+        const angle = Math.atan2(this.facingDirection.x, this.facingDirection.z);
+        const modelTransform = Matrix4.create();
+        Matrix4.rotateY(modelTransform, modelTransform, angle);
 
-    const angle = Math.atan2(this.facingDirection.x, this.facingDirection.z);
-    const modelTransform = Matrix4.create();
-    Matrix4.rotateY(modelTransform, modelTransform, angle);
+        const transformedTriangles = [];
+        const skin = this.characterModel.skins[0];
 
-    const transformedTriangles = [];
-    const skin = this.characterModel.skins[0];
+        // Process each triangle
+        for (const triangle of this.characterModel.triangles) {
+            // Apply skinning to each vertex if the triangle has joint data
+            const skinnedVertices = triangle.vertices.map((vertex, vertexIndex) => {
+                if (!triangle.jointData || !triangle.weightData) {
+                    return vertex;
+                }
 
-    for (const triangle of this.characterModel.triangles) {
-        const skinnedVertices = triangle.vertices.map((vertex, vertexIndex) => {
-            if (!triangle.jointData || !triangle.weightData) {
-                return vertex;
-            }
+                // Initialize final vertex position
+                const finalPosition = new Vector3(0, 0, 0);
+                const joints = triangle.jointData[vertexIndex];
+                const weights = triangle.weightData[vertexIndex];
+                let totalWeight = 0;
 
-            // Start with zero position
-            const finalPosition = new Vector3(0, 0, 0);
-            const joints = triangle.jointData[vertexIndex];
-            const weights = triangle.weightData[vertexIndex];
-
-            let totalWeight = 0;
-            // Apply each joint influence
-            for (let i = 0; i < 4; i++) {
-                const weight = weights[i];
-                if (weight > 0) {
-                    totalWeight += weight;
-                    const jointMatrix = skin.jointMatrices[joints[i]];
-                    if (jointMatrix) {
-                        // Transform by joint matrix
-                        const transformed = Vector3.transformMat4(vertex, jointMatrix);
-                        finalPosition.x += transformed.x * weight;
-                        finalPosition.y += transformed.y * weight;
-                        finalPosition.z += transformed.z * weight;
+                // Apply weighted influence from each affecting joint
+                for (let i = 0; i < 4; i++) {
+                    const weight = weights[i];
+                    if (weight > 0) {
+                        totalWeight += weight;
+                        const jointMatrix = skin.jointMatrices[joints[i]];
+                        if (jointMatrix) {
+                            // Transform vertex by joint matrix and apply weight
+                            const transformed = Vector3.transformMat4(vertex, jointMatrix);
+                            finalPosition.x += transformed.x * weight;
+                            finalPosition.y += transformed.y * weight;
+                            finalPosition.z += transformed.z * weight;
+                        }
                     }
                 }
-            }
 
-            // Normalize weights if they don't sum to 1
-            if (totalWeight > 0 && Math.abs(totalWeight - 1.0) > 0.001) {
-                finalPosition.x /= totalWeight;
-                finalPosition.y /= totalWeight;
-                finalPosition.z /= totalWeight;
-            }
+                // Normalize vertex position if weights don't sum to 1
+                if (totalWeight > 0 && Math.abs(totalWeight - 1.0) > 0.001) {
+                    finalPosition.x /= totalWeight;
+                    finalPosition.y /= totalWeight;
+                    finalPosition.z /= totalWeight;
+                }
 
-            return finalPosition;
-        });
+                return finalPosition;
+            });
 
-        // Apply model orientation transform
-        const transformedVerts = skinnedVertices.map(vertex => 
-            Vector3.transformMat4(vertex, modelTransform)
-        );
+            // Apply final model orientation transform to skinned vertices
+            const transformedVerts = skinnedVertices.map((vertex) => Vector3.transformMat4(vertex, modelTransform));
 
-        transformedTriangles.push(
-            new Triangle(transformedVerts[0], transformedVerts[1], transformedVerts[2], triangle.color)
-        );
+            // Create transformed triangle for rendering
+            transformedTriangles.push(
+                new Triangle(transformedVerts[0], transformedVerts[1], transformedVerts[2], triangle.color)
+            );
+        }
+
+        return transformedTriangles;
     }
 
-    return transformedTriangles;
-}
     updateFacingDirection() {
         this.facingDirection = new Vector3(
             Math.sin(this.rotation), // X component
