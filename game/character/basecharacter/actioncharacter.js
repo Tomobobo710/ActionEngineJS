@@ -15,8 +15,9 @@ class ActionCharacter extends RenderableObject {
         this.scale = 1;
 
         this.characterModel = GLBLoader.loadModel(foxModel);
-        this.currentAnimationIndex = 0;
-        this.animationStartTime = performance.now() / 1000;
+        this.animator = new ModelAnimationController(this.characterModel);
+        console.log("Available animations:", this.animator.getAnimationNames());
+
         // Terrain info
         this.gridPosition = { x: 0, z: 0 };
         this.currentBiome = null;
@@ -51,40 +52,13 @@ class ActionCharacter extends RenderableObject {
 
     /**
      * Gets the transformed triangles for rendering the character model.
-     * Handles animation updates, skeletal transformations, and model orientation.
-     *
-     * The process:
-     * 1. Updates animation state and advances animation timeline
-     * 2. Updates skeletal pose based on animation
-     * 3. Applies bone transforms to vertices (skinning)
-     * 4. Applies model orientation transform
-     * 5. Returns final transformed triangles for rendering
+     * Since animation updates happen separately through ModelAnimationController,
+     * this method only handles vertex transformations and skinning.
      *
      * @returns {Triangle[]} Array of transformed triangles ready for rendering
      */
     getCharacterModelTriangles() {
-        // Handle animation timing and updates
-        const currentTime = performance.now() / 1000;
-        if (this.characterModel.animations.length > 0) {
-            const anim = this.characterModel.animations[this.currentAnimationIndex];
-            const animationTime = currentTime - this.animationStartTime;
-
-            // Switch to next animation if current one is complete
-            if (animationTime > anim.duration) {
-                this.currentAnimationIndex = (this.currentAnimationIndex + 1) % this.characterModel.animations.length;
-                this.animationStartTime = currentTime;
-            }
-
-            // Update node transforms based on animation
-            anim.update(animationTime, this.characterModel.nodes);
-        }
-
-        // Update skin matrices after animation
-        if (this.characterModel.skins.length > 0) {
-            this.characterModel.skins[0].update(this.characterModel.nodes);
-        }
-
-        // Calculate model orientation transform
+        // Calculate model orientation transform based on facing direction
         const angle = Math.atan2(this.facingDirection.x, this.facingDirection.z);
         const modelTransform = Matrix4.create();
         Matrix4.rotateY(modelTransform, modelTransform, angle);
@@ -92,7 +66,7 @@ class ActionCharacter extends RenderableObject {
         const transformedTriangles = [];
         const skin = this.characterModel.skins[0];
 
-        // Process each triangle
+        // Process each triangle in the model
         for (const triangle of this.characterModel.triangles) {
             // Apply skinning to each vertex if the triangle has joint data
             const skinnedVertices = triangle.vertices.map((vertex, vertexIndex) => {
