@@ -33,15 +33,15 @@ class ThirdPersonActionCharacter extends ActionCharacter {
         this.lastPointerY = null;
         this.swipeStartX = null;
         this.swipeStartY = null;
-        
+
         // Get the character body from the controller
         this.body = this.controller.body;
         this.body.position.set(0, 500, 0);
-        
+
         // Add debug tracking
         this.body.debugName = `CharacterBody_${Date.now()}`;
         this.body.createdAt = Date.now();
-        
+
         // Fine tune physics properties if needed
         this.body.linear_damping = 0.01;
         this.body.angular_damping = 0;
@@ -67,6 +67,10 @@ class ThirdPersonActionCharacter extends ActionCharacter {
         if (this.camera.isDetached) {
             this.camera.handleDetachedInput(input, deltaTime);
             return;
+        }
+
+        if (input.isKeyJustPressed("Action5")) {
+            this.animator.play("idle", false); // animation test
         }
 
         if (input.isKeyJustPressed("Action6")) {
@@ -104,25 +108,25 @@ class ThirdPersonActionCharacter extends ActionCharacter {
 
             this.cameraPitch = Math.max(-1.57, Math.min(1.57, this.cameraPitch));
         }
-        
+
         // Handle swipe camera control
         if (!document.pointerLockElement) {
             const pointerPos = input.getPointerPosition();
-            
+
             // Start tracking swipe
             if (input.isPointerJustDown()) {
                 this.swipeStartX = pointerPos.x;
                 this.swipeStartY = pointerPos.y;
             }
-            
+
             // Update camera during swipe
             if (input.isPointerDown() && this.swipeStartX !== null) {
                 const deltaX = pointerPos.x - this.swipeStartX;
                 const deltaY = pointerPos.y - this.swipeStartY;
-                
+
                 const swipeSensitivity = 0.005;
                 this.cameraYaw -= deltaX * swipeSensitivity;
-                
+
                 if (this.isFirstPerson) {
                     this.cameraPitch += deltaY * swipeSensitivity;
                 } else {
@@ -130,7 +134,7 @@ class ThirdPersonActionCharacter extends ActionCharacter {
                 }
 
                 this.cameraPitch = Math.max(-1.57, Math.min(1.57, this.cameraPitch));
-                
+
                 // Update start position for next frame
                 this.swipeStartX = pointerPos.x;
                 this.swipeStartY = pointerPos.y;
@@ -140,7 +144,7 @@ class ThirdPersonActionCharacter extends ActionCharacter {
                 this.swipeStartY = null;
             }
         }
-        
+
         // Get input direction relative to camera
         const viewMatrix = this.camera.getViewMatrix();
         const moveDir = new Goblin.Vector3();
@@ -207,7 +211,9 @@ class ThirdPersonActionCharacter extends ActionCharacter {
             this.rotation = this.cameraYaw + Math.PI;
 
             this.updateFacingDirection();
-
+            if (this.animator) {
+                this.animator.update();
+            }
             if (!this.camera.isDetached) {
                 if (this.isFirstPerson) {
                     this.camera.position = this.position.add(new Vector3(0, this.firstPersonHeight, 0));
