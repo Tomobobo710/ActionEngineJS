@@ -628,3 +628,90 @@ class Skin {
         }
     }
 }
+
+class ModelAnimationController {
+    constructor(model) {
+        this.model = model;
+        this.currentAnimation = null;
+        this.currentTime = 0;
+        this.isPlaying = false;
+        this.isLooping = true;
+        this.startTime = 0;
+
+        // Create animation name map
+        this.animationMap = new Map();
+        this.model.animations.forEach((anim, index) => {
+            if (anim.name) {
+                this.animationMap.set(anim.name.toLowerCase(), index);
+            }
+        });
+    }
+
+    play(animation, shouldLoop = true) {
+        let animationIndex;
+
+        if (typeof animation === "string") {
+            // Find animation by name
+            animationIndex = this.animationMap.get(animation.toLowerCase());
+            if (animationIndex === undefined) {
+                console.warn(`Animation "${animation}" not found`);
+                return;
+            }
+        } else if (typeof animation === "number") {
+            // Direct index access
+            if (animation >= 0 && animation < this.model.animations.length) {
+                animationIndex = animation;
+            } else {
+                console.warn(`Animation index ${animation} out of range`);
+                return;
+            }
+        }
+
+        this.currentAnimation = this.model.animations[animationIndex];
+        this.isPlaying = true;
+        this.isLooping = shouldLoop;
+        this.startTime = performance.now() / 1000;
+        this.currentTime = 0;
+    }
+
+    getAnimationNames() {
+        return Array.from(this.animationMap.keys());
+    }
+
+    pause() {
+        this.isPlaying = false;
+    }
+
+    resume() {
+        if (this.currentAnimation) {
+            this.isPlaying = true;
+            this.startTime = performance.now() / 1000 - this.currentTime;
+        }
+    }
+
+    stop() {
+        this.isPlaying = false;
+        this.currentTime = 0;
+    }
+
+    update() {
+        if (!this.isPlaying || !this.currentAnimation) return;
+
+        this.currentTime = performance.now() / 1000 - this.startTime;
+
+        if (this.currentTime > this.currentAnimation.duration) {
+            if (this.isLooping) {
+                this.startTime = performance.now() / 1000;
+                this.currentTime = 0;
+            } else {
+                this.isPlaying = false;
+                return;
+            }
+        }
+
+        this.currentAnimation.update(this.currentTime, this.model.nodes);
+        if (this.model.skins.length > 0) {
+            this.model.skins[0].update(this.model.nodes);
+        }
+    }
+}
