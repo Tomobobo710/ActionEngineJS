@@ -61,19 +61,39 @@ class Vector3 {
 		return new Vector3(this.x, 0, this.z).normalize();
 	}
 
-    static transformMat4(vec, mat4) {
-        const x = vec.x,
-            y = vec.y,
-            z = vec.z;
-        const w = mat4[3] * x + mat4[7] * y + mat4[11] * z + mat4[15] || 1.0;
+    static transformMat4(vec, mat) {
+    // Make sure we can access the matrix data whether it's Array or Float32Array
+    const getElement = (idx) => mat[idx] !== undefined ? mat[idx] : mat.at(idx);
+    
+    const x = vec.x;
+    const y = vec.y;
+    const z = vec.z;
+    let w = getElement(3) * x + getElement(7) * y + getElement(11) * z + getElement(15);
+    if (w === 0) w = 1;
 
-        return new Vector3(
-            (mat4[0] * x + mat4[4] * y + mat4[8] * z + mat4[12]) / w,
-            (mat4[1] * x + mat4[5] * y + mat4[9] * z + mat4[13]) / w,
-            (mat4[2] * x + mat4[6] * y + mat4[10] * z + mat4[14]) / w
-        );
-    }
+    return new Vector3(
+        (getElement(0) * x + getElement(4) * y + getElement(8) * z + getElement(12)) / w,
+        (getElement(1) * x + getElement(5) * y + getElement(9) * z + getElement(13)) / w,
+        (getElement(2) * x + getElement(6) * y + getElement(10) * z + getElement(14)) / w
+    );
+}
+    static fromValues(x, y, z) {
+    return new Vector3(x, y, z);
+}
 
+static min(out, a, b) {
+    out.x = Math.min(a.x, b.x);
+    out.y = Math.min(a.y, b.y);
+    out.z = Math.min(a.z, b.z);
+    return out;
+}
+
+static max(out, a, b) {
+    out.x = Math.max(a.x, b.x);
+    out.y = Math.max(a.y, b.y);
+    out.z = Math.max(a.z, b.z);
+    return out;
+}
     static create(x = 0, y = 0, z = 0) {
         return new Vector3(x, y, z);
     }
