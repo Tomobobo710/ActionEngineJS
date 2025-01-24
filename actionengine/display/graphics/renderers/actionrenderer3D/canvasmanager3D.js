@@ -2,6 +2,7 @@
 class CanvasManager3D {
     constructor(canvas) {
         this.canvas = canvas;
+        this._clearColor = [0.529, 0.808, 0.922, 1.0]; // Default light blue
         this.initializeContext();
         this.initializeGLState();
     }
@@ -23,7 +24,7 @@ class CanvasManager3D {
     
     initializeGLState() {
         // Basic setup
-        this.gl.clearColor(0.529, 0.808, 0.922, 1.0);
+        this.gl.clearColor(...this._clearColor);
         this.gl.viewport(0, 0, Game.WIDTH, Game.HEIGHT);
         
         // Depth testing setup
@@ -71,6 +72,11 @@ class CanvasManager3D {
     resetToDefaultFramebuffer() {
         this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
         this.setViewport(Game.WIDTH, Game.HEIGHT);
-        this.gl.clearColor(0.529, 0.808, 0.922, 1.0);
+        this.gl.clearColor(...this._clearColor);
+    }
+    
+    setClearColor(r, g, b, a = 1.0) {
+        this._clearColor = [r, g, b, a];
+        this.gl.clearColor(r, g, b, a);
     }
 }
