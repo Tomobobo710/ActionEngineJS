@@ -648,31 +648,34 @@ class ModelAnimationController {
     }
 
     play(animation, shouldLoop = true) {
-        let animationIndex;
-
-        if (typeof animation === "string") {
-            // Find animation by name
-            animationIndex = this.animationMap.get(animation.toLowerCase());
-            if (animationIndex === undefined) {
-                console.warn(`Animation "${animation}" not found`);
-                return;
-            }
-        } else if (typeof animation === "number") {
-            // Direct index access
-            if (animation >= 0 && animation < this.model.animations.length) {
-                animationIndex = animation;
-            } else {
-                console.warn(`Animation index ${animation} out of range`);
-                return;
-            }
+    let animationIndex;
+    if (typeof animation === "string") {
+        animationIndex = this.animationMap.get(animation.toLowerCase());
+        if (animationIndex === undefined) {
+            console.warn(`Animation "${animation}" not found`);
+            return;
         }
-
-        this.currentAnimation = this.model.animations[animationIndex];
-        this.isPlaying = true;
-        this.isLooping = shouldLoop;
-        this.startTime = performance.now() / 1000;
-        this.currentTime = 0;
+    } else if (typeof animation === "number") {
+        if (animation >= 0 && animation < this.model.animations.length) {
+            animationIndex = animation;
+        } else {
+            console.warn(`Animation index ${animation} out of range`);
+            return;
+        }
     }
+
+    // If the same animation is already playing, just update loop status
+    if (this.currentAnimation === this.model.animations[animationIndex]) {
+        this.isLooping = shouldLoop;
+        return;
+    }
+
+    this.currentAnimation = this.model.animations[animationIndex];
+    this.isPlaying = true;
+    this.isLooping = shouldLoop;
+    this.startTime = performance.now() / 1000;
+    this.currentTime = 0;
+}
 
     getAnimationNames() {
         return Array.from(this.animationMap.keys());
