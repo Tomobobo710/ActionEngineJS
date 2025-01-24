@@ -211,9 +211,14 @@ class ThirdPersonActionCharacter extends ActionCharacter {
             this.rotation = this.cameraYaw + Math.PI;
 
             this.updateFacingDirection();
+
+            // Update animations based on state changes
+            this.updateAnimationState();
+
             if (this.animator) {
                 this.animator.update();
             }
+
             if (!this.camera.isDetached) {
                 if (this.isFirstPerson) {
                     this.camera.position = this.position.add(new Vector3(0, this.firstPersonHeight, 0));
@@ -242,6 +247,55 @@ class ThirdPersonActionCharacter extends ActionCharacter {
             this.debugInfo = this.controller.getDebugInfo();
         }
     }
+    updateAnimationState() {
+    const debugInfo = this.controller.getDebugInfo();
+    const state = debugInfo.state.current;
+    const velocity = debugInfo.physics.velocity;
+    const horizontalSpeed = Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
+    const isReallyMoving = horizontalSpeed > 0.5;
+
+    // Prevent interrupting non-looping animations
+    if (this.animator.isPlaying && !this.animator.isLooping) {
+        return;
+    }
+
+    // Ground state handling
+    if (state === "grounded") {
+        // Check for ground touch transition
+        const justTouchedGround = !this.wasGroundedLastFrame && 
+            this.animator.currentAnimation?.name !== "toucheground";
+
+        if (justTouchedGround) {
+            this.animator.play("toucheground", false);
+        } 
+        else if (isReallyMoving) {
+            this.animator.play("run", true);
+        } 
+        else if (this.animator.currentAnimation?.name !== "toucheground") {
+            this.animator.play("idle", true);
+        }
+
+        this.wasGroundedLastFrame = true;
+    } 
+    // Jumping state
+    else if (state === "jumping") {
+        this.animator.play("jump", false);
+        this.wasGroundedLastFrame = false;
+    } 
+    // Falling state
+    else if (state === "falling") {
+        this.animator.play("fall", true);
+        this.wasGroundedLastFrame = false;
+    }
+
+    // Optional debug logging
+    console.log("Animation Update:", {
+        state, 
+        horizontalSpeed, 
+        isReallyMoving, 
+        currentAnim: this.animator.currentAnimation?.name
+    });
+}
 
     getDebugInfo() {
         return this.debugInfo;
