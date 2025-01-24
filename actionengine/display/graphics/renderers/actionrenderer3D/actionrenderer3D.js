@@ -44,7 +44,13 @@ class ActionRenderer3D {
 
         // Get current shader set
         const shaderSet = this.programRegistry.getCurrentShaderSet();
-
+        
+        if (shaderSet === this.programRegistry.shaders.get("virtualboy")) {
+           this.canvasManager.setClearColor(0.0, 0.0, 0.0, 1.0); // Black
+        } else {
+           this.canvasManager.setClearColor(0.529, 0.808, 0.922, 1.0); // Original blue
+        }
+        
         // SHADOW PASS
         if (shaderSet === this.programRegistry.shaders.get("pbr")) {
             this.canvasManager.bindFramebuffer(this.lightingManager.getShadowFramebuffer());
