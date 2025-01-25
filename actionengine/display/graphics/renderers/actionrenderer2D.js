@@ -254,19 +254,6 @@ class ActionRenderer2D {
 			this.projectedVerts[i] = this.project(terrain.vertices[i], camera, i);
 		}
 
-		// Project sphere vertices
-		let sphereStartIndex = terrain.vertices.length;
-		terrain.triangles.forEach((triangle) => {
-			if (triangle.color === "#FF0000") {
-				// Sphere triangle
-				triangle.vertices.forEach((vertex, i) => {
-					const projIndex = sphereStartIndex + i;
-					this.projectedVerts[projIndex] = this.project(vertex, camera, projIndex);
-				});
-				sphereStartIndex += 3; // Move to next set of 3 vertices
-			}
-		});
-
 		// Collect and sort triangles into zones
 		const { nearTriangles, midTriangles, farTriangles } = this.collectTriangles(terrain, camera, renderablePhysicsObjects);
 
