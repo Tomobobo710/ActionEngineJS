@@ -70,7 +70,7 @@ class ThirdPersonActionCharacter extends ActionCharacter {
         }
 
         if (input.isKeyJustPressed("Action5")) {
-            this.animator.play("idle", false); // animation test
+            this.animator.play("attack", false); // animation test
         }
 
         if (input.isKeyJustPressed("Action6")) {
