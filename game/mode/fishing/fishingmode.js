@@ -1480,6 +1480,9 @@ class FishingMode {
        this.guiContext = this.guiCanvas.getContext('2d');
        this.fishes = [];
 
+       // Setup volumetric rendering
+       this.setupVolumetrics();
+
        // Initialize camera
        this.camera = new ActionCamera(
            new Vector3(0, 20, -60),
@@ -1495,6 +1498,9 @@ class FishingMode {
        this.shaderManager.registerAllShaders(this.renderer3d);
        this.physicsWorld.setShaderManager(this.shaderManager);
        
+       // Add ocean
+       this.ocean = new Ocean(this.physicsWorld, 500, 500, 8, 1);
+       
        this.fishingArea = new FishingArea();
        this.fisher = new Fisher(this, new Vector3(0, 30, -50));
        this.lure = new Lure(this.physicsWorld);
@@ -1509,7 +1515,7 @@ class FishingMode {
        this.lastTime = performance.now();
    }
 
-   generateInitialFish(count) {
+     generateInitialFish(count) {
     const types = ["BASS", "TROUT", "SWORDFISH"];
     
     // Divide the fishing area into sectors
@@ -1560,112 +1566,8 @@ class FishingMode {
         this.fishingArea.addFish(fish);
     }
 }
-    lerpVector(start, end, t) {
-    return new Vector3(
-        start.x + (end.x - start.x) * t,
-        start.y + (end.y - start.y) * t,
-        start.z + (end.z - start.z) * t
-    );
-}
-   updateCamera(deltaTime) {
-    if (this.camera.isDetached) return;
-
-    const CAMERA_LERP_SPEED = 3;
-    const CAMERA_ROTATION_SPEED = 2;
-    let targetPos, targetLookAt;
-
-    switch(this.fisher.state) {
-        case 'ready':
-            // Align camera with fisher's orientation
-            const cameraOffset = new Vector3(
-                -Math.sin(this.fisher.aimAngle), // Use negative sin for correct left/right
-                1.5,  // Height above fisher
-                -Math.cos(this.fisher.aimAngle)  // Use negative cos for correct forward/back
-            ).scale(40);
-            
-            targetPos = this.fisher.position.add(cameraOffset);
-            targetLookAt = this.fisher.position.add(
-                new Vector3(
-                    Math.sin(this.fisher.aimAngle),
-                    0,
-                    Math.cos(this.fisher.aimAngle)
-                ).scale(20)
-            );
-            break;
-
-        case 'casting':
-        // Maintain behind view during cast
-        const castViewOffset = new Vector3(
-            Math.cos(this.fisher.aimAngle + Math.PI), // Add PI to keep behind view
-            1.5,
-            Math.sin(this.fisher.aimAngle + Math.PI)  // Add PI to keep behind view
-        ).scale(30);
-
-        targetPos = this.lure.position.add(castViewOffset);
-        targetLookAt = this.lure.position;
-        break;
-
-        case 'fishing':
-    // Start with the base angle that matches our initial behind view
-    if (!this.initialFishingAngle) {
-        this.initialFishingAngle = 0; // Start at 0 to face the back
-    }
-    
-    // Allow rotation but start from behind perspective
-    if (this.input.isKeyPressed('Numpad4')) {
-        this.initialFishingAngle += CAMERA_ROTATION_SPEED * deltaTime;
-    }
-    if (this.input.isKeyPressed('Numpad6')) {
-        this.initialFishingAngle -= CAMERA_ROTATION_SPEED * deltaTime;
-    }
-
-    const fishingOffset = new Vector3(
-        -Math.sin(this.initialFishingAngle),
-        1.5,
-        -Math.cos(this.initialFishingAngle)
-    ).scale(30);
-    
-    targetPos = this.lure.position.add(fishingOffset);
-    targetLookAt = this.lure.position;
-    break;
-
-        case 'reeling':
-            const distanceToFisher = this.lure.position.distanceTo(this.fisher.position);
-            if (distanceToFisher < 15) {
-                // Transition back to fisher view when close
-                const returnOffset = new Vector3(
-                    -Math.sin(this.fisher.aimAngle),
-                    1.5,
-                    -Math.cos(this.fisher.aimAngle)
-                ).scale(40);
-                targetPos = this.fisher.position.add(returnOffset);
-                targetLookAt = this.fisher.position;
-            } else {
-                // Keep following lure while reeling
-                const reelingOffset = new Vector3(
-                    -Math.sin(this.cameraAngle),
-                    1.5,
-                    -Math.cos(this.cameraAngle)
-                ).scale(30);
-                targetPos = this.lure.position.add(reelingOffset);
-                targetLookAt = this.lure.position;
-            }
-            break;
-    }
-
-    // Smooth camera movement
-    this.camera.position = this.lerpVector(
-        this.camera.position, 
-        targetPos, 
-        deltaTime * CAMERA_LERP_SPEED
-    );
-    this.camera.target = this.lerpVector(
-        this.camera.target,
-        targetLookAt,
-        deltaTime * CAMERA_LERP_SPEED
-    );
-}
-   tryHookFish() {
+ 
+    tryHookFish() {
         console.log("Attempting to hook fish!");
         for (const fish of this.fishes) {
             const fishAI = this.fishingArea.fish.get(fish);
@@ -1675,71 +1577,41 @@ class FishingMode {
             }
         }
     }
-   drawCastingPowerMeter(percentage) {
-        const barWidth = 200;
-        const barHeight = 20;
-        const x = (this.guiCanvas.width - barWidth) / 2;
-        const y = this.guiCanvas.height - 100;
-
-        this.guiContext.fillStyle = '#333';
-        this.guiContext.fillRect(x, y, barWidth, barHeight);
-
-        this.guiContext.fillStyle = '#0f0';
-        this.guiContext.fillRect(x, y, barWidth * (percentage / 100), barHeight);
-
-        this.guiContext.fillStyle = '#fff';
-        this.guiContext.font = '16px Arial';
-        this.guiContext.textAlign = 'center';
-        this.guiContext.fillText('Casting Power', x + barWidth / 2, y - 10);
-    }
-  drawUI() {
-    // Draw instructions
-    this.guiContext.fillStyle = '#fff';
-    this.guiContext.font = '16px Arial';
-    this.guiContext.textAlign = 'left';
-    this.guiContext.fillText('Hold SHIFT to charge cast', 10, 30);
-    this.guiContext.fillText('Release SHIFT to cast', 10, 50);
-    this.guiContext.fillText('WASD to move lure', 10, 70);
-    this.guiContext.fillText('SPACE to reel in', 10, 90);
-
-    // Draw hooking bar if active
-    if (this.hookingBarVisible) {
-        this.drawHookingBar(this.hookingProgress);
-    }
-
-    // Draw casting power meter when charging
-    if (this.fisher.isChargingCast) {
-        this.drawCastingPowerMeter(this.fisher.getCastPowerPercentage());
-    }
-}
-  
-    drawHookingBar(progress) {
-    const barWidth = 200;
-    const barHeight = 20;
-    const x = (this.guiCanvas.width - barWidth) / 2;
-    const y = this.guiCanvas.height - 50;
-
-    // Draw background
-    this.guiContext.fillStyle = 'rgba(0, 0, 0, 0.5)';
-    this.guiContext.fillRect(x - 2, y - 2, barWidth + 4, barHeight + 4);
-
-    // Draw progress bar background
-    this.guiContext.fillStyle = '#333';
-    this.guiContext.fillRect(x, y, barWidth, barHeight);
-
-    // Draw progress (filling from right to left)
-    this.guiContext.fillStyle = '#0f0';
-    const progressWidth = barWidth * (1 - progress);
-    this.guiContext.fillRect(x, y, progressWidth, barHeight);
-
-    // Draw "HOOK!" text
-    this.guiContext.fillStyle = '#fff';
-    this.guiContext.font = '16px Arial';
-    this.guiContext.textAlign = 'center';
-    this.guiContext.fillText('HOOK!', x + barWidth / 2, y - 10);
-}
+    
+   setupVolumetrics() {
+       const gl = this.renderer3d.gl;
+    
+       // Create depth texture
+       this.depthTexture = gl.createTexture();
+       gl.bindTexture(gl.TEXTURE_2D, this.depthTexture);
+       gl.texImage2D(
+           gl.TEXTURE_2D,
+           0,
+           gl.DEPTH_COMPONENT24,
+           800,
+           600,
+           0,
+           gl.DEPTH_COMPONENT,
+           gl.UNSIGNED_INT,
+           null
+       );
+       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    
+       // Create framebuffer and attach depth texture
+       this.depthFramebuffer = gl.createFramebuffer();
+       gl.bindFramebuffer(gl.FRAMEBUFFER, this.depthFramebuffer);
+       gl.framebufferTexture2D(
+           gl.FRAMEBUFFER,
+           gl.DEPTH_ATTACHMENT,
+           gl.TEXTURE_2D,
+           this.depthTexture,
+           0
+       );
+   }
 
    update(deltaTime) {
+       
        // Reset hooking UI state at start of update
        this.hookingBarVisible = false;
        this.hookingProgress = 0;
@@ -1752,6 +1624,9 @@ class FishingMode {
        
        // Update camera
        this.updateCamera(deltaTime);
+       
+       // Update ocean
+       this.ocean.update(deltaTime);
        
        // Update fishing area (which updates fish movement)
        this.fishingArea.update(deltaTime);
@@ -1778,8 +1653,188 @@ class FishingMode {
 
        this.fishes.forEach(fish => { fish.update(deltaTime); });
        this.physicsWorld.update(deltaTime);
+       
+       if (this.input.isKeyJustPressed("Numpad0")) {
+            this.camera.isDetached = !this.camera.isDetached;
+        }
+        if (this.camera.isDetached) {
+            this.camera.handleDetachedInput(this.input, deltaTime);
+            return;
+        }
    }
 
+    updateCamera(deltaTime) {
+    if (this.camera.isDetached) return;
+
+    const CAMERA_LERP_SPEED = 3;
+    const CAMERA_ROTATION_SPEED = 2;
+    let targetPos, targetLookAt;
+
+    switch(this.fisher.state) {
+        case 'ready':
+            // Align camera with fisher's orientation
+            const cameraOffset = new Vector3(
+                -Math.sin(this.fisher.aimAngle), // Use negative sin for correct left/right
+                1.5,  // Height above fisher
+                -Math.cos(this.fisher.aimAngle)  // Use negative cos for correct forward/back
+            ).scale(40);
+            
+            targetPos = this.fisher.position.add(cameraOffset);
+            targetLookAt = this.fisher.position.add(
+                new Vector3(
+                    Math.sin(this.fisher.aimAngle),
+                    0,
+                    Math.cos(this.fisher.aimAngle)
+                ).scale(20)
+            );
+            break;
+
+        case 'casting':
+            // Maintain behind view during cast
+            const castViewOffset = new Vector3(
+                Math.cos(this.fisher.aimAngle + Math.PI), // Add PI to keep behind view
+                1.5,
+                Math.sin(this.fisher.aimAngle + Math.PI)  // Add PI to keep behind view
+            ).scale(30);
+
+            targetPos = this.lure.position.add(castViewOffset);
+            targetLookAt = this.lure.position;
+            break;
+
+        case 'fishing':
+            // Start with the base angle that matches our initial behind view
+            if (!this.initialFishingAngle) {
+                this.initialFishingAngle = 0; // Start at 0 to face the back
+            }
+            
+            // Allow rotation but start from behind perspective
+            if (this.input.isKeyPressed('Numpad4')) {
+                this.initialFishingAngle += CAMERA_ROTATION_SPEED * deltaTime;
+            }
+            if (this.input.isKeyPressed('Numpad6')) {
+                this.initialFishingAngle -= CAMERA_ROTATION_SPEED * deltaTime;
+            }
+
+            const fishingOffset = new Vector3(
+                -Math.sin(this.initialFishingAngle),
+                1.5,
+                -Math.cos(this.initialFishingAngle)
+            ).scale(30);
+            
+            targetPos = this.lure.position.add(fishingOffset);
+            targetLookAt = this.lure.position;
+            break;
+
+        case 'reeling':
+            const distanceToFisher = this.lure.position.distanceTo(this.fisher.position);
+            if (distanceToFisher < 15) {
+                // Transition back to fisher view when close
+                const returnOffset = new Vector3(
+                    -Math.sin(this.fisher.aimAngle),
+                    1.5,
+                    -Math.cos(this.fisher.aimAngle)
+                ).scale(40);
+                targetPos = this.fisher.position.add(returnOffset);
+                targetLookAt = this.fisher.position;
+            } else {
+                // Keep following lure while reeling
+                const reelingOffset = new Vector3(
+                    -Math.sin(this.cameraAngle),
+                    1.5,
+                    -Math.cos(this.cameraAngle)
+                ).scale(30);
+                targetPos = this.lure.position.add(reelingOffset);
+                targetLookAt = this.lure.position;
+            }
+            break;
+    }
+
+    // Smooth camera movement using lerp
+    this.camera.position = this.lerpVector(
+        this.camera.position, 
+        targetPos, 
+        deltaTime * CAMERA_LERP_SPEED
+    );
+    this.camera.target = this.lerpVector(
+        this.camera.target,
+        targetLookAt,
+        deltaTime * CAMERA_LERP_SPEED
+    );
+}
+
+ lerpVector(start, end, t) {
+    return new Vector3(
+        start.x + (end.x - start.x) * t,
+        start.y + (end.y - start.y) * t,
+        start.z + (end.z - start.z) * t
+    );
+}
+ 
+     drawUI() {
+    // Draw instructions
+    this.guiContext.fillStyle = '#fff';
+    this.guiContext.font = '16px Arial';
+    this.guiContext.textAlign = 'left';
+    this.guiContext.fillText('Hold SHIFT to charge cast', 10, 30);
+    this.guiContext.fillText('Release SHIFT to cast', 10, 50);
+    this.guiContext.fillText('WASD to move lure', 10, 70);
+    this.guiContext.fillText('SPACE to reel in', 10, 90);
+
+    // Draw hooking bar if active
+    if (this.hookingBarVisible) {
+        this.drawHookingBar(this.hookingProgress);
+    }
+
+    // Draw casting power meter when charging
+    if (this.fisher.isChargingCast) {
+        this.drawCastingPowerMeter(this.fisher.getCastPowerPercentage());
+    }
+}
+
+drawCastingPowerMeter(percentage) {
+        const barWidth = 200;
+        const barHeight = 20;
+        const x = (this.guiCanvas.width - barWidth) / 2;
+        const y = this.guiCanvas.height - 100;
+
+        this.guiContext.fillStyle = '#333';
+        this.guiContext.fillRect(x, y, barWidth, barHeight);
+
+        this.guiContext.fillStyle = '#0f0';
+        this.guiContext.fillRect(x, y, barWidth * (percentage / 100), barHeight);
+
+        this.guiContext.fillStyle = '#fff';
+        this.guiContext.font = '16px Arial';
+        this.guiContext.textAlign = 'center';
+        this.guiContext.fillText('Casting Power', x + barWidth / 2, y - 10);
+    }
+
+drawHookingBar(progress) {
+    const barWidth = 200;
+    const barHeight = 20;
+    const x = (this.guiCanvas.width - barWidth) / 2;
+    const y = this.guiCanvas.height - 50;
+
+    // Draw background
+    this.guiContext.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    this.guiContext.fillRect(x - 2, y - 2, barWidth + 4, barHeight + 4);
+
+    // Draw progress bar background
+    this.guiContext.fillStyle = '#333';
+    this.guiContext.fillRect(x, y, barWidth, barHeight);
+
+    // Draw progress (filling from right to left)
+    this.guiContext.fillStyle = '#0f0';
+    const progressWidth = barWidth * (1 - progress);
+    this.guiContext.fillRect(x, y, progressWidth, barHeight);
+
+    // Draw "HOOK!" text
+    this.guiContext.fillStyle = '#fff';
+    this.guiContext.font = '16px Arial';
+    this.guiContext.textAlign = 'center';
+    this.guiContext.fillText('HOOK!', x + barWidth / 2, y - 10);
+}
+    
    draw() {
        // Clear the GUI canvas first
        this.guiContext.clearRect(0, 0, this.guiCanvas.width, this.guiCanvas.height);
@@ -1797,51 +1852,63 @@ class FishingMode {
        this.drawUI();
    }
 
-   pause() {
-       this.physicsWorld.pause();
-   }
-
-   resume() {
-       this.lastTime = performance.now();
-       this.physicsWorld.resume();
-   }
-
    cleanup() {
-       if (this.physicsWorld) {
-           this.physicsWorld.reset();
-           this.physicsWorld = null;
-       }
+    if (this.physicsWorld) {
+        this.physicsWorld.reset();
+        this.physicsWorld = null;
+    }
 
-       if (this.renderer3d) {
-           // TODO: Add proper renderer cleanup
-           this.renderer3d = null;
-       }
+    if (this.renderer3d && this.renderer3d.gl) {
+        const gl = this.renderer3d.gl;
+        
+        // Clean up all WebGL resources
+        if (this.renderer3d.program) {
+            gl.deleteProgram(this.renderer3d.program);
+        }
+        if (this.renderer3d.vertexBuffer) {
+            gl.deleteBuffer(this.renderer3d.vertexBuffer);
+        }
+        if (this.renderer3d.indexBuffer) {
+            gl.deleteBuffer(this.renderer3d.indexBuffer);
+        }
+        
+        this.renderer3d = null;
+    }
 
-       if (this.shaderManager) {
-           // TODO: Add proper shader cleanup
-           this.shaderManager = null;
-       }
+    if (this.shaderManager) {
+        // Instead of calling deleteAllShaders, we'll just null the reference
+        this.shaderManager = null;
+    }
 
-       this.fishes = [];
-       this.camera = null;
-       this.fisher = null;
-       this.lure = null;
-       this.fishingArea = null;
+    if (this.depthFramebuffer && this.renderer3d && this.renderer3d.gl) {
+        const gl = this.renderer3d.gl;
+        gl.deleteFramebuffer(this.depthFramebuffer);
+        gl.deleteTexture(this.depthTexture);
+        this.depthFramebuffer = null;
+        this.depthTexture = null;
+    }
 
-       // Clear canvases
-       if (this.guiContext) {
-           this.guiContext.clearRect(0, 0, 800, 600);
-       }
+    this.fishes = [];
+    this.camera = null;
+    this.fisher = null;
+    this.lure = null;
+    this.fishingArea = null;
+    this.ocean = null;
 
-       this.input.clearAllElements();
-       
-       // Clear references
-       this.canvas = null;
-       this.guiCanvas = null;
-       this.debugCanvas = null;
-       this.guiContext = null;
-       this.input = null;
-   }
+    // Clear canvases
+    if (this.guiContext) {
+        this.guiContext.clearRect(0, 0, 800, 600);
+    }
+
+    this.input.clearAllElements();
+    
+    // Clear references
+    this.canvas = null;
+    this.guiCanvas = null;
+    this.debugCanvas = null;
+    this.guiContext = null;
+    this.input = null;
+}
 }
 
 class FishingArea {
@@ -2125,5 +2192,142 @@ setFisher(fisher) {
         if (this.fisher.game) {
             this.fisher.game.fishingArea.setLure(this);
         }
+    }
+}
+
+class Ocean extends ActionPhysicsObject3D {
+   constructor(physicsWorld, width = 100, length = 100, segments = 6, gridSize = 3) {
+        const triangles = [];
+        const spacing = width / segments;
+        const offset = Math.floor(gridSize / 2);
+        const topSegments = segments * 2;
+        const topSpacing = width / topSegments;
+        
+        // Bottom layer
+        for(let tileZ = -offset; tileZ < gridSize-offset; tileZ++) {
+            for(let tileX = -offset; tileX < gridSize-offset; tileX++) {
+                for(let z = 0; z < segments; z++) {
+                    for(let x = 0; x < segments; x++) {
+                        const x1 = x * spacing + tileX * width - width/2;
+                        const x2 = (x + 1) * spacing + tileX * width - width/2;
+                        const z1 = z * spacing + tileZ * length - length/2;
+                        const z2 = (z + 1) * spacing + tileZ * length - length/2;
+                        
+                        triangles.push(
+                            new Triangle(
+                                new Vector3(x1, 50, z1),
+                                new Vector3(x1, 50, z2),
+                                new Vector3(x2, 50, z1),
+                                "#0645f4ff"
+                            ),
+                            new Triangle(
+                                new Vector3(x2, 50, z2),
+                                new Vector3(x2, 50, z1),
+                                new Vector3(x1, 50, z2),
+                                "#0645f4ff"
+                            ),
+                            new Triangle(
+                                new Vector3(x1, 50, z1),
+                                new Vector3(x2, 50, z1),
+                                new Vector3(x1, 50, z2),
+                                "#0645f4ff"
+                            ),
+                            new Triangle(
+                                new Vector3(x2, 50, z2),
+                                new Vector3(x1, 50, z2),
+                                new Vector3(x2, 50, z1),
+                                "#0645f4ff"
+                            )
+                        );
+                    }
+                }
+            }
+        }
+        super(physicsWorld, triangles);
+        
+        this.shader = 'water'; // Set shader to use the volumetric water shader
+        this.time = 0;
+        this.updateInterval = 1/30;
+        this.timeSinceLastUpdate = 0;
+
+        this.body = new Goblin.RigidBody(new Goblin.BoxShape(width/2, 1, length/2), 0);
+        this.body.position.set(0, 50, 0);
+        physicsWorld.addObject(this);
+    }
+
+    getWaveHeight(vertex) {
+        const waves = [
+            { A: 0.5, w: 1.0, phi: 1.0, Q: 0.3, dir: new Vector3(1, 0, 0.2).normalize() },
+            { A: 0.3, w: 2.0, phi: 0.5, Q: 0.2, dir: new Vector3(0.8, 0, 0.3).normalize() },
+            { A: 0.2, w: 3.0, phi: 1.5, Q: 0.1, dir: new Vector3(0.3, 0, 1).normalize() }
+        ];
+        
+        let height = 0;
+        waves.forEach(wave => {
+            const dotProduct = wave.dir.x * vertex.x + wave.dir.z * vertex.z;
+            const phase = wave.w * dotProduct - wave.phi * this.time;
+            height += wave.A * Math.sin(phase);
+        });
+        return height;
+    }
+
+    update(deltaTime) {
+        this.timeSinceLastUpdate += deltaTime;
+        
+        if (this.timeSinceLastUpdate >= this.updateInterval) {
+            this.time += this.timeSinceLastUpdate;
+            this.updateVisual();
+            this.timeSinceLastUpdate = 0;
+        }
+    }
+
+    updateVisual() {
+        if (!this.body) return;
+        
+        const pos = this.body.position;
+        const rot = this.body.rotation;
+        this.position = new Vector3(pos.x, pos.y, pos.z);
+
+        const waves = [
+            { A: 0.5, w: 1.0, phi: 1.0, Q: 0.3, dir: new Vector3(1, 0, 0.2).normalize() },
+            { A: 0.3, w: 2.0, phi: 0.5, Q: 0.2, dir: new Vector3(0.8, 0, 0.3).normalize() },
+            { A: 0.2, w: 3.0, phi: 1.5, Q: 0.1, dir: new Vector3(0.3, 0, 1).normalize() }
+        ];
+
+        this.triangles.forEach((triangle, triIndex) => {
+            const origNormal = this.originalNormals[triIndex];
+            const rotatedNormal = this.rotateVector(origNormal, rot);
+            triangle.normal = rotatedNormal;
+
+            triangle.vertices.forEach((vertex, vertIndex) => {
+                const origVert = this.originalVerts[triIndex * 3 + vertIndex];
+                const relativeVert = new Goblin.Vector3(origVert.x, origVert.y, origVert.z);
+                
+                let displacement = new Goblin.Vector3(0, 0, 0);
+                
+                waves.forEach(wave => {
+                    const x0 = relativeVert.x;
+                    const z0 = relativeVert.z;
+                    const dotProduct = wave.dir.x * x0 + wave.dir.z * z0;
+                    const phase = wave.w * dotProduct - wave.phi * this.time;
+                    
+                    displacement.x += wave.Q * wave.A * wave.dir.x * Math.cos(phase);
+                    displacement.y += wave.A * Math.sin(phase);
+                    displacement.z += wave.Q * wave.A * wave.dir.z * Math.cos(phase);
+                });
+
+                relativeVert.x += displacement.x;
+                relativeVert.y += displacement.y;
+                relativeVert.z += displacement.z;
+                
+                rot.transformVector3(relativeVert);
+                
+                vertex.x = relativeVert.x + this.position.x;
+                vertex.y = relativeVert.y + this.position.y;
+                vertex.z = relativeVert.z + this.position.z;
+            });
+        });
+
+        this.physicsWorld.shaderManager?.updateRenderableBuffers(this);
     }
 }
