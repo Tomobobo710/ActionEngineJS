@@ -1019,21 +1019,27 @@ class HookedBehavior extends FishBehavior {
 }
 
 class Fisher {
-    constructor(game, position = new Vector3(0, 10, -50)) { // Default position on shore/boat
+    constructor(game, position = new Vector3(0, 10, -50)) {
         this.game = game;
         this.position = position;
         this.lure = null;
-        this.state = 'ready'; // ready, casting, reeling
+        this.state = 'ready';
         this.castDirection = new Vector3(1, -0.5, 0).normalize();
-        this.aimAngle = 0; // Horizontal aim angle
-        this.aimElevation = -0.5; // Vertical aim angle
-        // Casting parameters
+        this.aimAngle = 0;
+        this.aimElevation = -0.5;
         this.castPower = 0;
         this.maxCastPower = 10;
-        this.castPowerRate = 5; // Power increase per second
+        this.castPowerRate = 5;
         this.isChargingCast = false;
-        // Create the visual model
+        
+        // Create the visual model and set reference
         this.model = new FishermanModel(game.physicsWorld, 10, position);
+        this.model.fisher = this; // Add this line to connect model back to fisher
+        
+        this.floatHeight = 30;
+        this.floatSmoothing = 5;
+        this.floatOffset = 30;
+        this.floatLerpFactor = 0.1;
     }
 
     attachLure(lure) {
@@ -1043,64 +1049,108 @@ class Fisher {
     }
 
     update(deltaTime, input) {
-        // In Fisher class, update method:
-if (this.state === 'ready') {
-    // Adjust aim left/right with corrected angles
-    if (input.isKeyPressed('DirLeft')) {
-        this.aimAngle += 1.5 * deltaTime;
-    }
-    if (input.isKeyPressed('DirRight')) {
-        this.aimAngle -= 1.5 * deltaTime;
-    }
-    
-    // Adjust aim up/down with corrected elevation
-    if (input.isKeyPressed('DirUp')) {
-        this.aimElevation = Math.min(this.aimElevation + deltaTime, -0.1);
-    }
-    if (input.isKeyPressed('DirDown')) {
-        this.aimElevation = Math.max(this.aimElevation - deltaTime, -0.8);
-    }
+        const waterHeight = this.game.ocean.getWaterHeightAt(
+            this.position.x, 
+            this.position.z
+        );
+        
+        const targetY = waterHeight + this.floatOffset;
+        this.position.y += (targetY - this.position.y) * this.floatLerpFactor;
+        
+        if (this.model && this.model.body) {
+            this.model.body.position.x = this.position.x;
+            this.model.body.position.y = this.position.y;
+            this.model.body.position.z = this.position.z;
+        }
 
-    // Update cast direction based on corrected aim
-    this.castDirection = new Vector3(
-        Math.sin(this.aimAngle),
-        Math.sin(this.aimElevation),
-        Math.cos(this.aimAngle)
-    ).normalize();
-}
-        switch(this.state) {
-            case 'ready':
-                // Handle cast charging
-                if (input.isKeyPressed('Action2')) {
-                    this.isChargingCast = true;
-                    this.castPower = Math.min(this.maxCastPower, 
-                        this.castPower + this.castPowerRate * deltaTime);
-                } else if (this.isChargingCast) {
-                    this.isChargingCast = false;
-                    this.cast();
-                }
-                break;
+        // Keep lure with fisher when not cast
+        if (this.state === 'ready' && this.lure) {
+            this.lure.position.x = this.position.x;
+            this.lure.position.y = this.position.y;
+            this.lure.position.z = this.position.z;
+            
+            // Update lure's body position as well
+            this.lure.body.position.x = this.position.x;
+            this.lure.body.position.y = this.position.y;
+            this.lure.body.position.z = this.position.z;
+        }
 
-            case 'casting':
-                // Update lure trajectory
-                if (this.lure.state === 'inWater') {
-                    this.state = 'fishing';
-                }
-                break;
+    if (this.state === 'ready') {
+        if (input.isKeyPressed('DirLeft')) {
+            this.aimAngle += 1.5 * deltaTime;
+        }
+        if (input.isKeyPressed('DirRight')) {
+            this.aimAngle -= 1.5 * deltaTime;
+        }
+        
+        if (input.isKeyPressed('DirUp')) {
+            this.aimElevation = Math.min(this.aimElevation + deltaTime, -0.1);
+        }
+        if (input.isKeyPressed('DirDown')) {
+            this.aimElevation = Math.max(this.aimElevation - deltaTime, -0.8);
+        }
 
-            case 'fishing':
-                this.handleLureMovement(input, deltaTime);
-                
-                if (input.isKeyPressed('Action1')) {
-                    this.state = 'reeling';
-                }
-                break;
+        this.castDirection = new Vector3(
+            Math.sin(this.aimAngle),
+            Math.sin(this.aimElevation),
+            Math.cos(this.aimAngle)
+        ).normalize();
 
-            case 'reeling':
-                this.handleReeling(deltaTime);
-                break;
+        if (input.isKeyPressed('Action2')) {
+            this.isChargingCast = true;
+            this.castPower = Math.min(this.maxCastPower, 
+                this.castPower + this.castPowerRate * deltaTime);
+        } else if (this.isChargingCast) {
+            this.isChargingCast = false;
+            this.cast();
         }
     }
+
+    switch(this.state) {
+        case 'casting':
+            if (this.lure.state === 'inWater') {
+                this.state = 'fishing';
+            }
+            break;
+
+        case 'fishing':
+            const moveSpeed = 30 * deltaTime;
+            if (input.isKeyPressed('DirUp')) {
+                this.lure.move('forward', moveSpeed);
+            }
+            if (input.isKeyPressed('DirDown')) {
+                this.lure.move('backward', moveSpeed);
+            }
+            if (input.isKeyPressed('DirRight')) {
+                this.lure.move('left', moveSpeed);
+            }
+            if (input.isKeyPressed('DirLeft')) {
+                this.lure.move('right', moveSpeed);
+            }
+            
+            if (input.isKeyPressed('Action1')) {
+                this.state = 'reeling';
+            }
+            break;
+
+        case 'reeling':
+            const distanceToFisher = this.lure.position.distanceTo(this.position);
+            if (distanceToFisher < 1) {
+                this.state = 'ready';
+                this.castPower = 0;
+                this.lure.reset();
+                this.game.fishingArea.setLure(this.lure);
+            } else {
+                const direction = this.position.subtract(this.lure.position).normalize();
+                this.lure.position = this.lure.position.add(direction.scale(50 * deltaTime));
+            }
+            break;
+    }
+
+    if (this.model) {
+        this.model.update(deltaTime);
+    }
+}
 
     handleLureMovement(input, deltaTime) {
         const moveSpeed = 30 * deltaTime;
@@ -1408,7 +1458,8 @@ triangles.push(new Triangle(v.bodyBottomBack, v.bodyBottomBackMirror, v.bodyTopB
         const shape = new Goblin.BoxShape(bodyWidth, height, bodyDepth);
         this.body = new Goblin.RigidBody(shape, 0); // 0 mass for static body
         this.body.position.set(position.x, position.y, position.z);
-
+        this.updateInterval = 1/30;
+        this.timeSinceLastUpdate = 0;
         physicsWorld.addObject(this);
     }
 
@@ -1443,6 +1494,40 @@ triangles.push(new Triangle(v.bodyBottomBack, v.bodyBottomBackMirror, v.bodyTopB
         
         this.physicsWorld.shaderManager?.updateRenderableBuffers(this);
     }
+    update(deltaTime) {
+    this.timeSinceLastUpdate += deltaTime;
+    
+    if (this.timeSinceLastUpdate >= this.updateInterval) {
+        if (!this.body) return;
+        
+        // Get water heights for tilt calculation
+        const waterHeight = this.fisher?.game.ocean.getWaterHeightAt(
+            this.body.position.x, 
+            this.body.position.z
+        );
+        
+        const forwardHeight = this.fisher?.game.ocean.getWaterHeightAt(
+            this.body.position.x, 
+            this.body.position.z + 1
+        );
+        
+        const rightHeight = this.fisher?.game.ocean.getWaterHeightAt(
+            this.body.position.x + 1, 
+            this.body.position.z
+        );
+        
+        // Calculate tilt angles
+        const forwardTilt = (forwardHeight - waterHeight);
+        const rightTilt = (rightHeight - waterHeight);
+        
+        // Apply rotation directly to body rotation values
+        this.body.rotation.x = forwardTilt * 0.1;
+        this.body.rotation.z = rightTilt * 0.1;
+        
+        this.updateVisual();
+        this.timeSinceLastUpdate = 0;
+    }
+}
 }
 
 class FishGenerator {
@@ -2183,16 +2268,21 @@ setFisher(fisher) {
     }
 
     reset() {
-        if (!this.fisher) return;
-        this.state = 'inactive';
-        this.position = this.fisher.position.clone();
-        this.visible = false;
-        this.lureVelocity = new Vector3(0, 0, 0);
-        
-        if (this.fisher.game) {
-            this.fisher.game.fishingArea.setLure(this);
-        }
+    if (!this.fisher) return;
+    this.state = 'inactive';
+    this.position = this.fisher.position.clone();
+    this.visible = false;
+    this.lureVelocity = new Vector3(0, 0, 0);
+    
+    // Update physics body position too
+    this.body.position.x = this.position.x;
+    this.body.position.y = this.position.y;
+    this.body.position.z = this.position.z;
+    
+    if (this.fisher.game) {
+        this.fisher.game.fishingArea.setLure(this);
     }
+}
 }
 
 class Ocean extends ActionPhysicsObject3D {
@@ -2269,6 +2359,23 @@ class Ocean extends ActionPhysicsObject3D {
             height += wave.A * Math.sin(phase);
         });
         return height;
+    }
+    
+    getWaterHeightAt(x, z) {
+        let height = 0;
+        const waves = [
+            { A: 0.5, w: 1.0, phi: 1.0, Q: 0.3, dir: new Vector3(1, 0, 0.2).normalize() },
+            { A: 0.3, w: 2.0, phi: 0.5, Q: 0.2, dir: new Vector3(0.8, 0, 0.3).normalize() },
+            { A: 0.2, w: 3.0, phi: 1.5, Q: 0.1, dir: new Vector3(0.3, 0, 1).normalize() }
+        ];
+        
+        waves.forEach(wave => {
+            const dotProduct = wave.dir.x * x + wave.dir.z * z;
+            const phase = wave.w * dotProduct - wave.phi * this.time;
+            height += wave.A * Math.sin(phase);
+        });
+        
+        return this.body.position.y + height; // Add base ocean height
     }
 
     update(deltaTime) {
