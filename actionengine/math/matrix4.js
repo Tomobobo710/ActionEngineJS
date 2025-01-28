@@ -235,6 +235,59 @@ static fromRotationTranslation(out, q, v) {
     out[15] = 1;
     return out;
 }
+    
+    static transformVertex(vertex, modelMatrix) {
+    const v = [vertex.x, vertex.y, vertex.z, 1];
+    const result = [0, 0, 0, 0];
+    
+    for (let i = 0; i < 4; i++) {
+        result[i] = 
+            v[0] * modelMatrix[i] +
+            v[1] * modelMatrix[i + 4] +
+            v[2] * modelMatrix[i + 8] +
+            v[3] * modelMatrix[i + 12];
+    }
+    
+    return new Vector3(
+        result[0] / result[3], 
+        result[1] / result[3], 
+        result[2] / result[3]
+    );
+}
+
+static transformNormal(normal, modelMatrix) {
+    // Calculate inverse transpose of 3x3 portion of model matrix
+    const a = modelMatrix[0],
+          b = modelMatrix[1],
+          c = modelMatrix[2],
+          d = modelMatrix[4],
+          e = modelMatrix[5],
+          f = modelMatrix[6],
+          g = modelMatrix[8],
+          h = modelMatrix[9],
+          i = modelMatrix[10];
+
+    const det = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
+    const invdet = 1.0 / det;
+
+    const invTranspose = [
+        (e * i - f * h) * invdet,
+        (c * h - b * i) * invdet,
+        (b * f - c * e) * invdet,
+        (f * g - d * i) * invdet,
+        (a * i - c * g) * invdet,
+        (c * d - a * f) * invdet,
+        (d * h - e * g) * invdet,
+        (b * g - a * h) * invdet,
+        (a * e - b * d) * invdet
+    ];
+
+    const x = normal.x * invTranspose[0] + normal.y * invTranspose[1] + normal.z * invTranspose[2];
+    const y = normal.x * invTranspose[3] + normal.y * invTranspose[4] + normal.z * invTranspose[5];
+    const z = normal.x * invTranspose[6] + normal.y * invTranspose[7] + normal.z * invTranspose[8];
+
+    return new Vector3(x, y, z).normalize();
+}
     static perspective(out, fovy, aspect, near, far) {
         const f = 1.0 / Math.tan(fovy / 2);
         out[0] = f / aspect;
