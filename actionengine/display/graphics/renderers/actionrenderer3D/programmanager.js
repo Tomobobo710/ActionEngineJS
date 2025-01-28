@@ -25,6 +25,7 @@ class ProgramManager {
     initializeShaderPrograms() {
         this.initializeParticleShader();
         this.initializeDebugShadowShader();
+		this.initializeWaterShader();
         this.initializeDefaultShaders();
     }
 
@@ -44,6 +45,33 @@ class ProgramManager {
         };
     }
 
+initializeWaterShader() {
+    const waterShader = new WaterShader();
+    this.waterProgram = this.programRegistry.createShaderProgram(
+        waterShader.getWaterVertexShader(this.isWebGL2),
+        waterShader.getWaterFragmentShader(this.isWebGL2)
+    );
+    
+    // Add null checks
+    if (!this.waterProgram) {
+        console.error("Failed to create water program");
+        return;
+    }
+    
+    this.waterLocations = {
+        position: this.gl.getAttribLocation(this.waterProgram, "aPosition"),
+        normal: this.gl.getAttribLocation(this.waterProgram, "aNormal"),
+        texCoord: this.gl.getAttribLocation(this.waterProgram, "aTexCoord"),
+        projectionMatrix: this.gl.getUniformLocation(this.waterProgram, "uProjectionMatrix"),
+        viewMatrix: this.gl.getUniformLocation(this.waterProgram, "uViewMatrix"),
+        modelMatrix: this.gl.getUniformLocation(this.waterProgram, "uModelMatrix"),
+        time: this.gl.getUniformLocation(this.waterProgram, "uTime"),
+        cameraPos: this.gl.getUniformLocation(this.waterProgram, "uCameraPos"),
+        lightDir: this.gl.getUniformLocation(this.waterProgram, "uLightDir")
+    };
+
+    console.log("Water locations:", this.waterLocations); // Debug
+}
     initializeDebugShadowShader() {
         const debugShadowMapShader = new DebugShadowMapShader();
         this.debugShadowMapProgram = this.programRegistry.createShaderProgram(
@@ -157,6 +185,14 @@ class ProgramManager {
     getParticleLocations() {
         return this.particleLocations;
     }
+
+getWaterProgram() {
+    return this.waterProgram;
+}
+
+getWaterLocations() {
+    return this.waterLocations;
+}
 
     getDebugShadowProgram() {
         return this.debugShadowMapProgram;

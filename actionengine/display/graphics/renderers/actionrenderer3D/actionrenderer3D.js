@@ -17,6 +17,7 @@ class ActionRenderer3D {
         this.objectRenderer = new ObjectRenderer3D(this, this.gl, this.programManager, this.lightingManager);
         // Get program registry reference
         this.programRegistry = this.programManager.getProgramRegistry();
+		this.waterRenderer = new WaterRenderer3D(this.gl, this.programManager);
 
         // Time tracking
         this.startTime = performance.now();
@@ -107,15 +108,17 @@ class ActionRenderer3D {
                 this.currentTime
             );
         }
-
+		
         // Render objects if they exist
-        if (renderableObjects?.length && renderableBuffers && renderableIndexCount) {
-            for (const object of renderableObjects) {
-                if (object) {
-                    this.objectRenderer.render(object, camera, shaderSet, this.currentTime);
-                }
-            }
-        }
+        if (renderableObjects?.length) {
+		   for (const object of renderableObjects) {
+			   if (object instanceof Ocean) {
+				   this.waterRenderer.render(renderData.camera, this.currentTime, object);
+			   } else if (object) {
+				   this.objectRenderer.render(object, renderData.camera, shaderSet, this.currentTime);
+			   }
+		   }
+		}
 
         // Render weather if it exists
         if (weatherSystem) {
