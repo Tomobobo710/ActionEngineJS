@@ -1,10 +1,11 @@
 // actionengine/math/geometry/triangle.js
 class Triangle {
-    constructor(v1, v2, v3, color = null) {
+    constructor(v1, v2, v3, color = null, uv1 = null, uv2 = null, uv3 = null) {
         this.vertices = [v1, v2, v3];
         this.normal = this.calculateNormal();
         // If color isn't provided, calculate it based on average height
         this.color = color || this.calculateColor();
+        this.uvs = [uv1 || {u: 0, v: 0}, uv2 || {u: 0, v: 0}, uv3 || {u: 0, v: 0}];
     }
 
     calculateNormal() {
