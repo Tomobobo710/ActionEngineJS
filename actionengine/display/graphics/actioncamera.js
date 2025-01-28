@@ -7,7 +7,8 @@ class ActionCamera {
         this.yaw = 0;
         this.pitch = Math.PI / 6;
         this.fov = Math.PI * 0.35;
-
+        this.near = 0;
+        this.far = 10000;
         // Add new camera control properties
         this.movementSpeed = 40;
         this.pitchSpeed = Math.PI;
