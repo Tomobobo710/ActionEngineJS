@@ -4,9 +4,6 @@ class ActionRenderer2D {
 		this.ctx = canvas.getContext("2d");
 		this.viewMatrix = Matrix4.create();
 		this.projMatrix = Matrix4.create();
-		this.projectionPool = new ProjectionPool(65 * 65 + 8 + 384); // 384 extra for testing this sphere but idk
-		this.trianglePool = new TrianglePool(64 * 64 * 2 + 128);
-		this.projectedVerts = new Array(65 * 65 + 384);
 		this.transformedVerts = new Array(8); // Pre-allocate for character vertices
 		for (let i = 0; i < 8; i++) {
 			this.transformedVerts[i] = new Vector3(0, 0, 0);
@@ -40,92 +37,69 @@ class ActionRenderer2D {
 	}
 
 	collectTriangles(terrain, camera, physicsObjects = []) {
-    const nearTriangles = [];
-    const midTriangles = [];
+		const nearTriangles = [];
+		const midTriangles = [];
 
-    // Reset far zone buckets
-    for (let i = 0; i < this.depthZones.far.buckets; i++) {
-        this.depthZones.far.triangles[i] = [];
-    }
+		// Reset far zone buckets
+		for (let i = 0; i < this.depthZones.far.buckets; i++) {
+			this.depthZones.far.triangles[i] = [];
+		}
 
-    // Helper function to process a triangle
-    const processTriangle = (triangle, isPhysicsObject = false) => {
-        // 3D backface culling
-        const cameraPos = camera.getViewMatrix().position;
-        const viewVector = cameraPos.sub(triangle.vertices[0]);
-        if (triangle.normal.dot(viewVector) <= 0) {
-            return;
-        }
+		const processTriangle = (triangle, isPhysicsObject = false) => {
+			const cameraPos = camera.getViewMatrix().position;
+			const viewVector = cameraPos.sub(triangle.vertices[0]);
+			if (triangle.normal.dot(viewVector) <= 0) {
+				return;
+			}
 
-        // Calculate vertex indices
-        let vertexIndices;
-        if (isPhysicsObject) {
-            // For physics objects, use absolute indices from the total vertex count
-            const baseIndex = this.projectedVerts.length;
-            vertexIndices = [baseIndex, baseIndex + 1, baseIndex + 2];
-            
-            // Project vertices directly
-            this.projectedVerts[baseIndex] = this.project(triangle.vertices[0], camera, baseIndex);
-            this.projectedVerts[baseIndex + 1] = this.project(triangle.vertices[1], camera, baseIndex + 1);
-            this.projectedVerts[baseIndex + 2] = this.project(triangle.vertices[2], camera, baseIndex + 2);
-        } else {
-            // Regular terrain triangle vertices
-            vertexIndices = [
-                terrain.vertices.indexOf(triangle.vertices[0]),
-                terrain.vertices.indexOf(triangle.vertices[1]),
-                terrain.vertices.indexOf(triangle.vertices[2])
-            ];
-        }
-		
-        // Get projected points
-        const p1 = this.projectedVerts[vertexIndices[0]];
-        const p2 = this.projectedVerts[vertexIndices[1]];
-        const p3 = this.projectedVerts[vertexIndices[2]];
+			// Project vertices
+			const projectedVerts = triangle.vertices.map((vertex) => this.project(vertex, camera));
 
-        if (!p1 || !p2 || !p3) return;
+			// Check if any projection failed
+			if (projectedVerts.some((v) => v === null)) return;
 
-        // Calculate lighting
-        const lightDir = new Vector3(0.5, 1, 0.5).normalize();
-        const lighting = Math.max(0.3, Math.min(1.0, triangle.normal.dot(lightDir)));
+			// Calculate lighting
+			const lightDir = new Vector3(0.5, 1, 0.5).normalize();
+			const lighting = Math.max(0.3, Math.min(1.0, triangle.normal.dot(lightDir)));
 
-        const triangle2d = this.trianglePool.getTriangle();
-        triangle2d.points[0] = p1;
-        triangle2d.points[1] = p2;
-        triangle2d.points[2] = p3;
-        triangle2d.color = triangle.color;
-        triangle2d.lighting = triangle.vertices[0].y === 0 ? 1.0 : lighting;
-        triangle2d.depth = (p1.z + p2.z + p3.z) / 3;
+			const triangle2d = {
+				points: projectedVerts,
+				color: triangle.color,
+				lighting: triangle.vertices[0].y === 0 ? 1.0 : lighting,
+				depth: (projectedVerts[0].z + projectedVerts[1].z + projectedVerts[2].z) / 3,
+				isWater: triangle.isWater || false
+			};
 
-        // Sort into appropriate zone
-        const zone = this.getTriangleZone(triangle2d.depth);
-        if (zone === "near") {
-            nearTriangles.push(triangle2d);
-        } else if (zone === "mid") {
-            midTriangles.push(triangle2d);
-        } else {
-            const bucketIndex = this.getFarZoneBucketIndex(triangle2d.depth);
-            this.depthZones.far.triangles[bucketIndex].push(triangle2d);
-        }
-    };
+			// Sort into appropriate zone
+			const zone = this.getTriangleZone(triangle2d.depth);
+			if (zone === "near") {
+				nearTriangles.push(triangle2d);
+			} else if (zone === "mid") {
+				midTriangles.push(triangle2d);
+			} else {
+				const bucketIndex = this.getFarZoneBucketIndex(triangle2d.depth);
+				this.depthZones.far.triangles[bucketIndex].push(triangle2d);
+			}
+		};
 
-    // Process terrain triangles
-    for (const triangle of terrain.triangles) {
-        processTriangle(triangle, false);
-    }
+		// Process terrain triangles
+		for (const triangle of terrain.triangles) {
+			processTriangle(triangle, false);
+		}
 
-    // Process physics object triangles
-    for (const physicsObject of physicsObjects) {
-        for (const triangle of physicsObject.triangles) {
-            processTriangle(triangle, true);
-        }
-    }
+		// Process physics object triangles
+		for (const physicsObject of physicsObjects) {
+			for (const triangle of physicsObject.triangles) {
+				processTriangle(triangle, true);
+			}
+		}
 
-    return {
-        nearTriangles,
-        midTriangles,
-        farTriangles: this.depthZones.far.triangles
-    };
-}
+		return {
+			nearTriangles,
+			midTriangles,
+			farTriangles: this.depthZones.far.triangles
+		};
+	}
 
 	initializeFarZoneBuckets() {
 		this.depthZones.far.triangles = new Array(this.depthZones.far.buckets);
@@ -203,12 +177,11 @@ class ActionRenderer2D {
 		return new Vector3(x, y, z).normalize();
 	}
 
-	project(point, camera, index) {
+	project(point, camera) {
 		const view = camera.getViewMatrix();
 		const relativePos = point.sub(view.position);
 		const viewZ = relativePos.dot(view.forward);
 
-		// Original z culling
 		if (viewZ <= -500) return null;
 
 		Matrix4.lookAt(
@@ -223,12 +196,15 @@ class ActionRenderer2D {
 		const worldPoint = [point.x, point.y, point.z, 1];
 		const clipSpace = Matrix4.transformVector(worldPoint, this.viewMatrix, this.projMatrix);
 
-		const w = Math.max(0.1, clipSpace[3]); // Match the original zDivisor logic
+		const w = Math.max(0.1, clipSpace[3]);
 		const screenX = ((clipSpace[0] / w) * 0.5 + 0.5) * Game.WIDTH;
 		const screenY = ((-clipSpace[1] / w) * 0.5 + 0.5) * Game.HEIGHT;
 
-		// Use original viewZ for depth, just like the original
-		return this.projectionPool.getProjectedPoint(index, screenX, screenY, viewZ);
+		return {
+			x: screenX,
+			y: screenY,
+			z: viewZ
+		};
 	}
 
 	render(terrain, camera, character, showDebugPanel, weatherSystem, renderablePhysicsObjects) {
@@ -242,20 +218,19 @@ class ActionRenderer2D {
 			data[i + 3] = 255; // alpha
 		}
 
-		// Reset triangle pool
-		this.trianglePool.reset();
-
 		// Clear both z-buffers
 		this.zBuffer.clear();
 		this.nearZoneBuffer.clear();
 
-		// Project terrain vertices first
-		for (let i = 0; i < terrain.vertices.length; i++) {
-			this.projectedVerts[i] = this.project(terrain.vertices[i], camera, i);
-		}
+		// Project terrain vertices first - we don't need to store these anymore
+		// since we'll project them as needed in collectTriangles
 
 		// Collect and sort triangles into zones
-		const { nearTriangles, midTriangles, farTriangles } = this.collectTriangles(terrain, camera, renderablePhysicsObjects);
+		const { nearTriangles, midTriangles, farTriangles } = this.collectTriangles(
+			terrain,
+			camera,
+			renderablePhysicsObjects
+		);
 
 		// Handle character if present
 		if (character) {
@@ -279,8 +254,9 @@ class ActionRenderer2D {
 
 		// Render near zone with high precision
 		for (const triangle of nearTriangles) {
-			this.rasterizeTriangleHighPrecision(triangle, triangle.color, triangle.lighting);
+			this.rasterizeTriangleHighPrecision(triangle);
 		}
+
 		// Draw weather particles last (on top)
 		if (weatherSystem && weatherSystem.particleEmitter) {
 			const particles = weatherSystem.particleEmitter.getParticles();
@@ -293,8 +269,7 @@ class ActionRenderer2D {
 			particles.forEach((particle) => {
 				const projected = this.project(
 					new Vector3(particle.position.x, particle.position.y, particle.position.z),
-					camera,
-					this.projectedVerts.length + 1
+					camera
 				);
 
 				if (!projected) return;
@@ -309,6 +284,7 @@ class ActionRenderer2D {
 			});
 			this.ctx.restore();
 		}
+
 		// Put the final image to canvas
 		this.ctx.putImageData(this.imageData, 0, 0);
 
@@ -345,16 +321,8 @@ class ActionRenderer2D {
 					z: center.z + currentTriangle.normal.z * 10
 				};
 
-				const projectedCenter = this.project(
-					new Vector3(center.x, center.y, center.z),
-					camera,
-					this.projectedVerts.length + 2
-				);
-				const projectedEnd = this.project(
-					new Vector3(normalEnd.x, normalEnd.y, normalEnd.z),
-					camera,
-					this.projectedVerts.length + 3
-				);
+				const projectedCenter = this.project(new Vector3(center.x, center.y, center.z), camera);
+				const projectedEnd = this.project(new Vector3(normalEnd.x, normalEnd.y, normalEnd.z), camera);
 
 				if (projectedCenter && projectedEnd) {
 					this.ctx.strokeStyle = "#0000FF";
@@ -445,7 +413,6 @@ class ActionRenderer2D {
 	}
 
 	drawDirectionIndicator(character, camera) {
-		// Draw direction indicator
 		const center = character.position;
 		const directionEnd = new Vector3(
 			center.x + character.facingDirection.x * character.size * 2,
@@ -453,11 +420,9 @@ class ActionRenderer2D {
 			center.z + character.facingDirection.z * character.size * 2
 		);
 
-		// Project both points
-		const projectedCenter = this.project(center, camera, this.projectedVerts.length + 0);
-		const projectedEnd = this.project(directionEnd, camera, this.projectedVerts.length + 1);
+		const projectedCenter = this.project(center, camera);
+		const projectedEnd = this.project(directionEnd, camera);
 
-		// Draw direction line
 		if (projectedCenter && projectedEnd) {
 			this.ctx.strokeStyle = "#0000FF";
 			this.ctx.beginPath();
@@ -472,35 +437,26 @@ class ActionRenderer2D {
 		const characterModel = character.getCharacterModelTriangles();
 		const lightDir = new Vector3(0.5, 1.0, 0.5).normalize();
 
-		for (const triangle of characterModel) {
-			// Transform normal correctly using inverse transpose
-			const worldNormal = this.transformNormal(triangle.normal, modelMatrix);
+		// Define mapping functions outside the loop
+		const transformVertex = (vertex) => this.transformVertex(vertex, modelMatrix);
+		const projectVertex = (vertex) => this.project(vertex, camera);
 
-			// Calculate lighting using transformed normal
+		for (const triangle of characterModel) {
+			const worldNormal = this.transformNormal(triangle.normal, modelMatrix);
 			const lighting = Math.max(0.3, Math.min(1.0, worldNormal.dot(lightDir)));
 
-			const transformedVerts = [];
-			for (let i = 0; i < triangle.vertices.length; i++) {
-				transformedVerts[i] = this.transformVertex(triangle.vertices[i], modelMatrix);
-			}
+			const transformedVerts = triangle.vertices.map(transformVertex);
+			const projectedPoints = transformedVerts.map(projectVertex);
 
-			// Project vertices
-			const projectedPoints = [];
-			for (let i = 0; i < transformedVerts.length; i++) {
-				projectedPoints[i] = this.project(transformedVerts[i], camera, this.projectedVerts.length + i);
-			}
-
-			if (!projectedPoints[0] || !projectedPoints[1] || !projectedPoints[2]) continue;
+			if (projectedPoints.some((p) => p === null)) continue;
 
 			if (this.isFrontFacing(projectedPoints[0], projectedPoints[1], projectedPoints[2])) {
-				const triangle2d = this.trianglePool.getTriangle();
-				triangle2d.points[0] = { x: projectedPoints[0].x, y: projectedPoints[0].y, z: projectedPoints[0].z };
-				triangle2d.points[1] = { x: projectedPoints[1].x, y: projectedPoints[1].y, z: projectedPoints[1].z };
-				triangle2d.points[2] = { x: projectedPoints[2].x, y: projectedPoints[2].y, z: projectedPoints[2].z };
-				triangle2d.color = triangle.color;
-				triangle2d.lighting = lighting;
-				triangle2d.depth = (projectedPoints[0].z + projectedPoints[1].z + projectedPoints[2].z) / 3;
-
+				const triangle2d = {
+					points: projectedPoints,
+					color: triangle.color,
+					lighting: lighting,
+					depth: (projectedPoints[0].z + projectedPoints[1].z + projectedPoints[2].z) / 3
+				};
 				visibleTriangles.push(triangle2d);
 			}
 		}
@@ -658,55 +614,5 @@ class HighPrecisionZBuffer {
 			return true;
 		}
 		return false;
-	}
-}
-
-class ProjectionPool {
-    constructor() {
-        this.points = [];
-    }
-
-    // Get a point at index, creating it if it doesn't exist
-    getProjectedPoint(index, x, y, z) {
-        if (!this.points[index]) {
-            this.points[index] = { x: 0, y: 0, z: 0 };
-        }
-        const point = this.points[index];
-        point.x = x;
-        point.y = y;
-        point.z = z;
-        return point;
-    }
-}
-
-class TrianglePool {
-	constructor(size) {
-		this.triangles = new Array(size);
-		for (let i = 0; i < size; i++) {
-			this.triangles[i] = {
-				points: [
-					{ x: 0, y: 0, z: 0 },
-					{ x: 0, y: 0, z: 0 },
-					{ x: 0, y: 0, z: 0 }
-				],
-				color: "#000000", // Add default color
-				lighting: 0,
-				depth: 0,
-				isWater: false
-			};
-		}
-		this.currentIndex = 0;
-	}
-
-	reset() {
-		this.currentIndex = 0;
-	}
-
-	getTriangle() {
-		if (this.currentIndex >= this.triangles.length) {
-			console.warn("[ActionRenderer2D] Triangle pool exhausted");
-			return this.triangles[this.triangles.length - 1];
-		}
-		return this.triangles[this.currentIndex++];
 	}
 }
