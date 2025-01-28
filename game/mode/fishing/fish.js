@@ -1143,6 +1143,9 @@ class FishAI {
         this.behaviors.hooked.setLure(lure);
         this.changeBehavior('hooked');
         
+        // Set the fish as the lure's hooked fish
+        lure.hookedFish = this.fish;
+        
         // Clear the attacking fish reference since hook was successful
         FishAI.currentlyAttackingFish = null;
         

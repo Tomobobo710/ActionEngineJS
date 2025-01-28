@@ -290,7 +290,14 @@ class FishingMode {
         deltaTime * CAMERA_LERP_SPEED
     );
 }
+pause() {
+       this.physicsWorld.pause();
+   }
 
+   resume() {
+       this.lastTime = performance.now();
+       this.physicsWorld.resume();
+   }
  lerpVector(start, end, t) {
     return new Vector3(
         start.x + (end.x - start.x) * t,
@@ -318,8 +325,38 @@ class FishingMode {
     if (this.fisher.isChargingCast) {
         this.drawCastingPowerMeter(this.fisher.getCastPowerPercentage());
     }
+         
+    if (this.fisher.lure?.hookedFish) {
+            this.drawLineTensionMeter(this.fisher.lineTension);
+        }
 }
+    
+drawLineTensionMeter(tension) {
+        const barWidth = 200;
+        const barHeight = 20;
+        const x = 10;
+        const y = this.guiCanvas.height - 150;
 
+        // Background
+        this.guiContext.fillStyle = '#333';
+        this.guiContext.fillRect(x, y, barWidth, barHeight);
+
+        // Tension level
+        let color;
+        if (tension < 0.5) color = '#0f0';
+        else if (tension < 0.8) color = '#ff0';
+        else color = '#f00';
+
+        this.guiContext.fillStyle = color;
+        this.guiContext.fillRect(x, y, barWidth * tension, barHeight);
+
+        // Label
+        this.guiContext.fillStyle = '#fff';
+        this.guiContext.font = '16px Arial';
+        this.guiContext.textAlign = 'left';
+        this.guiContext.fillText('Line Tension', x, y - 5);
+    }
+    
 drawCastingPowerMeter(percentage) {
         const barWidth = 200;
         const barHeight = 20;

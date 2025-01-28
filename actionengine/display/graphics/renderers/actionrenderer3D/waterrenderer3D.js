@@ -88,8 +88,8 @@ class WaterRenderer3D {
         
     }
 updateBuffersWithOcean(ocean) {
-	console.log("Ocean triangles:", ocean.triangles);
-    console.log("First triangle vertices:", ocean.triangles[0]?.vertices);
+	//console.log("Ocean triangles:", ocean.triangles);
+    //console.log("First triangle vertices:", ocean.triangles[0]?.vertices);
     const positions = new Float32Array(ocean.triangles.length * 9);
     const normals = new Float32Array(ocean.triangles.length * 9);
     const indices = new Uint16Array(ocean.triangles.length * 3);

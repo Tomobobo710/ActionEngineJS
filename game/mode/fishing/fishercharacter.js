@@ -23,6 +23,12 @@ class Fisher {
         
         this.minCastStrength = 30;  // Minimum throw force
         this.maxCastStrength = 150; // Maximum throw force
+        
+         this.isReeling = false;
+        this.lineLength = 0;  // Current line length
+        this.maxLineLength = 200; // Maximum line length
+        this.lineTension = 0; // 0-1, where 1 is about to snap
+        this.reelSpeed = 30;  // Base reel-in speed
     }
 
     attachLure(lure) {
@@ -112,9 +118,15 @@ class Fisher {
             }
             
             if (input.isKeyPressed('Action1')) {
-                this.state = 'reeling';
-            }
-            break;
+                    this.isReeling = true;
+                    this.handleReeling(deltaTime);
+                } else {
+                    this.isReeling = false;
+                }
+                
+                // Allow lure movement during fishing
+                this.handleLureMovement(input, deltaTime);
+                break;
 
         case 'reeling':
             const distanceToFisher = this.lure.position.distanceTo(this.position);
@@ -153,17 +165,23 @@ class Fisher {
     }
 
     handleReeling(deltaTime) {
+        if (!this.lure || !this.isReeling) return;
+
         const distanceToFisher = this.lure.position.distanceTo(this.position);
         
+        // If lure is close enough, reset to ready state
         if (distanceToFisher < 1) {
             this.state = 'ready';
             this.castPower = 0;
-            this.lure.reset();
-            this.game.fishingArea.setLure(this.lure); // Update fishing area
-        } else {
-            const direction = this.position.subtract(this.lure.position).normalize();
-            this.lure.position = this.lure.position.add(direction.scale(50 * deltaTime));
+            this.lure.reset(); // This will now properly release the fish
+            this.game.fishingArea.setLure(this.lure);
+            return;
         }
+
+        const reelAmount = this.reelSpeed * deltaTime;
+        const reelDirection = this.position.subtract(this.lure.position).normalize();
+        this.lure.position = this.lure.position.add(reelDirection.scale(reelAmount));
+        this.lineLength = distanceToFisher;
     }
 
     cast() {
