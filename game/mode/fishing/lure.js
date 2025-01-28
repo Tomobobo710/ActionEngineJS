@@ -39,25 +39,48 @@ setFisher(fisher) {
 
     update(deltaTime) {
         if (this.state === 'casting') {
-            // Update both position AND body position
-            const moveX = this.lureVelocity.x * deltaTime;
-            const moveY = this.lureVelocity.y * deltaTime;
-            const moveZ = this.lureVelocity.z * deltaTime;
-
-            this.position.x += moveX;
-            this.position.y += moveY;
-            this.position.z += moveZ;
-
+            // Calculate new position before applying it
+            const newX = this.position.x + this.lureVelocity.x * deltaTime;
+            const newY = this.position.y + this.lureVelocity.y * deltaTime;
+            const newZ = this.position.z + this.lureVelocity.z * deltaTime;
+            
+            // Check bounds before updating position
+            const halfWidth = this.bounds.width / 2;
+            const halfLength = this.bounds.length / 2;
+            
+            // Only update if within bounds
+            if (newX >= -halfWidth && newX <= halfWidth &&
+                newZ >= -halfLength && newZ <= halfLength) {
+                this.position.x = newX;
+                this.position.z = newZ;
+            } else {
+                // Hit boundary, enter water
+                this.state = 'inWater';
+            }
+            
+            // Y position and gravity always update
+            this.position.y = newY;
+            this.lureVelocity.y += this.lureGravity * deltaTime;
+            
+            // Update physics body
             this.body.position.x = this.position.x;
             this.body.position.y = this.position.y;
             this.body.position.z = this.position.z;
 
-            this.lureVelocity.y += this.lureGravity * deltaTime;
+            // Check for water contact
             if (this.fisher?.game) {
-            this.fisher.game.fishingArea.setLure(this);
+                const waterHeight = this.fisher.game.ocean.getWaterHeightAt(
+                    this.position.x, 
+                    this.position.z
+                );
+                
+                if (this.position.y <= waterHeight) {
+                    this.state = 'inWater';
+                    this.fisher.game.fishingArea.setLure(this);
+                }
+            }
         }
-            this.state = 'inWater';
-        }
+        
         this.updateVisual();
     }
 

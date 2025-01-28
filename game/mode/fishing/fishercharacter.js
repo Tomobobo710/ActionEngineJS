@@ -8,8 +8,8 @@ class Fisher {
         this.aimAngle = 0;
         this.aimElevation = -0.5;
         this.castPower = 0;
-        this.maxCastPower = 10;
-        this.castPowerRate = 5;
+        this.maxCastPower = 10;  //only effects the power bar speed if incresed its lowered
+        this.castPowerRate = 3;   //only effects the power bar
         this.isChargingCast = false;
         
         // Create the visual model and set reference
@@ -20,6 +20,9 @@ class Fisher {
         this.floatSmoothing = 5;
         this.floatOffset = 30;
         this.floatLerpFactor = 0.1;
+        
+        this.minCastStrength = 30;  // Minimum throw force
+        this.maxCastStrength = 150; // Maximum throw force
     }
 
     attachLure(lure) {
@@ -166,16 +169,17 @@ class Fisher {
     cast() {
         if (this.state !== 'ready' || !this.lure) return;
         
-        const castVelocity = this.castDirection.scale(this.castPower);
-        this.lure.visible = true;
-        this.lure.startCast(this.position, castVelocity, this.castDirection);
-        // Log the initial cast for debugging
+        // Increase the power scaling - adjust these numbers as needed
+         const castVelocity = this.castDirection.scale(this.castPower * 100);
+    this.lure.visible = true;
+    this.lure.startCast(this.position, castVelocity, this.castDirection);
         console.log('Cast starting at:', this.position);
         console.log('Cast velocity:', castVelocity);
         
         this.state = 'casting';
         this.castPower = 0;
     }
+
     
 
     getCastPowerPercentage() {
