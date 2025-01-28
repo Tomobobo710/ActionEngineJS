@@ -57,7 +57,7 @@ class ThirdPersonActionCharacter extends ActionCharacter {
         // Add character body to physics world
         game.physicsWorld.getWorld().addRigidBody(this.body);
 
-        this.debug = true;
+        this.debug = false;
     }
 
     applyInput(input, deltaTime) {
@@ -287,14 +287,15 @@ class ThirdPersonActionCharacter extends ActionCharacter {
         this.animator.play("fall", true);
         this.wasGroundedLastFrame = false;
     }
-
-    // Optional debug logging
-    console.log("Animation Update:", {
-        state, 
-        horizontalSpeed, 
-        isReallyMoving, 
-        currentAnim: this.animator.currentAnimation?.name
-    });
+    if (this.debug) {
+        // Optional debug logging
+        console.log("Animation Update:", {
+            state, 
+            horizontalSpeed, 
+            isReallyMoving, 
+            currentAnim: this.animator.currentAnimation?.name
+        });
+    }
 }
 
     getDebugInfo() {
