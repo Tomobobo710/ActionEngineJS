@@ -15,6 +15,13 @@ class ActionRenderer2D {
 			far: 10000.0,
 			transitionDistance: 250.0 // Where we switch to painter's algorithm
 		};
+
+		// Create procedural textures
+		this.grassTexture = new ProceduralTexture(256, 256);
+		this.grassTexture.generateGrass();
+
+		this.checkerTexture = new ProceduralTexture(256, 256);
+		this.checkerTexture.generateCheckerboard();
 	}
 
 	render(terrain, camera, character, showDebugPanel, weatherSystem, renderablePhysicsObjects) {
@@ -104,12 +111,20 @@ class ActionRenderer2D {
 				color: triangle.color,
 				lighting: triangle.vertices[0].y === 0 ? 1.0 : lighting,
 				depth: (projectedVerts[0].z + projectedVerts[1].z + projectedVerts[2].z) / 3,
-				isWater: triangle.isWater || false
+				isWater: triangle.isWater || false,
+				uvs: [
+					{ u: 0, v: 0 },
+					{ u: 1, v: 0 },
+					{ u: 0.5, v: 1 }
+				] // Simple triangle UV mapping
 			};
 
+			// Assign different textures based on distance
 			if (processedTriangle.depth <= this.depthConfig.transitionDistance) {
+				processedTriangle.texture = this.grassTexture;
 				nearTriangles.push(processedTriangle);
 			} else {
+				processedTriangle.texture = this.checkerTexture;
 				farTriangles.push(processedTriangle);
 			}
 		};
@@ -170,6 +185,17 @@ class ActionRenderer2D {
 		const b = parseInt(triangle.color.substr(5, 2), 16);
 		let lighting = triangle.lighting;
 
+		// Only calculate texture mapping values if we have a texture
+		let oneOverW, uvOverW;
+		if (triangle.texture && triangle.uvs) {
+			//oneOverW = points.map((p) => 1 / p.z);
+			oneOverW = points.map(p => 1 / Math.max(0.1, p.z));
+			uvOverW = triangle.uvs.map((uv, i) => ({
+				u: uv.u * oneOverW[i],
+				v: uv.v * oneOverW[i]
+			}));
+		}
+
 		// Block-based rasterization for better cache usage
 		const BLOCK_SIZE = 8;
 		for (let blockY = minY; blockY <= maxY; blockY += BLOCK_SIZE) {
@@ -204,10 +230,42 @@ class ActionRenderer2D {
 
 						if (shouldDraw) {
 							const pixelIndex = index * 4;
-							this.imageData.data[pixelIndex] = r * currentLighting;
-							this.imageData.data[pixelIndex + 1] = g * currentLighting;
-							this.imageData.data[pixelIndex + 2] = b * currentLighting;
-							this.imageData.data[pixelIndex + 3] = 255;
+
+							if (triangle.texture && triangle.uvs) {
+								// Get barycentric coordinates
+								const bary = TriangleUtils.getBarycentricCoords(x, y, points[0], points[1], points[2]);
+
+								// Interpolate 1/w
+								const interpolatedOneOverW =
+									bary.w1 * oneOverW[0] + bary.w2 * oneOverW[1] + bary.w3 * oneOverW[2];
+
+								// Interpolate u/w and v/w
+								const interpolatedUOverW =
+									bary.w1 * uvOverW[0].u + bary.w2 * uvOverW[1].u + bary.w3 * uvOverW[2].u;
+								const interpolatedVOverW =
+									bary.w1 * uvOverW[0].v + bary.w2 * uvOverW[1].v + bary.w3 * uvOverW[2].v;
+
+								// Perspective-correct UVs
+								const u = interpolatedUOverW / interpolatedOneOverW;
+								const v = interpolatedVOverW / interpolatedOneOverW;
+
+								// Sample texture
+								const texel = triangle.texture.getPixel(
+									Math.floor(u * triangle.texture.width),
+									Math.floor(v * triangle.texture.height)
+								);
+
+								this.imageData.data[pixelIndex] = texel.r * currentLighting;
+								this.imageData.data[pixelIndex + 1] = texel.g * currentLighting;
+								this.imageData.data[pixelIndex + 2] = texel.b * currentLighting;
+								this.imageData.data[pixelIndex + 3] = 255;
+							} else {
+								// Use flat color if no texture
+								this.imageData.data[pixelIndex] = r * currentLighting;
+								this.imageData.data[pixelIndex + 1] = g * currentLighting;
+								this.imageData.data[pixelIndex + 2] = b * currentLighting;
+								this.imageData.data[pixelIndex + 3] = 255;
+							}
 						}
 					}
 				}
@@ -341,5 +399,71 @@ class TriangleUtils {
 
 	static isFrontFacing(p1, p2, p3) {
 		return (p2.x - p1.x) * (p3.y - p1.y) - (p3.x - p1.x) * (p2.y - p1.y) < 0;
+	}
+
+	static getBarycentricCoords(x, y, p1, p2, p3) {
+		const denominator = (p2.y - p3.y) * (p1.x - p3.x) + (p3.x - p2.x) * (p1.y - p3.y);
+		const w1 = ((p2.y - p3.y) * (x - p3.x) + (p3.x - p2.x) * (y - p3.y)) / denominator;
+		const w2 = ((p3.y - p1.y) * (x - p3.x) + (p1.x - p3.x) * (y - p3.y)) / denominator;
+		const w3 = 1 - w1 - w2;
+		return { w1, w2, w3 };
+	}
+}
+
+class ProceduralTexture {
+	constructor(width, height) {
+		this.width = width;
+		this.height = height;
+		this.data = new Uint8ClampedArray(width * height * 4);
+		this.widthMask = width - 1; // For power-of-2 textures, faster modulo
+		this.heightMask = height - 1;
+	}
+	getPixel(x, y) {
+		// Fast modulo for power-of-2 textures using bitwise AND
+		const tx = x & this.widthMask;
+		const ty = y & this.heightMask;
+		const i = (ty * this.width + tx) * 4;
+		return {
+			r: this.data[i],
+			g: this.data[i + 1],
+			b: this.data[i + 2]
+		};
+	}
+	generateCheckerboard() {
+		const size = 4; // Make checkers a bit bigger
+		for (let y = 0; y < this.height; y++) {
+			for (let x = 0; x < this.width; x++) {
+				const isEven = ((x >> 2) + (y >> 2)) & 1; // Simpler calculation using bitwise
+				const i = (y * this.width + x) * 4;
+				if (isEven) {
+					this.data[i] = 0; // Blue square
+					this.data[i + 1] = 0;
+					this.data[i + 2] = 255;
+				} else {
+					this.data[i] = 255; // Purple square
+					this.data[i + 1] = 0;
+					this.data[i + 2] = 255;
+				}
+				this.data[i + 3] = 255;
+			}
+		}
+	}
+	generateGrass() {
+		const baseColor = { r: 34, g: 139, b: 34 };
+		// Pre-calculate a noise table for faster lookup
+		const noiseTable = new Uint8Array(256);
+		for (let i = 0; i < 256; i++) {
+			noiseTable[i] = Math.floor(Math.random() * 30);
+		}
+		for (let y = 0; y < this.height; y++) {
+			for (let x = 0; x < this.width; x++) {
+				const variation = noiseTable[(x * 7 + y * 13) & 255];
+				const i = (y * this.width + x) * 4;
+				this.data[i] = Math.min(255, baseColor.r + variation);
+				this.data[i + 1] = Math.min(255, baseColor.g + variation);
+				this.data[i + 2] = Math.min(255, baseColor.b + variation);
+				this.data[i + 3] = 255;
+			}
+		}
 	}
 }
