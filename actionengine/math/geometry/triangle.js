@@ -1,11 +1,16 @@
 // actionengine/math/geometry/triangle.js
 class Triangle {
-    constructor(v1, v2, v3, color = null, uv1 = null, uv2 = null, uv3 = null) {
+    constructor(v1, v2, v3, color = null, texture = null, uv1 = null, uv2 = null, uv3 = null) {
         this.vertices = [v1, v2, v3];
         this.normal = this.calculateNormal();
         // If color isn't provided, calculate it based on average height
         this.color = color || this.calculateColor();
-        this.uvs = [uv1 || {u: 0, v: 0}, uv2 || {u: 0, v: 0}, uv3 || {u: 0, v: 0}];
+        this.uvs = [
+            uv1 || {u: 0, v: 0},
+            uv2 || {u: 0, v: 0},
+            uv3 || {u: 0, v: 0}
+        ];
+        this.texture = texture;
     }
 
     calculateNormal() {
@@ -23,7 +28,7 @@ class Triangle {
         if (avgHeight >= 400) return BIOME_TYPES.SNOW.base;
 
         // Convert to height percentage exactly like Terrain does
-        const heightPercent = (avgHeight / 400) * 100;  // Using 400 since that's terrain's baseWorldHeight default
+        const heightPercent = (avgHeight / 400) * 100; // Using 400 since that's terrain's baseWorldHeight default
 
         // Use same biome lookup
         for (const biome of Object.values(BIOME_TYPES)) {
@@ -33,17 +38,13 @@ class Triangle {
         }
         return BIOME_TYPES.OCEAN.base;
     }
-    
+
     getVertexArray() {
-        return this.vertices.flatMap(v => [v.x, v.y, v.z]);
+        return this.vertices.flatMap((v) => [v.x, v.y, v.z]);
     }
 
     getNormalArray() {
-        return [
-            ...this.normal.toArray(),
-            ...this.normal.toArray(),
-            ...this.normal.toArray()
-        ];
+        return [...this.normal.toArray(), ...this.normal.toArray(), ...this.normal.toArray()];
     }
 
     getColorArray() {
