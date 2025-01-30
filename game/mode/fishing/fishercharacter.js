@@ -21,8 +21,8 @@ class Fisher {
         this.floatOffset = 30;
         this.floatLerpFactor = 0.1;
         
-        this.minCastStrength = 30;  // Minimum throw force
-        this.maxCastStrength = 150; // Maximum throw force
+        this.minCastStrength = 20;  // Minimum throw force
+        this.maxCastStrength = 300; // Maximum throw force
         
          this.isReeling = false;
         this.lineLength = 0;  // Current line length
@@ -187,13 +187,20 @@ class Fisher {
     cast() {
     if (this.state !== 'ready' || !this.lure) return;
     
-    // Scale cast power between min and max strength
-    const powerPercentage = this.castPower / this.maxCastPower;
+    // Add exponential scaling for more dramatic power difference
+    const powerPercentage = Math.pow(this.castPower / this.maxCastPower, 1.5);
     const castStrength = this.minCastStrength + 
         (this.maxCastStrength - this.minCastStrength) * powerPercentage;
     
-    // Apply the scaled power to the cast direction
-    const castVelocity = this.castDirection.scale(castStrength);
+    // Add upward angle to cast direction
+    const upwardAngle = 0.5; // About 30 degrees upward
+    const castDirectionWithArc = new Vector3(
+        this.castDirection.x,
+        this.castDirection.y + upwardAngle,
+        this.castDirection.z
+    ).normalize();
+    
+    const castVelocity = castDirectionWithArc.scale(castStrength);
     
     this.lure.visible = true;
     this.lure.startCast(this.position, castVelocity, this.castDirection);
