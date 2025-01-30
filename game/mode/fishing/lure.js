@@ -42,6 +42,10 @@ setFisher(fisher) {
     }
 
     update(deltaTime) {
+    if (!this.position) {
+        this.position = new Vector3(0, 0, 0);
+    }
+
     if (this.state === 'casting') {
         // Calculate new position before applying it
         const newX = this.position.x + this.lureVelocity.x * deltaTime;
@@ -67,12 +71,14 @@ setFisher(fisher) {
         this.lureVelocity.y += this.lureGravity * deltaTime;
         
         // Update physics body
-        this.body.position.x = this.position.x;
-        this.body.position.y = this.position.y;
-        this.body.position.z = this.position.z;
+        if (this.body) {
+            this.body.position.x = this.position.x;
+            this.body.position.y = this.position.y;
+            this.body.position.z = this.position.z;
+        }
 
         // Check for water contact
-        if (this.fisher?.game) {
+        if (this.fisher?.game?.ocean) {
             const waterHeight = this.fisher.game.ocean.getWaterHeightAt(
                 this.position.x, 
                 this.position.z
@@ -80,31 +86,56 @@ setFisher(fisher) {
             
             if (this.position.y <= waterHeight) {
                 this.state = 'inWater';
-                this.fisher.game.fishingArea.setLure(this);
+                if (this.fisher.game.fishingArea) {
+                    this.fisher.game.fishingArea.setLure(this);
+                }
             }
         }
     }
 
-    // If we have a hooked fish, handle fish fight and update its position
+    // Handle hooked fish state
     if (this.state === 'inWater' && this.hookedFish) {
-        this.handleFishFight(deltaTime);
-        
-        // Add small offset so fish isn't exactly on lure
-        const offsetX = (Math.random() - 0.5) * 2;
-        const offsetY = (Math.random() - 0.5) * 2;
-        const offsetZ = (Math.random() - 0.5) * 2;
-        
-        this.hookedFish.position.x = this.position.x + offsetX;
-        this.hookedFish.position.y = this.position.y + offsetY;
-        this.hookedFish.position.z = this.position.z + offsetZ;
-        
-        // Update fish's physics body position too
-        this.hookedFish.body.position.x = this.hookedFish.position.x;
-        this.hookedFish.body.position.y = this.hookedFish.position.y;
-        this.hookedFish.body.position.z = this.hookedFish.position.z;
+        // Verify fish has required properties before handling fight
+        if (this.hookedFish.position && this.position && this.fisher) {
+            this.handleFishFight(deltaTime);
+            
+            // Add small offset so fish isn't exactly on lure
+            const offsetX = (Math.random() - 0.5) * 2;
+            const offsetY = (Math.random() - 0.5) * 2;
+            const offsetZ = (Math.random() - 0.5) * 2;
+            
+            this.hookedFish.position.x = this.position.x + offsetX;
+            this.hookedFish.position.y = this.position.y + offsetY;
+            this.hookedFish.position.z = this.position.z + offsetZ;
+            
+            // Update fish's physics body position with null check
+            if (this.hookedFish.body) {
+                this.hookedFish.body.position.x = this.hookedFish.position.x;
+                this.hookedFish.body.position.y = this.hookedFish.position.y;
+                this.hookedFish.body.position.z = this.hookedFish.position.z;
+            }
+
+            // Check for reeling in completion
+            const distanceToFisher = this.position.distanceTo(this.fisher.position);
+            if (distanceToFisher < 1) {
+                if (this.fisher.game) {
+                    const fishId = this.fisher.game.handleFishCaught(this.hookedFish);
+                    this.hookedFish = null;
+                    this.fishPullForce = new Vector3(0, 0, 0);
+                    this.fisher.game.showCaughtFishUI(fishId);
+                }
+            }
+        } else {
+            // If fish is missing required properties, release it
+            console.warn('Hooked fish missing required properties, releasing...');
+            this.releaseHookedFish();
+        }
     }
-    
-    this.updateVisual();
+
+    // Only call updateVisual if we have a valid position
+    if (this.position) {
+        this.updateVisual();
+    }
 }
 
     handleFishFight(deltaTime) {
