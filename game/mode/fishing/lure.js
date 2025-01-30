@@ -7,7 +7,7 @@ class Lure extends ActionPhysicsSphere3D {
 
         // Our own physics properties
         this.lureVelocity = new Vector3(0, 0, 0);
-        this.lureGravity = -9.81;
+        this.lureGravity = -15;
         this.maxLureVelocity = 300;
 
         this.bounds = {
