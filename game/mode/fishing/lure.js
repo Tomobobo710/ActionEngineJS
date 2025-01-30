@@ -7,8 +7,8 @@ class Lure extends ActionPhysicsSphere3D {
         
         // Our own physics properties
         this.lureVelocity = new Vector3(0, 0, 0);
-        this.lureGravity = -9.8;
-        this.maxLureVelocity = 15;
+        this.lureGravity = -15;
+        this.maxLureVelocity = 150;
         
         this.bounds = {
             width: 500,
@@ -26,20 +26,25 @@ setFisher(fisher) {
         this.reset();
     }
     startCast(startPos, castVelocity, castDirection) {
-        this.state = 'casting';
-        this.position = startPos.clone();
-        
-        if (castVelocity.length() > this.maxLureVelocity) {
-            castVelocity = castVelocity.normalize().scale(this.maxLureVelocity);
-        }
-        this.lureVelocity = castVelocity;
-        this.castDirection = castDirection.clone();
-        this.visible = true;
-        
-        if (this.fisher?.game) {
-            this.fisher.game.fishingArea.setLure(this);
-        }
+    this.state = 'casting';
+    this.position = startPos.clone();
+    
+    // Scale velocity but maintain direction
+    if (castVelocity.length() > this.maxLureVelocity) {
+        castVelocity = castVelocity.normalize().scale(this.maxLureVelocity);
     }
+    
+    // Add slight upward boost to create better arc
+    castVelocity.y += castVelocity.length() * 0.2;
+    
+    this.lureVelocity = castVelocity;
+    this.castDirection = castDirection.clone();
+    this.visible = true;
+    
+    if (this.fisher?.game) {
+        this.fisher.game.fishingArea.setLure(this);
+    }
+}
 
     update(deltaTime) {
     if (!this.position) {

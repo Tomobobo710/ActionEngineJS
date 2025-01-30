@@ -185,18 +185,22 @@ class Fisher {
     }
 
     cast() {
-        if (this.state !== 'ready' || !this.lure) return;
-        
-        // Increase the power scaling - adjust these numbers as needed
-         const castVelocity = this.castDirection.scale(this.castPower * 100);
+    if (this.state !== 'ready' || !this.lure) return;
+    
+    // Scale cast power between min and max strength
+    const powerPercentage = this.castPower / this.maxCastPower;
+    const castStrength = this.minCastStrength + 
+        (this.maxCastStrength - this.minCastStrength) * powerPercentage;
+    
+    // Apply the scaled power to the cast direction
+    const castVelocity = this.castDirection.scale(castStrength);
+    
     this.lure.visible = true;
     this.lure.startCast(this.position, castVelocity, this.castDirection);
-        console.log('Cast starting at:', this.position);
-        console.log('Cast velocity:', castVelocity);
-        
-        this.state = 'casting';
-        this.castPower = 0;
-    }
+    
+    this.state = 'casting';
+    this.castPower = 0;
+}
 
     
 
