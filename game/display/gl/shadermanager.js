@@ -19,6 +19,7 @@ class ShaderManager {
             position: this.gl.createBuffer(),
             normal: this.gl.createBuffer(),
             color: this.gl.createBuffer(),
+            uv: this.gl.createBuffer(),
             indices: this.gl.createBuffer()
         };
     }
@@ -92,10 +93,11 @@ class ShaderManager {
         const positions = new Float32Array(terrain.triangles.length * 9);
         const normals = new Float32Array(terrain.triangles.length * 9);
         const colors = new Float32Array(terrain.triangles.length * 9);
+        const uvs = new Float32Array(terrain.triangles.length * 6);
 
         terrain.triangles.forEach((triangle, i) => {
             const baseIndex = i * 9;
-
+            const uvBaseIndex = i * 6;
             for (let j = 0; j < 3; j++) {
                 positions[baseIndex + j * 3] = triangle.vertices[j].x;
                 positions[baseIndex + j * 3 + 1] = triangle.vertices[j].y;
@@ -115,6 +117,12 @@ class ShaderManager {
                 colors[baseIndex + j * 3 + 1] = g;
                 colors[baseIndex + j * 3 + 2] = b;
             }
+            uvs[uvBaseIndex] = 0; // v0.u
+            uvs[uvBaseIndex + 1] = 0; // v0.v
+            uvs[uvBaseIndex + 2] = 1; // v1.u
+            uvs[uvBaseIndex + 3] = 0; // v1.v
+            uvs[uvBaseIndex + 4] = 0.5; // v2.u
+            uvs[uvBaseIndex + 5] = 1; // v2.v
         });
 
         const indices = new Uint16Array(terrain.triangles.length * 3);
@@ -134,7 +142,11 @@ class ShaderManager {
         this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.terrainBuffers.indices);
         this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER, indices, this.gl.STATIC_DRAW);
 
+        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.terrainBuffers.uv);
+        this.gl.bufferData(this.gl.ARRAY_BUFFER, uvs, this.gl.STATIC_DRAW);
+
         this.terrainIndexCount = indices.length;
+
         return this.terrainIndexCount;
     }
 
@@ -167,76 +179,80 @@ class ShaderManager {
     }
 
     updateRenderableBuffers(renderable) {
-    const positions = new Float32Array(renderable.triangles.length * 9);
-    const normals = new Float32Array(renderable.triangles.length * 9);
-    const colors = new Float32Array(renderable.triangles.length * 9);
+        const positions = new Float32Array(renderable.triangles.length * 9);
+        const normals = new Float32Array(renderable.triangles.length * 9);
+        const colors = new Float32Array(renderable.triangles.length * 9);
 
-    renderable.triangles.forEach((triangle, i) => {
-        const baseIndex = i * 9;
+        renderable.triangles.forEach((triangle, i) => {
+            const baseIndex = i * 9;
 
-        for (let j = 0; j < 3; j++) {
-            positions[baseIndex + j * 3] = triangle.vertices[j].x;
-            positions[baseIndex + j * 3 + 1] = triangle.vertices[j].y;
-            positions[baseIndex + j * 3 + 2] = triangle.vertices[j].z;
+            for (let j = 0; j < 3; j++) {
+                positions[baseIndex + j * 3] = triangle.vertices[j].x;
+                positions[baseIndex + j * 3 + 1] = triangle.vertices[j].y;
+                positions[baseIndex + j * 3 + 2] = triangle.vertices[j].z;
 
-            normals[baseIndex + j * 3] = triangle.normal.x;
-            normals[baseIndex + j * 3 + 1] = triangle.normal.y;
-            normals[baseIndex + j * 3 + 2] = triangle.normal.z;
+                normals[baseIndex + j * 3] = triangle.normal.x;
+                normals[baseIndex + j * 3 + 1] = triangle.normal.y;
+                normals[baseIndex + j * 3 + 2] = triangle.normal.z;
+            }
+
+            const r = parseInt(triangle.color.substr(1, 2), 16) / 255;
+            const g = parseInt(triangle.color.substr(3, 2), 16) / 255;
+            const b = parseInt(triangle.color.substr(5, 2), 16) / 255;
+
+            for (let j = 0; j < 3; j++) {
+                colors[baseIndex + j * 3] = r;
+                colors[baseIndex + j * 3 + 1] = g;
+                colors[baseIndex + j * 3 + 2] = b;
+            }
+        });
+
+        const indices = new Uint16Array(renderable.triangles.length * 3);
+        for (let i = 0; i < indices.length; i++) {
+            indices[i] = i;
         }
+        const uvs = new Float32Array(renderable.triangles.length * 6);
+        uvs.fill(0); // Fill with zeros since they won't be used anyway
 
-        const r = parseInt(triangle.color.substr(1, 2), 16) / 255;
-        const g = parseInt(triangle.color.substr(3, 2), 16) / 255;
-        const b = parseInt(triangle.color.substr(5, 2), 16) / 255;
+        // Use the existing buffers!
+        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.renderableBuffers.position);
+        this.gl.bufferData(this.gl.ARRAY_BUFFER, positions, this.gl.STATIC_DRAW);
 
-        for (let j = 0; j < 3; j++) {
-            colors[baseIndex + j * 3] = r;
-            colors[baseIndex + j * 3 + 1] = g;
-            colors[baseIndex + j * 3 + 2] = b;
-        }
-    });
+        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.renderableBuffers.normal);
+        this.gl.bufferData(this.gl.ARRAY_BUFFER, normals, this.gl.STATIC_DRAW);
 
-    const indices = new Uint16Array(renderable.triangles.length * 3);
-    for (let i = 0; i < indices.length; i++) {
-        indices[i] = i;
+        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.renderableBuffers.color);
+        this.gl.bufferData(this.gl.ARRAY_BUFFER, colors, this.gl.STATIC_DRAW);
+
+        this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.renderableBuffers.indices);
+        this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER, indices, this.gl.STATIC_DRAW);
+        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.renderableBuffers.uv);
+        this.gl.bufferData(this.gl.ARRAY_BUFFER, uvs, this.gl.STATIC_DRAW);
+
+        this.renderableIndexCount = indices.length;
+        return this.renderableIndexCount;
     }
 
-    // Use the existing buffers!
-    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.renderableBuffers.position);
-    this.gl.bufferData(this.gl.ARRAY_BUFFER, positions, this.gl.STATIC_DRAW);
-
-    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.renderableBuffers.normal);
-    this.gl.bufferData(this.gl.ARRAY_BUFFER, normals, this.gl.STATIC_DRAW);
-
-    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.renderableBuffers.color);
-    this.gl.bufferData(this.gl.ARRAY_BUFFER, colors, this.gl.STATIC_DRAW);
-
-    this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.renderableBuffers.indices);
-    this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER, indices, this.gl.STATIC_DRAW);
-
-    this.renderableIndexCount = indices.length;
-    return this.renderableIndexCount;
-}
-
     deleteBuffers() {
-    // Delete terrain buffers
-    this.gl.deleteBuffer(this.terrainBuffers.position);
-    this.gl.deleteBuffer(this.terrainBuffers.normal);
-    this.gl.deleteBuffer(this.terrainBuffers.color);
-    this.gl.deleteBuffer(this.terrainBuffers.indices);
+        // Delete terrain buffers
+        this.gl.deleteBuffer(this.terrainBuffers.position);
+        this.gl.deleteBuffer(this.terrainBuffers.normal);
+        this.gl.deleteBuffer(this.terrainBuffers.color);
+        this.gl.deleteBuffer(this.terrainBuffers.indices);
 
-    // Delete character buffers
-    this.gl.deleteBuffer(this.characterBuffers.position);
-    this.gl.deleteBuffer(this.characterBuffers.normal);
-    this.gl.deleteBuffer(this.characterBuffers.color);
-    this.gl.deleteBuffer(this.characterBuffers.indices);
+        // Delete character buffers
+        this.gl.deleteBuffer(this.characterBuffers.position);
+        this.gl.deleteBuffer(this.characterBuffers.normal);
+        this.gl.deleteBuffer(this.characterBuffers.color);
+        this.gl.deleteBuffer(this.characterBuffers.indices);
 
-    // Delete renderable buffers
-    this.gl.deleteBuffer(this.renderableBuffers.position);
-    this.gl.deleteBuffer(this.renderableBuffers.normal);
-    this.gl.deleteBuffer(this.renderableBuffers.color);
-    this.gl.deleteBuffer(this.renderableBuffers.indices);
-}
-    
+        // Delete renderable buffers
+        this.gl.deleteBuffer(this.renderableBuffers.position);
+        this.gl.deleteBuffer(this.renderableBuffers.normal);
+        this.gl.deleteBuffer(this.renderableBuffers.color);
+        this.gl.deleteBuffer(this.renderableBuffers.indices);
+    }
+
     getBufferInfo() {
         return {
             terrainBuffers: this.terrainBuffers,
