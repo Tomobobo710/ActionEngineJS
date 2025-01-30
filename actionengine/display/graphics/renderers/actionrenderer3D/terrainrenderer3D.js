@@ -13,11 +13,7 @@ class TerrainRenderer3D {
             false,
             this.lightingManager.getLightSpaceMatrix()
         );
-        this.gl.uniformMatrix4fv(
-            shaderSet.shadow.locations.modelMatrix, 
-            false, 
-            Matrix4.create()
-        );
+        this.gl.uniformMatrix4fv(shaderSet.shadow.locations.modelMatrix, false, Matrix4.create());
         this.drawTerrain(shaderSet.shadow.locations, terrainBuffers, terrainIndexCount);
     }
 
@@ -38,7 +34,15 @@ class TerrainRenderer3D {
             this.gl.bindTexture(this.gl.TEXTURE_2D, this.lightingManager.getShadowMap());
             this.gl.uniform1i(shaderSet.terrain.locations.shadowMap, 0);
         }
-
+        if (shaderSet === this.programManager.getProgramRegistry().shaders.get("default")) {
+            this.gl.activeTexture(this.gl.TEXTURE0);
+            this.gl.bindTexture(this.gl.TEXTURE_2D, this.renderer.textureManager.getGrassTexture());
+            this.gl.uniform1i(shaderSet.terrain.locations.texture, 0);
+            this.gl.uniform1i(shaderSet.terrain.locations.useTexture, 1);
+        } else {
+            // For all other shaders, set useTexture to 0
+            this.gl.uniform1i(shaderSet.terrain.locations.useTexture, 0);
+        }
         this.drawTerrain(shaderSet.terrain.locations, terrainBuffers, terrainIndexCount);
     }
 
@@ -50,15 +54,8 @@ class TerrainRenderer3D {
         // Light properties from LightingManager
         const config = this.lightingManager.getLightConfig();
 
-        this.gl.uniform3fv(locations.lightPos, [
-            config.POSITION.x, 
-            config.POSITION.y, 
-            config.POSITION.z
-        ]);
-        this.gl.uniform3fv(
-            locations.lightDir, 
-            this.lightingManager.getLightDir().toArray()
-        );
+        this.gl.uniform3fv(locations.lightPos, [config.POSITION.x, config.POSITION.y, config.POSITION.z]);
+        this.gl.uniform3fv(locations.lightDir, this.lightingManager.getLightDir().toArray());
         this.gl.uniform1f(locations.lightIntensity, config.INTENSITY);
 
         // PBR material properties
@@ -80,6 +77,13 @@ class TerrainRenderer3D {
             this.gl.bindBuffer(this.gl.ARRAY_BUFFER, terrainBuffers.color);
             this.gl.vertexAttribPointer(locations.color, 3, this.gl.FLOAT, false, 0, 0);
             this.gl.enableVertexAttribArray(locations.color);
+        }
+
+        // Add optional texture coordinate handling
+        if (locations.texCoord !== undefined && locations.texCoord !== -1) {
+            this.gl.bindBuffer(this.gl.ARRAY_BUFFER, terrainBuffers.uv);
+            this.gl.vertexAttribPointer(locations.texCoord, 2, this.gl.FLOAT, false, 0, 0);
+            this.gl.enableVertexAttribArray(locations.texCoord);
         }
 
         this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, terrainBuffers.indices);
