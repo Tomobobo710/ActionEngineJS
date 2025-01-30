@@ -208,26 +208,24 @@ class FishingMode {
         // Start with the back-facing vector based on aim angle
         const backVector = new Vector3(
             -Math.sin(this.fisher.aimAngle),
-            1.5,  // Height above fisher
+            0.3,  // Much lower camera height
             -Math.cos(this.fisher.aimAngle)
         );
         
-        // Calculate right vector (cross product of back vector and up vector)
-        const up = new Vector3(0, 1, 0);
+        // Calculate right vector
         const right = new Vector3(
             -Math.cos(this.fisher.aimAngle),
             0,
             Math.sin(this.fisher.aimAngle)
         );
         
-        // Combine vectors to get right shoulder position
-        // Move back and to the right
-        return backVector.scale(0.95 * distance).add(right.scale(0.3 * distance));
+        // Combine vectors - closer camera
+        return backVector.scale(0.7 * distance).add(right.scale(0.2 * distance));
     };
 
     switch(this.fisher.state) {
         case 'ready':
-            const cameraOffset = getRightShoulderOffset(40);
+            const cameraOffset = getRightShoulderOffset(15);
             targetPos = this.fisher.position.add(cameraOffset);
             targetLookAt = this.fisher.position.add(
                 new Vector3(
@@ -236,18 +234,24 @@ class FishingMode {
                     Math.cos(this.fisher.aimAngle)
                 ).scale(20)
             );
+            
+            // Update fisher model rotation directly
+            if (this.fisher.model && this.fisher.model.body) {
+                this.fisher.model.body.rotation.x = 0;
+                this.fisher.model.body.rotation.y = this.fisher.aimAngle;
+                this.fisher.model.body.rotation.z = 0;
+                this.fisher.model.body.rotation.w = 1;
+            }
             break;
 
         case 'casting':
-            // Keep camera at right shoulder but look at lure
-            const castingOffset = getRightShoulderOffset(40);
+            const castingOffset = getRightShoulderOffset(15);
             targetPos = this.fisher.position.add(castingOffset);
             targetLookAt = this.lure.position;
             break;
 
         case 'fishing':
-            // Follow lure but maintain right shoulder perspective
-            const fishingOffset = getRightShoulderOffset(30);
+            const fishingOffset = getRightShoulderOffset(12);
             targetPos = this.lure.position.add(fishingOffset);
             targetLookAt = this.lure.position;
             break;
@@ -255,13 +259,11 @@ class FishingMode {
         case 'reeling':
             const distanceToFisher = this.lure.position.distanceTo(this.fisher.position);
             if (distanceToFisher < 15) {
-                // Transition back to fisher view when close
-                const returnOffset = getRightShoulderOffset(40);
+                const returnOffset = getRightShoulderOffset(15);
                 targetPos = this.fisher.position.add(returnOffset);
                 targetLookAt = this.fisher.position;
             } else {
-                // Keep following lure while maintaining right shoulder view
-                const reelingOffset = getRightShoulderOffset(30);
+                const reelingOffset = getRightShoulderOffset(12);
                 targetPos = this.lure.position.add(reelingOffset);
                 targetLookAt = this.lure.position;
             }
