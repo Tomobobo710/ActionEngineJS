@@ -1,42 +1,16 @@
-// actionengine/math/geometry/triangle.js
 class Triangle {
-    constructor(v1, v2, v3, color = null, texture = null, uv1 = null, uv2 = null, uv3 = null) {
+    constructor(v1, v2, v3, color = "#FF00FF", texture = null, uvs = null) {
         this.vertices = [v1, v2, v3];
         this.normal = this.calculateNormal();
-        // If color isn't provided, calculate it based on average height
-        this.color = color || this.calculateColor();
-        this.uvs = [
-            uv1 || {u: 0, v: 0},
-            uv2 || {u: 0, v: 0},
-            uv3 || {u: 0, v: 0}
-        ];
+        this.color = color;  // Default to magenta
         this.texture = texture;
+        this.uvs = uvs;
     }
 
     calculateNormal() {
         const edge1 = this.vertices[1].sub(this.vertices[0]);
         const edge2 = this.vertices[2].sub(this.vertices[0]);
         return edge1.cross(edge2).normalize();
-    }
-
-    calculateColor() {
-        // Average height of vertices
-        const avgHeight = (this.vertices[0].y + this.vertices[1].y + this.vertices[2].y) / 3;
-
-        // Handle underwater case specially for OCEAN_DEEP
-        if (avgHeight <= 0) return BIOME_TYPES.OCEAN_DEEP.base;
-        if (avgHeight >= 400) return BIOME_TYPES.SNOW.base;
-
-        // Convert to height percentage exactly like Terrain does
-        const heightPercent = (avgHeight / 400) * 100; // Using 400 since that's terrain's baseWorldHeight default
-
-        // Use same biome lookup
-        for (const biome of Object.values(BIOME_TYPES)) {
-            if (heightPercent >= biome.heightRange[0] && heightPercent <= biome.heightRange[1]) {
-                return biome.base;
-            }
-        }
-        return BIOME_TYPES.OCEAN.base;
     }
 
     getVertexArray() {
@@ -46,7 +20,7 @@ class Triangle {
     getNormalArray() {
         return [...this.normal.toArray(), ...this.normal.toArray(), ...this.normal.toArray()];
     }
-
+    
     getColorArray() {
         // Convert hex color to RGB array
         const r = parseInt(this.color.substr(1, 2), 16) / 255;
