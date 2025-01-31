@@ -112,19 +112,14 @@ class ActionRenderer2D {
 				lighting: triangle.vertices[0].y === 0 ? 1.0 : lighting,
 				depth: (projectedVerts[0].z + projectedVerts[1].z + projectedVerts[2].z) / 3,
 				isWater: triangle.isWater || false,
-				uvs: [
-					{ u: 0, v: 0 },
-					{ u: 1, v: 0 },
-					{ u: 0.5, v: 1 }
-				] // Simple triangle UV mapping
+				uvs: triangle.uvs,
+				texture: triangle.texture
 			};
 
 			// Assign different textures based on distance
 			if (processedTriangle.depth <= this.depthConfig.transitionDistance) {
-				processedTriangle.texture = this.grassTexture;
 				nearTriangles.push(processedTriangle);
 			} else {
-				processedTriangle.texture = this.checkerTexture;
 				farTriangles.push(processedTriangle);
 			}
 		};
@@ -189,7 +184,7 @@ class ActionRenderer2D {
 		let oneOverW, uvOverW;
 		if (triangle.texture && triangle.uvs) {
 			//oneOverW = points.map((p) => 1 / p.z);
-			oneOverW = points.map(p => 1 / Math.max(0.1, p.z));
+			oneOverW = points.map((p) => 1 / Math.max(0.1, p.z));
 			uvOverW = triangle.uvs.map((uv, i) => ({
 				u: uv.u * oneOverW[i],
 				v: uv.v * oneOverW[i]
@@ -466,4 +461,179 @@ class ProceduralTexture {
 			}
 		}
 	}
+	generateWater() {
+    const baseColor = { r: 0, g: 100, b: 255 }; // Keeping your bright blue base
+    for (let y = 0; y < this.height; y++) {
+        for (let x = 0; x < this.width; x++) {
+            // Just gentle noise for natural water look
+            const noise = Math.random() * 15 - 7;
+            
+            const i = (y * this.width + x) * 4;
+            this.data[i] = Math.min(255, baseColor.r + noise);
+            this.data[i + 1] = Math.min(255, baseColor.g + noise);
+            this.data[i + 2] = Math.min(255, baseColor.b + noise);
+            this.data[i + 3] = 255;
+        }
+    }
 }
+generateDeepWater() {
+    const baseColor = { r: 0, g: 21, b: 37 }; // Dark blue base
+    for (let y = 0; y < this.height; y++) {
+        for (let x = 0; x < this.width; x++) {
+            // Just subtle random variation
+            const variation = Math.random() * 15 - 7;
+            
+            const i = (y * this.width + x) * 4;
+            this.data[i] = Math.min(255, baseColor.r + variation);
+            this.data[i + 1] = Math.min(255, baseColor.g + variation);
+            this.data[i + 2] = Math.min(255, baseColor.b + variation);
+            this.data[i + 3] = 255;
+        }
+    }
+}
+	generateSand() {
+		const baseColor = { r: 210, g: 185, b: 139 }; // Sandy beige
+		for (let y = 0; y < this.height; y++) {
+			for (let x = 0; x < this.width; x++) {
+				// Create grainy noise pattern
+				const noise = Math.random() * 20 - 10;
+
+				const i = (y * this.width + x) * 4;
+				this.data[i] = Math.min(255, baseColor.r + noise);
+				this.data[i + 1] = Math.min(255, baseColor.g + noise);
+				this.data[i + 2] = Math.min(255, baseColor.b + noise);
+				this.data[i + 3] = 255;
+			}
+		}
+	}
+
+	generateRock() {
+    const baseColor = { r: 115, g: 109, b: 105 }; // Gray
+    for (let y = 0; y < this.height; y++) {
+        for (let x = 0; x < this.width; x++) {
+            // Just natural noise variation
+            const noise = Math.random() * 35 - 17;
+
+            const i = (y * this.width + x) * 4;
+            this.data[i] = Math.min(255, baseColor.r + noise);
+            this.data[i + 1] = Math.min(255, baseColor.g + noise);
+            this.data[i + 2] = Math.min(255, baseColor.b + noise);
+            this.data[i + 3] = 255;
+        }
+    }
+}
+	generateHighlandGrass() {
+    const baseColor = { r: 45, g: 89, b: 41 }; // Darker green
+    for (let y = 0; y < this.height; y++) {
+        for (let x = 0; x < this.width; x++) {
+            // Simple noise variation for natural look
+            const noise = Math.random() * 35 - 17;
+
+            const i = (y * this.width + x) * 4;
+            this.data[i] = Math.min(255, baseColor.r + noise);
+            this.data[i + 1] = Math.min(255, baseColor.g + noise);
+            this.data[i + 2] = Math.min(255, baseColor.b + noise);
+            this.data[i + 3] = 255;
+        }
+    }
+}
+
+	generateTreeline() {
+    const baseColor = { r: 116, g: 71, b: 0 }; // Brown base
+    const grayColor = { r: 115, g: 109, b: 105 }; // Gray instead of green
+
+    for (let y = 0; y < this.height; y++) {
+        for (let x = 0; x < this.width; x++) {
+            // Smooth blend between brown and gray
+            const blendFactor = Math.random();
+            const noise = Math.random() * 20 - 10;
+
+            const i = (y * this.width + x) * 4;
+            this.data[i] = Math.min(255, baseColor.r * blendFactor + grayColor.r * (1 - blendFactor) + noise);
+            this.data[i + 1] = Math.min(255, baseColor.g * blendFactor + grayColor.g * (1 - blendFactor) + noise);
+            this.data[i + 2] = Math.min(255, baseColor.b * blendFactor + grayColor.b * (1 - blendFactor) + noise);
+            this.data[i + 3] = 255;
+        }
+    }
+}
+	generateDunes() {
+    const baseColor = { r: 230, g: 185, b: 115 }; // More orange/reddish sand color
+    for (let y = 0; y < this.height; y++) {
+        for (let x = 0; x < this.width; x++) {
+            // Natural noise variation
+            const noise = Math.random() * 25 - 12;
+
+            const i = (y * this.width + x) * 4;
+            this.data[i] = Math.min(255, baseColor.r + noise);
+            this.data[i + 1] = Math.min(255, baseColor.g + noise);
+            this.data[i + 2] = Math.min(255, baseColor.b + noise);
+            this.data[i + 3] = 255;
+        }
+    }
+}
+	generateSnow() {
+    const baseColor = { r: 232, g: 232, b: 232 }; // Very light gray/white
+    for (let y = 0; y < this.height; y++) {
+        for (let x = 0; x < this.width; x++) {
+            // Just subtle noise variation
+            const noise = Math.random() * 12 - 6;
+            
+            const i = (y * this.width + x) * 4;
+            this.data[i] = Math.min(255, baseColor.r + noise);
+            this.data[i + 1] = Math.min(255, baseColor.g + noise);
+            this.data[i + 2] = Math.min(255, baseColor.b + noise);
+            this.data[i + 3] = 255;
+        }
+    }
+}
+}
+
+class TextureRegistry {
+	constructor() {
+		this.textures = new Map();
+		this.generateTextures();
+	}
+
+	generateTextures() {
+		// Existing textures
+		const grass = new ProceduralTexture(256, 256);
+		grass.generateGrass();
+		this.textures.set("grass", grass);
+
+		const water = new ProceduralTexture(256, 256);
+		water.generateWater();
+		this.textures.set("water", water);
+
+		const deepWater = new ProceduralTexture(256, 256);
+		deepWater.generateDeepWater();
+    	this.textures.set('deepwater', deepWater);
+		const sand = new ProceduralTexture(256, 256);
+		sand.generateSand();
+		this.textures.set("sand", sand);
+
+		const dunes = new ProceduralTexture(256, 256);
+		dunes.generateDunes();
+		this.textures.set("dunes", dunes);
+
+		const rock = new ProceduralTexture(256, 256);
+		rock.generateRock();
+		this.textures.set("rock", rock);
+
+		// New textures
+		const highland = new ProceduralTexture(256, 256);
+		highland.generateHighlandGrass();
+		this.textures.set("highland", highland);
+
+		const treeline = new ProceduralTexture(256, 256);
+		treeline.generateTreeline();
+		this.textures.set("treeline", treeline);
+		const snow = new ProceduralTexture(256, 256);
+		snow.generateSnow();
+		this.textures.set('snow', snow);
+	}
+
+	get(type) {
+		return this.textures.get(type);
+	}
+}
+const textureRegistry = new TextureRegistry(); // global
