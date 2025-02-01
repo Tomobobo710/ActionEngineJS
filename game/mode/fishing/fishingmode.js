@@ -8,38 +8,20 @@ class FishingMode {
         this.renderer3d = new ActionRenderer3D(this.canvas);
         this.guiContext = this.guiCanvas.getContext("2d");
         this.fishes = [];
-
-        // Setup volumetric rendering
-        this.setupVolumetrics();
-
         // Initialize camera
         this.camera = new ActionCamera(new Vector3(0, 20, -60), new Vector3(0, 0, 0));
-
-        this.cameraState = "fisher";
-        this.cameraAngle = Math.PI;
-        this.cameraRadius = 20;
-        this.cameraHeight = 20;
-
         this.shaderManager = new ShaderManager(this.renderer3d.gl);
         this.shaderManager.registerAllShaders(this.renderer3d);
         this.physicsWorld.setShaderManager(this.shaderManager);
-
-        // Add ocean
         this.ocean = new Ocean(this.physicsWorld, 500, 500, 8, 1);
-
         this.fishingArea = new FishingArea();
         this.fisher = new Fisher(this, new Vector3(0, 30, -50));
         this.lure = new Lure(this.physicsWorld);
-        this.lure.visible = false;
         this.fisher.attachLure(this.lure);
-
         this.hookingBarVisible = false;
         this.hookingProgress = 0;
-
         this.generateInitialFish(20);
         this.caughtFishManager = new CaughtFishManager();
-
-        this.lastTime = performance.now();
     }
 
     generateInitialFish(count) {
@@ -127,23 +109,7 @@ class FishingMode {
         this.showCaughtFishDialog = true;
         this.caughtFishId = fishId;
     }
-
-    setupVolumetrics() {
-        const gl = this.renderer3d.gl;
-
-        // Create depth texture
-        this.depthTexture = gl.createTexture();
-        gl.bindTexture(gl.TEXTURE_2D, this.depthTexture);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT24, 800, 600, 0, gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, null);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-
-        // Create framebuffer and attach depth texture
-        this.depthFramebuffer = gl.createFramebuffer();
-        gl.bindFramebuffer(gl.FRAMEBUFFER, this.depthFramebuffer);
-        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, this.depthTexture, 0);
-    }
-
+    
     update(deltaTime) {
         // Reset hooking UI state at start of update
         this.hookingBarVisible = false;
@@ -157,9 +123,6 @@ class FishingMode {
 
         // Update camera
         this.updateCamera(deltaTime);
-
-        // Update ocean
-        this.ocean.update(deltaTime);
 
         // Update fishing area (which updates fish movement)
         this.fishingArea.update(deltaTime);
@@ -287,7 +250,7 @@ class FishingMode {
     }
 
     resume() {
-        this.lastTime = performance.now();
+        
         this.physicsWorld.resume();
     }
     lerpVector(start, end, t) {
@@ -528,193 +491,9 @@ class FishingMode {
     }
 }
 
-class FishingArea {
-    constructor(width = 500, length = 500, depth = 50) {
-        this.bounds = {
-            width,
-            length,
-            depth
-        };
-
-        this.fish = new Map();
-        this.lure = null; // Add reference to lure
-    }
-    addFish(fish) {
-        // Create an AI controller for this fish
-        const ai = new FishAI(fish, this.bounds);
-        this.fish.set(fish, ai);
-    }
-    setLure(lure) {
-        // Store reference but only allow interaction when in water
-        this.lure = lure;
-    }
-
-    update(deltaTime) {
-        // Only update fish AI if there's a lure in water
-        const activeLure = this.lure?.state === "inWater" ? this.lure : null;
-        for (const [fish, ai] of this.fish) {
-            ai.update(deltaTime, activeLure);
-        }
-    }
-}
-
-class Ocean extends ActionPhysicsObject3D {
-    constructor(physicsWorld, width = 100, length = 100, segments = 6, gridSize = 3) {
-        const triangles = [];
-        const spacing = width / segments;
-        const offset = Math.floor(gridSize / 2);
-        const topSegments = segments * 2;
-        const topSpacing = width / topSegments;
-
-        // Bottom layer
-        for (let tileZ = -offset; tileZ < gridSize - offset; tileZ++) {
-            for (let tileX = -offset; tileX < gridSize - offset; tileX++) {
-                for (let z = 0; z < segments; z++) {
-                    for (let x = 0; x < segments; x++) {
-                        const x1 = x * spacing + tileX * width - width / 2;
-                        const x2 = (x + 1) * spacing + tileX * width - width / 2;
-                        const z1 = z * spacing + tileZ * length - length / 2;
-                        const z2 = (z + 1) * spacing + tileZ * length - length / 2;
-
-                        triangles.push(
-                            new Triangle(
-                                new Vector3(x1, 50, z1),
-                                new Vector3(x1, 50, z2),
-                                new Vector3(x2, 50, z1),
-                                "#0645f4ff"
-                            ),
-                            new Triangle(
-                                new Vector3(x2, 50, z2),
-                                new Vector3(x2, 50, z1),
-                                new Vector3(x1, 50, z2),
-                                "#0645f4ff"
-                            ),
-                            new Triangle(
-                                new Vector3(x1, 50, z1),
-                                new Vector3(x2, 50, z1),
-                                new Vector3(x1, 50, z2),
-                                "#0645f4ff"
-                            ),
-                            new Triangle(
-                                new Vector3(x2, 50, z2),
-                                new Vector3(x1, 50, z2),
-                                new Vector3(x2, 50, z1),
-                                "#0645f4ff"
-                            )
-                        );
-                    }
-                }
-            }
-        }
-        super(physicsWorld, triangles);
-
-        this.shader = "water"; // Set shader to use the volumetric water shader
-        this.time = 0;
-        this.updateInterval = 1 / 30;
-        this.timeSinceLastUpdate = 0;
-
-        this.body = new Goblin.RigidBody(new Goblin.BoxShape(width / 2, 1, length / 2), 0);
-        this.body.position.set(0, 50, 0);
-        physicsWorld.addObject(this);
-    }
-
-    getWaveHeight(vertex) {
-        const waves = [
-            { A: 0.5, w: 1.0, phi: 1.0, Q: 0.3, dir: new Vector3(1, 0, 0.2).normalize() },
-            { A: 0.3, w: 2.0, phi: 0.5, Q: 0.2, dir: new Vector3(0.8, 0, 0.3).normalize() },
-            { A: 0.2, w: 3.0, phi: 1.5, Q: 0.1, dir: new Vector3(0.3, 0, 1).normalize() }
-        ];
-
-        let height = 0;
-        waves.forEach((wave) => {
-            const dotProduct = wave.dir.x * vertex.x + wave.dir.z * vertex.z;
-            const phase = wave.w * dotProduct - wave.phi * this.time;
-            height += wave.A * Math.sin(phase);
-        });
-        return height;
-    }
-
-    getWaterHeightAt(x, z) {
-        let height = 0;
-        const waves = [
-            { A: 0.5, w: 1.0, phi: 1.0, Q: 0.3, dir: new Vector3(1, 0, 0.2).normalize() },
-            { A: 0.3, w: 2.0, phi: 0.5, Q: 0.2, dir: new Vector3(0.8, 0, 0.3).normalize() },
-            { A: 0.2, w: 3.0, phi: 1.5, Q: 0.1, dir: new Vector3(0.3, 0, 1).normalize() }
-        ];
-
-        waves.forEach((wave) => {
-            const dotProduct = wave.dir.x * x + wave.dir.z * z;
-            const phase = wave.w * dotProduct - wave.phi * this.time;
-            height += wave.A * Math.sin(phase);
-        });
-
-        return this.body.position.y + height; // Add base ocean height
-    }
-
-    update(deltaTime) {
-        this.timeSinceLastUpdate += deltaTime;
-
-        if (this.timeSinceLastUpdate >= this.updateInterval) {
-            this.time += this.timeSinceLastUpdate;
-            this.updateVisual();
-            this.timeSinceLastUpdate = 0;
-        }
-    }
-
-    updateVisual() {
-        if (!this.body) return;
-
-        const pos = this.body.position;
-        const rot = this.body.rotation;
-        this.position = new Vector3(pos.x, pos.y, pos.z);
-
-        const waves = [
-            { A: 0.5, w: 1.0, phi: 1.0, Q: 0.3, dir: new Vector3(1, 0, 0.2).normalize() },
-            { A: 0.3, w: 2.0, phi: 0.5, Q: 0.2, dir: new Vector3(0.8, 0, 0.3).normalize() },
-            { A: 0.2, w: 3.0, phi: 1.5, Q: 0.1, dir: new Vector3(0.3, 0, 1).normalize() }
-        ];
-
-        this.triangles.forEach((triangle, triIndex) => {
-            const origNormal = this.originalNormals[triIndex];
-            const rotatedNormal = this.rotateVector(origNormal, rot);
-            triangle.normal = rotatedNormal;
-
-            triangle.vertices.forEach((vertex, vertIndex) => {
-                const origVert = this.originalVerts[triIndex * 3 + vertIndex];
-                const relativeVert = new Goblin.Vector3(origVert.x, origVert.y, origVert.z);
-
-                let displacement = new Goblin.Vector3(0, 0, 0);
-
-                waves.forEach((wave) => {
-                    const x0 = relativeVert.x;
-                    const z0 = relativeVert.z;
-                    const dotProduct = wave.dir.x * x0 + wave.dir.z * z0;
-                    const phase = wave.w * dotProduct - wave.phi * this.time;
-
-                    displacement.x += wave.Q * wave.A * wave.dir.x * Math.cos(phase);
-                    displacement.y += wave.A * Math.sin(phase);
-                    displacement.z += wave.Q * wave.A * wave.dir.z * Math.cos(phase);
-                });
-
-                relativeVert.x += displacement.x;
-                relativeVert.y += displacement.y;
-                relativeVert.z += displacement.z;
-
-                rot.transformVector3(relativeVert);
-
-                vertex.x = relativeVert.x + this.position.x;
-                vertex.y = relativeVert.y + this.position.y;
-                vertex.z = relativeVert.z + this.position.z;
-            });
-        });
-
-        this.physicsWorld.shaderManager?.updateRenderableBuffers(this);
-    }
-}
-
 class CaughtFishManager {
     constructor() {
-        this.caughtFish = new Map(); // Store fish with unique IDs
+        this.caughtFish = new Map();
         this.nextId = 1;
     }
 
@@ -722,9 +501,9 @@ class CaughtFishManager {
         const fishData = {
             id: this.nextId++,
             type: fish.type || "Unknown",
-            size: fish.size || 1.0, // Provide default size if undefined
+            size: fish.size || 1.0,
             timeStamp: new Date(),
-            config: fish.config // Store original configuration
+            config: fish.config
         };
 
         this.caughtFish.set(fishData.id, fishData);

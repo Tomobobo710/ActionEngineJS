@@ -471,46 +471,15 @@ triangles.push(new Triangle(v.bodyBottomBack, v.bodyBottomBackMirror, v.bodyTopB
         const shape = new Goblin.BoxShape(bodyWidth, height, bodyDepth);
         this.body = new Goblin.RigidBody(shape, 0); // 0 mass for static body
         this.body.position.set(position.x, position.y, position.z);
-        this.updateInterval = 1/30;
+
         this.timeSinceLastUpdate = 0;
         physicsWorld.addObject(this);
     }
 
-    updateVisual() {
-        if (!this.body) return;
-        
-        const pos = this.body.position;
-        const rot = this.body.rotation;
-        
-        this.position = new Vector3(pos.x, pos.y, pos.z);
-        
-        this.triangles.forEach((triangle, triIndex) => {
-            const origNormal = this.originalNormals[triIndex];
-            const rotatedNormal = this.rotateVector(origNormal, rot);
-            triangle.normal = rotatedNormal;
-            
-            triangle.vertices.forEach((vertex, vertIndex) => {
-                const origVert = this.originalVerts[triIndex * 3 + vertIndex];
-                const relativeVert = new Goblin.Vector3(
-                    origVert.x,
-                    origVert.y,
-                    origVert.z
-                );
-                
-                rot.transformVector3(relativeVert);
-                
-                vertex.x = relativeVert.x + this.position.x;
-                vertex.y = relativeVert.y + this.position.y;
-                vertex.z = relativeVert.z + this.position.z;
-            });
-        });
-        
-        this.physicsWorld.shaderManager?.updateRenderableBuffers(this);
-    }
-    update(deltaTime) {
-    this.timeSinceLastUpdate += deltaTime;
     
-    if (this.timeSinceLastUpdate >= this.updateInterval) {
+    update(deltaTime) {
+    
+
         if (!this.body) return;
         
         // Get water heights for tilt calculation
@@ -536,9 +505,7 @@ triangles.push(new Triangle(v.bodyBottomBack, v.bodyBottomBackMirror, v.bodyTopB
         // Apply rotation directly to body rotation values
         this.body.rotation.x = forwardTilt * 0.1;
         this.body.rotation.z = rightTilt * 0.1;
-        
-        this.updateVisual();
-        this.timeSinceLastUpdate = 0;
+
     }
-}
+
 }

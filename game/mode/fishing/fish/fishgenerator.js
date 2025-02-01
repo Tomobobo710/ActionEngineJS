@@ -1,7 +1,7 @@
 class FishGenerator {
     static generate(physicsWorld, type, position, rotationAxis = "y") {
         // Get base configuration for fish type
-        const profile = FISH_TYPES[type];
+        let profile = FISH_TYPES[type];
         if (!profile) {
             console.warn(`Unknown fish type: ${type}, using BASS`);
             profile = FISH_TYPES.BASS;
