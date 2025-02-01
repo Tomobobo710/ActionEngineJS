@@ -20,54 +20,7 @@ class FishingMode {
         this.hookingBarVisible = false;
         this.hookingProgress = 0;
         this.fishes = [];
-        this.generateInitialFish(20);
-    }
-
-    generateInitialFish(count) {
-        const types = ["BASS", "TROUT", "SWORDFISH"];
-
-        // Divide the fishing area into sectors
-        const sectorsPerDimension = Math.ceil(Math.cbrt(count)); // Cubic root for 3D division
-        const sectorWidth = this.fishingArea.bounds.width / sectorsPerDimension;
-        const sectorDepth = this.fishingArea.bounds.depth / sectorsPerDimension;
-        const sectorLength = this.fishingArea.bounds.length / sectorsPerDimension;
-
-        // Create array of all possible sectors
-        const sectors = [];
-        for (let x = 0; x < sectorsPerDimension; x++) {
-            for (let y = 0; y < sectorsPerDimension; y++) {
-                for (let z = 0; z < sectorsPerDimension; z++) {
-                    sectors.push({ x, y, z });
-                }
-            }
-        }
-
-        // Shuffle sectors array for random distribution
-        for (let i = sectors.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [sectors[i], sectors[j]] = [sectors[j], sectors[i]];
-        }
-
-        // Generate fish in different sectors
-        for (let i = 0; i < count; i++) {
-            // Get sector for this fish
-            const sector = sectors[i % sectors.length];
-
-            // Calculate position within sector (with some randomization within the sector)
-            const position = new Vector3(
-                (sector.x + Math.random()) * sectorWidth - this.fishingArea.bounds.width / 2,
-                (sector.y + Math.random()) * sectorDepth - this.fishingArea.bounds.depth / 2,
-                (sector.z + Math.random()) * sectorLength - this.fishingArea.bounds.length / 2
-            );
-
-            const rotationAxis = ["x", "y", "z"][Math.floor(Math.random() * 3)];
-            const randomType = types[Math.floor(Math.random() * types.length)];
-
-            const fish = FishGenerator.generate(this.physicsWorld, randomType, position, rotationAxis);
-
-            this.fishes.push(fish);
-            this.fishingArea.addFish(fish);
-        }
+        this.fishingArea.generateInitialFish(20, this.physicsWorld);
     }
 
     update(deltaTime) {
@@ -75,13 +28,8 @@ class FishingMode {
         this.hookingBarVisible = false;
         this.hookingProgress = 0;
 
-        // Update fisher and check for state changes
         this.fisher.update(deltaTime, this.input);
-
-        // Update lure
         this.lure.update(deltaTime);
-
-        // Update camera
         this.updateCamera(deltaTime);
 
         // Update fishing area (which updates fish movement)
@@ -120,9 +68,9 @@ class FishingMode {
         case "ready":
             // Simple behind-the-player camera
             targetPos = this.fisher.position.add(new Vector3(
-                -Math.sin(this.fisher.aimAngle) * 15, // Back 15 units
-                8,  // Up 8 units
-                -Math.cos(this.fisher.aimAngle) * 15  // Account for player rotation
+                -Math.sin(this.fisher.aimAngle) * 15,
+                8,
+                -Math.cos(this.fisher.aimAngle) * 15
             ));
             targetLookAt = this.fisher.position.add(
                 new Vector3(
@@ -235,7 +183,11 @@ class FishingMode {
         if (this.guiContext) {
             this.guiContext.clearRect(0, 0, 800, 600);
         }
-
+        
+        if (this.ui) {
+            this.ui = null;
+        }
+        
         this.input.clearAllElements();
 
         // Clear references
