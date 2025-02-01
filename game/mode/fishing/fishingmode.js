@@ -21,7 +21,6 @@ class FishingMode {
         this.hookingBarVisible = false;
         this.hookingProgress = 0;
         this.generateInitialFish(20);
-        this.caughtFishManager = new CaughtFishManager();
     }
 
     generateInitialFish(count) {
@@ -70,25 +69,6 @@ class FishingMode {
             this.fishingArea.addFish(fish);
         }
     }
-    // Add method to handle caught fish
-    handleFishCaught(fish) {
-        // Add fish to caught fish manager
-        const fishId = this.caughtFishManager.addFish(fish, this.fishingArea.fish.get(fish));
-
-        // Remove fish from active fishing area
-        this.fishingArea.fish.delete(fish);
-        const fishIndex = this.fishes.indexOf(fish);
-        if (fishIndex > -1) {
-            this.fishes.splice(fishIndex, 1);
-        }
-
-        // Clean up physics body
-        if (fish.body) {
-            this.physicsWorld.removeObject(fish);
-        }
-
-        return fishId;
-    }
 
     tryHookFish() {
         console.log("Attempting to hook fish!");
@@ -101,14 +81,7 @@ class FishingMode {
         }
     }
 
-    showCaughtFishUI(fishId) {
-        const fishData = this.caughtFishManager.getFish(fishId);
-        if (!fishData) return;
 
-        // Add to GUI drawing
-        this.showCaughtFishDialog = true;
-        this.caughtFishId = fishId;
-    }
     
     update(deltaTime) {
         // Reset hooking UI state at start of update
@@ -284,65 +257,6 @@ class FishingMode {
         if (this.fisher.lure?.hookedFish) {
             this.drawLineTensionMeter(this.fisher.lineTension);
         }
-
-        if (this.showCaughtFishDialog) {
-            this.drawCaughtFishDialog();
-        }
-    }
-
-    drawCaughtFishDialog() {
-        const fishData = this.caughtFishManager.getFish(this.caughtFishId);
-        if (!fishData) return;
-
-        // Draw dialog background
-        const dialogWidth = 300;
-        const dialogHeight = 200;
-        const x = (this.guiCanvas.width - dialogWidth) / 2;
-        const y = (this.guiCanvas.height - dialogHeight) / 2;
-
-        this.guiContext.fillStyle = "rgba(0, 0, 0, 0.8)";
-        this.guiContext.fillRect(x, y, dialogWidth, dialogHeight);
-
-        // Draw fish info
-        this.guiContext.fillStyle = "#fff";
-        this.guiContext.font = "20px Arial";
-        this.guiContext.textAlign = "center";
-        this.guiContext.fillText(`Caught a ${fishData.type || "Fish"}!`, x + dialogWidth / 2, y + 40);
-
-        // Add null check for size
-        const sizeText = fishData.size ? `Size: ${fishData.size.toFixed(2)}` : "Size: Unknown";
-        this.guiContext.fillText(sizeText, x + dialogWidth / 2, y + 70);
-
-        // Initialize uiElements array if it doesn't exist
-        if (!this.uiElements) {
-            this.uiElements = [];
-        }
-
-        // Draw buttons
-        this.drawButton(x + 50, y + dialogHeight - 50, 100, 30, "Keep", () => {
-            this.showCaughtFishDialog = false;
-        });
-
-        this.drawButton(x + dialogWidth - 150, y + dialogHeight - 50, 100, 30, "Release", () => {
-            this.caughtFishManager.removeFish(this.caughtFishId);
-            this.showCaughtFishDialog = false;
-        });
-    }
-
-    drawButton(x, y, width, height, text, onClick) {
-        // Add to tracked UI elements for input handling
-        this.uiElements.push({
-            type: "button",
-            bounds: { x, y, width, height },
-            onClick
-        });
-
-        // Draw button
-        this.guiContext.fillStyle = "#444";
-        this.guiContext.fillRect(x, y, width, height);
-        this.guiContext.fillStyle = "#fff";
-        this.guiContext.textAlign = "center";
-        this.guiContext.fillText(text, x + width / 2, y + height / 2 + 6);
     }
 
     drawLineTensionMeter(tension) {
@@ -488,37 +402,5 @@ class FishingMode {
         this.debugCanvas = null;
         this.guiContext = null;
         this.input = null;
-    }
-}
-
-class CaughtFishManager {
-    constructor() {
-        this.caughtFish = new Map();
-        this.nextId = 1;
-    }
-
-    addFish(fish, fishAI) {
-        const fishData = {
-            id: this.nextId++,
-            type: fish.type || "Unknown",
-            size: fish.size || 1.0,
-            timeStamp: new Date(),
-            config: fish.config
-        };
-
-        this.caughtFish.set(fishData.id, fishData);
-        return fishData.id;
-    }
-
-    removeFish(id) {
-        return this.caughtFish.delete(id);
-    }
-
-    getFish(id) {
-        return this.caughtFish.get(id);
-    }
-
-    getAllFish() {
-        return Array.from(this.caughtFish.values());
     }
 }

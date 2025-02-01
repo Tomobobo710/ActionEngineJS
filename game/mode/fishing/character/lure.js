@@ -34,7 +34,7 @@ class Lure extends ActionPhysicsSphere3D {
             castVelocity = castVelocity.normalize().scale(this.maxLureVelocity);
         }
 
-        // Add additional upward boost based on cast power
+        // Additional upward boost based on cast power
         const castPower = castVelocity.length() / this.maxLureVelocity;
         const upwardBoost = 15 + castPower * 25; // More power = higher arc
         castVelocity.y += upwardBoost;
@@ -122,10 +122,8 @@ class Lure extends ActionPhysicsSphere3D {
                 const distanceToFisher = this.position.distanceTo(this.fisher.position);
                 if (distanceToFisher < 1) {
                     if (this.fisher.game) {
-                        const fishId = this.fisher.game.handleFishCaught(this.hookedFish);
                         this.hookedFish = null;
                         this.fishPullForce = new Vector3(0, 0, 0);
-                        this.fisher.game.showCaughtFishUI(fishId);
                     }
                 }
             } else {
