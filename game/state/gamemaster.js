@@ -14,7 +14,7 @@ class GameMaster {
        };
 
        // Kickstart game with battle mode
-       this.modeManager.switchMode('battle');
+       this.modeManager.switchMode('fishing');
 
        // Set up visibility handlers
        document.addEventListener("visibilitychange", () => {
