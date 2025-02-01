@@ -70,17 +70,6 @@ class FishingMode {
         }
     }
 
-    tryHookFish() {
-        console.log("Attempting to hook fish!");
-        for (const fish of this.fishes) {
-            const fishAI = this.fishingArea.fish.get(fish);
-            if (fishAI.tryHook(this.lure)) {
-                console.log("Fish successfully hooked!");
-                break;
-            }
-        }
-    }
-
     update(deltaTime) {
         // Reset hooking UI state at start of update
         this.hookingBarVisible = false;
@@ -105,11 +94,6 @@ class FishingMode {
                 this.hookingBarVisible = true;
                 this.hookingProgress = fishAI.currentBehavior.getHookingWindowProgress();
             }
-        }
-
-        // Handle hook input
-        if (this.input.isKeyJustPressed("Action1")) {
-            this.tryHookFish();
         }
 
         this.fishes.forEach((fish) => {

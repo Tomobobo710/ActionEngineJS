@@ -118,6 +118,11 @@ class Fisher {
                     this.isReeling = false;
                 }
 
+                // Handle hooking input
+                if (input.isKeyJustPressed("Action1")) {
+                    this.tryHookFish();
+                }
+
                 // Allow lure movement during fishing
                 this.handleLureMovement(input, deltaTime);
                 break;
@@ -138,6 +143,20 @@ class Fisher {
 
         if (this.model) {
             this.model.update(deltaTime);
+        }
+    }
+
+    tryHookFish() {
+        console.log("Attempting to hook fish!");
+        const fishes = this.game.fishes;
+        const fishingArea = this.game.fishingArea;
+        
+        for (const fish of fishes) {
+            const fishAI = fishingArea.fish.get(fish);
+            if (fishAI.tryHook(this.lure)) {
+                console.log("Fish successfully hooked!");
+                break;
+            }
         }
     }
 
