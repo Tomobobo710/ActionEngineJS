@@ -7,6 +7,7 @@ class FishingMode {
         this.physicsWorld = new ActionPhysicsWorld3D();
         this.renderer3d = new ActionRenderer3D(this.canvas);
         this.guiContext = this.guiCanvas.getContext("2d");
+        this.ui = new FishingUI(this.guiCanvas, this.guiContext);
         this.fishes = [];
         // Initialize camera
         this.camera = new ActionCamera(new Vector3(0, 20, -60), new Vector3(0, 0, 0));
@@ -81,8 +82,6 @@ class FishingMode {
         }
     }
 
-
-    
     update(deltaTime) {
         // Reset hooking UI state at start of update
         this.hookingBarVisible = false;
@@ -114,11 +113,6 @@ class FishingMode {
             this.tryHookFish();
         }
 
-        // Draw casting power meter when charging
-        if (this.fisher.isChargingCast) {
-            this.drawCastingPowerMeter(this.fisher.getCastPowerPercentage());
-        }
-
         this.fishes.forEach((fish) => {
             fish.update(deltaTime);
         });
@@ -134,96 +128,79 @@ class FishingMode {
     }
 
     updateCamera(deltaTime) {
-    if (this.camera.isDetached) return;
+        if (this.camera.isDetached) return;
 
-    const CAMERA_LERP_SPEED = 3;
-    let targetPos, targetLookAt;
+        const CAMERA_LERP_SPEED = 3;
+        let targetPos, targetLookAt;
 
-    // Helper function to get right shoulder offset based on aim angle
-    const getRightShoulderOffset = (distance) => {
-        // Start with the back-facing vector based on aim angle
-        const backVector = new Vector3(
-            -Math.sin(this.fisher.aimAngle),
-            0.3,  // Much lower camera height
-            -Math.cos(this.fisher.aimAngle)
-        );
-        
-        // Calculate right vector
-        const right = new Vector3(
-            -Math.cos(this.fisher.aimAngle),
-            0,
-            Math.sin(this.fisher.aimAngle)
-        );
-        
-        // Combine vectors - closer camera
-        return backVector.scale(0.7 * distance).add(right.scale(0.2 * distance));
-    };
-
-    switch(this.fisher.state) {
-        case 'ready':
-            const cameraOffset = getRightShoulderOffset(15);
-            targetPos = this.fisher.position.add(cameraOffset);
-            targetLookAt = this.fisher.position.add(
-                new Vector3(
-                    Math.sin(this.fisher.aimAngle),
-                    0,
-                    Math.cos(this.fisher.aimAngle)
-                ).scale(20)
+        // Helper function to get right shoulder offset based on aim angle
+        const getRightShoulderOffset = (distance) => {
+            // Start with the back-facing vector based on aim angle
+            const backVector = new Vector3(
+                -Math.sin(this.fisher.aimAngle),
+                0.3, // Much lower camera height
+                -Math.cos(this.fisher.aimAngle)
             );
-            
-            // Update fisher model rotation directly
-            if (this.fisher.model && this.fisher.model.body) {
-                this.fisher.model.body.rotation.x = 0;
-                this.fisher.model.body.rotation.y = this.fisher.aimAngle;
-                this.fisher.model.body.rotation.z = 0;
-                this.fisher.model.body.rotation.w = 1;
-            }
-            break;
 
-        case 'casting':
-            const castingOffset = getRightShoulderOffset(15);
-            targetPos = this.fisher.position.add(castingOffset);
-            targetLookAt = this.lure.position;
-            break;
+            // Calculate right vector
+            const right = new Vector3(-Math.cos(this.fisher.aimAngle), 0, Math.sin(this.fisher.aimAngle));
 
-        case 'fishing':
-            const fishingOffset = getRightShoulderOffset(12);
-            targetPos = this.lure.position.add(fishingOffset);
-            targetLookAt = this.lure.position;
-            break;
+            // Combine vectors - closer camera
+            return backVector.scale(0.7 * distance).add(right.scale(0.2 * distance));
+        };
 
-        case 'reeling':
-            const distanceToFisher = this.lure.position.distanceTo(this.fisher.position);
-            if (distanceToFisher < 15) {
-                const returnOffset = getRightShoulderOffset(15);
-                targetPos = this.fisher.position.add(returnOffset);
-                targetLookAt = this.fisher.position;
-            } else {
-                const reelingOffset = getRightShoulderOffset(12);
-                targetPos = this.lure.position.add(reelingOffset);
+        switch (this.fisher.state) {
+            case "ready":
+                const cameraOffset = getRightShoulderOffset(15);
+                targetPos = this.fisher.position.add(cameraOffset);
+                targetLookAt = this.fisher.position.add(
+                    new Vector3(Math.sin(this.fisher.aimAngle), 0, Math.cos(this.fisher.aimAngle)).scale(20)
+                );
+
+                // Update fisher model rotation directly
+                if (this.fisher.model && this.fisher.model.body) {
+                    this.fisher.model.body.rotation.x = 0;
+                    this.fisher.model.body.rotation.y = this.fisher.aimAngle;
+                    this.fisher.model.body.rotation.z = 0;
+                    this.fisher.model.body.rotation.w = 1;
+                }
+                break;
+
+            case "casting":
+                const castingOffset = getRightShoulderOffset(15);
+                targetPos = this.fisher.position.add(castingOffset);
                 targetLookAt = this.lure.position;
-            }
-            break;
-    }
+                break;
 
-    // Smooth camera movement using lerp
-    this.camera.position = this.lerpVector(
-        this.camera.position, 
-        targetPos, 
-        deltaTime * CAMERA_LERP_SPEED
-    );
-    this.camera.target = this.lerpVector(
-        this.camera.target,
-        targetLookAt,
-        deltaTime * CAMERA_LERP_SPEED
-    );
-}
+            case "fishing":
+                const fishingOffset = getRightShoulderOffset(12);
+                targetPos = this.lure.position.add(fishingOffset);
+                targetLookAt = this.lure.position;
+                break;
+
+            case "reeling":
+                const distanceToFisher = this.lure.position.distanceTo(this.fisher.position);
+                if (distanceToFisher < 15) {
+                    const returnOffset = getRightShoulderOffset(15);
+                    targetPos = this.fisher.position.add(returnOffset);
+                    targetLookAt = this.fisher.position;
+                } else {
+                    const reelingOffset = getRightShoulderOffset(12);
+                    targetPos = this.lure.position.add(reelingOffset);
+                    targetLookAt = this.lure.position;
+                }
+                break;
+        }
+
+        // Smooth camera movement using lerp
+        this.camera.position = this.lerpVector(this.camera.position, targetPos, deltaTime * CAMERA_LERP_SPEED);
+        this.camera.target = this.lerpVector(this.camera.target, targetLookAt, deltaTime * CAMERA_LERP_SPEED);
+    }
     pause() {
         this.physicsWorld.pause();
     }
 
     resume() {
-        
         this.physicsWorld.resume();
     }
     lerpVector(start, end, t) {
@@ -234,105 +211,8 @@ class FishingMode {
         );
     }
 
-    drawUI() {
-        // Draw instructions
-        this.guiContext.fillStyle = "#fff";
-        this.guiContext.font = "16px Arial";
-        this.guiContext.textAlign = "left";
-        this.guiContext.fillText("Hold SHIFT to charge cast", 10, 30);
-        this.guiContext.fillText("Release SHIFT to cast", 10, 50);
-        this.guiContext.fillText("WASD to move lure", 10, 70);
-        this.guiContext.fillText("SPACE to reel in", 10, 90);
-
-        // Draw hooking bar if active
-        if (this.hookingBarVisible) {
-            this.drawHookingBar(this.hookingProgress);
-        }
-
-        // Draw casting power meter when charging
-        if (this.fisher.isChargingCast) {
-            this.drawCastingPowerMeter(this.fisher.getCastPowerPercentage());
-        }
-
-        if (this.fisher.lure?.hookedFish) {
-            this.drawLineTensionMeter(this.fisher.lineTension);
-        }
-    }
-
-    drawLineTensionMeter(tension) {
-        const barWidth = 200;
-        const barHeight = 20;
-        const x = 10;
-        const y = this.guiCanvas.height - 150;
-
-        // Background
-        this.guiContext.fillStyle = "#333";
-        this.guiContext.fillRect(x, y, barWidth, barHeight);
-
-        // Tension level
-        let color;
-        if (tension < 0.5) color = "#0f0";
-        else if (tension < 0.8) color = "#ff0";
-        else color = "#f00";
-
-        this.guiContext.fillStyle = color;
-        this.guiContext.fillRect(x, y, barWidth * tension, barHeight);
-
-        // Label
-        this.guiContext.fillStyle = "#fff";
-        this.guiContext.font = "16px Arial";
-        this.guiContext.textAlign = "left";
-        this.guiContext.fillText("Line Tension", x, y - 5);
-    }
-
-    drawCastingPowerMeter(percentage) {
-        const barWidth = 200;
-        const barHeight = 20;
-        const x = (this.guiCanvas.width - barWidth) / 2;
-        const y = this.guiCanvas.height - 100;
-
-        this.guiContext.fillStyle = "#333";
-        this.guiContext.fillRect(x, y, barWidth, barHeight);
-
-        this.guiContext.fillStyle = "#0f0";
-        this.guiContext.fillRect(x, y, barWidth * (percentage / 100), barHeight);
-
-        this.guiContext.fillStyle = "#fff";
-        this.guiContext.font = "16px Arial";
-        this.guiContext.textAlign = "center";
-        this.guiContext.fillText("Casting Power", x + barWidth / 2, y - 10);
-    }
-
-    drawHookingBar(progress) {
-        const barWidth = 200;
-        const barHeight = 20;
-        const x = (this.guiCanvas.width - barWidth) / 2;
-        const y = this.guiCanvas.height - 50;
-
-        // Draw background
-        this.guiContext.fillStyle = "rgba(0, 0, 0, 0.5)";
-        this.guiContext.fillRect(x - 2, y - 2, barWidth + 4, barHeight + 4);
-
-        // Draw progress bar background
-        this.guiContext.fillStyle = "#333";
-        this.guiContext.fillRect(x, y, barWidth, barHeight);
-
-        // Draw progress (filling from right to left)
-        this.guiContext.fillStyle = "#0f0";
-        const progressWidth = barWidth * (1 - progress);
-        this.guiContext.fillRect(x, y, progressWidth, barHeight);
-
-        // Draw "HOOK!" text
-        this.guiContext.fillStyle = "#fff";
-        this.guiContext.font = "16px Arial";
-        this.guiContext.textAlign = "center";
-        this.guiContext.fillText("HOOK!", x + barWidth / 2, y - 10);
-    }
 
     draw() {
-        // Clear the GUI canvas first
-        this.guiContext.clearRect(0, 0, this.guiCanvas.width, this.guiCanvas.height);
-
         // Draw 3D scene
         const bufferInfo = this.shaderManager.getBufferInfo();
         this.renderer3d.render({
@@ -343,7 +223,16 @@ class FishingMode {
         });
 
         // Draw UI elements
-        this.drawUI();
+        const gameState = {
+            hookingBarVisible: this.hookingBarVisible,
+            hookingProgress: this.hookingProgress,
+            isChargingCast: this.fisher.isChargingCast,
+            castPowerPercentage: this.fisher.getCastPowerPercentage(),
+            hasHookedFish: Boolean(this.fisher.lure?.hookedFish),
+            lineTension: this.fisher.lineTension
+        };
+        
+        this.ui.draw(gameState);
     }
 
     cleanup() {
@@ -370,7 +259,6 @@ class FishingMode {
         }
 
         if (this.shaderManager) {
-            // Instead of calling deleteAllShaders, we'll just null the reference
             this.shaderManager = null;
         }
 
@@ -404,3 +292,4 @@ class FishingMode {
         this.input = null;
     }
 }
+
