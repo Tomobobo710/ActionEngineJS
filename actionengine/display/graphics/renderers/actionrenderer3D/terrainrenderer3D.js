@@ -34,15 +34,15 @@ class TerrainRenderer3D {
             this.gl.bindTexture(this.gl.TEXTURE_2D, this.lightingManager.getShadowMap());
             this.gl.uniform1i(shaderSet.terrain.locations.shadowMap, 0);
         }
+
+        // If using default shader, set up texturing
         if (shaderSet === this.programManager.getProgramRegistry().shaders.get("default")) {
+            // Bind texture array
             this.gl.activeTexture(this.gl.TEXTURE0);
-            this.gl.bindTexture(this.gl.TEXTURE_2D, this.renderer.textureManager.getGrassTexture());
-            this.gl.uniform1i(shaderSet.terrain.locations.texture, 0);
-            this.gl.uniform1i(shaderSet.terrain.locations.useTexture, 1);
-        } else {
-            // For all other shaders, set useTexture to 0
-            this.gl.uniform1i(shaderSet.terrain.locations.useTexture, 0);
+            this.gl.bindTexture(this.gl.TEXTURE_2D_ARRAY, this.renderer.textureManager.textureArray);
+            this.gl.uniform1i(shaderSet.terrain.locations.textureArray, 0);
         }
+
         this.drawTerrain(shaderSet.terrain.locations, terrainBuffers, terrainIndexCount);
     }
 
@@ -79,11 +79,29 @@ class TerrainRenderer3D {
             this.gl.enableVertexAttribArray(locations.color);
         }
 
-        // Add optional texture coordinate handling
+        // Set up texture coordinates if they exist
         if (locations.texCoord !== undefined && locations.texCoord !== -1) {
             this.gl.bindBuffer(this.gl.ARRAY_BUFFER, terrainBuffers.uv);
             this.gl.vertexAttribPointer(locations.texCoord, 2, this.gl.FLOAT, false, 0, 0);
             this.gl.enableVertexAttribArray(locations.texCoord);
+        }
+
+        // Set up texture index attribute
+        if (locations.textureIndex !== undefined && locations.textureIndex !== -1) {
+            this.gl.bindBuffer(this.gl.ARRAY_BUFFER, terrainBuffers.textureIndex);
+            this.gl.vertexAttribPointer(locations.textureIndex, 1, this.gl.FLOAT, false, 0, 0);
+            this.gl.enableVertexAttribArray(locations.textureIndex);
+        }
+
+        // Set default value of 0 for useTexture if it's not bound
+        if (locations.useTexture !== undefined && locations.useTexture !== -1) {
+            if (terrainBuffers.useTexture) {
+                this.gl.bindBuffer(this.gl.ARRAY_BUFFER, terrainBuffers.useTexture);
+                this.gl.vertexAttribPointer(locations.useTexture, 1, this.gl.FLOAT, false, 0, 0);
+                this.gl.enableVertexAttribArray(locations.useTexture);
+            } else {
+                this.gl.vertexAttrib1f(locations.useTexture, 0.0);
+            }
         }
 
         this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, terrainBuffers.indices);
