@@ -8,8 +8,6 @@ class FishingMode {
         this.renderer3d = new ActionRenderer3D(this.canvas);
         this.guiContext = this.guiCanvas.getContext("2d");
         this.ui = new FishingUI(this.guiCanvas, this.guiContext);
-        this.fishes = [];
-        // Initialize camera
         this.camera = new ActionCamera(new Vector3(0, 20, -60), new Vector3(0, 0, 0));
         this.shaderManager = new ShaderManager(this.renderer3d.gl);
         this.shaderManager.registerAllShaders(this.renderer3d);
@@ -21,6 +19,7 @@ class FishingMode {
         this.fisher.attachLure(this.lure);
         this.hookingBarVisible = false;
         this.hookingProgress = 0;
+        this.fishes = [];
         this.generateInitialFish(20);
     }
 
@@ -193,8 +192,8 @@ class FishingMode {
         }
 
         // Smooth camera movement using lerp
-        this.camera.position = this.lerpVector(this.camera.position, targetPos, deltaTime * CAMERA_LERP_SPEED);
-        this.camera.target = this.lerpVector(this.camera.target, targetLookAt, deltaTime * CAMERA_LERP_SPEED);
+        this.camera.position = this.camera.position.lerp(targetPos, deltaTime * CAMERA_LERP_SPEED);
+        this.camera.target = this.camera.target.lerp(targetLookAt, deltaTime * CAMERA_LERP_SPEED);
     }
     pause() {
         this.physicsWorld.pause();
@@ -203,14 +202,6 @@ class FishingMode {
     resume() {
         this.physicsWorld.resume();
     }
-    lerpVector(start, end, t) {
-        return new Vector3(
-            start.x + (end.x - start.x) * t,
-            start.y + (end.y - start.y) * t,
-            start.z + (end.z - start.z) * t
-        );
-    }
-
 
     draw() {
         // Draw 3D scene
@@ -292,4 +283,3 @@ class FishingMode {
         this.input = null;
     }
 }
-
