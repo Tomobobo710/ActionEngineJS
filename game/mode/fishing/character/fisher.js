@@ -8,21 +8,19 @@ class Fisher {
         this.aimAngle = 0;
         this.aimElevation = -0.5;
         this.castPower = 0;
-        this.maxCastPower = 10; //only effects the power bar speed if incresed its lowered
-        this.castPowerRate = 3; //only effects the power bar
+        this.maxCastPower = 10;
+        this.castPowerRate = 3;
         this.isChargingCast = false;
 
         // Create the visual model and set reference
         this.model = new FishermanModel(game.physicsWorld, 10, position);
-        this.model.fisher = this; // Add this line to connect model back to fisher
+        this.model.fisher = this;
 
-        this.floatHeight = 30;
-        this.floatSmoothing = 5;
         this.floatOffset = 30;
         this.floatLerpFactor = 0.1;
 
-        this.minCastStrength = 20; // Minimum throw force
-        this.maxCastStrength = 300; // Maximum throw force
+        this.minCastStrength = 20;
+        this.maxCastStrength = 300;
 
         this.isReeling = false;
         this.lineLength = 0; // Current line length
@@ -169,7 +167,7 @@ class Fisher {
         if (distanceToFisher < 1) {
             this.state = "ready";
             this.castPower = 0;
-            this.lure.reset(); // This will now properly release the fish
+            this.lure.reset();
             this.game.fishingArea.setLure(this.lure);
             return;
         }
@@ -183,12 +181,12 @@ class Fisher {
     cast() {
         if (this.state !== "ready" || !this.lure) return;
 
-        // Add exponential scaling for more dramatic power difference
+        // Exponential scaling for more dramatic power difference
         const powerPercentage = Math.pow(this.castPower / this.maxCastPower, 1.5);
         const castStrength = this.minCastStrength + (this.maxCastStrength - this.minCastStrength) * powerPercentage;
 
         // Add upward angle to cast direction
-        const upwardAngle = 0.5; // About 30 degrees upward
+        const upwardAngle = 0.5;
         const castDirectionWithArc = new Vector3(
             this.castDirection.x,
             this.castDirection.y + upwardAngle,
