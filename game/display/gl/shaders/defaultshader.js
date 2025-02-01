@@ -1,21 +1,24 @@
 // game/display/gl/shaders/defaultshader.js
 class DefaultShader {
     getTerrainVertexShader(isWebGL2) {
-        return `${isWebGL2 ? "#version 300 es\n" : ""}
-    ${isWebGL2 ? "in" : "attribute"} vec3 aPosition;
-    ${isWebGL2 ? "in" : "attribute"} vec3 aNormal;
-    ${isWebGL2 ? "in" : "attribute"} vec3 aColor;
-    ${isWebGL2 ? "in" : "attribute"} vec2 aTexCoord;  // Add this
+        return `#version 300 es
+    in vec3 aPosition;
+    in vec3 aNormal;
+    in vec3 aColor;
+    in vec2 aTexCoord;
+    in float aTextureIndex;
+    in float aUseTexture;  // New attribute
     
     uniform mat4 uProjectionMatrix;
     uniform mat4 uViewMatrix;
     uniform mat4 uModelMatrix;
     uniform vec3 uLightDir;
-    uniform bool uUseTexture;
     
-    ${isWebGL2 ? "flat out vec3 vColor;" : "varying vec3 vColor;"}
-    ${isWebGL2 ? "out" : "varying"} vec2 vTexCoord;
-    ${isWebGL2 ? "out" : "varying"} float vLighting;
+    flat out vec3 vColor;
+    out vec2 vTexCoord;
+    out float vLighting;
+    flat out float vTextureIndex;
+    flat out float vUseTexture;  // Pass to fragment shader
     
     void main() {
         gl_Position = uProjectionMatrix * uViewMatrix * uModelMatrix * vec4(aPosition, 1.0);
@@ -23,26 +26,33 @@ class DefaultShader {
         vec3 worldNormal = normalize(mat3(uModelMatrix) * aNormal);
         vLighting = max(0.3, min(1.0, dot(worldNormal, normalize(uLightDir))));
         vColor = aColor;
-        
-        vTexCoord = uUseTexture ? aTexCoord : vec2(0.0, 0.0);
+        vTexCoord = aTexCoord;
+        vTextureIndex = aTextureIndex;
+        vUseTexture = aUseTexture;
     }`;
     }
 
     getTerrainFragmentShader(isWebGL2) {
-        return `${isWebGL2 ? "#version 300 es\n" : ""}
+        return `#version 300 es
     precision mediump float;
-    ${isWebGL2 ? "flat in vec3 vColor;\nout vec4 fragColor;" : "varying vec3 vColor;"}
-    ${isWebGL2 ? "in" : "varying"} vec2 vTexCoord;
-    ${isWebGL2 ? "in" : "varying"} float vLighting;
-    uniform sampler2D uTexture;
-    uniform bool uUseTexture;
+    precision mediump sampler2DArray;
+    
+    flat in vec3 vColor;
+    in vec2 vTexCoord;
+    in float vLighting;
+    flat in float vTextureIndex;
+    flat in float vUseTexture;
+    
+    uniform sampler2DArray uTextureArray;
+    
+    out vec4 fragColor;
     
     void main() {
-        if (uUseTexture) {
-            vec4 texColor = ${isWebGL2 ? "texture" : "texture2D"}(uTexture, vTexCoord);
-            ${isWebGL2 ? "fragColor" : "gl_FragColor"} = texColor * vec4(vec3(vLighting), 1.0);
+        if (vUseTexture == 1.0) {  // Check if this vertex uses texture
+            vec4 texColor = texture(uTextureArray, vec3(vTexCoord, vTextureIndex));
+            fragColor = texColor * vec4(vec3(vLighting), 1.0);
         } else {
-            ${isWebGL2 ? "fragColor" : "gl_FragColor"} = vec4(vColor * vLighting, 1.0);
+            fragColor = vec4(vColor * vLighting, 1.0);
         }
     }`;
     }
