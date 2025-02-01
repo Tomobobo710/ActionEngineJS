@@ -21,10 +21,12 @@ class Lure extends ActionPhysicsSphere3D {
         this.fishPullForce = new Vector3(0, 0, 0);
         this.lineTensionThreshold = 0.8; // When line might snap
     }
+
     setFisher(fisher) {
         this.fisher = fisher;
         this.reset();
     }
+
     startCast(startPos, castVelocity, castDirection) {
         this.state = "casting";
         this.position = startPos.clone();
@@ -67,21 +69,17 @@ class Lure extends ActionPhysicsSphere3D {
             if (newX >= -halfWidth && newX <= halfWidth && newZ >= -halfLength && newZ <= halfLength) {
                 this.position.x = newX;
                 this.position.z = newZ;
+                // Update physics body
+                this.body.position.x = this.position.x;
+                this.body.position.z = this.position.z;
             } else {
-                // Hit boundary, enter water
                 this.state = "inWater";
             }
 
             // Y position and gravity always update
             this.position.y = newY;
+            this.body.position.y = this.position.y;
             this.lureVelocity.y += this.lureGravity * deltaTime;
-
-            // Update physics body
-            if (this.body) {
-                this.body.position.x = this.position.x;
-                this.body.position.y = this.position.y;
-                this.body.position.z = this.position.z;
-            }
 
             // Check for water contact
             if (this.fisher?.game?.ocean) {
@@ -132,51 +130,33 @@ class Lure extends ActionPhysicsSphere3D {
                 this.releaseHookedFish();
             }
         }
-
-        // Only call updateVisual if we have a valid position
-        if (this.position) {
-            this.updateVisual();
-        }
     }
 
     handleFishFight(deltaTime) {
         // Fish regularly changes direction to fight
         if (Math.random() < 0.05) {
-            // 5% chance each frame to change direction
             const angle = Math.random() * Math.PI * 2;
-            this.fishPullForce = new Vector3(Math.cos(angle), 0, Math.sin(angle)).scale(50); // Pull strength
+            this.fishPullForce = new Vector3(Math.cos(angle), 0, Math.sin(angle)).scale(50);
         }
 
-        // Apply fish pull force to lure position
+        // Apply fish pull force to position and physics body
         const pullAmount = this.fishPullForce.scale(deltaTime);
         this.position = this.position.add(pullAmount);
+        this.body.position.x = this.position.x;
+        this.body.position.y = this.position.y;
+        this.body.position.z = this.position.z;
 
-        // Calculate line tension based on distance and angle
         if (this.fisher) {
             const distanceToFisher = this.position.distanceTo(this.fisher.position);
             const tension = distanceToFisher / this.fisher.maxLineLength;
             this.fisher.lineTension = tension;
 
-            // If tension is too high, fish might escape
             if (tension > this.lineTensionThreshold && Math.random() < 0.1) {
                 this.fishEscapes();
             }
         }
     }
-    updateVisual() {
-        if (!this.body) return;
 
-        // Update vertices based on current position without resetting it
-        this.triangles.forEach((triangle, triIndex) => {
-            triangle.vertices.forEach((vertex, vertIndex) => {
-                const origVert = this.originalVerts[triIndex * 3 + vertIndex];
-
-                vertex.x = origVert.x + this.position.x;
-                vertex.y = origVert.y + this.position.y;
-                vertex.z = origVert.z + this.position.z;
-            });
-        });
-    }
     move(direction, amount) {
         if (this.state !== "inWater") return;
 
@@ -204,15 +184,17 @@ class Lure extends ActionPhysicsSphere3D {
 
             // Moving against fish direction increases tension
             if (movementAngle < 0.3) {
-                // Sharp angle
                 this.fisher.lineTension += 0.1;
             } else if (movementAngle > 0.7) {
-                // Following fish
                 this.fisher.lineTension -= 0.05;
             }
         }
 
+        // Update both position and physics body
         this.position = this.position.add(moveVector);
+        this.body.position.x = this.position.x;
+        this.body.position.y = this.position.y;
+        this.body.position.z = this.position.z;
     }
 
     fishEscapes() {
@@ -221,6 +203,7 @@ class Lure extends ActionPhysicsSphere3D {
         this.state = "inWater";
         // Trigger any escape animations/effects
     }
+    
     releaseHookedFish() {
         if (this.hookedFish) {
             // Reset the fish's AI state
@@ -232,6 +215,7 @@ class Lure extends ActionPhysicsSphere3D {
             this.hookedFish = null;
         }
     }
+    
     reset() {
         if (!this.fisher) return;
 
