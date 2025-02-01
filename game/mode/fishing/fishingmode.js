@@ -127,6 +127,7 @@ class FishingMode {
         this.ui.draw(gameState);
     }
 
+    // When switching "game modes" cleanup() will be called to destroy this mode
     cleanup() {
         if (this.physicsWorld) {
             this.physicsWorld.reset();
