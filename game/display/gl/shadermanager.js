@@ -20,6 +20,8 @@ class ShaderManager {
             normal: this.gl.createBuffer(),
             color: this.gl.createBuffer(),
             uv: this.gl.createBuffer(),
+            textureIndex: this.gl.createBuffer(),
+            useTexture: this.gl.createBuffer(),
             indices: this.gl.createBuffer()
         };
     }
@@ -90,66 +92,81 @@ class ShaderManager {
     }
 
     updateTerrainBuffers(terrain) {
-        const positions = new Float32Array(terrain.triangles.length * 9);
-        const normals = new Float32Array(terrain.triangles.length * 9);
-        const colors = new Float32Array(terrain.triangles.length * 9);
-        const uvs = new Float32Array(terrain.triangles.length * 6);
+        const positions = [];
+        const normals = [];
+        const colors = [];
+        const uvs = [];
+        const textureIndices = [];
+        const useTextureFlags = []; // New array
 
         terrain.triangles.forEach((triangle, i) => {
-            const baseIndex = i * 9;
-            const uvBaseIndex = i * 6;
-            for (let j = 0; j < 3; j++) {
-                positions[baseIndex + j * 3] = triangle.vertices[j].x;
-                positions[baseIndex + j * 3 + 1] = triangle.vertices[j].y;
-                positions[baseIndex + j * 3 + 2] = triangle.vertices[j].z;
+            // Add positions, normals, colors as before
+            positions.push(...triangle.getVertexArray());
+            normals.push(...triangle.getNormalArray());
+            colors.push(...triangle.getColorArray());
 
-                normals[baseIndex + j * 3] = triangle.normal.x;
-                normals[baseIndex + j * 3 + 1] = triangle.normal.y;
-                normals[baseIndex + j * 3 + 2] = triangle.normal.z;
+            if (triangle.texture) {
+                // Add UVs if the triangle has a texture
+                if (triangle.uvs) {
+                    triangle.uvs.forEach((uv) => {
+                        uvs.push(uv.u, uv.v);
+                    });
+                } else {
+                    // Default UVs if none specified
+                    uvs.push(0, 0, 1, 0, 0.5, 1);
+                }
+
+                // Get texture index for textured triangles
+                const textureIndex = this.getTextureIndexForProceduralTexture(triangle.texture);
+                textureIndices.push(textureIndex, textureIndex, textureIndex);
+                useTextureFlags.push(1, 1, 1);
+            } else {
+                // Push dummy UVs and texture index since we won't use them
+                uvs.push(0, 0, 0, 0, 0, 0);
+                textureIndices.push(0, 0, 0);
+                useTextureFlags.push(0, 0, 0);
             }
-
-            const r = parseInt(triangle.color.substr(1, 2), 16) / 255;
-            const g = parseInt(triangle.color.substr(3, 2), 16) / 255;
-            const b = parseInt(triangle.color.substr(5, 2), 16) / 255;
-
-            for (let j = 0; j < 3; j++) {
-                colors[baseIndex + j * 3] = r;
-                colors[baseIndex + j * 3 + 1] = g;
-                colors[baseIndex + j * 3 + 2] = b;
-            }
-            uvs[uvBaseIndex] = 0; // v0.u
-            uvs[uvBaseIndex + 1] = 0; // v0.v
-            uvs[uvBaseIndex + 2] = 1; // v1.u
-            uvs[uvBaseIndex + 3] = 0; // v1.v
-            uvs[uvBaseIndex + 4] = 0.5; // v2.u
-            uvs[uvBaseIndex + 5] = 1; // v2.v
         });
 
+        // Update all buffers
+        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.terrainBuffers.position);
+        this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(positions), this.gl.STATIC_DRAW);
+
+        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.terrainBuffers.normal);
+        this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(normals), this.gl.STATIC_DRAW);
+
+        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.terrainBuffers.color);
+        this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(colors), this.gl.STATIC_DRAW);
+
+        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.terrainBuffers.uv);
+        this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(uvs), this.gl.STATIC_DRAW);
+
+        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.terrainBuffers.textureIndex);
+        this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(textureIndices), this.gl.STATIC_DRAW);
+
+        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.terrainBuffers.useTexture);
+        this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(useTextureFlags), this.gl.STATIC_DRAW);
+
+        this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.terrainBuffers.indices);
         const indices = new Uint16Array(terrain.triangles.length * 3);
         for (let i = 0; i < indices.length; i++) {
             indices[i] = i;
         }
-
-        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.terrainBuffers.position);
-        this.gl.bufferData(this.gl.ARRAY_BUFFER, positions, this.gl.STATIC_DRAW);
-
-        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.terrainBuffers.normal);
-        this.gl.bufferData(this.gl.ARRAY_BUFFER, normals, this.gl.STATIC_DRAW);
-
-        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.terrainBuffers.color);
-        this.gl.bufferData(this.gl.ARRAY_BUFFER, colors, this.gl.STATIC_DRAW);
-
-        this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.terrainBuffers.indices);
         this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER, indices, this.gl.STATIC_DRAW);
 
-        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.terrainBuffers.uv);
-        this.gl.bufferData(this.gl.ARRAY_BUFFER, uvs, this.gl.STATIC_DRAW);
-
         this.terrainIndexCount = indices.length;
-
         return this.terrainIndexCount;
     }
-
+    getTextureIndexForProceduralTexture(proceduralTexture) {
+        // Loop through textureRegistry to find which texture this is
+        for (let i = 0; i < textureRegistry.textureList.length; i++) {
+            const name = textureRegistry.textureList[i];
+            if (textureRegistry.get(name) === proceduralTexture) {
+                return i;
+            }
+        }
+        return 0; // Default to first texture if not found
+    }
     updateCharacterBuffers(character) {
         const characterModel = character.getCharacterModelTriangles();
 
