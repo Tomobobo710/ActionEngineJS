@@ -114,6 +114,7 @@ class ProgramManager {
             terrain: {
                 program: defaultTerrainProgram,
                 locations: {
+                    // Existing locations
                     position: this.gl.getAttribLocation(defaultTerrainProgram, "aPosition"),
                     normal: this.gl.getAttribLocation(defaultTerrainProgram, "aNormal"),
                     color: this.gl.getAttribLocation(defaultTerrainProgram, "aColor"),
@@ -122,9 +123,12 @@ class ProgramManager {
                     modelMatrix: this.gl.getUniformLocation(defaultTerrainProgram, "uModelMatrix"),
                     cameraPos: this.gl.getUniformLocation(defaultTerrainProgram, "uCameraPos"),
                     lightDir: this.gl.getUniformLocation(defaultTerrainProgram, "uLightDir"),
-                    texture: this.gl.getUniformLocation(defaultTerrainProgram, "uTexture"),
+
+                    // Modified texture handling
+                    textureArray: this.gl.getUniformLocation(defaultTerrainProgram, "uTextureArray"),
+                    textureIndex: this.gl.getAttribLocation(defaultTerrainProgram, "aTextureIndex"),
                     texCoord: this.gl.getAttribLocation(defaultTerrainProgram, "aTexCoord"),
-                    useTexture: this.gl.getUniformLocation(defaultTerrainProgram, "uUseTexture")
+                    useTexture: this.gl.getAttribLocation(defaultTerrainProgram, "aUseTexture")
                 }
             },
             character: {
