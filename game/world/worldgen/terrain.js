@@ -63,47 +63,47 @@ class Terrain {
 
         // Generate faces (triangles) for each square in the 64x64 grid
         for (let z = 0; z < gridSize; z++) {
-    for (let x = 0; x < gridSize; x++) {
-        const topLeft = z * vertexCount + x;
-        const topRight = topLeft + 1;
-        const bottomLeft = (z + 1) * vertexCount + x;
-        const bottomRight = bottomLeft + 1;
+            for (let x = 0; x < gridSize; x++) {
+                const topLeft = z * vertexCount + x;
+                const topRight = topLeft + 1;
+                const bottomLeft = (z + 1) * vertexCount + x;
+                const bottomRight = bottomLeft + 1;
 
-        // First triangle
-        const tlVertex = this.vertices[topLeft];
-        const trVertex = this.vertices[topRight];
-        const blVertex = this.vertices[bottomLeft];
-        const avgHeight1 = (tlVertex.y + blVertex.y + trVertex.y) / 3;
-        
-        const color1 = this.getColorForHeight(avgHeight1);
-        const texture1 = this.getTextureForHeight(avgHeight1);
-        const uvs1 = texture1 ? [
-            { u: 0, v: 0 },
-            { u: 1, v: 0 },
-            { u: 0.5, v: 1 }
-        ] : null;
+                // First triangle
+                const tlVertex = this.vertices[topLeft];
+                const trVertex = this.vertices[topRight];
+                const blVertex = this.vertices[bottomLeft];
+                const avgHeight1 = (tlVertex.y + blVertex.y + trVertex.y) / 3;
 
-        this.triangles.push(
-            new Triangle(tlVertex, blVertex, trVertex, color1, texture1, uvs1)
-        );
+                const color1 = this.getColorForHeight(avgHeight1);
+                const texture1 = this.getTextureForHeight(avgHeight1);
+                const uvs1 = texture1
+                    ? [
+                          { u: 0, v: 0 },
+                          { u: 1, v: 0 },
+                          { u: 0.5, v: 1 }
+                      ]
+                    : null;
 
-        // Second triangle
-        const brVertex = this.vertices[bottomRight];
-        const avgHeight2 = (trVertex.y + blVertex.y + brVertex.y) / 3;
-        
-        const color2 = this.getColorForHeight(avgHeight2);
-        const texture2 = this.getTextureForHeight(avgHeight2);
-        const uvs2 = texture2 ? [
-            { u: 0, v: 0 },
-            { u: 1, v: 0 },
-            { u: 0.5, v: 1 }
-        ] : null;
+                this.triangles.push(new Triangle(tlVertex, blVertex, trVertex, color1, texture1, uvs1));
 
-        this.triangles.push(
-            new Triangle(trVertex, blVertex, brVertex, color2, texture2, uvs2)
-        );
-    }
-}
+                // Second triangle
+                const brVertex = this.vertices[bottomRight];
+                const avgHeight2 = (trVertex.y + blVertex.y + brVertex.y) / 3;
+
+                const color2 = this.getColorForHeight(avgHeight2);
+                const texture2 = this.getTextureForHeight(avgHeight2);
+                const uvs2 = texture2
+                    ? [
+                          { u: 0, v: 0 },
+                          { u: 1, v: 0 },
+                          { u: 0.5, v: 1 }
+                      ]
+                    : null;
+
+                this.triangles.push(new Triangle(trVertex, blVertex, brVertex, color2, texture2, uvs2));
+            }
+        }
     }
 
     findNearbyTriangles(x, z) {
@@ -154,15 +154,15 @@ class Terrain {
         return BIOME_TYPES.SNOW.base; // Default fallback
     }
     getTextureForHeight(height) {
-    const heightPercent = (height / this.generator.getBaseWorldHeight()) * 100;
-    
-    for (const biome of Object.values(BIOME_TYPES)) {
-        if (heightPercent >= biome.heightRange[0] && heightPercent <= biome.heightRange[1]) {
-            return biome.texture ? textureRegistry.get(biome.texture) : null;
+        const heightPercent = (height / this.generator.getBaseWorldHeight()) * 100;
+
+        for (const biome of Object.values(BIOME_TYPES)) {
+            if (heightPercent >= biome.heightRange[0] && heightPercent <= biome.heightRange[1]) {
+                return biome.texture ? textureRegistry.get(biome.texture) : null;
+            }
         }
+        return textureRegistry.get("null");
     }
-    return textureRegistry.get('snow'); 
-}
     // Debug info for the panel
     getDebugInfo() {
         return {
