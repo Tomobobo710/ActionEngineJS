@@ -35,18 +35,13 @@ class FishingMode {
         // Update fishing area (which updates fish movement)
         this.fishingArea.update(deltaTime);
 
-        // Check for attackable fish and update UI
-        for (const fish of this.fishes) {
-            const fishAI = this.fishingArea.fish.get(fish);
-            if (fishAI.currentBehavior === fishAI.behaviors.attack && fishAI.canBeHooked) {
-                this.hookingBarVisible = true;
-                this.hookingProgress = fishAI.currentBehavior.getHookingWindowProgress();
-            }
-        }
-
-        this.fishes.forEach((fish) => {
-            fish.update(deltaTime);
-        });
+       for (const [fish, fishAI] of this.fishingArea.fish) {
+    if (fishAI.currentBehavior === fishAI.behaviors.attack && fishAI.canBeHooked) {
+        this.hookingBarVisible = true;
+        this.hookingProgress = fishAI.currentBehavior.getHookingWindowProgress();
+    }
+}
+        
         this.physicsWorld.update(deltaTime);
 
         if (this.input.isKeyJustPressed("Numpad0")) {
@@ -59,53 +54,48 @@ class FishingMode {
     }
 
     updateCamera(deltaTime) {
-    if (this.camera.isDetached) return;
+        if (this.camera.isDetached) return;
 
-    const CAMERA_LERP_SPEED = 3;
-    let targetPos, targetLookAt;
+        const CAMERA_LERP_SPEED = 3;
+        let targetPos, targetLookAt;
 
-    switch (this.fisher.state) {
-        case "ready":
-            // Simple behind-the-player camera
-            targetPos = this.fisher.position.add(new Vector3(
-                -Math.sin(this.fisher.aimAngle) * 15,
-                8,
-                -Math.cos(this.fisher.aimAngle) * 15
-            ));
-            targetLookAt = this.fisher.position.add(
-                new Vector3(
-                    Math.sin(this.fisher.aimAngle), 
-                    0, 
-                    Math.cos(this.fisher.aimAngle)
-                ).scale(20)
-            );
-            break;
+        switch (this.fisher.state) {
+            case "ready":
+                // Simple behind-the-player camera
+                targetPos = this.fisher.position.add(
+                    new Vector3(-Math.sin(this.fisher.aimAngle) * 15, 8, -Math.cos(this.fisher.aimAngle) * 15)
+                );
+                targetLookAt = this.fisher.position.add(
+                    new Vector3(Math.sin(this.fisher.aimAngle), 0, Math.cos(this.fisher.aimAngle)).scale(20)
+                );
+                break;
 
-        case "casting":
-        case "fishing":
-            // Follow the lure with an offset back and up
-            targetPos = this.lure.position.add(new Vector3(-8, 6, -8));
-            targetLookAt = this.lure.position;
-            break;
-
-        case "reeling":
-            const distanceToFisher = this.lure.position.distanceTo(this.fisher.position);
-            if (distanceToFisher < 15) {
-                // Transition back to behind-player view when close
-                targetPos = this.fisher.position.add(new Vector3(0, 8, -15));
-                targetLookAt = this.fisher.position;
-            } else {
-                // Keep following lure while reeling
+            case "casting":
+            case "fishing":
+                // Follow the lure with an offset back and up
                 targetPos = this.lure.position.add(new Vector3(-8, 6, -8));
                 targetLookAt = this.lure.position;
-            }
-            break;
-    }
+                break;
 
-    // Smooth camera movement
-    this.camera.position = this.camera.position.lerp(targetPos, deltaTime * CAMERA_LERP_SPEED);
-    this.camera.target = this.camera.target.lerp(targetLookAt, deltaTime * CAMERA_LERP_SPEED);
-}
+            case "reeling":
+                const distanceToFisher = this.lure.position.distanceTo(this.fisher.position);
+                if (distanceToFisher < 15) {
+                    // Transition back to behind-player view when close
+                    targetPos = this.fisher.position.add(new Vector3(0, 8, -15));
+                    targetLookAt = this.fisher.position;
+                } else {
+                    // Keep following lure while reeling
+                    targetPos = this.lure.position.add(new Vector3(-8, 6, -8));
+                    targetLookAt = this.lure.position;
+                }
+                break;
+        }
+
+        // Smooth camera movement
+        this.camera.position = this.camera.position.lerp(targetPos, deltaTime * CAMERA_LERP_SPEED);
+        this.camera.target = this.camera.target.lerp(targetLookAt, deltaTime * CAMERA_LERP_SPEED);
+    }
+    
     pause() {
         this.physicsWorld.pause();
     }
@@ -133,7 +123,7 @@ class FishingMode {
             hasHookedFish: Boolean(this.fisher.lure?.hookedFish),
             lineTension: this.fisher.lineTension
         };
-        
+
         this.ui.draw(gameState);
     }
 
@@ -183,11 +173,11 @@ class FishingMode {
         if (this.guiContext) {
             this.guiContext.clearRect(0, 0, 800, 600);
         }
-        
+
         if (this.ui) {
             this.ui = null;
         }
-        
+
         this.input.clearAllElements();
 
         // Clear references
