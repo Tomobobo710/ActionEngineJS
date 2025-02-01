@@ -141,9 +141,6 @@ class Fisher {
                 break;
         }
 
-        if (this.model) {
-            this.model.update(deltaTime);
-        }
     }
 
     tryHookFish() {

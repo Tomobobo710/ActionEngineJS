@@ -303,23 +303,4 @@ class FishermanModel extends ActionPhysicsObject3D {
         this.timeSinceLastUpdate = 0;
         physicsWorld.addObject(this);
     }
-
-    update(deltaTime) {
-        if (!this.body) return;
-
-        // Get water heights for tilt calculation
-        const waterHeight = this.fisher?.game.ocean.getWaterHeightAt(this.body.position.x, this.body.position.z);
-
-        const forwardHeight = this.fisher?.game.ocean.getWaterHeightAt(this.body.position.x, this.body.position.z + 1);
-
-        const rightHeight = this.fisher?.game.ocean.getWaterHeightAt(this.body.position.x + 1, this.body.position.z);
-
-        // Calculate tilt angles
-        const forwardTilt = forwardHeight - waterHeight;
-        const rightTilt = rightHeight - waterHeight;
-
-        // Apply rotation directly to body rotation values
-        this.body.rotation.x = forwardTilt * 0.1;
-        this.body.rotation.z = rightTilt * 0.1;
-    }
 }
