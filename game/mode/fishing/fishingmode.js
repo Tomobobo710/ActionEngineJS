@@ -36,7 +36,7 @@ class FishingMode {
         this.hookingBarVisible = false;
         this.hookingProgress = 0;
 
-        this.generateInitialFish(50);
+        this.generateInitialFish(20);
         this.caughtFishManager = new CaughtFishManager();
 
         this.lastTime = performance.now();
