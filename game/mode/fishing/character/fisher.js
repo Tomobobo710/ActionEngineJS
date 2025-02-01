@@ -147,16 +147,16 @@ class Fisher {
     }
 
     tryHookFish() {
-    console.log("Attempting to hook fish!");
-    const fishingArea = this.game.fishingArea;
-    
-    for (const [fish, fishAI] of fishingArea.fish) {
-        if (fishAI.tryHook(this.lure)) {
-            console.log("Fish successfully hooked!");
-            break;
+        console.log("Attempting to hook fish!");
+        const fishingArea = this.game.fishingArea;
+
+        for (const [fish, fishAI] of fishingArea.fish) {
+            if (fishAI.tryHook(this.lure)) {
+                console.log("Fish successfully hooked!");
+                break;
+            }
         }
     }
-}
 
     handleLureMovement(input, deltaTime) {
         const moveSpeed = 30 * deltaTime;

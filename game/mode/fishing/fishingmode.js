@@ -35,13 +35,13 @@ class FishingMode {
         // Update fishing area (which updates fish movement)
         this.fishingArea.update(deltaTime);
 
-       for (const [fish, fishAI] of this.fishingArea.fish) {
-    if (fishAI.currentBehavior === fishAI.behaviors.attack && fishAI.canBeHooked) {
-        this.hookingBarVisible = true;
-        this.hookingProgress = fishAI.currentBehavior.getHookingWindowProgress();
-    }
-}
-        
+        for (const [fish, fishAI] of this.fishingArea.fish) {
+            if (fishAI.currentBehavior === fishAI.behaviors.attack && fishAI.canBeHooked) {
+                this.hookingBarVisible = true;
+                this.hookingProgress = fishAI.currentBehavior.getHookingWindowProgress();
+            }
+        }
+
         this.physicsWorld.update(deltaTime);
 
         if (this.input.isKeyJustPressed("Numpad0")) {
@@ -95,7 +95,7 @@ class FishingMode {
         this.camera.position = this.camera.position.lerp(targetPos, deltaTime * CAMERA_LERP_SPEED);
         this.camera.target = this.camera.target.lerp(targetLookAt, deltaTime * CAMERA_LERP_SPEED);
     }
-    
+
     pause() {
         this.physicsWorld.pause();
     }
