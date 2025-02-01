@@ -111,74 +111,53 @@ class FishingMode {
     }
 
     updateCamera(deltaTime) {
-        if (this.camera.isDetached) return;
+    if (this.camera.isDetached) return;
 
-        const CAMERA_LERP_SPEED = 3;
-        let targetPos, targetLookAt;
+    const CAMERA_LERP_SPEED = 3;
+    let targetPos, targetLookAt;
 
-        // Helper function to get right shoulder offset based on aim angle
-        const getRightShoulderOffset = (distance) => {
-            // Start with the back-facing vector based on aim angle
-            const backVector = new Vector3(
-                -Math.sin(this.fisher.aimAngle),
-                0.3, // Much lower camera height
-                -Math.cos(this.fisher.aimAngle)
+    switch (this.fisher.state) {
+        case "ready":
+            // Simple behind-the-player camera
+            targetPos = this.fisher.position.add(new Vector3(
+                -Math.sin(this.fisher.aimAngle) * 15, // Back 15 units
+                8,  // Up 8 units
+                -Math.cos(this.fisher.aimAngle) * 15  // Account for player rotation
+            ));
+            targetLookAt = this.fisher.position.add(
+                new Vector3(
+                    Math.sin(this.fisher.aimAngle), 
+                    0, 
+                    Math.cos(this.fisher.aimAngle)
+                ).scale(20)
             );
+            break;
 
-            // Calculate right vector
-            const right = new Vector3(-Math.cos(this.fisher.aimAngle), 0, Math.sin(this.fisher.aimAngle));
+        case "casting":
+        case "fishing":
+            // Follow the lure with an offset back and up
+            targetPos = this.lure.position.add(new Vector3(-8, 6, -8));
+            targetLookAt = this.lure.position;
+            break;
 
-            // Combine vectors - closer camera
-            return backVector.scale(0.7 * distance).add(right.scale(0.2 * distance));
-        };
-
-        switch (this.fisher.state) {
-            case "ready":
-                const cameraOffset = getRightShoulderOffset(15);
-                targetPos = this.fisher.position.add(cameraOffset);
-                targetLookAt = this.fisher.position.add(
-                    new Vector3(Math.sin(this.fisher.aimAngle), 0, Math.cos(this.fisher.aimAngle)).scale(20)
-                );
-
-                // Update fisher model rotation directly
-                if (this.fisher.model && this.fisher.model.body) {
-                    this.fisher.model.body.rotation.x = 0;
-                    this.fisher.model.body.rotation.y = this.fisher.aimAngle;
-                    this.fisher.model.body.rotation.z = 0;
-                    this.fisher.model.body.rotation.w = 1;
-                }
-                break;
-
-            case "casting":
-                const castingOffset = getRightShoulderOffset(15);
-                targetPos = this.fisher.position.add(castingOffset);
+        case "reeling":
+            const distanceToFisher = this.lure.position.distanceTo(this.fisher.position);
+            if (distanceToFisher < 15) {
+                // Transition back to behind-player view when close
+                targetPos = this.fisher.position.add(new Vector3(0, 8, -15));
+                targetLookAt = this.fisher.position;
+            } else {
+                // Keep following lure while reeling
+                targetPos = this.lure.position.add(new Vector3(-8, 6, -8));
                 targetLookAt = this.lure.position;
-                break;
-
-            case "fishing":
-                const fishingOffset = getRightShoulderOffset(12);
-                targetPos = this.lure.position.add(fishingOffset);
-                targetLookAt = this.lure.position;
-                break;
-
-            case "reeling":
-                const distanceToFisher = this.lure.position.distanceTo(this.fisher.position);
-                if (distanceToFisher < 15) {
-                    const returnOffset = getRightShoulderOffset(15);
-                    targetPos = this.fisher.position.add(returnOffset);
-                    targetLookAt = this.fisher.position;
-                } else {
-                    const reelingOffset = getRightShoulderOffset(12);
-                    targetPos = this.lure.position.add(reelingOffset);
-                    targetLookAt = this.lure.position;
-                }
-                break;
-        }
-
-        // Smooth camera movement using lerp
-        this.camera.position = this.camera.position.lerp(targetPos, deltaTime * CAMERA_LERP_SPEED);
-        this.camera.target = this.camera.target.lerp(targetLookAt, deltaTime * CAMERA_LERP_SPEED);
+            }
+            break;
     }
+
+    // Smooth camera movement
+    this.camera.position = this.camera.position.lerp(targetPos, deltaTime * CAMERA_LERP_SPEED);
+    this.camera.target = this.camera.target.lerp(targetLookAt, deltaTime * CAMERA_LERP_SPEED);
+}
     pause() {
         this.physicsWorld.pause();
     }
