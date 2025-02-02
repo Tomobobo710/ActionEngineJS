@@ -14,7 +14,7 @@ class FishingMode {
         this.physicsWorld.setShaderManager(this.shaderManager);
         this.ocean = new Ocean(this.physicsWorld, 500, 500, 8, 1);
         this.fishingArea = new FishingArea();
-        this.fisher = new Fisher(this, new Vector3(0, 30, -50));
+        this.fisher = new Fisher(this, new Vector3(0, 50, 0));
         this.lure = new Lure(this.physicsWorld);
         this.fisher.attachLure(this.lure);
         this.hookingBarVisible = false;

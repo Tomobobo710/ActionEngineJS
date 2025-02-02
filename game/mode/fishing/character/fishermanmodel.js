@@ -1,5 +1,5 @@
 class FishermanModel extends ActionPhysicsObject3D {
-    constructor(physicsWorld, height = 10, position = new Vector3(0, 0, 0)) {
+    constructor(physicsWorld, height = 10) {
         const triangles = [];
         const colors = {
             BODY_COLOR: "#3f2a14", // Brown for clothing
@@ -298,7 +298,6 @@ class FishermanModel extends ActionPhysicsObject3D {
         // Set up physics body
         const shape = new Goblin.BoxShape(bodyWidth, height, bodyDepth);
         this.body = new Goblin.RigidBody(shape, 0); // 0 mass for static body
-        this.body.position.set(position.x, position.y, position.z);
 
         this.timeSinceLastUpdate = 0;
         physicsWorld.addObject(this);

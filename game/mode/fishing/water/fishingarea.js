@@ -1,5 +1,5 @@
 class FishingArea {
-    constructor(width = 500, length = 500, depth = 50) {
+    constructor(width = 500, length = 500, depth = 100) {
         this.bounds = {
             width,
             length,

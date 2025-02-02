@@ -16,27 +16,27 @@ class Ocean extends ActionPhysicsObject3D {
 
                         triangles.push(
                             new Triangle(
-                                new Vector3(x1, 50, z1),
-                                new Vector3(x1, 50, z2),
-                                new Vector3(x2, 50, z1),
+                                new Vector3(x1, 0, z1),
+                                new Vector3(x1, 0, z2),
+                                new Vector3(x2, 0, z1),
                                 "#0645f4ff"
                             ),
                             new Triangle(
-                                new Vector3(x2, 50, z2),
-                                new Vector3(x2, 50, z1),
-                                new Vector3(x1, 50, z2),
+                                new Vector3(x2, 0, z2),
+                                new Vector3(x2, 0, z1),
+                                new Vector3(x1, 0, z2),
                                 "#0645f4ff"
                             ),
                             new Triangle(
-                                new Vector3(x1, 50, z1),
-                                new Vector3(x2, 50, z1),
-                                new Vector3(x1, 50, z2),
+                                new Vector3(x1, 0, z1),
+                                new Vector3(x2, 0, z1),
+                                new Vector3(x1, 0, z2),
                                 "#0645f4ff"
                             ),
                             new Triangle(
-                                new Vector3(x2, 50, z2),
-                                new Vector3(x1, 50, z2),
-                                new Vector3(x2, 50, z1),
+                                new Vector3(x2, 0, z2),
+                                new Vector3(x1, 0, z2),
+                                new Vector3(x2, 0, z1),
                                 "#0645f4ff"
                             )
                         );
@@ -45,12 +45,7 @@ class Ocean extends ActionPhysicsObject3D {
             }
         }
         super(physicsWorld, triangles);
-
-        this.shader = "water"; // Set shader to use the volumetric water shader
-        this.time = 0;
-        this.updateInterval = 1 / 30;
-
-
+        this.time = 0; // this never changes
         this.body = new Goblin.RigidBody(new Goblin.BoxShape(width / 2, 1, length / 2), 0);
         this.body.position.set(0, 50, 0);
         physicsWorld.addObject(this);

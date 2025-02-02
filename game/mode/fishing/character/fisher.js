@@ -1,5 +1,5 @@
 class Fisher {
-    constructor(game, position = new Vector3(0, 10, -50)) {
+    constructor(game, position = new Vector3(0, 0, 0)) {
         this.game = game;
         this.position = position;
         this.lure = null;
@@ -16,12 +16,11 @@ class Fisher {
         this.model = new FishermanModel(game.physicsWorld, 10, position);
         this.model.fisher = this;
 
-        this.floatOffset = 30;
-        this.floatLerpFactor = 0.1;
-
         this.minCastStrength = 20;
         this.maxCastStrength = 300;
-
+        
+        this.lureYOffset = 5;
+        
         this.isReeling = false;
         this.lineLength = 0; // Current line length
         this.maxLineLength = 200; // Maximum line length
@@ -37,10 +36,16 @@ class Fisher {
 
     update(deltaTime, input) {
         const waterHeight = this.game.ocean.getWaterHeightAt(this.position.x, this.position.z);
+        console.log(
+            "this body position: ",
+            this.model.body.position,
+            "this position: ",
+            this.position,
+            "this waterheight: ",
+            waterHeight
+        );
 
-        const targetY = waterHeight + this.floatOffset;
-        this.position.y += (targetY - this.position.y) * this.floatLerpFactor;
-
+        // Move body to position
         if (this.model && this.model.body) {
             this.model.body.position.x = this.position.x;
             this.model.body.position.y = this.position.y;
@@ -50,12 +55,12 @@ class Fisher {
         // Keep lure with fisher when not cast
         if (this.state === "ready" && this.lure) {
             this.lure.position.x = this.position.x;
-            this.lure.position.y = this.position.y;
+            this.lure.position.y = this.position.y + this.lureYOffset;
             this.lure.position.z = this.position.z;
 
             // Update lure's body position as well
             this.lure.body.position.x = this.position.x;
-            this.lure.body.position.y = this.position.y;
+            this.lure.body.position.y = this.position.y + this.lureYOffset;
             this.lure.body.position.z = this.position.z;
         }
 
@@ -140,7 +145,6 @@ class Fisher {
                 }
                 break;
         }
-
     }
 
     tryHookFish() {
@@ -210,7 +214,11 @@ class Fisher {
         const castVelocity = castDirectionWithArc.scale(castStrength);
 
         this.lure.visible = true;
-        this.lure.startCast(this.position, castVelocity, this.castDirection);
+        this.lure.startCast(
+            new Vector3(this.position.x, this.position.y + this.lureYOffset, this.position.z),
+            castVelocity,
+            this.castDirection
+        );
 
         this.state = "casting";
         this.castPower = 0;
