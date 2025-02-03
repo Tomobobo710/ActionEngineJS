@@ -92,9 +92,9 @@ class GameModeManager {
                 !battleMode.battle.victoryHandled) {
                 
                 battleMode.battle.victoryHandled = true;
-                setTimeout(() => {
-                    this.switchMode('world');
-                }, 1000);
+
+                this.switchMode('world');
+                
             }
         }
         // Check for fishing mode exit
