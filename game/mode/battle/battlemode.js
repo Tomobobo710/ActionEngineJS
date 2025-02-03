@@ -257,14 +257,7 @@ class BattleMode {
         }
         this.battle.update(this.input);
         if (!this.battle.isPaused) {
-            this.battle.handleInput(this.input);
-
-            if (this.battle.state === "victory" && this.battle.transitionProgress >= 1) {
-                setTimeout(() => {
-                    this.persistentParty = this.battle.party;
-                    this.startNewBattle();
-                }, 1000);
-            }
+            this.battle.handleInput(this.input);            
         }
     }
 
@@ -336,7 +329,9 @@ class BattleMode {
     cleanup() {
         // Clear battle system
         if (this.battle) {
-            // TODO: Add proper battle cleanup
+            if (this.battle.state === "victory") {
+                this.persistentParty = this.battle.party;
+            }
             this.battle = null;
         }
 
