@@ -117,6 +117,23 @@ class RPGMenuMode {
         // Track scrolling for items that overflow
         this.itemScrollOffset = 0;
         this.maxVisibleItems = 8;
+        this.characterPanel.selectedCharIndex = -1; // No character selected by default
+    this.characterPanel.selectionState = 'none'; // 'none', 'selecting_target'
+    this.characterPanel.targetMode = 'single'; // 'single' or 'all'
+    this.characterPanel.selectionState = 'none'; // 'none' or 'selecting_target'
+    this.characterPanel.selectedCharIndex = -1;
+    // Register character panels as interactive elements
+    const party = this.gameMaster.persistentParty;
+    party.forEach((_, index) => {
+        this.input.registerElement(`character_panel_${index}`, {
+            bounds: () => ({
+                x: this.characterPanel.startX,
+                y: this.characterPanel.startY + index * (this.characterPanel.height + this.characterPanel.verticalGap),
+                width: this.characterPanel.width,
+                height: this.characterPanel.height
+            })
+        });
+    });
     }
 
     loadSprites() {
@@ -176,56 +193,119 @@ class RPGMenuMode {
         }
     }
     updateItemMenu() {
-        // Check back button or Action2 for closing submenu
-        if (this.input.isElementJustPressed("item_back_button") || this.input.isKeyJustPressed("Action2")) {
-            this.isClosingSubmenu = true;
-            this.exitSubmenu();
-            return;
-        }
+   // Check if back button is clicked - this should ALWAYS cancel any targeting and close menus
+   if (this.input.isElementJustPressed("item_back_button")) {
+       this.characterPanel.selectionState = 'none';
+       this.characterPanel.selectedCharIndex = -1;
+       this.isClosingSubmenu = true;
+       this.exitSubmenu();
+       return;
+   }
 
-        const inventory = this.gameMaster.partyInventory;
-        const items = inventory.getAvailableItems();
+   const inventory = this.gameMaster.partyInventory;
+   const items = inventory.getAvailableItems();
+   const p = this.characterPanel;
 
-        // Update hover states and handle mouse clicks
-        for (let i = 0; i < Math.min(this.maxVisibleItems, items.length); i++) {
-            const index = i + this.itemScrollOffset;
-            if (this.input.isElementHovered(`submenu_item_${index}`)) {
-                this.submenuSelectedIndex = index;
-            }
+   if (p.selectionState === 'selecting_target') {
+       // Handle target selection
+       const party = this.gameMaster.persistentParty;
+       
+       if (p.targetMode === 'single') {
+           // Single target handling
+           party.forEach((_, index) => {
+               if (this.input.isElementHovered(`character_panel_${index}`)) {
+                   p.selectedCharIndex = index;
+                   
+                   if (this.input.isElementJustPressed(`character_panel_${index}`)) {
+                       this.handleItemUse(items[this.submenuSelectedIndex], party[index]);
+                       p.selectionState = 'none';
+                       p.selectedCharIndex = -1;
+                   }
+               }
+           });
 
-            // Add mouse click handling
-            if (this.input.isElementJustPressed(`submenu_item_${index}`)) {
-                const selectedItem = items[index];
-                if (selectedItem) {
-                    console.log(`Selected item: ${selectedItem.item.name}`);
-                    // Handle item usage here
-                }
-            }
-        }
-
-        // Keyboard navigation
-        if (this.input.isKeyJustPressed("DirUp")) {
-            this.submenuSelectedIndex = Math.max(0, this.submenuSelectedIndex - 1);
-            if (this.submenuSelectedIndex < this.itemScrollOffset) {
-                this.itemScrollOffset = this.submenuSelectedIndex;
-            }
-        }
-        if (this.input.isKeyJustPressed("DirDown")) {
-            this.submenuSelectedIndex = Math.min(items.length - 1, this.submenuSelectedIndex + 1);
-            if (this.submenuSelectedIndex >= this.itemScrollOffset + this.maxVisibleItems) {
-                this.itemScrollOffset = this.submenuSelectedIndex - this.maxVisibleItems + 1;
-            }
-        }
-
-        // Keyboard selection
-        if (this.input.isKeyJustPressed("Action1")) {
-            const selectedItem = items[this.submenuSelectedIndex];
-            if (selectedItem) {
-                console.log(`Selected item: ${selectedItem.item.name}`);
-                // Handle item usage here
-            }
-        }
+           // Handle keyboard navigation for single target
+           if (this.input.isKeyJustPressed("DirUp")) {
+               p.selectedCharIndex = Math.max(0, p.selectedCharIndex - 1);
+           }
+           if (this.input.isKeyJustPressed("DirDown")) {
+               p.selectedCharIndex = Math.min(party.length - 1, p.selectedCharIndex + 1);
+           }
+           
+           if (this.input.isKeyJustPressed("Action1") && p.selectedCharIndex !== -1) {
+               this.handleItemUse(items[this.submenuSelectedIndex], party[p.selectedCharIndex]);
+               p.selectionState = 'none';
+               p.selectedCharIndex = -1;
+           }
+       } else {
+    // All target handling - any click on any character or Action1 uses the item
+    if (party.some((_, index) => this.input.isElementJustPressed(`character_panel_${index}`)) ||
+        this.input.isKeyJustPressed("Action1")) {
+        // Pass the entire party array for all-target items
+        this.handleItemUse(items[this.submenuSelectedIndex], party);
+        p.selectionState = 'none';
+        p.selectedCharIndex = -1;
     }
+}
+
+       // Cancel target selection with Action2
+       if (this.input.isKeyJustPressed("Action2")) {
+           p.selectionState = 'none';
+           p.selectedCharIndex = -1;
+           return;
+       }
+       
+       return; // Skip regular item menu updates while selecting target
+   }
+
+   // Regular Action2 for closing submenu (only when not targeting)
+   if (this.input.isKeyJustPressed("Action2")) {
+       this.isClosingSubmenu = true;
+       this.exitSubmenu();
+       return;
+   }
+
+   const handleItemSelection = (selectedItem) => {
+    if (selectedItem) {
+        p.selectionState = 'selecting_target';
+        // Check for "all_" prefix instead of "ALL"
+        p.targetMode = selectedItem.item.targetType.startsWith('all_') ? 'all' : 'single';
+        p.selectedCharIndex = p.targetMode === 'single' ? 0 : -1;
+    }
+};
+
+   // Update hover states and handle mouse clicks
+   for (let i = 0; i < Math.min(this.maxVisibleItems, items.length); i++) {
+       const index = i + this.itemScrollOffset;
+       if (this.input.isElementHovered(`submenu_item_${index}`)) {
+           this.submenuSelectedIndex = index;
+       }
+
+       // Add mouse click handling
+       if (this.input.isElementJustPressed(`submenu_item_${index}`)) {
+           handleItemSelection(items[index]);
+       }
+   }
+
+   // Keyboard navigation
+   if (this.input.isKeyJustPressed("DirUp")) {
+       this.submenuSelectedIndex = Math.max(0, this.submenuSelectedIndex - 1);
+       if (this.submenuSelectedIndex < this.itemScrollOffset) {
+           this.itemScrollOffset = this.submenuSelectedIndex;
+       }
+   }
+   if (this.input.isKeyJustPressed("DirDown")) {
+       this.submenuSelectedIndex = Math.min(items.length - 1, this.submenuSelectedIndex + 1);
+       if (this.submenuSelectedIndex >= this.itemScrollOffset + this.maxVisibleItems) {
+           this.itemScrollOffset = this.submenuSelectedIndex - this.maxVisibleItems + 1;
+       }
+   }
+
+   // Keyboard selection
+   if (this.input.isKeyJustPressed("Action1")) {
+       handleItemSelection(items[this.submenuSelectedIndex]);
+   }
+}
 
     exitSubmenu() {
         // Clean up submenu elements first
@@ -398,12 +478,20 @@ class RPGMenuMode {
         }
     }
     drawCharacterPanel() {
-        const party = this.gameMaster.persistentParty;
-        const p = this.characterPanel; // shorthand reference
+    const party = this.gameMaster.persistentParty;
+    const p = this.characterPanel;
 
-        party.forEach((char, index) => {
-            const x = p.startX;
-            const y = p.startY + index * (p.height + p.verticalGap);
+    party.forEach((char, index) => {
+        const x = p.startX;
+        const y = p.startY + index * (p.height + p.verticalGap);
+        
+        // Draw selection outline if this character is selected or if all are targeted
+        if ((index === p.selectedCharIndex || p.targetMode === 'all') && 
+            p.selectionState === 'selecting_target') {
+            this.ctx.strokeStyle = "#00ffff";
+            this.ctx.lineWidth = 3;
+            this.ctx.strokeRect(x - 4, y - 4, p.width + 8, p.height + 8);
+        }
             const portraitX = x + p.portrait.margin;
             const portraitY = y + (p.height - p.portrait.size) / 2;
 
@@ -547,11 +635,26 @@ class RPGMenuMode {
     resume() {
         // Handle resume state
     }
-
+    handleItemUse(itemData, target) {
+    if (Array.isArray(target)) {
+        // Handle all-target items
+        target.forEach(char => {
+            console.log(`Using ${itemData.item.name} on ${char.name}`);
+        });
+    } else {
+        // Handle single-target items
+        console.log(`Using SINGLE ${itemData.item.name} on ${target.name}`);
+    }
+    // Add actual item use logic here
+}
     cleanup() {
         this.menuOptions.forEach((_, index) => {
             this.input.removeElement(`menu_option_${index}`);
         });
         this.input.removeElement("item_back_button");
+        const party = this.gameMaster.persistentParty;
+    party.forEach((_, index) => {
+        this.input.removeElement(`character_panel_${index}`);
+    });
     }
 }
