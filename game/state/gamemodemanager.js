@@ -5,7 +5,7 @@ class GameModeManager {
         this.currentMode = null;
         this.activeMode = null;
 
-        this.modes = ["battle", "world", "fishing"];
+        this.modes = ["start", "battle", "world", "fishing"];
         this.currentModeIndex = 0;
     }
 
@@ -43,8 +43,16 @@ class GameModeManager {
         }
 
         // Create new mode
-        switch(modeName) {
-            case 'world':
+        switch (modeName) {
+            case "start":
+                this.activeMode = new StartScreenMode(
+                    this.gameMaster.canvases,
+                    this.gameMaster.input,
+                    this.gameMaster.audio,
+                    this // Pass the GameModeManager instance
+                );
+                break;
+            case "world":
                 this.activeMode = new WorldMode(
                     this.gameMaster.canvases,
                     this.gameMaster.input,
@@ -52,18 +60,19 @@ class GameModeManager {
                     this
                 );
                 break;
-            case 'fishing':
+            case "fishing":
                 this.activeMode = new FishingMode(
                     this.gameMaster.canvases,
                     this.gameMaster.input,
                     this.gameMaster.audio
                 );
                 break;
-            case 'battle':
+            case "battle":
                 this.activeMode = new BattleMode(
                     this.gameMaster.canvases,
                     this.gameMaster.input,
-                    this.gameMaster.audio
+                    this.gameMaster.audio,
+                    this.gameMaster
                 );
                 break;
             default:
@@ -79,32 +88,32 @@ class GameModeManager {
         this.currentModeIndex = (this.currentModeIndex + 1) % this.modes.length;
         this.switchMode(this.modes[this.currentModeIndex]);
     }
-    
+
     update(deltaTime) {
-    if (this.activeMode) {
-        this.activeMode.update(deltaTime);
+        if (this.activeMode) {
+            this.activeMode.update(deltaTime);
 
-        // Check if battle mode is finished
-        if (this.currentMode === 'battle') {
-            const battleMode = this.activeMode;
-            if (battleMode.battle?.state === 'victory' && 
-                battleMode.battle?.transitionProgress >= 1 && 
-                !battleMode.battle.victoryHandled) {
-                
-                battleMode.battle.victoryHandled = true;
+            // Check if battle mode is finished
+            if (this.currentMode === "battle") {
+                const battleMode = this.activeMode;
+                if (
+                    battleMode.battle?.state === "victory" &&
+                    battleMode.battle?.transitionProgress >= 1 &&
+                    !battleMode.battle.victoryHandled
+                ) {
+                    battleMode.battle.victoryHandled = true;
 
-                this.switchMode('world');
-                
+                    this.switchMode("world");
+                }
             }
-        }
-        // Check for fishing mode exit
-        else if (this.currentMode === 'fishing') {
-            if (this.gameMaster.input.isKeyJustPressed('Action5')) {
-                this.switchMode('world');
+            // Check for fishing mode exit
+            else if (this.currentMode === "fishing") {
+                if (this.gameMaster.input.isKeyJustPressed("Action5")) {
+                    this.switchMode("world");
+                }
             }
         }
     }
-}
 
     draw() {
         if (this.activeMode) {
