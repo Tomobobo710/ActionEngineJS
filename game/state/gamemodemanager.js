@@ -5,7 +5,7 @@ class GameModeManager {
         this.currentMode = null;
         this.activeMode = null;
 
-        this.modes = ["start", "battle", "world", "fishing"];
+        this.modes = ["start", "battle", "world", "fishing", "rpgmenu"];
         this.currentModeIndex = 0;
     }
 
@@ -52,6 +52,14 @@ class GameModeManager {
                     this // Pass the GameModeManager instance
                 );
                 break;
+                case 'rpgmenu':
+               this.activeMode = new RPGMenuMode(
+                   this.gameMaster.canvases,
+                   this.gameMaster.input,
+                   this.gameMaster.audio,
+                   this.gameMaster
+               );
+               break;
             case "world":
                 this.activeMode = new WorldMode(
                     this.gameMaster.canvases,
