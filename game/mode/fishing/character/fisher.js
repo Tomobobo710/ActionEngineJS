@@ -36,15 +36,6 @@ class Fisher {
 
     update(deltaTime, input) {
         const waterHeight = this.game.ocean.getWaterHeightAt(this.position.x, this.position.z);
-        console.log(
-            "this body position: ",
-            this.model.body.position,
-            "this position: ",
-            this.position,
-            "this waterheight: ",
-            waterHeight
-        );
-
         // Move body to position
         if (this.model && this.model.body) {
             this.model.body.position.x = this.position.x;

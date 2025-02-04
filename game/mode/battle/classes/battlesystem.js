@@ -1,7 +1,7 @@
 // game/mode/battle/classes/battlesystem.js
 class BattleSystem {
     constructor(party, enemyParty, audio, input, inventory) {
-        this.party = party.map((data) => new Character(data));
+        this.party = party;
         this.enemies = enemyParty.map((data) => new Character(data));
         this.partyInventory = inventory;
         this.enemyInventory = new Inventory();

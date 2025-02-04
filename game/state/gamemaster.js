@@ -1,69 +1,90 @@
 // game/state/gamemaster.js
 class GameMaster {
-   constructor(canvases, input, audio) {
-       this.canvases = canvases;
-       this.input = input;
-       this.audio = audio;
+    constructor(canvases, input, audio) {
+        this.canvases = canvases;
+        this.input = input;
+        this.audio = audio;
 
-       this.modeManager = new GameModeManager(this);
+        this.modeManager = new GameModeManager(this);
 
-       // Persistent game state
-       this.playerState = {
-           position: new Vector3(0, 500, 0),
-           rotation: 0
-       };
+        // Persistent game state
+        this.playerState = {
+            position: new Vector3(0, 500, 0),
+            rotation: 0
+        };
 
-       // Kickstart game with battle mode
-       this.modeManager.switchMode('fishing');
+        // Add party and inventory creation here
+        this.partyInventory = new Inventory();
+        this.persistentParty = DEFAULT_PARTY.map(
+            (char) =>
+                new Character({
+                    ...char,
+                    sprite: null // Sprites will be handled by BattleMode
+                })
+        );
 
-       // Set up visibility handlers
-       document.addEventListener("visibilitychange", () => {
-           if (document.hidden) {
-               this.pause();
-           } else {
-               this.resume();
-           }
-       });
-       
-       window.addEventListener("blur", () => this.pause());
-       window.addEventListener("focus", () => this.resume());
+        // Attach inventory to party
+        Object.defineProperty(this.persistentParty, "inventory", {
+            value: this.partyInventory,
+            enumerable: false
+        });
 
-       this.lastTime = performance.now();
-       this.deltaTime = 0;
-   }
+        // Add starter items
+        STARTER_INVENTORY.forEach(({ item, quantity }) => {
+            this.partyInventory.addItem(item, quantity);
+        });
 
-   update() {
-    const currentTime = performance.now();
-    this.deltaTime = Math.min((currentTime - this.lastTime) / 1000, 0.25);
-    this.lastTime = currentTime;
+        // Kickstart game with a mode
+        this.modeManager.switchMode("start");
 
-    // Check for mode switch input
-    if (this.input.isKeyJustPressed("ActionDebugToggle")) {
-        this.modeManager.cycleMode();
+        // Set up visibility handlers
+        document.addEventListener("visibilitychange", () => {
+            if (document.hidden) {
+                this.pause();
+            } else {
+                this.resume();
+            }
+        });
+
+        window.addEventListener("blur", () => this.pause());
+        window.addEventListener("focus", () => this.resume());
+
+        this.lastTime = performance.now();
+        this.deltaTime = 0;
     }
 
-    this.modeManager.update(this.deltaTime);
-}
+    update() {
+        const currentTime = performance.now();
+        this.deltaTime = Math.min((currentTime - this.lastTime) / 1000, 0.25);
+        this.lastTime = currentTime;
 
-   draw() {
-       this.modeManager.draw();
-   }
+        // Check for mode switch input
+        if (this.input.isKeyJustPressed("ActionDebugToggle")) {
+            this.modeManager.cycleMode();
+        }
 
-   pause() {
-       this.modeManager.pause();
-   }
+        this.modeManager.update(this.deltaTime);
+    }
 
-   resume() {
-       this.lastTime = performance.now();
-       this.modeManager.resume();
-   }
+    draw() {
+        this.modeManager.draw();
+    }
 
-   savePlayerState(position, rotation) {
-       this.playerState.position = position;
-       this.playerState.rotation = rotation;
-   }
+    pause() {
+        this.modeManager.pause();
+    }
 
-   getPlayerState() {
-       return this.playerState;
-   }
+    resume() {
+        this.lastTime = performance.now();
+        this.modeManager.resume();
+    }
+
+    savePlayerState(position, rotation) {
+        this.playerState.position = position;
+        this.playerState.rotation = rotation;
+    }
+
+    getPlayerState() {
+        return this.playerState;
+    }
 }
