@@ -9,7 +9,8 @@ const SPELLS = {
         animation: {
             color: "#ff4400",
             type: "explosion"
-        }
+        },
+        description: "Fire elemental damage (single)"
     },
     ice: {
         name: "Ice",
@@ -20,7 +21,8 @@ const SPELLS = {
         animation: {
             color: "#88ccff",
             type: "crystals"
-        }
+        },
+        description: "Ice elemental damage (single)"
     },
     lightning: {
         name: "Lightning",
@@ -31,7 +33,8 @@ const SPELLS = {
         animation: {
             color: "#ffff00",
             type: "bolt"
-        }
+        },
+        description: "Lightning elemental dmg (all)"
     },
     poison: {
         name: "Poison",
@@ -42,7 +45,8 @@ const SPELLS = {
         animation: {
             color: "#88ff88",
             type: "mist"
-        }
+        },
+        description: "Poison elemental dmg (single)"
     },
     // New spells
     heal: {
@@ -54,7 +58,8 @@ const SPELLS = {
         animation: {
             color: "#ffffff",
             type: "healing"
-        }
+        },
+        description: "Holy elemental healing (single)"
     },
     quake: {
         name: "Quake",
@@ -65,7 +70,8 @@ const SPELLS = {
         animation: {
             color: "#884400",
             type: "explosion"
-        }
+        },
+        description: "Earth elemental damage (all)"
     },
     wind: {
         name: "Wind",
@@ -76,7 +82,8 @@ const SPELLS = {
         animation: {
             color: "#88ff88",
             type: "mist"
-        }
+        },
+        description: "Air elemental damage (all)"
     },
     water: {
         name: "Water",
@@ -87,17 +94,19 @@ const SPELLS = {
         animation: {
             color: "#4488ff",
             type: "crystals"
-        }
+        },
+        description: "Water elemental dmg (single)"
     },
     holy: {
         name: "Holy",
         mpCost: 15,
         power: 45,
         element: "holy",
-        targetType: TARGET_TYPES.SINGLE_ENEMY,
+        targetType: TARGET_TYPES.ALL,
         animation: {
             color: "#ffffff",
             type: "explosion"
-        }
+        },
+        description: "Holy elemental healing (all)" 
     }
 };
