@@ -95,7 +95,7 @@ class RPGMenuMode {
                 textOffset: 15 // Space between bar and its label
             }
         };
-
+        
         // Register menu options as interactive elements
         this.menuOptions.forEach((option, index) => {
             this.input.registerElement(`menu_option_${index}`, {
@@ -107,7 +107,53 @@ class RPGMenuMode {
                 })
             });
         });
-
+        this.descriptionPanel = {
+            x: 20,          // Start from left side
+            y: 540,         // Same Y as info panel
+            width: 350,     // Leave room for info panel
+            height: 40,     // Match info panel height
+            fontSize: 20,
+            textPadding: 10,
+            color: "rgba(0, 0, 102, 0.8)"
+        };
+        this.magicMenu = {
+    x: 430,
+    y: 20,
+    width: 350,
+    height: 500,
+    headerHeight: 40,
+    spellSpacing: 45,
+    spellHeight: 40,
+    padding: 10,
+    textOffset: 25,
+    spellsPerPage: 8,
+    currentPage: 0,
+            backButton: {       // Add this!
+        width: 30,
+        height: 30,
+        rightOffset: 5,
+        topOffset: 5,
+        x: 0  // We'll calculate this in registration
+    },
+    arrows: {
+        width: 30,
+        height: 30,
+        padding: 10,
+        color: {
+            normal: "#ffffff",
+            hover: "#00ffff"
+        },
+        symbols: {
+            left: "◀",
+            right: "▶"
+        }
+    },
+    pageInfo: {
+        y: 470, // Near bottom of menu
+        font: "16px monospace",
+        color: "#00ffff"
+    }
+};
         this.selectedIndex = 0;
 
         // Add submenu state tracking
@@ -135,7 +181,34 @@ class RPGMenuMode {
         });
     });
     }
+drawDescriptionPanel() {
+    const d = this.descriptionPanel;
+    
+    // Draw panel background
+    this.ctx.fillStyle = d.color;
+    this.ctx.fillRect(d.x, d.y, d.width, d.height);
 
+    // If we're in the item menu and have an item selected, show its description
+    if (this.currentSubmenu === "item") {
+        const inventory = this.gameMaster.partyInventory;
+        const items = inventory.getAvailableItems();
+        const selectedItem = items[this.submenuSelectedIndex];
+        
+        if (selectedItem) {
+            this.ctx.fillStyle = "#ffffff";
+            this.ctx.font = `${d.fontSize}px monospace`;
+            this.ctx.textAlign = "left";
+            this.ctx.textBaseline = "middle";
+            
+            // Draw description text vertically centered
+            this.ctx.fillText(
+                selectedItem.item.description,
+                d.x + d.textPadding,
+                d.y + (d.height / 2)
+            );
+        }
+    }
+}
     loadSprites() {
         // Load hero sprites just like in BattleMode
         ["warrior", "mage", "thief"].forEach((type) => {
@@ -143,15 +216,15 @@ class RPGMenuMode {
         });
     }
 
-    update() {
-        if (this.currentSubmenu === "item") {
-            // Only handle submenu updates if we're in a submenu
-            this.updateItemMenu();
-        } else {
-            // Only handle main menu updates if we're not in a submenu
-            this.updateMainMenu();
-        }
+   update() {
+    if (this.currentSubmenu === "item") {
+        this.updateItemMenu();
+    } else if (this.currentSubmenu === "magic") {
+        this.updateMagicMenu();
+    } else {
+        this.updateMainMenu();
     }
+}
 
     updateMainMenu() {
         if (this.isClosingSubmenu) {
@@ -306,7 +379,177 @@ class RPGMenuMode {
        handleItemSelection(items[this.submenuSelectedIndex]);
    }
 }
+updateMagicMenu() {
+    // Always check back button first
+    if (this.input.isElementJustPressed("magic_back_button")) {
+        this.characterPanel.selectionState = 'none';
+        this.characterPanel.selectedCharIndex = -1;
+        this.isClosingSubmenu = true;
+        this.exitMagicSubmenu();
+        return;
+    }
 
+    // Different states need different updates
+    if (this.characterPanel.selectionState === 'selecting_hero') {
+        // Handle hero selection
+        const party = this.gameMaster.persistentParty;
+        
+        party.forEach((_, index) => {
+            if (this.input.isElementHovered(`character_panel_${index}`)) {
+                this.characterPanel.selectedCharIndex = index;
+                
+                if (this.input.isElementJustPressed(`character_panel_${index}`)) {
+                    this.characterPanel.selectionState = 'selected_hero';
+                    // Re-register elements to show spells for selected hero
+                    this.registerMagicElements();
+                }
+            }
+        });
+
+        // Keyboard navigation for hero selection
+        if (this.input.isKeyJustPressed("DirUp")) {
+            this.characterPanel.selectedCharIndex = Math.max(0, this.characterPanel.selectedCharIndex - 1);
+        }
+        if (this.input.isKeyJustPressed("DirDown")) {
+            this.characterPanel.selectedCharIndex = Math.min(party.length - 1, this.characterPanel.selectedCharIndex + 1);
+        }
+        
+        if (this.input.isKeyJustPressed("Action1")) {
+            this.characterPanel.selectionState = 'selected_hero';
+            this.registerMagicElements();
+        }
+
+    } else if (this.characterPanel.selectionState === 'selected_hero') {
+        const selectedChar = this.gameMaster.persistentParty[this.characterPanel.selectedCharIndex];
+        const spells = selectedChar.spells;
+        const startIndex = this.magicMenu.currentPage * this.magicMenu.spellsPerPage;
+        const pageSpells = spells.slice(startIndex, startIndex + this.magicMenu.spellsPerPage);
+
+        // Handle spell selection
+        pageSpells.forEach((_, index) => {
+            if (this.input.isElementHovered(`magic_spell_${index}`)) {
+                this.submenuSelectedIndex = startIndex + index;
+                
+                if (this.input.isElementJustPressed(`magic_spell_${index}`)) {
+                    const selectedSpell = spells[this.submenuSelectedIndex];
+                    this.characterPanel.selectionState = 'selecting_target';
+                    this.characterPanel.targetMode = selectedSpell.targetType.startsWith('all_') ? 'all' : 'single';
+                    this.characterPanel.selectedCharIndex = this.characterPanel.targetMode === 'single' ? 0 : -1;
+                }
+            }
+        });
+
+        // Handle page navigation
+        if (spells.length > this.magicMenu.spellsPerPage) {
+            if (this.input.isElementJustPressed("magic_arrow_left") && this.magicMenu.currentPage > 0) {
+                this.magicMenu.currentPage--;
+                this.registerMagicElements(); // Re-register for new page
+            }
+            if (this.input.isElementJustPressed("magic_arrow_right") && 
+                (this.magicMenu.currentPage + 1) * this.magicMenu.spellsPerPage < spells.length) {
+                this.magicMenu.currentPage++;
+                this.registerMagicElements(); // Re-register for new page
+            }
+        }
+
+        // Keyboard navigation
+        if (this.input.isKeyJustPressed("DirUp")) {
+            this.submenuSelectedIndex = Math.max(startIndex, this.submenuSelectedIndex - 1);
+        }
+        if (this.input.isKeyJustPressed("DirDown")) {
+            this.submenuSelectedIndex = Math.min(startIndex + pageSpells.length - 1, this.submenuSelectedIndex + 1);
+        }
+        if (this.input.isKeyJustPressed("DirLeft") && this.magicMenu.currentPage > 0) {
+            this.magicMenu.currentPage--;
+            this.registerMagicElements();
+        }
+        if (this.input.isKeyJustPressed("DirRight") && 
+            (this.magicMenu.currentPage + 1) * this.magicMenu.spellsPerPage < spells.length) {
+            this.magicMenu.currentPage++;
+            this.registerMagicElements();
+        }
+
+        if (this.input.isKeyJustPressed("Action1")) {
+            const selectedSpell = spells[this.submenuSelectedIndex];
+            this.characterPanel.selectionState = 'selecting_target';
+            this.characterPanel.targetMode = selectedSpell.targetType.startsWith('all_') ? 'all' : 'single';
+            this.characterPanel.selectedCharIndex = this.characterPanel.targetMode === 'single' ? 0 : -1;
+        }
+
+    } else if (this.characterPanel.selectionState === 'selecting_target') {
+        const selectedChar = this.gameMaster.persistentParty[this.characterPanel.selectedCharIndex];
+        const selectedSpell = selectedChar.spells[this.submenuSelectedIndex];
+        const party = this.gameMaster.persistentParty;
+
+        if (this.characterPanel.targetMode === 'single') {
+            // Single target handling
+            party.forEach((_, index) => {
+                if (this.input.isElementHovered(`character_panel_${index}`)) {
+                    this.characterPanel.selectedCharIndex = index;
+                    
+                    if (this.input.isElementJustPressed(`character_panel_${index}`)) {
+                        this.handleSpellUse(selectedChar, selectedSpell, party[index]);
+                        this.characterPanel.selectionState = 'selected_hero';
+                    }
+                }
+            });
+
+            // Keyboard navigation for target
+            if (this.input.isKeyJustPressed("DirUp")) {
+                this.characterPanel.selectedCharIndex = Math.max(0, this.characterPanel.selectedCharIndex - 1);
+            }
+            if (this.input.isKeyJustPressed("DirDown")) {
+                this.characterPanel.selectedCharIndex = Math.min(party.length - 1, this.characterPanel.selectedCharIndex - 1);
+            }
+            
+            if (this.input.isKeyJustPressed("Action1")) {
+                this.handleSpellUse(selectedChar, selectedSpell, party[this.characterPanel.selectedCharIndex]);
+                this.characterPanel.selectionState = 'selected_hero';
+            }
+        } else {
+            // All target handling
+            if (party.some((_, index) => this.input.isElementJustPressed(`character_panel_${index}`)) ||
+                this.input.isKeyJustPressed("Action1")) {
+                this.handleSpellUse(selectedChar, selectedSpell, party);
+                this.characterPanel.selectionState = 'selected_hero';
+            }
+        }
+
+        // Cancel target selection
+        if (this.input.isKeyJustPressed("Action2")) {
+            this.characterPanel.selectionState = 'selected_hero';
+            return;
+        }
+    }
+
+    // Action2 for going back through menu states
+    if (this.input.isKeyJustPressed("Action2")) {
+        if (this.characterPanel.selectionState === 'selected_hero') {
+            this.characterPanel.selectionState = 'selecting_hero';
+        } else if (this.characterPanel.selectionState === 'selecting_hero') {
+            this.isClosingSubmenu = true;
+            this.exitMagicSubmenu();
+        }
+    }
+}
+    
+    handleSpellUse(caster, spell, target) {
+    console.log(`${caster.name} casting ${spell.name} on ${Array.isArray(target) ? 'all allies' : target.name}`);
+    
+    // Check MP cost
+    if (caster.mp < spell.mpCost) {
+        console.log("Not enough MP!");
+        return false;
+    }
+
+    // Use the character's castSpell method
+    let result = caster.castSpell(spell, target);
+
+    // Save last used spell position in menu state
+    caster.menuState.lastSpellIndex = this.submenuSelectedIndex;
+    
+    return result;
+}
     exitSubmenu() {
         // Clean up submenu elements first
         const inventory = this.gameMaster.partyInventory;
@@ -326,6 +569,74 @@ class RPGMenuMode {
             this.input.state.elements.gui.get(`menu_option_${index}`).isActive = true;
         });
     }
+    
+    registerMagicElements() {
+    const m = this.magicMenu;
+
+    // Calculate back button position
+    m.backButton.x = m.x + m.width - 35; // Center point
+
+    // Always register back button for magic menu
+    if (!this.backButtonRegistered) {
+        this.input.registerElement("magic_back_button", {
+            bounds: () => ({
+                x: m.backButton.x - (m.backButton.width / 2),
+                y: m.y + m.backButton.topOffset,
+                width: m.backButton.width,
+                height: m.backButton.height
+            })
+        });
+        this.backButtonRegistered = true;
+    }
+
+    // Only register spell slots and arrows if we have a selected hero
+    if (this.characterPanel.selectionState === 'selected_hero') {
+        const selectedChar = this.gameMaster.persistentParty[this.characterPanel.selectedCharIndex];
+        const spells = selectedChar.spells;
+
+        // Register spell slots for current page
+        const startIndex = this.magicMenu.currentPage * m.spellsPerPage;
+        const pageSpells = spells.slice(startIndex, startIndex + m.spellsPerPage);
+
+        pageSpells.forEach((_, index) => {
+            this.input.registerElement(`magic_spell_${index}`, {
+                bounds: () => ({
+                    x: m.x + m.padding,
+                    y: m.y + m.headerHeight + 20 + index * m.spellSpacing,
+                    width: m.width - (m.padding * 2),
+                    height: m.spellHeight
+                })
+            });
+        });
+
+        // If we have multiple pages, register arrow buttons
+        if (spells.length > m.spellsPerPage) {
+            // Left arrow (if not on first page)
+            if (this.magicMenu.currentPage > 0) {
+                this.input.registerElement("magic_arrow_left", {
+                    bounds: () => ({
+                        x: m.x + m.padding,
+                        y: m.y + m.height - 50,
+                        width: m.arrows.width,
+                        height: m.arrows.height
+                    })
+                });
+            }
+
+            // Right arrow (if not on last page)
+            if ((this.magicMenu.currentPage + 1) * m.spellsPerPage < spells.length) {
+                this.input.registerElement("magic_arrow_right", {
+                    bounds: () => ({
+                        x: m.x + m.width - m.arrows.width - m.padding,
+                        y: m.y + m.height - 50,
+                        width: m.arrows.width,
+                        height: m.arrows.height
+                    })
+                });
+            }
+        }
+    }
+}
     handleMenuSelection(index) {
         switch (this.menuOptions[index].text) {
             case "Item":
@@ -340,13 +651,25 @@ class RPGMenuMode {
                 this.registerItemElements();
                 break;
             case "Magic":
-                // Handle magic menu
-                break;
+    this.currentSubmenu = "magic";
+    this.submenuSelectedIndex = 0;
+    // Immediately deactivate all main menu elements
+    this.menuOptions.forEach((_, i) => {
+        this.input.state.elements.gui.get(`menu_option_${i}`).isActive = false;
+    });
+    // THEN set magic-specific state
+    this.magicMenu.currentPage = 0;
+    this.characterPanel.selectionState = 'selecting_hero';
+    this.characterPanel.selectedCharIndex = 0;
+    this.registerMagicElements();
+    break;
             case "Status":
                 // Handle status menu
+                console.log("Status menu selected");
                 break;
             case "Configure":
                 // Handle config menu
+                console.log("Configure menu selected");
                 break;
             case "Save":
                 // Handle save
@@ -398,27 +721,25 @@ class RPGMenuMode {
         }
     }
     draw() {
-        // Clear canvas
-        this.ctx.clearRect(0, 0, Game.WIDTH, Game.HEIGHT);
+    // Clear canvas and draw background
+    this.ctx.clearRect(0, 0, Game.WIDTH, Game.HEIGHT);
+    this.ctx.fillStyle = "rgba(0, 0, 51, 0.95)";
+    this.ctx.fillRect(0, 0, Game.WIDTH, Game.HEIGHT);
 
-        // Draw background
-        this.ctx.fillStyle = "rgba(0, 0, 51, 0.95)";
-        this.ctx.fillRect(0, 0, Game.WIDTH, Game.HEIGHT);
-
-        if (this.currentSubmenu === "item") {
-            // Draw character info
-            this.drawCharacterPanel();
-            // Draw item menu on top
-            this.drawItemMenu();
-        } else {
-            // In main menu, draw normal order
-            this.drawCharacterPanel();
-            this.drawMenuOptions();
-        }
-
-        // Always draw info panel last
-        this.drawInfoPanel();
+    if (this.currentSubmenu === "item") {
+        this.drawCharacterPanel();
+        this.drawItemMenu();
+    } else if (this.currentSubmenu === "magic") {
+        this.drawCharacterPanel();
+        this.drawMagicMenu();
+    } else {
+        this.drawCharacterPanel();
+        this.drawMenuOptions();
     }
+
+    // Always draw info panel last
+    this.drawInfoPanel();
+}
     drawItemMenu() {
         const m = this.itemMenu; // shorthand reference
 
@@ -477,6 +798,137 @@ class RPGMenuMode {
             this.ctx.fillText("▼", m.x + m.width - 40, m.y + m.height - 20);
         }
     }
+    drawMagicMenu() {
+    const m = this.magicMenu;
+
+    // Draw window header
+    this.ctx.fillStyle = "rgba(0, 0, 153, 0.95)";
+    this.ctx.fillRect(m.x, m.y, m.width, m.headerHeight);
+
+    // Draw main window background
+    this.ctx.fillStyle = "rgba(0, 0, 102, 0.95)";
+    this.ctx.fillRect(m.x, m.y + m.headerHeight, m.width, m.height - m.headerHeight);
+
+    // Draw back button (X)
+    this.ctx.fillStyle = this.input.isElementHovered("magic_back_button") ? "#00ffff" : "#ffffff";
+    this.ctx.font = "24px monospace";
+    this.ctx.textAlign = "center";
+    this.ctx.fillText("❌", m.backButton.x, m.y + m.backButton.topOffset + 20);
+
+    // Draw "Magic" title in header
+    this.ctx.fillStyle = "#00ffff";
+    this.ctx.font = "26px monospace";
+    this.ctx.textAlign = "left";
+    this.ctx.fillText("Magic", m.x + 20, m.y + 28);
+
+    // If we're selecting hero, show prompt
+    if (this.characterPanel.selectionState === 'selecting_hero') {
+        this.ctx.fillStyle = "#ffffff";
+        this.ctx.font = "24px monospace";
+        this.ctx.textAlign = "center";
+        this.ctx.fillText("Select Hero", m.x + (m.width / 2), m.y + 100);
+        return;
+    }
+
+    // Draw spell list if hero is selected
+    if (this.characterPanel.selectionState === 'selected_hero' || 
+        this.characterPanel.selectionState === 'selecting_target') {
+        const selectedChar = this.gameMaster.persistentParty[this.characterPanel.selectedCharIndex];
+        const spells = selectedChar.spells;
+        
+        // Get spells for current page
+        const startIndex = m.currentPage * m.spellsPerPage;
+        const pageSpells = spells.slice(startIndex, startIndex + m.spellsPerPage);
+
+        // Draw spells
+        pageSpells.forEach((spell, index) => {
+            const actualIndex = startIndex + index;
+            const y = m.y + m.headerHeight + 20 + index * m.spellSpacing;
+
+            // Selection highlight
+            if (actualIndex === this.submenuSelectedIndex) {
+                this.ctx.fillStyle = "rgba(0, 51, 102, 0.95)";
+                this.ctx.fillRect(m.x + m.padding, y - 2, m.width - (m.padding * 2), m.spellHeight);
+            }
+
+            // Draw spell info
+            this.ctx.fillStyle = actualIndex === this.submenuSelectedIndex ? "#00ffff" : "#ffffff";
+            this.ctx.font = "24px monospace";
+            this.ctx.textAlign = "left";
+            this.ctx.fillText(spell.name, m.x + 20, y + m.textOffset);
+            
+            // Draw MP cost
+            this.ctx.textAlign = "right";
+            this.ctx.fillText(`${spell.mpCost} MP`, m.x + m.width - 20, y + m.textOffset);
+        });
+
+        // Draw page navigation if needed
+        if (spells.length > m.spellsPerPage) {
+            // Draw page info
+            this.ctx.fillStyle = m.pageInfo.color;
+            this.ctx.font = m.pageInfo.font;
+            this.ctx.textAlign = "center";
+            this.ctx.fillText(
+                `Page ${m.currentPage + 1}/${Math.ceil(spells.length / m.spellsPerPage)}`,
+                m.x + (m.width / 2),
+                m.y + m.height - 20
+            );
+
+            // Draw arrows
+            if (m.currentPage > 0) {
+                this.ctx.fillStyle = this.input.isElementHovered("magic_arrow_left") ? 
+                    m.arrows.color.hover : m.arrows.color.normal;
+                this.ctx.fillText(m.arrows.symbols.left, 
+                    m.x + m.arrows.padding + (m.arrows.width / 2),
+                    m.y + m.height - 20
+                );
+            }
+
+            if ((m.currentPage + 1) * m.spellsPerPage < spells.length) {
+                this.ctx.fillStyle = this.input.isElementHovered("magic_arrow_right") ? 
+                    m.arrows.color.hover : m.arrows.color.normal;
+                this.ctx.fillText(m.arrows.symbols.right, 
+                    m.x + m.width - m.arrows.padding - (m.arrows.width / 2),
+                    m.y + m.height - 20
+                );
+            }
+        }
+    }
+}
+    exitMagicSubmenu() {
+    // Clean up spell elements
+    const selectedChar = this.gameMaster.persistentParty[this.characterPanel.selectedCharIndex];
+    if (selectedChar) {
+        const spells = selectedChar.spells;
+        const startIndex = this.magicMenu.currentPage * this.magicMenu.spellsPerPage;
+        const pageSpells = spells.slice(startIndex, startIndex + this.magicMenu.spellsPerPage);
+        
+        pageSpells.forEach((_, index) => {
+            this.input.removeElement(`magic_spell_${index}`);
+        });
+    }
+
+    // Clean up arrows
+    this.input.removeElement("magic_arrow_left");
+    this.input.removeElement("magic_arrow_right");
+
+    // Clean up back button
+    this.input.removeElement("magic_back_button");
+    this.backButtonRegistered = false;
+
+    // Reset state
+    this.currentSubmenu = null;
+    this.submenuSelectedIndex = 0;
+    this.magicMenu.currentPage = 0;
+    this.characterPanel.selectionState = 'none';
+    this.characterPanel.selectedCharIndex = -1;
+
+    // Reactivate main menu elements
+    this.menuOptions.forEach((_, index) => {
+        this.input.state.elements.gui.get(`menu_option_${index}`).isActive = true;
+    });
+}
+    
     drawCharacterPanel() {
     const party = this.gameMaster.persistentParty;
     const p = this.characterPanel;
