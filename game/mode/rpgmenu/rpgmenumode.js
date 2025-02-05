@@ -69,7 +69,7 @@ class RPGMenuMode {
                 x: 0 // We'll calculate this in the registration
             }
         };
-
+        
         this.characterPanel = {
             startX: 20,
             startY: 20,
@@ -426,12 +426,12 @@ updateMagicMenu() {
         const pageSpells = spells.slice(startIndex, startIndex + this.magicMenu.spellsPerPage);
 
         // Handle spell selection
-        pageSpells.forEach((_, index) => {
+        pageSpells.forEach((spellName, index) => {
             if (this.input.isElementHovered(`magic_spell_${index}`)) {
                 this.submenuSelectedIndex = startIndex + index;
-                
+
                 if (this.input.isElementJustPressed(`magic_spell_${index}`)) {
-                    const selectedSpell = spells[this.submenuSelectedIndex];
+                    const selectedSpell = SPELLS[spells[this.submenuSelectedIndex]];  // Look up spell data
                     this.characterPanel.selectionState = 'selecting_target';
                     this.characterPanel.targetMode = selectedSpell.targetType.startsWith('all_') ? 'all' : 'single';
                     this.characterPanel.selectedCharIndex = this.characterPanel.targetMode === 'single' ? 0 : -1;
@@ -470,16 +470,16 @@ updateMagicMenu() {
         }
 
         if (this.input.isKeyJustPressed("Action1")) {
-            const selectedSpell = spells[this.submenuSelectedIndex];
+            const selectedSpell = SPELLS[spells[this.submenuSelectedIndex]];  // Look up spell data
             this.characterPanel.selectionState = 'selecting_target';
             this.characterPanel.targetMode = selectedSpell.targetType.startsWith('all_') ? 'all' : 'single';
             this.characterPanel.selectedCharIndex = this.characterPanel.targetMode === 'single' ? 0 : -1;
         }
 
     } else if (this.characterPanel.selectionState === 'selecting_target') {
-        const selectedChar = this.gameMaster.persistentParty[this.characterPanel.selectedCharIndex];
-        const selectedSpell = selectedChar.spells[this.submenuSelectedIndex];
-        const party = this.gameMaster.persistentParty;
+    const selectedChar = this.gameMaster.persistentParty[this.characterPanel.selectedCharIndex];
+    const selectedSpell = SPELLS[selectedChar.spells[this.submenuSelectedIndex]];  // Look up spell data
+    const party = this.gameMaster.persistentParty;
 
         if (this.characterPanel.targetMode === 'single') {
             // Single target handling
@@ -488,7 +488,7 @@ updateMagicMenu() {
                     this.characterPanel.selectedCharIndex = index;
                     
                     if (this.input.isElementJustPressed(`character_panel_${index}`)) {
-                        this.handleSpellUse(selectedChar, selectedSpell, party[index]);
+                        this.handleSpellUse(selectedChar, selectedChar.spells[this.submenuSelectedIndex], party[index]);
                         this.characterPanel.selectionState = 'selected_hero';
                     }
                 }
@@ -496,23 +496,22 @@ updateMagicMenu() {
 
             // Keyboard navigation for target
             if (this.input.isKeyJustPressed("DirUp")) {
-                this.characterPanel.selectedCharIndex = Math.max(0, this.characterPanel.selectedCharIndex - 1);
-            }
-            if (this.input.isKeyJustPressed("DirDown")) {
-                this.characterPanel.selectedCharIndex = Math.min(party.length - 1, this.characterPanel.selectedCharIndex - 1);
-            }
+    this.characterPanel.selectedCharIndex = Math.max(0, this.characterPanel.selectedCharIndex - 1);
+}
+if (this.input.isKeyJustPressed("DirDown")) {
+    this.characterPanel.selectedCharIndex = Math.min(party.length - 1, this.characterPanel.selectedCharIndex + 1); // Fixed!
+}
             
             if (this.input.isKeyJustPressed("Action1")) {
-                this.handleSpellUse(selectedChar, selectedSpell, party[this.characterPanel.selectedCharIndex]);
-                this.characterPanel.selectionState = 'selected_hero';
-            }
+    this.handleSpellUse(selectedChar, selectedChar.spells[this.submenuSelectedIndex], party[this.characterPanel.selectedCharIndex]);
+    this.characterPanel.selectionState = 'selected_hero';
+}
         } else {
             // All target handling
-            if (party.some((_, index) => this.input.isElementJustPressed(`character_panel_${index}`)) ||
-                this.input.isKeyJustPressed("Action1")) {
-                this.handleSpellUse(selectedChar, selectedSpell, party);
-                this.characterPanel.selectionState = 'selected_hero';
-            }
+            if (this.input.isKeyJustPressed("Action1")) {
+    this.handleSpellUse(selectedChar, selectedChar.spells[this.submenuSelectedIndex], party[this.characterPanel.selectedCharIndex]);
+    this.characterPanel.selectionState = 'selected_hero';
+}
         }
 
         // Cancel target selection
@@ -533,7 +532,8 @@ updateMagicMenu() {
     }
 }
     
-    handleSpellUse(caster, spell, target) {
+    handleSpellUse(caster, spellName, target) {
+    const spell = SPELLS[spellName];  // Look up spell data
     console.log(`${caster.name} casting ${spell.name} on ${Array.isArray(target) ? 'all allies' : target.name}`);
     
     // Check MP cost
@@ -729,9 +729,11 @@ updateMagicMenu() {
     if (this.currentSubmenu === "item") {
         this.drawCharacterPanel();
         this.drawItemMenu();
+        this.drawDescriptionPanel();  // Add this line
     } else if (this.currentSubmenu === "magic") {
         this.drawCharacterPanel();
         this.drawMagicMenu();
+        this.drawDescriptionPanel();  // Add this line
     } else {
         this.drawCharacterPanel();
         this.drawMenuOptions();
@@ -841,26 +843,28 @@ updateMagicMenu() {
         const pageSpells = spells.slice(startIndex, startIndex + m.spellsPerPage);
 
         // Draw spells
-        pageSpells.forEach((spell, index) => {
-            const actualIndex = startIndex + index;
-            const y = m.y + m.headerHeight + 20 + index * m.spellSpacing;
+        // Draw spells
+pageSpells.forEach((spellName, index) => {  // Change spell to spellName since it's just a string
+    const actualIndex = startIndex + index;
+    const y = m.y + m.headerHeight + 20 + index * m.spellSpacing;
+    const spellData = SPELLS[spellName];    // Look up the actual spell data
 
-            // Selection highlight
-            if (actualIndex === this.submenuSelectedIndex) {
-                this.ctx.fillStyle = "rgba(0, 51, 102, 0.95)";
-                this.ctx.fillRect(m.x + m.padding, y - 2, m.width - (m.padding * 2), m.spellHeight);
-            }
+    // Selection highlight
+    if (actualIndex === this.submenuSelectedIndex) {
+        this.ctx.fillStyle = "rgba(0, 51, 102, 0.95)";
+        this.ctx.fillRect(m.x + m.padding, y - 2, m.width - (m.padding * 2), m.spellHeight);
+    }
 
-            // Draw spell info
-            this.ctx.fillStyle = actualIndex === this.submenuSelectedIndex ? "#00ffff" : "#ffffff";
-            this.ctx.font = "24px monospace";
-            this.ctx.textAlign = "left";
-            this.ctx.fillText(spell.name, m.x + 20, y + m.textOffset);
-            
-            // Draw MP cost
-            this.ctx.textAlign = "right";
-            this.ctx.fillText(`${spell.mpCost} MP`, m.x + m.width - 20, y + m.textOffset);
-        });
+    // Draw spell info
+    this.ctx.fillStyle = actualIndex === this.submenuSelectedIndex ? "#00ffff" : "#ffffff";
+    this.ctx.font = "24px monospace";
+    this.ctx.textAlign = "left";
+    this.ctx.fillText(spellData.name, m.x + 20, y + m.textOffset);
+    
+    // Draw MP cost
+    this.ctx.textAlign = "right";
+    this.ctx.fillText(`${spellData.mpCost} MP`, m.x + m.width - 20, y + m.textOffset);
+});
 
         // Draw page navigation if needed
         if (spells.length > m.spellsPerPage) {
@@ -938,12 +942,13 @@ updateMagicMenu() {
         const y = p.startY + index * (p.height + p.verticalGap);
         
         // Draw selection outline if this character is selected or if all are targeted
-        if ((index === p.selectedCharIndex || p.targetMode === 'all') && 
-            p.selectionState === 'selecting_target') {
-            this.ctx.strokeStyle = "#00ffff";
-            this.ctx.lineWidth = 3;
-            this.ctx.strokeRect(x - 4, y - 4, p.width + 8, p.height + 8);
-        }
+        if ((index === p.selectedCharIndex) && 
+    (p.selectionState === 'selecting_target' || p.selectionState === 'selecting_hero') ||
+    (p.targetMode === 'all' && p.selectionState === 'selecting_target')) {
+    this.ctx.strokeStyle = "#00ffff";
+    this.ctx.lineWidth = 3;
+    this.ctx.strokeRect(x - 4, y - 4, p.width + 8, p.height + 8);
+}
             const portraitX = x + p.portrait.margin;
             const portraitY = y + (p.height - p.portrait.size) / 2;
 
