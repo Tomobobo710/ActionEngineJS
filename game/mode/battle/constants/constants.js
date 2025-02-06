@@ -29,7 +29,7 @@ const DEFAULT_PARTY = [
         magic: 18,
         speed: 10,
         skills: ["Attack"],
-        spells: ["fire", "ice", "lightning", "poison", "heal", "quake", "wind", "water", "holy"]
+        spells: ["fire", "ice", "bolt", "poison", "heal", "quake", "wind", "water", "holy"]
     },
     {
         name: "Edge",
@@ -41,7 +41,7 @@ const DEFAULT_PARTY = [
         magic: 10,
         speed: 16,
         skills: ["Attack", "Steal"],
-        spells: ["lightning", "poison"]
+        spells: ["bolt", "poison"]
     }
 ];
 

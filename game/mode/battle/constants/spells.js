@@ -2,10 +2,11 @@
 const SPELLS = {
     fire: {
         name: "Fire",
+        emoji: "🔥",
         mpCost: 4,
         power: 20,
         element: "fire",
-        targetType: TARGET_TYPES.SINGLE_ENEMY, // Changed from 'single'
+        targetType: TARGET_TYPES.SINGLE_ENEMY,
         animation: {
             color: "#ff4400",
             type: "explosion"
@@ -14,18 +15,20 @@ const SPELLS = {
     },
     ice: {
         name: "Ice",
+        emoji: "❄️",
         mpCost: 4,
         power: 18,
         element: "ice",
-        targetType: TARGET_TYPES.SINGLE_ENEMY, // Changed from 'single'
+        targetType: TARGET_TYPES.SINGLE_ENEMY,
         animation: {
             color: "#88ccff",
             type: "crystals"
         },
         description: "Ice elemental damage (single)"
     },
-    lightning: {
-        name: "Lightning",
+    bolt: {
+        name: "Bolt",
+        emoji: "⚡",
         mpCost: 5,
         power: 25,
         element: "lightning",
@@ -38,19 +41,20 @@ const SPELLS = {
     },
     poison: {
         name: "Poison",
+        emoji: "☠️",
         mpCost: 6,
         power: 12,
         element: "poison",
-        targetType: TARGET_TYPES.SINGLE_ENEMY, // Changed from 'single'
+        targetType: TARGET_TYPES.SINGLE_ENEMY,
         animation: {
             color: "#88ff88",
             type: "mist"
         },
         description: "Poison elemental dmg (single)"
     },
-    // New spells
     heal: {
         name: "Heal",
+        emoji: "💚",
         mpCost: 8,
         power: 40,
         element: "holy",
@@ -63,6 +67,7 @@ const SPELLS = {
     },
     quake: {
         name: "Quake",
+        emoji: "🌋",
         mpCost: 12,
         power: 35,
         element: "earth",
@@ -75,6 +80,7 @@ const SPELLS = {
     },
     wind: {
         name: "Wind",
+        emoji: "🌪️",
         mpCost: 7,
         power: 28,
         element: "air",
@@ -87,6 +93,7 @@ const SPELLS = {
     },
     water: {
         name: "Water",
+        emoji: "💧",
         mpCost: 6,
         power: 25,
         element: "water",
@@ -99,6 +106,7 @@ const SPELLS = {
     },
     holy: {
         name: "Holy",
+        emoji: "✨",
         mpCost: 15,
         power: 45,
         element: "holy",
