@@ -113,20 +113,21 @@ class ItemMenu extends BaseSubmenu {
 
         // Handle pagination
         if (items.length > this.pagination.itemsPerPage) {
-            if (this.input.isElementJustPressed("arrow_left") && this.pagination.currentPage > 0) {
-                this.pagination.currentPage--;
-                this.registerElements();
-                return;
-            }
-            if (
-                this.input.isElementJustPressed("arrow_right") &&
-                (this.pagination.currentPage + 1) * this.pagination.itemsPerPage < items.length
-            ) {
-                this.pagination.currentPage++;
-                this.registerElements();
-                return;
-            }
-        }
+    if ((this.input.isElementJustPressed("arrow_left") || this.input.isKeyJustPressed("DirLeft")) 
+        && this.pagination.currentPage > 0) {
+        this.pagination.currentPage--;
+        this.selectedIndex = this.pagination.currentPage * this.pagination.itemsPerPage;
+        this.registerElements();
+        return;
+    }
+    if ((this.input.isElementJustPressed("arrow_right") || this.input.isKeyJustPressed("DirRight")) &&
+        (this.pagination.currentPage + 1) * this.pagination.itemsPerPage < items.length) {
+        this.pagination.currentPage++;
+        this.selectedIndex = this.pagination.currentPage * this.pagination.itemsPerPage;
+        this.registerElements();
+        return;
+    }
+}
 
         // Handle item selection clicks first
         for (let i = 0; i < pageItems.length; i++) {
@@ -175,19 +176,7 @@ class ItemMenu extends BaseSubmenu {
             return;
         }
         
-        if (this.input.isKeyJustPressed("DirLeft") && this.pagination.currentPage > 0) {
-            this.pagination.currentPage--;
-            this.selectedIndex = this.pagination.currentPage * this.pagination.itemsPerPage;
-            this.registerElements();
-            return;
-        }
-        if (this.input.isKeyJustPressed("DirRight") && 
-            (this.pagination.currentPage + 1) * this.pagination.itemsPerPage < items.length) {
-            this.pagination.currentPage++;
-            this.selectedIndex = this.pagination.currentPage * this.pagination.itemsPerPage;
-            this.registerElements();
-            return;
-        }
+        
         
         if (this.input.isKeyJustPressed("Action1")) {
             const selectedItem = items[this.selectedIndex];
@@ -304,7 +293,10 @@ class ItemMenu extends BaseSubmenu {
 
         this.ctx.restore();
     });
-
+        // Draw pagination if needed
+    if (items.length > this.pagination.itemsPerPage) {
+        this.drawPagination(items.length, this.layout);
+    }
     // Draw description panel last
     const selectedItem = items[this.selectedIndex];
     if (selectedItem) {

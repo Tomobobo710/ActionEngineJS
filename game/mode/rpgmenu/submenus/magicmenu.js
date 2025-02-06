@@ -167,20 +167,21 @@ class MagicMenu extends BaseSubmenu {
 
             // Handle pagination
             if (spells.length > this.pagination.itemsPerPage) {
-                if (this.input.isElementJustPressed("arrow_left") && this.pagination.currentPage > 0) {
-                    this.pagination.currentPage--;
-                    this.registerSpellElements();
-                    return;
-                }
-                if (
-                    this.input.isElementJustPressed("arrow_right") &&
-                    (this.pagination.currentPage + 1) * this.pagination.itemsPerPage < spells.length
-                ) {
-                    this.pagination.currentPage++;
-                    this.registerSpellElements();
-                    return;
-                }
-            }
+    if ((this.input.isElementJustPressed("arrow_left") || this.input.isKeyJustPressed("DirLeft")) 
+        && this.pagination.currentPage > 0) {
+        this.pagination.currentPage--;
+        this.selectedIndex = this.pagination.currentPage * this.pagination.itemsPerPage;
+        this.registerSpellElements();
+        return;
+    }
+    if ((this.input.isElementJustPressed("arrow_right") || this.input.isKeyJustPressed("DirRight")) &&
+        (this.pagination.currentPage + 1) * this.pagination.itemsPerPage < spells.length) {
+        this.pagination.currentPage++;
+        this.selectedIndex = this.pagination.currentPage * this.pagination.itemsPerPage;
+        this.registerSpellElements();
+        return;
+    }
+}
 
             // Handle spell hovering
             pageSpells.forEach((_, index) => {
@@ -223,21 +224,7 @@ class MagicMenu extends BaseSubmenu {
                 }
                 return;
             }
-            if (this.input.isKeyJustPressed("DirLeft") && this.pagination.currentPage > 0) {
-                this.pagination.currentPage--;
-                this.selectedIndex = this.pagination.currentPage * this.pagination.itemsPerPage;
-                this.registerSpellElements();
-                return;
-            }
-
-            if (this.input.isKeyJustPressed("DirRight") &&
-                (this.pagination.currentPage + 1) * this.pagination.itemsPerPage < spells.length
-            ) {
-                this.pagination.currentPage++;
-                this.selectedIndex = this.pagination.currentPage * this.pagination.itemsPerPage;
-                this.registerSpellElements();
-                return;
-            }
+            
             if (this.input.isKeyJustPressed("Action2")) {
                 this.characterPanel.selectionState = "selecting_hero";
                 return;
