@@ -298,6 +298,15 @@ class MagicMenu extends BaseSubmenu {
             this.ctx.font = "24px monospace";
             this.ctx.textAlign = "center";
             this.ctx.fillText("Select Target", m.x + m.width / 2, m.y + 100);
+
+            // Add description panel for the selected spell
+            const selectedChar = this.gameMaster.persistentParty[this.casterIndex];
+            const selectedSpell = SPELLS[selectedChar.spells[this.selectedIndex]];
+            if (selectedSpell && selectedSpell.description) {
+                this.drawDescriptionPanel(selectedSpell.description);
+            } else {
+                this.drawDescriptionPanel("");
+            }
             return;
         }
 
