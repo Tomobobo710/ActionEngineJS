@@ -181,11 +181,11 @@ class MagicMenu extends BaseSubmenu {
                     return;
                 }
             }
-            
+
             // Handle spell hovering
             pageSpells.forEach((_, index) => {
                 if (this.input.isElementHovered(`magic_spell_${index}`)) {
-                    console.log('hovered to select');
+                    console.log("hovered to select");
                     this.selectedIndex = startIndex + index;
                 }
             });
@@ -200,7 +200,7 @@ class MagicMenu extends BaseSubmenu {
                     return;
                 }
             }
-            
+
             // Keyboard navigation
             if (this.input.isKeyJustPressed("DirUp")) {
                 this.selectedIndex = Math.max(0, this.selectedIndex - 1);
@@ -229,8 +229,10 @@ class MagicMenu extends BaseSubmenu {
                 return;
             }
 
-            if (this.input.isKeyJustPressed("DirRight") && 
-                (this.pagination.currentPage + 1) * this.pagination.itemsPerPage < spells.length) {
+            if (
+                this.input.isKeyJustPressed("DirRight") &&
+                (this.pagination.currentPage + 1) * this.pagination.itemsPerPage < spells.length
+            ) {
                 this.pagination.currentPage++;
                 this.registerSpellElements();
                 return;
@@ -316,11 +318,20 @@ class MagicMenu extends BaseSubmenu {
             const y = m.y + m.headerHeight + 20 + index * m.spellSpacing;
             const spellData = SPELLS[spellName];
 
+            this.ctx.save();
+
+            // Selection highlight with glow
             if (actualIndex === this.selectedIndex) {
+                // Add glow effect
+                this.ctx.shadowColor = "#00ffff";
+                this.ctx.shadowBlur = 15;
+
+                // Background for selected spell
                 this.ctx.fillStyle = "rgba(0, 51, 102, 0.95)";
                 this.ctx.fillRect(m.x + m.padding, y - 2, m.width - m.padding * 2, m.spellHeight);
             }
 
+            // Text color - white by default, cyan when selected
             this.ctx.fillStyle = actualIndex === this.selectedIndex ? "#00ffff" : "#ffffff";
             this.ctx.font = "24px monospace";
 
@@ -331,6 +342,8 @@ class MagicMenu extends BaseSubmenu {
             // MP cost
             this.ctx.textAlign = "right";
             this.ctx.fillText(`${spellData.mpCost} MP`, m.x + m.width - 20, y + m.textOffset);
+
+            this.ctx.restore();
         });
 
         // Draw pagination if needed
@@ -338,6 +351,7 @@ class MagicMenu extends BaseSubmenu {
         if (totalSpells > this.pagination.itemsPerPage) {
             super.drawPagination(totalSpells, this.layout);
         }
+
         // Draw description panel
         const selectedSpell = SPELLS[selectedChar.spells[this.selectedIndex]];
         if (selectedSpell && selectedSpell.description) {

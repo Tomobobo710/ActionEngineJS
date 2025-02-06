@@ -70,10 +70,7 @@ class CharacterPanel {
 
     update() {
         // Handle mouse hover for character selection in all states that need it
-        if (
-            this.selectionState === "selecting_hero" ||
-            this.selectionState === "selecting_target" 
-        ) {
+        if (this.selectionState === "selecting_hero" || this.selectionState === "selecting_target") {
             // Check for mouse hover on any character panel
             this.party.forEach((_, index) => {
                 if (this.input.isElementHovered(`character_panel_${index}`)) {
@@ -92,78 +89,79 @@ class CharacterPanel {
     }
 
     draw() {
-    const p = this.config;
+        const p = this.config;
 
-    this.party.forEach((char, index) => {
-        const x = p.startX;
-        const y = p.startY + index * (p.height + p.verticalGap);
+        this.party.forEach((char, index) => {
+            const x = p.startX;
+            const y = p.startY + index * (p.height + p.verticalGap);
 
-        this.ctx.save();
-        
-        // Add glow effect to the entire panel when selected
-        if (
-            (index === this.selectedCharIndex &&
-                (this.selectionState === "selecting_target" || this.selectionState === "selecting_hero")) ||
-            (this.targetMode === "all" && this.selectionState === "selecting_target")
-        ) {
-            this.ctx.shadowColor = p.glow.color;
-            this.ctx.shadowBlur = p.glow.blur;
-        }
+            this.ctx.save();
 
-        // Panel background
-        this.ctx.fillStyle = "rgba(0, 0, 102, 0.8)";
-        this.ctx.fillRect(x, y, p.width, p.height);
-        
-        this.ctx.restore();
+            // Add glow effect to the entire panel when selected
+            if (
+                (index === this.selectedCharIndex &&
+                    (this.selectionState === "selecting_target" || this.selectionState === "selecting_hero")) ||
+                (this.targetMode === "all" && this.selectionState === "selecting_target")
+            ) {
+                this.ctx.shadowColor = p.glow.color;
+                this.ctx.shadowBlur = p.glow.blur;
+            }
 
-        const portraitX = x + p.portrait.margin;
-        const portraitY = y + (p.height - p.portrait.size) / 2;
+            // Panel background
+            this.ctx.fillStyle = "rgba(0, 0, 102, 0.8)";
+            this.ctx.fillRect(x, y, p.width, p.height);
 
-        // Portrait border
-        this.ctx.strokeStyle = p.portrait.borderColor;
-        this.ctx.lineWidth = p.portrait.borderWidth;
-        this.ctx.strokeRect(
-            portraitX - p.portrait.borderWidth,
-            portraitY - p.portrait.borderWidth,
-            p.portrait.size + p.portrait.borderWidth * 2,
-            p.portrait.size + p.portrait.borderWidth * 2
-        );
+            this.ctx.restore();
 
-        // Character sprite
-        this.ctx.drawImage(
-            this.sprites[char.type],
-            0,
-            0,
-            32,
-            32,
-            portraitX,
-            portraitY,
-            p.portrait.size,
-            p.portrait.size
-        );
+            const portraitX = x + p.portrait.margin;
+            const portraitY = y + (p.height - p.portrait.size) / 2;
 
-        // Stats section
-        const statsX = portraitX + p.portrait.size + 30;
+            // Portrait border
+            this.ctx.strokeStyle = p.portrait.borderColor;
+            this.ctx.lineWidth = p.portrait.borderWidth;
+            this.ctx.strokeRect(
+                portraitX - p.portrait.borderWidth,
+                portraitY - p.portrait.borderWidth,
+                p.portrait.size + p.portrait.borderWidth * 2,
+                p.portrait.size + p.portrait.borderWidth * 2
+            );
 
-        // Name and Level with color change on selection
-        this.ctx.fillStyle = (
-            (index === this.selectedCharIndex &&
-                (this.selectionState === "selecting_target" || this.selectionState === "selecting_hero")) ||
-            (this.targetMode === "all" && this.selectionState === "selecting_target")
-        ) ? p.textColor.selected : p.textColor.normal;
-        
-        this.ctx.font = `${p.stats.fontSize}px monospace`;
-        this.ctx.textAlign = "left";
-        this.ctx.fillText(`${char.name}`, statsX, y + p.stats.nameY);
-        this.ctx.fillText(`LV ${char.level}`, statsX + p.stats.levelOffset, y + p.stats.nameY);
+            // Character sprite
+            this.ctx.drawImage(
+                this.sprites[char.type],
+                0,
+                0,
+                32,
+                32,
+                portraitX,
+                portraitY,
+                p.portrait.size,
+                p.portrait.size
+            );
 
-        // HP Bar
-        this.drawStatBar(statsX, y + p.stats.firstBarY, char.hp, char.maxHp, "#00ff00", "HP", p.stats.width);
+            // Stats section
+            const statsX = portraitX + p.portrait.size + 30;
 
-        // MP Bar
-        this.drawStatBar(statsX, y + p.stats.secondBarY, char.mp, char.maxMp, "#0000ff", "MP", p.stats.width);
-    });
-}
+            // Name and Level with color change on selection
+            this.ctx.fillStyle =
+                (index === this.selectedCharIndex &&
+                    (this.selectionState === "selecting_target" || this.selectionState === "selecting_hero")) ||
+                (this.targetMode === "all" && this.selectionState === "selecting_target")
+                    ? p.textColor.selected
+                    : p.textColor.normal;
+
+            this.ctx.font = `${p.stats.fontSize}px monospace`;
+            this.ctx.textAlign = "left";
+            this.ctx.fillText(`${char.name}`, statsX, y + p.stats.nameY);
+            this.ctx.fillText(`LV ${char.level}`, statsX + p.stats.levelOffset, y + p.stats.nameY);
+
+            // HP Bar
+            this.drawStatBar(statsX, y + p.stats.firstBarY, char.hp, char.maxHp, "#00ff00", "HP", p.stats.width);
+
+            // MP Bar
+            this.drawStatBar(statsX, y + p.stats.secondBarY, char.mp, char.maxMp, "#0000ff", "MP", p.stats.width);
+        });
+    }
 
     drawStatBar(x, y, current, max, color, label, width) {
         const height = 20;
