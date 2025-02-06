@@ -13,13 +13,13 @@ class RPGMenuMode {
 
         this.menuLayout = {
             position: {
-                right: 220,
+                right: 270,
                 startY: 20,
-                itemSpacing: 15,  // Clear gap between buttons
-                buttonHeight: 50   // Height of each button
+                itemSpacing: 15, // Clear gap between buttons
+                buttonHeight: 50 // Height of each button
             },
             button: {
-                width: 200,
+                width: 250,
                 height: 50,
                 textPadding: 30,
                 fontSize: 24,
@@ -41,8 +41,9 @@ class RPGMenuMode {
             (text, index) => ({
                 text,
                 x: Game.WIDTH - this.menuLayout.position.right,
-                y: this.menuLayout.position.startY + 
-                   index * (this.menuLayout.position.buttonHeight + this.menuLayout.position.itemSpacing),
+                y:
+                    this.menuLayout.position.startY +
+                    index * (this.menuLayout.position.buttonHeight + this.menuLayout.position.itemSpacing),
                 width: this.menuLayout.button.width,
                 height: this.menuLayout.button.height,
                 color: this.menuLayout.button.normalColor,
@@ -74,8 +75,9 @@ class RPGMenuMode {
             this.input.registerElement(`menu_option_${index}`, {
                 bounds: () => ({
                     x: Game.WIDTH - this.menuLayout.position.right,
-                    y: this.menuLayout.position.startY + 
-                       index * (this.menuLayout.position.buttonHeight + this.menuLayout.position.itemSpacing),
+                    y:
+                        this.menuLayout.position.startY +
+                        index * (this.menuLayout.position.buttonHeight + this.menuLayout.position.itemSpacing),
                     width: this.menuLayout.button.width,
                     height: this.menuLayout.button.height
                 })
@@ -164,6 +166,8 @@ class RPGMenuMode {
             this.activeSubmenu.cleanup();
             this.activeSubmenu = null;
             this.pendingMenuActivation = true;
+            this.characterPanel.selectionState = "none";
+            this.characterPanel.selectedCharIndex = -1;
             this.activateMainMenu();
         }
     }

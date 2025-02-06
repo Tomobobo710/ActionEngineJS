@@ -181,10 +181,11 @@ class MagicMenu extends BaseSubmenu {
                     return;
                 }
             }
-
+            
             // Handle spell hovering
             pageSpells.forEach((_, index) => {
                 if (this.input.isElementHovered(`magic_spell_${index}`)) {
+                    console.log('hovered to select');
                     this.selectedIndex = startIndex + index;
                 }
             });
@@ -199,7 +200,7 @@ class MagicMenu extends BaseSubmenu {
                     return;
                 }
             }
-
+            
             // Keyboard navigation
             if (this.input.isKeyJustPressed("DirUp")) {
                 this.selectedIndex = Math.max(0, this.selectedIndex - 1);
@@ -222,7 +223,18 @@ class MagicMenu extends BaseSubmenu {
                 }
                 return;
             }
+            if (this.input.isKeyJustPressed("DirLeft") && this.pagination.currentPage > 0) {
+                this.pagination.currentPage--;
+                this.registerSpellElements();
+                return;
+            }
 
+            if (this.input.isKeyJustPressed("DirRight") && 
+                (this.pagination.currentPage + 1) * this.pagination.itemsPerPage < spells.length) {
+                this.pagination.currentPage++;
+                this.registerSpellElements();
+                return;
+            }
             if (this.input.isKeyJustPressed("Action2")) {
                 this.characterPanel.selectionState = "selecting_hero";
                 return;
