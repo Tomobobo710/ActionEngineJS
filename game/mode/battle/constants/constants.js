@@ -79,5 +79,11 @@ const STARTER_INVENTORY = [
     { item: "potion", quantity: 5 },
     { item: "megaPotion", quantity: 2 },
     { item: "poison", quantity: 3 },
-    { item: "bomb", quantity: 2 }
+    { item: "bomb", quantity: 2 },
+    { item: "ether", quantity: 3 },
+    { item: "smokeScreen", quantity: 2 },
+    { item: "antidote", quantity: 3 },
+    { item: "megaEther", quantity: 2 },
+    { item: "phoenix", quantity: 2 },
+    { item: "remedy", quantity: 2 }
 ];
