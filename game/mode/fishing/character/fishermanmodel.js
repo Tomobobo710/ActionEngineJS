@@ -1,6 +1,8 @@
 class FishermanModel extends ActionPhysicsObject3D {
     constructor(physicsWorld, height = 10) {
-        const triangles = [];
+        //const triangles = [];
+        /*
+        
         const colors = {
             BODY_COLOR: "#3f2a14", // Brown for clothing
             HEAD_COLOR: "#ffd6b1", // Skin tone
@@ -8,7 +10,7 @@ class FishermanModel extends ActionPhysicsObject3D {
             ARM_COLOR: "#ff4e00", // Darker brown for arms
             LEG_COLOR: "#1a1a1a" // Dark gray for legs
         };
-
+*/
         // Scale factors
         const bodyWidth = height * 0.4;
         const bodyDepth = height * 0.3;
@@ -17,7 +19,7 @@ class FishermanModel extends ActionPhysicsObject3D {
         const armWidth = height * 0.1;
         const legLength = height * 0.5;
         const legWidth = height * 0.15;
-
+/*
         const v = {
             // Body vertices
             bodyTopFront: new Vector3(bodyWidth / 2, height * 0.8, bodyDepth / 2),
@@ -292,9 +294,17 @@ class FishermanModel extends ActionPhysicsObject3D {
         // Bottom
         triangles.push(new Triangle(v.leftFootFront, v.leftFootBack, v.leftFootFrontMirror, colors.LEG_COLOR));
         triangles.push(new Triangle(v.leftFootFrontMirror, v.leftFootBack, v.leftFootBackMirror, colors.LEG_COLOR));
-
+        */
+        
+        const characterModel = GLBLoader.loadModel(rodModel);
+        
+        const triangles = characterModel.triangles;
+        
         super(physicsWorld, triangles);
-
+        
+        this.animator = new ModelAnimationController(characterModel);
+        this.animator.play(0, true);
+        
         // Set up physics body
         const shape = new Goblin.BoxShape(bodyWidth, height, bodyDepth);
         this.body = new Goblin.RigidBody(shape, 0); // 0 mass for static body
