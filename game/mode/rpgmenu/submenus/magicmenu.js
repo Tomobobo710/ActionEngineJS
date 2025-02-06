@@ -287,15 +287,15 @@ class MagicMenu extends BaseSubmenu {
         // Draw state-specific content
         if (this.characterPanel.selectionState === "selecting_hero") {
             this.ctx.fillStyle = "#ffffff";
-            this.ctx.font = "24px monospace";
+            this.ctx.font = "30px monospace";
             this.ctx.textAlign = "center";
-            this.ctx.fillText("Select Hero", m.x + m.width / 2, m.y + 100);
+            this.ctx.fillText("Select Caster", m.x + m.width / 2, m.y + 100);
             return;
         }
 
         if (this.characterPanel.selectionState === "selecting_target") {
             this.ctx.fillStyle = "#ffffff";
-            this.ctx.font = "24px monospace";
+            this.ctx.font = "30px monospace";
             this.ctx.textAlign = "center";
             this.ctx.fillText("Select Target", m.x + m.width / 2, m.y + 100);
 

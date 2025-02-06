@@ -14,22 +14,33 @@ class CharacterPanel {
             height: 158.6,
             verticalGap: 15,
             portrait: {
-                size: 100,
-                margin: 15,
-                borderWidth: 2,
-                borderColor: "#00ffff"
+                size: 120, // Up from 100
+                margin: 20,
+                borderWidth: 1,
+                borderColor: "#00ffff",
+                // Add inner glow/shadow for depth
+                innerGlow: {
+                    color: "rgba(0, 255, 255, 0.2)",
+                    blur: 8
+                }
             },
             stats: {
-                x: 155,
-                width: 230,
-                nameY: 35,
-                levelOffset: 120,
-                fontSize: 20,
-                barHeight: 20,
-                barSpacing: 45,
-                firstBarY: 55,
-                secondBarY: 100,
-                textOffset: 15
+                width: 310, // Increased width for bars
+                nameY: 35, // More vertical space
+                fontSize: 24, // Bigger text
+                barHeight: 25, // Taller bars
+                firstBarY: 45,
+                secondBarY: 95,
+                barText: {
+                    label: {
+                        size: 20,
+                        color: "#ffffff"
+                    },
+                    values: {
+                        size: 20,
+                        color: "#ffffff"
+                    }
+                }
             },
             glow: {
                 color: "#00ffff",
@@ -127,6 +138,7 @@ class CharacterPanel {
             );
 
             // Character sprite
+            this.ctx.imageSmoothingEnabled = false; // Add this before drawing
             this.ctx.drawImage(
                 this.sprites[char.type],
                 0,
@@ -138,9 +150,10 @@ class CharacterPanel {
                 p.portrait.size,
                 p.portrait.size
             );
+            this.ctx.imageSmoothingEnabled = true; // Reset it after if needed for other elements
 
             // Stats section
-            const statsX = portraitX + p.portrait.size + 30;
+            const statsX = portraitX + p.portrait.size + 25;
 
             // Name and Level with color change on selection
             this.ctx.fillStyle =
@@ -151,9 +164,13 @@ class CharacterPanel {
                     : p.textColor.normal;
 
             this.ctx.font = `${p.stats.fontSize}px monospace`;
+            // Draw name (left aligned)
             this.ctx.textAlign = "left";
             this.ctx.fillText(`${char.name}`, statsX, y + p.stats.nameY);
-            this.ctx.fillText(`LV ${char.level}`, statsX + p.stats.levelOffset, y + p.stats.nameY);
+
+            // Draw level (right aligned)
+            this.ctx.textAlign = "right";
+            this.ctx.fillText(`Level ${char.level}`, x + p.width - 20, y + p.stats.nameY); // -20 for some padding from right edge
 
             // HP Bar
             this.drawStatBar(statsX, y + p.stats.firstBarY, char.hp, char.maxHp, "#00ff00", "HP", p.stats.width);
@@ -164,9 +181,10 @@ class CharacterPanel {
     }
 
     drawStatBar(x, y, current, max, color, label, width) {
-        const height = 20;
+        const height = this.config.stats.barHeight;
+        const p = this.config.stats.barText;
 
-        // Bar background with gradient
+        // Draw the bar itself
         const bgGradient = this.ctx.createLinearGradient(x, y, x, y + height);
         bgGradient.addColorStop(0, "#222222");
         bgGradient.addColorStop(1, "#333333");
@@ -183,14 +201,14 @@ class CharacterPanel {
 
         // Bar border
         this.ctx.strokeStyle = "#ffffff";
-        this.ctx.lineWidth = 1;
+        this.ctx.lineWidth = 2;
         this.ctx.strokeRect(x, y, width, height);
 
-        // Text below bar
-        this.ctx.fillStyle = "#ffffff";
-        this.ctx.font = "14px monospace";
+        // Text below the bar
+        this.ctx.fillStyle = p.label.color;
+        this.ctx.font = `${p.label.size}px monospace`;
         this.ctx.textAlign = "left";
-        this.ctx.fillText(`${label}: ${current}/${max}`, x, y + height + 15);
+        this.ctx.fillText(`${label}: ${current}/${max}`, x, y + height + 18);
     }
 
     adjustColor(color, amount) {

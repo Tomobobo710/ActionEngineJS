@@ -218,11 +218,28 @@ class ItemMenu extends BaseSubmenu {
         m.backButton.height
     );
 
-    // Draw "Items" title
+    // Draw "Items" title or "Select Target" based on state
     this.ctx.fillStyle = "#00ffff";
     this.ctx.font = "26px monospace";
     this.ctx.textAlign = "left";
     this.ctx.fillText("Items", m.x + 20, m.y + 28);
+
+     // Draw state-specific content
+    if (this.characterPanel.selectionState === "selecting_target") {
+        this.ctx.fillStyle = "#ffffff";
+        this.ctx.font = "30px monospace";
+        this.ctx.textAlign = "center";
+        this.ctx.fillText("Select Target", m.x + m.width / 2, m.y + 100);
+        
+        // Draw description panel for the selected item
+        const inventory = this.gameMaster.partyInventory;
+        const items = inventory.getAvailableItems();
+        const selectedItem = items[this.selectedIndex];
+        if (selectedItem) {
+            this.drawDescriptionPanel(selectedItem.item.description);
+        }
+        return;
+    }
 
     const inventory = this.gameMaster.partyInventory;
     const items = inventory.getAvailableItems();
