@@ -9,10 +9,10 @@ const ITEMS = {
             const actualHeal = target.heal(healAmount);
             return actualHeal;
         },
-        description: "Restores 50 HP to one ally"
+        description: "Restores 50 HP (single)"
     },
     megaPotion: {
-        name: "Mega Potion",
+        name: "M Potion",
         emoji: "⚗️",
         targetType: TARGET_TYPES.ALL_ALLIES,
         effect: (target) => {
@@ -20,7 +20,7 @@ const ITEMS = {
             const actualHeal = target.heal(healAmount);
             return actualHeal;
         },
-        description: "Restores 100 HP to all allies"
+        description: "Restores 100 HP (all)"
     },
     poison: {
         name: "Poison",
@@ -31,7 +31,7 @@ const ITEMS = {
             target.addStatus("poison", 5);
             return true;
         },
-        description: "Poisons one enemy for 5 turns"
+        description: "Poison damage (single)"
     },
     bomb: {
         name: "Bomb",
@@ -43,6 +43,6 @@ const ITEMS = {
             const actualDamage = target.takeDamage(damage, "physical");
             return actualDamage > 0; // Return true only if damage was dealt
         },
-        description: "Deals 30 damage to all enemies"
+        description: "Deals 30 damage (all)"
     }
 };
