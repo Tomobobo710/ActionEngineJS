@@ -174,7 +174,21 @@ class ItemMenu extends BaseSubmenu {
             }
             return;
         }
-
+        
+        if (this.input.isKeyJustPressed("DirLeft") && this.pagination.currentPage > 0) {
+            this.pagination.currentPage--;
+            this.selectedIndex = this.pagination.currentPage * this.pagination.itemsPerPage;
+            this.registerElements();
+            return;
+        }
+        if (this.input.isKeyJustPressed("DirRight") && 
+            (this.pagination.currentPage + 1) * this.pagination.itemsPerPage < items.length) {
+            this.pagination.currentPage++;
+            this.selectedIndex = this.pagination.currentPage * this.pagination.itemsPerPage;
+            this.registerElements();
+            return;
+        }
+        
         if (this.input.isKeyJustPressed("Action1")) {
             const selectedItem = items[this.selectedIndex];
             if (selectedItem) {
@@ -201,7 +215,6 @@ class ItemMenu extends BaseSubmenu {
 
     draw() {
     const m = this.layout;
-
     // Draw window header
     this.ctx.fillStyle = "rgba(0, 0, 153, 0.95)";
     this.ctx.fillRect(m.x, m.y, m.width, m.headerHeight);
@@ -224,7 +237,7 @@ class ItemMenu extends BaseSubmenu {
     this.ctx.textAlign = "left";
     this.ctx.fillText("Items", m.x + 20, m.y + 28);
 
-     // Draw state-specific content
+    // Draw state-specific content
     if (this.characterPanel.selectionState === "selecting_target") {
         this.ctx.fillStyle = "#ffffff";
         this.ctx.font = "24px monospace";
@@ -271,13 +284,21 @@ class ItemMenu extends BaseSubmenu {
         // Text color - white by default, cyan when selected
         this.ctx.fillStyle = actualIndex === this.selectedIndex ? "#00ffff" : "#ffffff";
         this.ctx.font = "24px monospace";
-        this.ctx.textAlign = "left";
 
-        // Draw item emoji and name
+        // Draw item emoji and name (left aligned)
+        this.ctx.textAlign = "left";
         this.ctx.fillText(itemData.item.emoji, this.layout.x + 20, y + this.layout.textOffset);
         this.ctx.fillText(
-            `${itemData.item.name} x${itemData.quantity}`,
+            itemData.item.name,
             this.layout.x + 60,
+            y + this.layout.textOffset
+        );
+
+        // Draw quantity (right aligned)
+        this.ctx.textAlign = "right";
+        this.ctx.fillText(
+            `x${itemData.quantity}`,
+            this.layout.x + this.layout.width - 20,
             y + this.layout.textOffset
         );
 

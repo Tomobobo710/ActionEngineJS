@@ -26,7 +26,7 @@ class BaseSubmenu {
             },
             itemPadding: 10,
             itemSpacing: 45,
-            itemHeight: 40,
+            itemHeight: 40
         };
         // Add pagination config
         this.pagination = {
@@ -47,8 +47,8 @@ class BaseSubmenu {
             },
             pageInfo: {
                 y: 470,
-                font: "16px monospace",
-                color: "#00ffff"
+                font: "20px monospace",
+                color: "#ffffff"
             }
         };
         // Add description panel config
@@ -80,7 +80,7 @@ class BaseSubmenu {
             };
 
             if (currentPage > 0) registerArrow("arrow_left", x + arrows.padding);
-            if ((currentPage + 1) * itemsPerPage < totalItems) 
+            if ((currentPage + 1) * itemsPerPage < totalItems)
                 registerArrow("arrow_right", x + width - arrows.width - arrows.padding);
         }
     }
@@ -114,13 +114,22 @@ class BaseSubmenu {
         );
 
         const drawArrow = (name, symbol, posX) => {
-            this.ctx.fillStyle = this.input.isElementHovered(name) ? arrows.color.hover : arrows.color.normal;
+            this.ctx.save();
+
+            if (this.input.isElementHovered(name)) {
+                this.ctx.shadowColor = "#00ffff";
+                this.ctx.shadowBlur = 15;
+                this.ctx.fillStyle = arrows.color.hover;
+            } else {
+                this.ctx.fillStyle = arrows.color.normal;
+            }
+
             this.ctx.fillText(symbol, posX, y + height - 20);
+            this.ctx.restore();
         };
 
         // Left arrow
-        if (currentPage > 0) 
-            drawArrow("arrow_left", arrows.symbols.left, x + arrows.padding + arrows.width / 2);
+        if (currentPage > 0) drawArrow("arrow_left", arrows.symbols.left, x + arrows.padding + arrows.width / 2);
 
         // Right arrow
         if ((currentPage + 1) * itemsPerPage < totalItems)

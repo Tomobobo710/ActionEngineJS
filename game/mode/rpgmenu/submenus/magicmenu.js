@@ -225,15 +225,16 @@ class MagicMenu extends BaseSubmenu {
             }
             if (this.input.isKeyJustPressed("DirLeft") && this.pagination.currentPage > 0) {
                 this.pagination.currentPage--;
+                this.selectedIndex = this.pagination.currentPage * this.pagination.itemsPerPage;
                 this.registerSpellElements();
                 return;
             }
 
-            if (
-                this.input.isKeyJustPressed("DirRight") &&
+            if (this.input.isKeyJustPressed("DirRight") &&
                 (this.pagination.currentPage + 1) * this.pagination.itemsPerPage < spells.length
             ) {
                 this.pagination.currentPage++;
+                this.selectedIndex = this.pagination.currentPage * this.pagination.itemsPerPage;
                 this.registerSpellElements();
                 return;
             }
