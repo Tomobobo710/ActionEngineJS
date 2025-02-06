@@ -167,21 +167,25 @@ class MagicMenu extends BaseSubmenu {
 
             // Handle pagination
             if (spells.length > this.pagination.itemsPerPage) {
-    if ((this.input.isElementJustPressed("arrow_left") || this.input.isKeyJustPressed("DirLeft")) 
-        && this.pagination.currentPage > 0) {
-        this.pagination.currentPage--;
-        this.selectedIndex = this.pagination.currentPage * this.pagination.itemsPerPage;
-        this.registerSpellElements();
-        return;
-    }
-    if ((this.input.isElementJustPressed("arrow_right") || this.input.isKeyJustPressed("DirRight")) &&
-        (this.pagination.currentPage + 1) * this.pagination.itemsPerPage < spells.length) {
-        this.pagination.currentPage++;
-        this.selectedIndex = this.pagination.currentPage * this.pagination.itemsPerPage;
-        this.registerSpellElements();
-        return;
-    }
-}
+                if (
+                    (this.input.isElementJustPressed("arrow_left") || this.input.isKeyJustPressed("DirLeft")) &&
+                    this.pagination.currentPage > 0
+                ) {
+                    this.pagination.currentPage--;
+                    this.selectedIndex = this.pagination.currentPage * this.pagination.itemsPerPage;
+                    this.registerSpellElements();
+                    return;
+                }
+                if (
+                    (this.input.isElementJustPressed("arrow_right") || this.input.isKeyJustPressed("DirRight")) &&
+                    (this.pagination.currentPage + 1) * this.pagination.itemsPerPage < spells.length
+                ) {
+                    this.pagination.currentPage++;
+                    this.selectedIndex = this.pagination.currentPage * this.pagination.itemsPerPage;
+                    this.registerSpellElements();
+                    return;
+                }
+            }
 
             // Handle spell hovering
             pageSpells.forEach((_, index) => {
@@ -224,7 +228,7 @@ class MagicMenu extends BaseSubmenu {
                 }
                 return;
             }
-            
+
             if (this.input.isKeyJustPressed("Action2")) {
                 this.characterPanel.selectionState = "selecting_hero";
                 return;
@@ -244,13 +248,28 @@ class MagicMenu extends BaseSubmenu {
 
     draw() {
         const m = this.layout;
+        const colors = this.gameMaster.modeManager.activeMode.colors;
 
-        // Draw window header
-        this.ctx.fillStyle = "rgba(0, 0, 153, 0.95)";
+        // Draw window header with gradient
+        this.ctx.fillStyle = this.createGradient(
+            m.x,
+            m.y,
+            m.width,
+            m.headerHeight,
+            colors.headerBackground.start,
+            colors.headerBackground.end
+        );
         this.ctx.fillRect(m.x, m.y, m.width, m.headerHeight);
 
-        // Draw main window background
-        this.ctx.fillStyle = "rgba(0, 0, 102, 0.95)";
+        // Draw main window background with gradient
+        this.ctx.fillStyle = this.createGradient(
+            m.x,
+            m.y + m.headerHeight,
+            m.width,
+            m.height - m.headerHeight,
+            colors.menuBackground.start,
+            colors.menuBackground.end
+        );
         this.ctx.fillRect(m.x, m.y + m.headerHeight, m.width, m.height - m.headerHeight);
 
         // Draw back button
@@ -261,8 +280,8 @@ class MagicMenu extends BaseSubmenu {
             m.backButton.height
         );
 
-        // Draw title based on state
-        this.ctx.fillStyle = "#00ffff";
+        // Draw title
+        this.ctx.fillStyle = colors.headerText;
         this.ctx.font = "26px monospace";
         this.ctx.textAlign = "left";
         if (this.characterPanel.selectionState === "selecting_hero") {
@@ -274,7 +293,7 @@ class MagicMenu extends BaseSubmenu {
 
         // Draw state-specific content
         if (this.characterPanel.selectionState === "selecting_hero") {
-            this.ctx.fillStyle = "#ffffff";
+            this.ctx.fillStyle = colors.normalText;
             this.ctx.font = "24px monospace";
             this.ctx.textAlign = "center";
             this.ctx.fillText("Select Caster", m.x + m.width / 2, m.y + 100);
@@ -282,7 +301,7 @@ class MagicMenu extends BaseSubmenu {
         }
 
         if (this.characterPanel.selectionState === "selecting_target") {
-            this.ctx.fillStyle = "#ffffff";
+            this.ctx.fillStyle = colors.normalText;
             this.ctx.font = "24px monospace";
             this.ctx.textAlign = "center";
             this.ctx.fillText("Select Target", m.x + m.width / 2, m.y + 100);
@@ -305,6 +324,7 @@ class MagicMenu extends BaseSubmenu {
 
     drawSpellList() {
         const m = this.layout;
+        const colors = this.gameMaster.modeManager.activeMode.colors;
         const selectedChar = this.gameMaster.persistentParty[this.casterIndex];
         const spells = selectedChar.spells;
         const startIndex = this.pagination.currentPage * this.pagination.itemsPerPage;
@@ -317,26 +337,34 @@ class MagicMenu extends BaseSubmenu {
 
             this.ctx.save();
 
-            // Selection highlight with glow
+            // Selection highlight with glow and gradient
             if (actualIndex === this.selectedIndex) {
                 // Add glow effect
-                this.ctx.shadowColor = "#00ffff";
-                this.ctx.shadowBlur = 15;
+                this.ctx.shadowColor = colors.glowColor;
+                this.ctx.shadowBlur = colors.glowBlur;
 
-                // Background for selected spell
-                this.ctx.fillStyle = "rgba(0, 51, 102, 0.95)";
+                // Background for selected spell with gradient
+                this.ctx.fillStyle = this.createGradient(
+                    m.x + m.padding,
+                    y - 2,
+                    m.width - m.padding * 2,
+                    m.spellHeight,
+                    colors.selectedBackground.start,
+                    colors.selectedBackground.end
+                );
                 this.ctx.fillRect(m.x + m.padding, y - 2, m.width - m.padding * 2, m.spellHeight);
             }
 
-            // Text color - white by default, cyan when selected
-            this.ctx.fillStyle = actualIndex === this.selectedIndex ? "#00ffff" : "#ffffff";
+            // Text color - normalText by default, selectedText when selected
+            this.ctx.fillStyle = actualIndex === this.selectedIndex ? colors.selectedText : colors.normalText;
             this.ctx.font = "24px monospace";
 
-            // Spell name
+            // Draw spell emoji and name (left aligned)
             this.ctx.textAlign = "left";
-            this.ctx.fillText(spellData.name, m.x + 20, y + m.textOffset);
+            this.ctx.fillText(spellData.emoji, m.x + 20, y + m.textOffset);
+            this.ctx.fillText(spellData.name, m.x + 60, y + m.textOffset);
 
-            // MP cost
+            // MP cost (right aligned)
             this.ctx.textAlign = "right";
             this.ctx.fillText(`${spellData.mpCost} MP`, m.x + m.width - 20, y + m.textOffset);
 
@@ -349,7 +377,7 @@ class MagicMenu extends BaseSubmenu {
             super.drawPagination(totalSpells, this.layout);
         }
 
-        // Draw description panel
+        // Draw description panel with gradient
         const selectedSpell = SPELLS[selectedChar.spells[this.selectedIndex]];
         if (selectedSpell && selectedSpell.description) {
             this.drawDescriptionPanel(selectedSpell.description);

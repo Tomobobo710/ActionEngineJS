@@ -1,10 +1,12 @@
 // game/mode/rpgmenu/characterpanel.js
 class CharacterPanel {
-    constructor(ctx, input, party, sprites) {
+    constructor(ctx, input, party, sprites, gameMode) {
+        // Add gameMode parameter
         this.ctx = ctx;
         this.input = input;
         this.party = party;
         this.sprites = sprites;
+        this.gameMode = gameMode; // Store reference to access colors
 
         // Panel configuration
         this.config = {
@@ -14,48 +16,33 @@ class CharacterPanel {
             height: 158.6,
             verticalGap: 15,
             portrait: {
-                size: 120, // Up from 100
+                size: 120,
                 margin: 20,
-                borderWidth: 2,
-                borderColor: "#ffffff",
-                // Add inner glow/shadow for depth
-                innerGlow: {
-                    color: "rgba(0, 255, 255, 0.2)",
-                    blur: 8
-                }
+                borderWidth: 2
+                // Remove hardcoded colors
             },
             stats: {
-                width: 310, // Increased width for bars
-                nameY: 35, // More vertical space
-                fontSize: 24, // Bigger text
-                barHeight: 25, // Taller bars
+                width: 310,
+                nameY: 35,
+                fontSize: 24,
+                barHeight: 25,
                 firstBarY: 45,
                 secondBarY: 95,
                 barText: {
                     label: {
-                        size: 20,
-                        color: "#ffffff"
+                        size: 20
                     },
                     values: {
-                        size: 20,
-                        color: "#ffffff"
+                        size: 20
                     }
                 }
-            },
-            glow: {
-                color: "#00ffff",
-                blur: 15
-            },
-            textColor: {
-                normal: "#ffffff",
-                selected: "#00ffff"
             }
         };
 
         // State
         this.selectedCharIndex = -1;
-        this.selectionState = "none"; // 'none', 'selecting_hero', 'selecting_target'
-        this.targetMode = "single"; // 'single' or 'all'
+        this.selectionState = "none";
+        this.targetMode = "single";
 
         this.registerInteractiveElements();
     }
@@ -99,8 +86,20 @@ class CharacterPanel {
         }
     }
 
+    createGradient(x, y, width, height, colorStart, colorEnd) {
+        // Use gameMode's createGradient if available, otherwise create locally
+        if (this.gameMode.createGradient) {
+            return this.gameMode.createGradient(x, y, width, height, colorStart, colorEnd);
+        }
+        const gradient = this.ctx.createLinearGradient(x, y, x + width, y + height);
+        gradient.addColorStop(0, colorStart);
+        gradient.addColorStop(1, colorEnd);
+        return gradient;
+    }
+
     draw() {
         const p = this.config;
+        const colors = this.gameMode.colors;
 
         this.party.forEach((char, index) => {
             const x = p.startX;
@@ -114,12 +113,19 @@ class CharacterPanel {
                     (this.selectionState === "selecting_target" || this.selectionState === "selecting_hero")) ||
                 (this.targetMode === "all" && this.selectionState === "selecting_target")
             ) {
-                this.ctx.shadowColor = p.glow.color;
-                this.ctx.shadowBlur = p.glow.blur;
+                this.ctx.shadowColor = colors.glowColor;
+                this.ctx.shadowBlur = colors.glowBlur;
             }
 
-            // Panel background
-            this.ctx.fillStyle = "rgba(0, 0, 102, 0.8)";
+            // Panel background with gradient
+            this.ctx.fillStyle = this.createGradient(
+                x,
+                y,
+                p.width,
+                p.height,
+                colors.menuBackground.start,
+                colors.menuBackground.end
+            );
             this.ctx.fillRect(x, y, p.width, p.height);
 
             this.ctx.restore();
@@ -127,19 +133,19 @@ class CharacterPanel {
             const portraitX = x + p.portrait.margin;
             const portraitY = y + (p.height - p.portrait.size) / 2;
 
-            // Portrait border - change color and add glow based on selection
-            this.ctx.save(); // Save current context state
+            // Portrait border
+            this.ctx.save();
 
             if (
                 (index === this.selectedCharIndex &&
                     (this.selectionState === "selecting_target" || this.selectionState === "selecting_hero")) ||
                 (this.targetMode === "all" && this.selectionState === "selecting_target")
             ) {
-                this.ctx.shadowColor = p.glow.color;
-                this.ctx.shadowBlur = p.glow.blur;
-                this.ctx.strokeStyle = p.textColor.selected; // cyan
+                this.ctx.shadowColor = colors.glowColor;
+                this.ctx.shadowBlur = colors.glowBlur;
+                this.ctx.strokeStyle = colors.selectedText;
             } else {
-                this.ctx.strokeStyle = "#ffffff"; // white
+                this.ctx.strokeStyle = colors.normalText;
             }
 
             this.ctx.lineWidth = p.portrait.borderWidth;
@@ -150,10 +156,11 @@ class CharacterPanel {
                 p.portrait.size + p.portrait.borderWidth * 2
             );
 
-            this.ctx.restore(); // Restore context state to remove shadow effects
+            this.ctx.restore();
 
             // Character sprite
-            this.ctx.imageSmoothingEnabled = false; // Add this before drawing
+            this.ctx.save();
+            this.ctx.imageSmoothingEnabled = false;
             this.ctx.drawImage(
                 this.sprites[char.type],
                 0,
@@ -165,45 +172,40 @@ class CharacterPanel {
                 p.portrait.size,
                 p.portrait.size
             );
-            this.ctx.imageSmoothingEnabled = true; // Reset it after if needed for other elements
+            this.ctx.imageSmoothingEnabled = true;
+            this.ctx.restore();
 
             // Stats section
             const statsX = portraitX + p.portrait.size + 25;
 
             // Name with color change and glow on selection
+            this.ctx.save();
             if (
                 (index === this.selectedCharIndex &&
                     (this.selectionState === "selecting_target" || this.selectionState === "selecting_hero")) ||
                 (this.targetMode === "all" && this.selectionState === "selecting_target")
             ) {
-                // Add glow effect for selected name
-                this.ctx.shadowColor = p.glow.color;
-                this.ctx.shadowBlur = p.glow.blur;
-                this.ctx.fillStyle = p.textColor.selected;
+                this.ctx.shadowColor = colors.glowColor;
+                this.ctx.shadowBlur = colors.glowBlur;
+                this.ctx.fillStyle = colors.selectedText;
             } else {
-                // Reset shadow and use normal color
                 this.ctx.shadowColor = "transparent";
                 this.ctx.shadowBlur = 0;
-                this.ctx.fillStyle = p.textColor.normal;
+                this.ctx.fillStyle = colors.normalText;
             }
 
             this.ctx.font = `${p.stats.fontSize}px monospace`;
             this.ctx.textAlign = "left";
             this.ctx.fillText(`${char.name}`, statsX, y + p.stats.nameY);
+            this.ctx.restore();
 
-            // Reset shadow effect before drawing level
-            this.ctx.shadowColor = "transparent";
-            this.ctx.shadowBlur = 0;
-
-            // Level always white
-            this.ctx.fillStyle = p.textColor.normal;
+            // Level
+            this.ctx.fillStyle = colors.normalText;
             this.ctx.textAlign = "right";
-            this.ctx.fillText(`Level ${char.level}`, x + p.width - 20, y + p.stats.nameY); // -20 for some padding from right edge
+            this.ctx.fillText(`Level ${char.level}`, x + p.width - 20, y + p.stats.nameY);
 
-            // HP Bar
+            // HP and MP Bars
             this.drawStatBar(statsX, y + p.stats.firstBarY, char.hp, char.maxHp, "#00ff00", "HP", p.stats.width);
-
-            // MP Bar
             this.drawStatBar(statsX, y + p.stats.secondBarY, char.mp, char.maxMp, "#0000ff", "MP", p.stats.width);
         });
     }
@@ -211,29 +213,25 @@ class CharacterPanel {
     drawStatBar(x, y, current, max, color, label, width) {
         const height = this.config.stats.barHeight;
         const p = this.config.stats.barText;
+        const colors = this.gameMode.colors;
 
-        // Draw the bar itself
-        const bgGradient = this.ctx.createLinearGradient(x, y, x, y + height);
-        bgGradient.addColorStop(0, "#222222");
-        bgGradient.addColorStop(1, "#333333");
-        this.ctx.fillStyle = bgGradient;
+        // Background gradient - now diagonal
+        this.ctx.fillStyle = this.createGradient(x, y, width, height, "#222222", "#333333");
         this.ctx.fillRect(x, y, width, height);
 
-        // Current value bar with gradient
+        // Current value bar - also diagonal gradient
         const fillWidth = (current / max) * width;
-        const valueGradient = this.ctx.createLinearGradient(x, y, x, y + height);
-        valueGradient.addColorStop(0, color);
-        valueGradient.addColorStop(1, this.adjustColor(color, -20));
-        this.ctx.fillStyle = valueGradient;
+        let colorEnd = this.adjustColor(color, -20);
+        this.ctx.fillStyle = this.createGradient(x, y, fillWidth, height, color, colorEnd);
         this.ctx.fillRect(x, y, fillWidth, height);
 
         // Bar border
-        this.ctx.strokeStyle = "#ffffff";
+        this.ctx.strokeStyle = colors.normalText;
         this.ctx.lineWidth = 2;
         this.ctx.strokeRect(x, y, width, height);
 
-        // Text below the bar
-        this.ctx.fillStyle = p.label.color;
+        // Text
+        this.ctx.fillStyle = colors.normalText;
         this.ctx.font = `${p.label.size}px monospace`;
         this.ctx.textAlign = "left";
         this.ctx.fillText(`${label}: ${current}/${max}`, x, y + height + 18);

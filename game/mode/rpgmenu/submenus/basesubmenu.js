@@ -5,7 +5,9 @@ class BaseSubmenu {
         this.input = input;
         this.gameMaster = gameMaster;
         this.characterPanel = characterPanel;
-
+        this.createGradient = this.gameMaster.modeManager.activeMode.createGradient.bind(
+            this.gameMaster.modeManager.activeMode
+        );
         this.backButtonRegistered = false;
         this.selectedIndex = 0;
         this.layout = {
@@ -28,7 +30,7 @@ class BaseSubmenu {
             itemSpacing: 45,
             itemHeight: 40
         };
-        // Add pagination config
+        // Pagination config
         this.pagination = {
             currentPage: 0,
             itemsPerPage: 8,
@@ -36,10 +38,6 @@ class BaseSubmenu {
                 width: 30,
                 height: 30,
                 padding: 10,
-                color: {
-                    normal: "#ffffff",
-                    hover: "#00ffff"
-                },
                 symbols: {
                     left: "◀",
                     right: "▶"
@@ -47,8 +45,7 @@ class BaseSubmenu {
             },
             pageInfo: {
                 y: 470,
-                font: "20px monospace",
-                color: "#ffffff"
+                font: "20px monospace"
             }
         };
         // Add description panel config
@@ -58,8 +55,7 @@ class BaseSubmenu {
             width: 425,
             height: 40,
             fontSize: 22,
-            textPadding: 10,
-            color: "rgba(0, 0, 102, 0.8)"
+            textPadding: 10
         };
     }
 
@@ -93,7 +89,9 @@ class BaseSubmenu {
     }
 
     drawBackButton(x, y, width, height) {
-        this.ctx.fillStyle = this.input.isElementHovered("back_button") ? "#00ffff" : "#ffffff";
+        this.ctx.fillStyle = this.input.isElementHovered("back_button")
+            ? this.gameMaster.modeManager.activeMode.colors.buttonTextHover
+            : this.gameMaster.modeManager.activeMode.colors.buttonTextNormal;
         this.ctx.font = "24px monospace";
         this.ctx.textAlign = "center";
         this.ctx.fillText("❌", x, y + 20);
@@ -102,9 +100,10 @@ class BaseSubmenu {
     drawPagination(totalItems, menuLayout) {
         const { x, y, height, width } = menuLayout;
         const { pageInfo, arrows, itemsPerPage, currentPage } = this.pagination;
+        const colors = this.gameMaster.modeManager.activeMode.colors;
 
         // Page info
-        this.ctx.fillStyle = pageInfo.color;
+        this.ctx.fillStyle = colors.normalText;
         this.ctx.font = pageInfo.font;
         this.ctx.textAlign = "center";
         this.ctx.fillText(
@@ -117,40 +116,48 @@ class BaseSubmenu {
             this.ctx.save();
 
             if (this.input.isElementHovered(name)) {
-                this.ctx.shadowColor = "#00ffff";
-                this.ctx.shadowBlur = 15;
-                this.ctx.fillStyle = arrows.color.hover;
+                this.ctx.shadowColor = colors.glowColor;
+                this.ctx.shadowBlur = colors.glowBlur;
+                this.ctx.fillStyle = colors.paginationHover;
             } else {
-                this.ctx.fillStyle = arrows.color.normal;
+                this.ctx.fillStyle = colors.paginationNormal;
             }
 
             this.ctx.fillText(symbol, posX, y + height - 20);
             this.ctx.restore();
         };
 
-        // Left arrow
-        if (currentPage > 0) drawArrow("arrow_left", arrows.symbols.left, x + arrows.padding + arrows.width / 2);
+        if (currentPage > 0) {
+            drawArrow("arrow_left", arrows.symbols.left, x + arrows.padding + arrows.width / 2);
+        }
 
-        // Right arrow
-        if ((currentPage + 1) * itemsPerPage < totalItems)
+        if ((currentPage + 1) * itemsPerPage < totalItems) {
             drawArrow("arrow_right", arrows.symbols.right, x + width - arrows.padding - arrows.width / 2);
+        }
     }
 
     drawDescriptionPanel(text) {
         const d = this.descriptionPanel;
+        const colors = this.gameMaster.modeManager.activeMode.colors;
 
         this.ctx.save();
 
-        // Draw panel background
-        this.ctx.fillStyle = d.color;
+        // Description panel background with gradient
+        this.ctx.fillStyle = this.createGradient(
+            d.x,
+            d.y,
+            d.width,
+            d.height,
+            colors.descriptionBackground.start,
+            colors.descriptionBackground.end
+        );
         this.ctx.fillRect(d.x, d.y, d.width, d.height);
 
         if (text) {
-            this.ctx.fillStyle = "#ffffff";
+            this.ctx.fillStyle = colors.normalText;
             this.ctx.font = `${d.fontSize}px monospace`;
             this.ctx.textAlign = "left";
             this.ctx.textBaseline = "middle";
-
             this.ctx.fillText(text, d.x + d.textPadding, d.y + d.height / 2);
         }
 

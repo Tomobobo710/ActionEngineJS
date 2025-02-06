@@ -113,21 +113,25 @@ class ItemMenu extends BaseSubmenu {
 
         // Handle pagination
         if (items.length > this.pagination.itemsPerPage) {
-    if ((this.input.isElementJustPressed("arrow_left") || this.input.isKeyJustPressed("DirLeft")) 
-        && this.pagination.currentPage > 0) {
-        this.pagination.currentPage--;
-        this.selectedIndex = this.pagination.currentPage * this.pagination.itemsPerPage;
-        this.registerElements();
-        return;
-    }
-    if ((this.input.isElementJustPressed("arrow_right") || this.input.isKeyJustPressed("DirRight")) &&
-        (this.pagination.currentPage + 1) * this.pagination.itemsPerPage < items.length) {
-        this.pagination.currentPage++;
-        this.selectedIndex = this.pagination.currentPage * this.pagination.itemsPerPage;
-        this.registerElements();
-        return;
-    }
-}
+            if (
+                (this.input.isElementJustPressed("arrow_left") || this.input.isKeyJustPressed("DirLeft")) &&
+                this.pagination.currentPage > 0
+            ) {
+                this.pagination.currentPage--;
+                this.selectedIndex = this.pagination.currentPage * this.pagination.itemsPerPage;
+                this.registerElements();
+                return;
+            }
+            if (
+                (this.input.isElementJustPressed("arrow_right") || this.input.isKeyJustPressed("DirRight")) &&
+                (this.pagination.currentPage + 1) * this.pagination.itemsPerPage < items.length
+            ) {
+                this.pagination.currentPage++;
+                this.selectedIndex = this.pagination.currentPage * this.pagination.itemsPerPage;
+                this.registerElements();
+                return;
+            }
+        }
 
         // Handle item selection clicks first
         for (let i = 0; i < pageItems.length; i++) {
@@ -175,9 +179,7 @@ class ItemMenu extends BaseSubmenu {
             }
             return;
         }
-        
-        
-        
+
         if (this.input.isKeyJustPressed("Action1")) {
             const selectedItem = items[this.selectedIndex];
             if (selectedItem) {
@@ -203,108 +205,129 @@ class ItemMenu extends BaseSubmenu {
     }
 
     draw() {
-    const m = this.layout;
-    // Draw window header
-    this.ctx.fillStyle = "rgba(0, 0, 153, 0.95)";
-    this.ctx.fillRect(m.x, m.y, m.width, m.headerHeight);
+        const m = this.layout;
+        const colors = this.gameMaster.modeManager.activeMode.colors;
 
-    // Draw main window background
-    this.ctx.fillStyle = "rgba(0, 0, 102, 0.95)";
-    this.ctx.fillRect(m.x, m.y + m.headerHeight, m.width, m.height - m.headerHeight);
+        // Draw window header with gradient
+        this.ctx.fillStyle = this.createGradient(
+            m.x,
+            m.y,
+            m.width,
+            m.headerHeight,
+            colors.headerBackground.start,
+            colors.headerBackground.end
+        );
+        this.ctx.fillRect(m.x, m.y, m.width, m.headerHeight);
 
-    // Draw back button
-    this.drawBackButton(
-        m.x + m.width - m.backButton.rightOffset - m.backButton.width / 2,
-        m.y + m.backButton.topOffset,
-        m.backButton.width,
-        m.backButton.height
-    );
+        // Draw main window background with gradient
+        this.ctx.fillStyle = this.createGradient(
+            m.x,
+            m.y + m.headerHeight,
+            m.width,
+            m.height - m.headerHeight,
+            colors.menuBackground.start,
+            colors.menuBackground.end
+        );
+        this.ctx.fillRect(m.x, m.y + m.headerHeight, m.width, m.height - m.headerHeight);
 
-    // Draw "Items" title or "Select Target" based on state
-    this.ctx.fillStyle = "#00ffff";
-    this.ctx.font = "26px monospace";
-    this.ctx.textAlign = "left";
-    this.ctx.fillText("Items", m.x + 20, m.y + 28);
+        // Draw back button
+        this.drawBackButton(
+            m.x + m.width - m.backButton.rightOffset - m.backButton.width / 2,
+            m.y + m.backButton.topOffset,
+            m.backButton.width,
+            m.backButton.height
+        );
 
-    // Draw state-specific content
-    if (this.characterPanel.selectionState === "selecting_target") {
-        this.ctx.fillStyle = "#ffffff";
-        this.ctx.font = "24px monospace";
-        this.ctx.textAlign = "center";
-        this.ctx.fillText("Select Target", m.x + m.width / 2, m.y + 100);
-        
-        // Draw description panel for the selected item
+        // Draw "Items" title
+        this.ctx.fillStyle = colors.headerText;
+        this.ctx.font = "26px monospace";
+        this.ctx.textAlign = "left";
+        this.ctx.fillText("Items", m.x + 20, m.y + 28);
+
+        // Draw state-specific content
+        if (this.characterPanel.selectionState === "selecting_target") {
+            this.ctx.fillStyle = colors.normalText;
+            this.ctx.font = "24px monospace";
+            this.ctx.textAlign = "center";
+            this.ctx.fillText("Select Target", m.x + m.width / 2, m.y + 100);
+
+            // Draw description panel for the selected item
+            const inventory = this.gameMaster.partyInventory;
+            const items = inventory.getAvailableItems();
+            const selectedItem = items[this.selectedIndex];
+            if (selectedItem) {
+                this.drawDescriptionPanel(selectedItem.item.description);
+            }
+            return;
+        }
+
         const inventory = this.gameMaster.partyInventory;
         const items = inventory.getAvailableItems();
+        const startIndex = this.pagination.currentPage * this.pagination.itemsPerPage;
+        const pageItems = items.slice(startIndex, startIndex + this.pagination.itemsPerPage);
+
+        pageItems.forEach((itemData, index) => {
+            const actualIndex = startIndex + index;
+            const y = this.layout.y + this.layout.headerHeight + 20 + index * this.layout.itemSpacing;
+
+            this.ctx.save();
+
+            // Selection highlight with glow and gradient
+            if (actualIndex === this.selectedIndex) {
+                // Add glow effect
+                this.ctx.shadowColor = colors.glowColor;
+                this.ctx.shadowBlur = colors.glowBlur;
+
+                // Background for selected item with gradient
+                this.ctx.fillStyle = this.createGradient(
+                    this.layout.x + this.layout.itemPadding,
+                    y - 2,
+                    this.layout.width - this.layout.itemPadding * 2,
+                    this.layout.itemHeight,
+                    colors.selectedBackground.start,
+                    colors.selectedBackground.end
+                );
+                this.ctx.fillRect(
+                    this.layout.x + this.layout.itemPadding,
+                    y - 2,
+                    this.layout.width - this.layout.itemPadding * 2,
+                    this.layout.itemHeight
+                );
+            }
+
+            // Text color - normalText by default, selectedText when selected
+            this.ctx.fillStyle = actualIndex === this.selectedIndex ? colors.selectedText : colors.normalText;
+            this.ctx.font = "24px monospace";
+
+            // Draw item emoji and name (left aligned)
+            this.ctx.textAlign = "left";
+            this.ctx.fillText(itemData.item.emoji, this.layout.x + 20, y + this.layout.textOffset);
+            this.ctx.fillText(itemData.item.name, this.layout.x + 60, y + this.layout.textOffset);
+
+            // Draw quantity (right aligned)
+            this.ctx.textAlign = "right";
+            this.ctx.fillText(
+                `x${itemData.quantity}`,
+                this.layout.x + this.layout.width - 20,
+                y + this.layout.textOffset
+            );
+
+            this.ctx.restore();
+        });
+
+        // Draw pagination if needed
+        if (items.length > this.pagination.itemsPerPage) {
+            this.drawPagination(items.length, this.layout);
+        }
+
+        // Draw description panel last
         const selectedItem = items[this.selectedIndex];
         if (selectedItem) {
             this.drawDescriptionPanel(selectedItem.item.description);
+        } else {
+            this.drawDescriptionPanel("");
         }
-        return;
     }
-
-    const inventory = this.gameMaster.partyInventory;
-    const items = inventory.getAvailableItems();
-    const startIndex = this.pagination.currentPage * this.pagination.itemsPerPage;
-    const pageItems = items.slice(startIndex, startIndex + this.pagination.itemsPerPage);
-
-    pageItems.forEach((itemData, index) => {
-        const actualIndex = startIndex + index;
-        const y = this.layout.y + this.layout.headerHeight + 20 + index * this.layout.itemSpacing;
-
-        this.ctx.save();
-
-        // Selection highlight with glow
-        if (actualIndex === this.selectedIndex) {
-            // Add glow effect
-            this.ctx.shadowColor = "#00ffff";
-            this.ctx.shadowBlur = 15;
-            
-            // Background for selected item
-            this.ctx.fillStyle = "rgba(0, 51, 102, 0.95)";
-            this.ctx.fillRect(
-                this.layout.x + this.layout.itemPadding,
-                y - 2,
-                this.layout.width - this.layout.itemPadding * 2,
-                this.layout.itemHeight
-            );
-        }
-
-        // Text color - white by default, cyan when selected
-        this.ctx.fillStyle = actualIndex === this.selectedIndex ? "#00ffff" : "#ffffff";
-        this.ctx.font = "24px monospace";
-
-        // Draw item emoji and name (left aligned)
-        this.ctx.textAlign = "left";
-        this.ctx.fillText(itemData.item.emoji, this.layout.x + 20, y + this.layout.textOffset);
-        this.ctx.fillText(
-            itemData.item.name,
-            this.layout.x + 60,
-            y + this.layout.textOffset
-        );
-
-        // Draw quantity (right aligned)
-        this.ctx.textAlign = "right";
-        this.ctx.fillText(
-            `x${itemData.quantity}`,
-            this.layout.x + this.layout.width - 20,
-            y + this.layout.textOffset
-        );
-
-        this.ctx.restore();
-    });
-        // Draw pagination if needed
-    if (items.length > this.pagination.itemsPerPage) {
-        this.drawPagination(items.length, this.layout);
-    }
-    // Draw description panel last
-    const selectedItem = items[this.selectedIndex];
-    if (selectedItem) {
-        this.drawDescriptionPanel(selectedItem.item.description);
-    } else {
-        this.drawDescriptionPanel("");
-    }
-}
 
     cleanup() {
         super.cleanup();

@@ -22,22 +22,12 @@ class RPGMenuMode {
                 width: 250,
                 height: 50,
                 textPadding: 30,
-                fontSize: 24,
-                normalColor: "rgba(0, 0, 102, 0.95)",
-                hoverColor: "rgba(0, 51, 102, 0.95)",
-                textColor: {
-                    normal: "#ffffff",
-                    hover: "#00ffff"
-                },
-                glow: {
-                    color: "#00ffff",
-                    blur: 15
-                }
+                fontSize: 24
             }
         };
 
         // Define menu options with new spacing calculation
-        this.menuOptions = ["Item", "Magic", "Status", "Configure", "Save", "Equipment", "Formation", "Quest Log"].map(
+        this.menuOptions = ["Item", "Magic", "Equipment", "Status", "Formation", "Configure", "Quest Log", "Save"].map(
             (text, index) => ({
                 text,
                 x: Game.WIDTH - this.menuLayout.position.right,
@@ -46,14 +36,90 @@ class RPGMenuMode {
                     index * (this.menuLayout.position.buttonHeight + this.menuLayout.position.itemSpacing),
                 width: this.menuLayout.button.width,
                 height: this.menuLayout.button.height,
-                color: this.menuLayout.button.normalColor,
                 hovered: false,
                 borderGlow: 0
             })
         );
 
+        this.oldcolors = {
+            // Menu backgrounds
+            mainBackground: "rgba(0, 0, 51, 0.95)",
+            menuBackground: "rgba(0, 0, 102, 0.95)",
+            headerBackground: "rgba(0, 0, 153, 0.95)",
+            selectedBackground: "rgba(0, 51, 102, 0.95)",
+            infoBackground: "rgba(0, 0, 102, 0.8)",
+            descriptionBackground: "rgba(0, 0, 102, 0.8)",
+
+            // Text colors
+            normalText: "#ffffff",
+            selectedText: "#00ffff",
+            headerText: "#00ffff",
+
+            // Button colors
+            buttonNormal: "rgba(0, 0, 102, 0.95)",
+            buttonHover: "rgba(0, 51, 102, 0.95)",
+            buttonTextNormal: "#ffffff",
+            buttonTextHover: "#00ffff",
+
+            // Effects
+            glowColor: "#00ffff",
+            glowBlur: 15,
+
+            // Pagination
+            paginationNormal: "#ffffff",
+            paginationHover: "#00ffff"
+        };
+        this.colors = {
+            // Gradient pairs for backgrounds
+            mainBackground: {
+                start: "rgba(0, 0, 51, 0.95)",
+                end: "rgba(0, 0, 102, 0.95)"
+            },
+            menuBackground: {
+                start: "rgba(0, 0, 102, 0.95)",
+                end: "rgba(0, 51, 153, 0.95)"
+            },
+            headerBackground: {
+                start: "rgba(0, 0, 153, 0.95)",
+                end: "rgba(0, 51, 204, 0.95)"
+            },
+            selectedBackground: {
+                start: "rgba(0, 51, 102, 0.95)",
+                end: "rgba(0, 102, 153, 0.95)"
+            },
+            descriptionBackground: {
+                start: "rgba(0, 0, 102, 0.95)",
+                end: "rgba(0, 51, 153, 0.95)"
+            },
+            buttonNormal: {
+                start: "rgba(0, 0, 102, 0.95)",
+                end: "rgba(0, 51, 153, 0.95)"
+            },
+            buttonHover: {
+                start: "rgba(0, 51, 102, 0.95)",
+                end: "rgba(0, 102, 153, 0.95)"
+            },
+
+            // Single colors
+            normalText: "#ffffff",
+            selectedText: "#00ffff",
+            headerText: "#00ffff",
+            buttonTextNormal: "#ffffff",
+            buttonTextHover: "#00ffff",
+            glowColor: "#00ffff",
+            glowBlur: 15,
+            paginationNormal: "#ffffff",
+            paginationHover: "#00ffff"
+        };
+
         // Create character panel
-        this.characterPanel = new CharacterPanel(this.ctx, this.input, this.gameMaster.persistentParty, this.sprites);
+        this.characterPanel = new CharacterPanel(
+            this.ctx,
+            this.input,
+            this.gameMaster.persistentParty,
+            this.sprites,
+            this
+        );
 
         // Initialize state
         this.selectedIndex = 0;
@@ -62,6 +128,13 @@ class RPGMenuMode {
 
         // Register menu elements
         this.registerMenuElements();
+    }
+
+    createGradient(x, y, width, height, colorStart, colorEnd) {
+        const gradient = this.ctx.createLinearGradient(x, y, x + width, y + height);
+        gradient.addColorStop(0, colorStart);
+        gradient.addColorStop(1, colorEnd);
+        return gradient;
     }
 
     loadSprites() {
@@ -185,9 +258,18 @@ class RPGMenuMode {
     }
 
     draw() {
-        // Clear canvas and draw background
+        // Clear canvas
         this.ctx.clearRect(0, 0, Game.WIDTH, Game.HEIGHT);
-        this.ctx.fillStyle = "rgba(0, 0, 51, 0.95)";
+
+        // Main background with gradient
+        this.ctx.fillStyle = this.createGradient(
+            0,
+            0,
+            Game.WIDTH,
+            Game.HEIGHT,
+            this.colors.mainBackground.start,
+            this.colors.mainBackground.end
+        );
         this.ctx.fillRect(0, 0, Game.WIDTH, Game.HEIGHT);
 
         // Draw character panel
@@ -200,7 +282,7 @@ class RPGMenuMode {
             this.drawMenuOptions();
         }
 
-        // Always draw info panel
+        // Draw info panel
         this.drawInfoPanel();
     }
 
@@ -211,14 +293,23 @@ class RPGMenuMode {
             this.ctx.save();
 
             if (option.hovered) {
-                this.ctx.shadowColor = l.button.glow.color;
-                this.ctx.shadowBlur = l.button.glow.blur;
+                this.ctx.shadowColor = this.colors.glowColor;
+                this.ctx.shadowBlur = this.colors.glowBlur;
             }
 
-            this.ctx.fillStyle = option.hovered ? l.button.hoverColor : l.button.normalColor;
+            // Create gradient for button background
+            const gradientColors = option.hovered ? this.colors.buttonHover : this.colors.buttonNormal;
+            this.ctx.fillStyle = this.createGradient(
+                option.x,
+                option.y,
+                option.width,
+                option.height,
+                gradientColors.start,
+                gradientColors.end
+            );
             this.ctx.fillRect(option.x, option.y, option.width, option.height);
 
-            this.ctx.fillStyle = option.hovered ? l.button.textColor.hover : l.button.textColor.normal;
+            this.ctx.fillStyle = option.hovered ? this.colors.buttonTextHover : this.colors.buttonTextNormal;
             this.ctx.font = `${l.button.fontSize}px monospace`;
             this.ctx.textAlign = "left";
             this.ctx.textBaseline = "middle";
@@ -234,10 +325,18 @@ class RPGMenuMode {
         const width = 320;
         const height = 40;
 
-        this.ctx.fillStyle = "rgba(0, 0, 102, 0.8)";
+        // Info panel background with gradient
+        this.ctx.fillStyle = this.createGradient(
+            x,
+            y,
+            width,
+            height,
+            this.colors.menuBackground.start,
+            this.colors.menuBackground.end
+        );
         this.ctx.fillRect(x, y, width, height);
 
-        this.ctx.fillStyle = "#ffffff";
+        this.ctx.fillStyle = this.colors.normalText;
         this.ctx.font = "20px monospace";
 
         this.ctx.textAlign = "left";
