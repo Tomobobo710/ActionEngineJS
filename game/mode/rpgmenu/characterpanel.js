@@ -10,9 +10,9 @@ class CharacterPanel {
         this.config = {
             startX: 20,
             startY: 20,
-            width: 400,
-            height: 160,
-            verticalGap: 10,
+            width: 495,
+            height: 158.6,
+            verticalGap: 15,
             portrait: {
                 size: 100,
                 margin: 15,

@@ -11,12 +11,12 @@ class RPGMenuMode {
         this.sprites = {};
         this.loadSprites();
 
-        // Menu options (right side)
         this.menuLayout = {
             position: {
                 right: 220,
                 startY: 20,
-                spacing: 64.35
+                itemSpacing: 15,  // Clear gap between buttons
+                buttonHeight: 50   // Height of each button
             },
             button: {
                 width: 200,
@@ -36,12 +36,13 @@ class RPGMenuMode {
             }
         };
 
-        // Define menu options
+        // Define menu options with new spacing calculation
         this.menuOptions = ["Item", "Magic", "Status", "Configure", "Save", "Equipment", "Formation", "Quest Log"].map(
             (text, index) => ({
                 text,
                 x: Game.WIDTH - this.menuLayout.position.right,
-                y: this.menuLayout.position.startY + index * this.menuLayout.position.spacing,
+                y: this.menuLayout.position.startY + 
+                   index * (this.menuLayout.position.buttonHeight + this.menuLayout.position.itemSpacing),
                 width: this.menuLayout.button.width,
                 height: this.menuLayout.button.height,
                 color: this.menuLayout.button.normalColor,
@@ -73,7 +74,8 @@ class RPGMenuMode {
             this.input.registerElement(`menu_option_${index}`, {
                 bounds: () => ({
                     x: Game.WIDTH - this.menuLayout.position.right,
-                    y: this.menuLayout.position.startY + index * this.menuLayout.position.spacing,
+                    y: this.menuLayout.position.startY + 
+                       index * (this.menuLayout.position.buttonHeight + this.menuLayout.position.itemSpacing),
                     width: this.menuLayout.button.width,
                     height: this.menuLayout.button.height
                 })
@@ -223,9 +225,9 @@ class RPGMenuMode {
     }
 
     drawInfoPanel() {
-        const x = 380;
+        const x = 460;
         const y = 540;
-        const width = 400;
+        const width = 320;
         const height = 40;
 
         this.ctx.fillStyle = "rgba(0, 0, 102, 0.8)";

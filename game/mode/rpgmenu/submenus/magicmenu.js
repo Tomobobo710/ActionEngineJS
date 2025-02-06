@@ -2,25 +2,6 @@
 class MagicMenu extends BaseSubmenu {
     constructor(ctx, input, gameMaster, characterPanel) {
         super(ctx, input, gameMaster, characterPanel);
-
-        this.layout = {
-            x: 430,
-            y: 20,
-            width: 350,
-            height: 500,
-            headerHeight: 40,
-            spellSpacing: 45,
-            spellHeight: 40,
-            padding: 10,
-            textOffset: 25,
-            backButton: {
-                width: 30,
-                height: 30,
-                rightOffset: 5,
-                topOffset: 5
-            }
-        };
-
         this.casterIndex = -1;
         this.selectedIndex = 0;
     }

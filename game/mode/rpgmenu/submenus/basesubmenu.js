@@ -8,7 +8,26 @@ class BaseSubmenu {
 
         this.backButtonRegistered = false;
         this.selectedIndex = 0;
-
+        this.layout = {
+            x: 530,
+            y: 20,
+            width: 250,
+            height: 505,
+            headerHeight: 40,
+            spellSpacing: 45,
+            spellHeight: 40,
+            padding: 10,
+            textOffset: 25,
+            backButton: {
+                width: 30,
+                height: 30,
+                rightOffset: 5,
+                topOffset: 5
+            },
+            itemPadding: 10,
+            itemSpacing: 45,
+            itemHeight: 40,
+        };
         // Add pagination config
         this.pagination = {
             currentPage: 0,
@@ -36,7 +55,7 @@ class BaseSubmenu {
         this.descriptionPanel = {
             x: 20,
             y: 540,
-            width: 350,
+            width: 425,
             height: 40,
             fontSize: 20,
             textPadding: 10,
@@ -45,31 +64,24 @@ class BaseSubmenu {
     }
 
     registerPaginationElements(menuLayout, totalItems) {
-        const m = menuLayout;
-        const p = this.pagination;
+        const { x, y, height, width } = menuLayout;
+        const { itemsPerPage, currentPage, arrows } = this.pagination;
 
-        if (totalItems > p.itemsPerPage) {
-            if (p.currentPage > 0) {
-                this.input.registerElement("arrow_left", {
+        if (totalItems > itemsPerPage) {
+            const registerArrow = (name, posX) => {
+                this.input.registerElement(name, {
                     bounds: () => ({
-                        x: m.x + p.arrows.padding,
-                        y: m.y + m.height - 35,
-                        width: p.arrows.width,
-                        height: p.arrows.height
+                        x: posX,
+                        y: y + height - 40,
+                        width: arrows.width,
+                        height: arrows.height
                     })
                 });
-            }
+            };
 
-            if ((p.currentPage + 1) * p.itemsPerPage < totalItems) {
-                this.input.registerElement("arrow_right", {
-                    bounds: () => ({
-                        x: m.x + m.width - p.arrows.width - p.arrows.padding,
-                        y: m.y + m.height - 35,
-                        width: p.arrows.width,
-                        height: p.arrows.height
-                    })
-                });
-            }
+            if (currentPage > 0) registerArrow("arrow_left", x + arrows.padding);
+            if ((currentPage + 1) * itemsPerPage < totalItems) 
+                registerArrow("arrow_right", x + width - arrows.width - arrows.padding);
         }
     }
 
@@ -88,38 +100,31 @@ class BaseSubmenu {
     }
 
     drawPagination(totalItems, menuLayout) {
-        const m = menuLayout;
-        const p = this.pagination;
+        const { x, y, height, width } = menuLayout;
+        const { pageInfo, arrows, itemsPerPage, currentPage } = this.pagination;
 
         // Page info
-        this.ctx.fillStyle = p.pageInfo.color;
-        this.ctx.font = p.pageInfo.font;
+        this.ctx.fillStyle = pageInfo.color;
+        this.ctx.font = pageInfo.font;
         this.ctx.textAlign = "center";
         this.ctx.fillText(
-            `Page ${p.currentPage + 1}/${Math.ceil(totalItems / p.itemsPerPage)}`,
-            m.x + m.width / 2,
-            m.y + m.height - 20
+            `Page ${currentPage + 1}/${Math.ceil(totalItems / itemsPerPage)}`,
+            x + width / 2,
+            y + height - 20
         );
 
+        const drawArrow = (name, symbol, posX) => {
+            this.ctx.fillStyle = this.input.isElementHovered(name) ? arrows.color.hover : arrows.color.normal;
+            this.ctx.fillText(symbol, posX, y + height - 20);
+        };
+
         // Left arrow
-        if (p.currentPage > 0) {
-            this.ctx.fillStyle = this.input.isElementHovered("arrow_left")
-                ? p.arrows.color.hover
-                : p.arrows.color.normal;
-            this.ctx.fillText(p.arrows.symbols.left, m.x + p.arrows.padding + p.arrows.width / 2, m.y + m.height - 20);
-        }
+        if (currentPage > 0) 
+            drawArrow("arrow_left", arrows.symbols.left, x + arrows.padding + arrows.width / 2);
 
         // Right arrow
-        if ((p.currentPage + 1) * p.itemsPerPage < totalItems) {
-            this.ctx.fillStyle = this.input.isElementHovered("arrow_right")
-                ? p.arrows.color.hover
-                : p.arrows.color.normal;
-            this.ctx.fillText(
-                p.arrows.symbols.right,
-                m.x + m.width - p.arrows.padding - p.arrows.width / 2,
-                m.y + m.height - 20
-            );
-        }
+        if ((currentPage + 1) * itemsPerPage < totalItems)
+            drawArrow("arrow_right", arrows.symbols.right, x + width - arrows.padding - arrows.width / 2);
     }
 
     drawDescriptionPanel(text) {
