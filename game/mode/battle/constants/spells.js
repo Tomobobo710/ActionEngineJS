@@ -102,7 +102,7 @@ const SPELLS = {
         mpCost: 15,
         power: 45,
         element: "holy",
-        targetType: TARGET_TYPES.ALL,
+        targetType: TARGET_TYPES.ALL_ALLIES,
         animation: {
             color: "#ffffff",
             type: "explosion"
