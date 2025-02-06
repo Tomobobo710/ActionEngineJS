@@ -16,8 +16,8 @@ class CharacterPanel {
             portrait: {
                 size: 120, // Up from 100
                 margin: 20,
-                borderWidth: 1,
-                borderColor: "#00ffff",
+                borderWidth: 2,
+                borderColor: "#ffffff",
                 // Add inner glow/shadow for depth
                 innerGlow: {
                     color: "rgba(0, 255, 255, 0.2)",
@@ -127,8 +127,21 @@ class CharacterPanel {
             const portraitX = x + p.portrait.margin;
             const portraitY = y + (p.height - p.portrait.size) / 2;
 
-            // Portrait border
-            this.ctx.strokeStyle = p.portrait.borderColor;
+            // Portrait border - change color and add glow based on selection
+            this.ctx.save(); // Save current context state
+
+            if (
+                (index === this.selectedCharIndex &&
+                    (this.selectionState === "selecting_target" || this.selectionState === "selecting_hero")) ||
+                (this.targetMode === "all" && this.selectionState === "selecting_target")
+            ) {
+                this.ctx.shadowColor = p.glow.color;
+                this.ctx.shadowBlur = p.glow.blur;
+                this.ctx.strokeStyle = p.textColor.selected; // cyan
+            } else {
+                this.ctx.strokeStyle = "#ffffff"; // white
+            }
+
             this.ctx.lineWidth = p.portrait.borderWidth;
             this.ctx.strokeRect(
                 portraitX - p.portrait.borderWidth,
@@ -136,6 +149,8 @@ class CharacterPanel {
                 p.portrait.size + p.portrait.borderWidth * 2,
                 p.portrait.size + p.portrait.borderWidth * 2
             );
+
+            this.ctx.restore(); // Restore context state to remove shadow effects
 
             // Character sprite
             this.ctx.imageSmoothingEnabled = false; // Add this before drawing
@@ -155,20 +170,33 @@ class CharacterPanel {
             // Stats section
             const statsX = portraitX + p.portrait.size + 25;
 
-            // Name and Level with color change on selection
-            this.ctx.fillStyle =
+            // Name with color change and glow on selection
+            if (
                 (index === this.selectedCharIndex &&
                     (this.selectionState === "selecting_target" || this.selectionState === "selecting_hero")) ||
                 (this.targetMode === "all" && this.selectionState === "selecting_target")
-                    ? p.textColor.selected
-                    : p.textColor.normal;
+            ) {
+                // Add glow effect for selected name
+                this.ctx.shadowColor = p.glow.color;
+                this.ctx.shadowBlur = p.glow.blur;
+                this.ctx.fillStyle = p.textColor.selected;
+            } else {
+                // Reset shadow and use normal color
+                this.ctx.shadowColor = "transparent";
+                this.ctx.shadowBlur = 0;
+                this.ctx.fillStyle = p.textColor.normal;
+            }
 
             this.ctx.font = `${p.stats.fontSize}px monospace`;
-            // Draw name (left aligned)
             this.ctx.textAlign = "left";
             this.ctx.fillText(`${char.name}`, statsX, y + p.stats.nameY);
 
-            // Draw level (right aligned)
+            // Reset shadow effect before drawing level
+            this.ctx.shadowColor = "transparent";
+            this.ctx.shadowBlur = 0;
+
+            // Level always white
+            this.ctx.fillStyle = p.textColor.normal;
             this.ctx.textAlign = "right";
             this.ctx.fillText(`Level ${char.level}`, x + p.width - 20, y + p.stats.nameY); // -20 for some padding from right edge
 

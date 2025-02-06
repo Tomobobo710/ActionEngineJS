@@ -57,7 +57,7 @@ class BaseSubmenu {
             y: 540,
             width: 425,
             height: 40,
-            fontSize: 20,
+            fontSize: 22,
             textPadding: 10,
             color: "rgba(0, 0, 102, 0.8)"
         };

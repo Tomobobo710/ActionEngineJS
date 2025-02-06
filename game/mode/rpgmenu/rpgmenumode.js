@@ -237,8 +237,8 @@ class RPGMenuMode {
         this.ctx.fillStyle = "rgba(0, 0, 102, 0.8)";
         this.ctx.fillRect(x, y, width, height);
 
-        this.ctx.fillStyle = "#00ffff";
-        this.ctx.font = "16px monospace";
+        this.ctx.fillStyle = "#ffffff";
+        this.ctx.font = "20px monospace";
 
         this.ctx.textAlign = "left";
         this.ctx.fillText(`Time: 00:00`, x + 20, y + 25);
