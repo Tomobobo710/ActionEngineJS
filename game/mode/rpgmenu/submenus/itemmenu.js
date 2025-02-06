@@ -200,71 +200,81 @@ class ItemMenu extends BaseSubmenu {
     }
 
     draw() {
-        const m = this.layout;
+    const m = this.layout;
 
-        // Draw window header
-        this.ctx.fillStyle = "rgba(0, 0, 153, 0.95)";
-        this.ctx.fillRect(m.x, m.y, m.width, m.headerHeight);
+    // Draw window header
+    this.ctx.fillStyle = "rgba(0, 0, 153, 0.95)";
+    this.ctx.fillRect(m.x, m.y, m.width, m.headerHeight);
 
-        // Draw main window background
-        this.ctx.fillStyle = "rgba(0, 0, 102, 0.95)";
-        this.ctx.fillRect(m.x, m.y + m.headerHeight, m.width, m.height - m.headerHeight);
+    // Draw main window background
+    this.ctx.fillStyle = "rgba(0, 0, 102, 0.95)";
+    this.ctx.fillRect(m.x, m.y + m.headerHeight, m.width, m.height - m.headerHeight);
 
-        // Draw back button
-        this.drawBackButton(
-            m.x + m.width - m.backButton.rightOffset - m.backButton.width / 2,
-            m.y + m.backButton.topOffset,
-            m.backButton.width,
-            m.backButton.height
+    // Draw back button
+    this.drawBackButton(
+        m.x + m.width - m.backButton.rightOffset - m.backButton.width / 2,
+        m.y + m.backButton.topOffset,
+        m.backButton.width,
+        m.backButton.height
+    );
+
+    // Draw "Items" title
+    this.ctx.fillStyle = "#00ffff";
+    this.ctx.font = "26px monospace";
+    this.ctx.textAlign = "left";
+    this.ctx.fillText("Items", m.x + 20, m.y + 28);
+
+    const inventory = this.gameMaster.partyInventory;
+    const items = inventory.getAvailableItems();
+    const startIndex = this.pagination.currentPage * this.pagination.itemsPerPage;
+    const pageItems = items.slice(startIndex, startIndex + this.pagination.itemsPerPage);
+
+    pageItems.forEach((itemData, index) => {
+        const actualIndex = startIndex + index;
+        const y = this.layout.y + this.layout.headerHeight + 20 + index * this.layout.itemSpacing;
+
+        this.ctx.save();
+
+        // Selection highlight with glow
+        if (actualIndex === this.selectedIndex) {
+            // Add glow effect
+            this.ctx.shadowColor = "#00ffff";
+            this.ctx.shadowBlur = 15;
+            
+            // Background for selected item
+            this.ctx.fillStyle = "rgba(0, 51, 102, 0.95)";
+            this.ctx.fillRect(
+                this.layout.x + this.layout.itemPadding,
+                y - 2,
+                this.layout.width - this.layout.itemPadding * 2,
+                this.layout.itemHeight
+            );
+        }
+
+        // Text color - white by default, cyan when selected
+        this.ctx.fillStyle = actualIndex === this.selectedIndex ? "#00ffff" : "#ffffff";
+        this.ctx.font = "24px monospace";
+        this.ctx.textAlign = "left";
+
+        // Draw item emoji and name
+        this.ctx.fillText(itemData.item.emoji, this.layout.x + 20, y + this.layout.textOffset);
+        this.ctx.fillText(
+            `${itemData.item.name} x${itemData.quantity}`,
+            this.layout.x + 60,
+            y + this.layout.textOffset
         );
 
-        // Draw "Items" title
-        this.ctx.fillStyle = "#00ffff";
-        this.ctx.font = "26px monospace";
-        this.ctx.textAlign = "left";
-        this.ctx.fillText("Items", m.x + 20, m.y + 28);
+        this.ctx.restore();
+    });
 
-        const inventory = this.gameMaster.partyInventory;
-        const items = inventory.getAvailableItems();
-        const startIndex = this.pagination.currentPage * this.pagination.itemsPerPage;
-        const pageItems = items.slice(startIndex, startIndex + this.pagination.itemsPerPage);
-
-        pageItems.forEach((itemData, index) => {
-            const actualIndex = startIndex + index;
-            const y = this.layout.y + this.layout.headerHeight + 20 + index * this.layout.itemSpacing;
-
-            // Selection highlight
-            if (actualIndex === this.selectedIndex) {
-                this.ctx.fillStyle = "rgba(0, 51, 102, 0.95)";
-                this.ctx.fillRect(
-                    this.layout.x + this.layout.itemPadding,
-                    y - 2,
-                    this.layout.width - this.layout.itemPadding * 2,
-                    this.layout.itemHeight
-                );
-            }
-
-            this.ctx.fillStyle = actualIndex === this.selectedIndex ? "#00ffff" : "#ffffff";
-            this.ctx.font = "24px monospace";
-            this.ctx.textAlign = "left";
-
-            this.ctx.fillText(itemData.item.emoji, this.layout.x + 20, y + this.layout.textOffset);
-            this.ctx.fillText(
-                `${itemData.item.name} x${itemData.quantity}`,
-                this.layout.x + 60,
-                y + this.layout.textOffset
-            );
-        });
-
-        // Draw description panel last
-        const selectedItem = items[this.selectedIndex];
-
-        if (selectedItem) {
-            this.drawDescriptionPanel(selectedItem.item.description);
-        } else {
-            this.drawDescriptionPanel("");
-        }
+    // Draw description panel last
+    const selectedItem = items[this.selectedIndex];
+    if (selectedItem) {
+        this.drawDescriptionPanel(selectedItem.item.description);
+    } else {
+        this.drawDescriptionPanel("");
     }
+}
 
     cleanup() {
         super.cleanup();
