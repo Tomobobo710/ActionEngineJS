@@ -80,7 +80,42 @@ class RPGMenuMode {
             glowColor: "#60A5FA",                 // Bright blue glow
             glowBlur: 12,
             paginationNormal: "#E2E8F0",          // Very light gray-blue
-            paginationHover: "#FFFFFF"            // Pure white
+            paginationHover: "#FFFFFF",           // Pure white
+            // Slider colors
+            sliderTrack: {
+                start: '#1a2a3a',
+                end: '#2a3a4a'
+            },
+            sliderKnob: {
+                start: '#00ff00',
+                end: '#00cc00'
+            },
+            sliderKnobGlow: '#00ff00',
+
+            // Toggle colors
+            toggleOn: {
+                start: '#00cc00',
+                end: '#00ff00'
+            },
+            toggleOff: {
+                start: '#333333',
+                end: '#444444'
+            },
+            toggleKnob: {
+                start: '#ffffff',
+                end: '#eeeeee'
+            },
+            toggleGlow: {
+                on: '#00ff00',
+                off: '#666666'
+            },
+
+            // Color picker colors
+            colorPickerIndicator: {
+                fill: '#ffffff',
+                stroke: '#000000',
+                glow: '#00ff00'
+            }
         };
         // Create character panel
         this.characterPanel = new CharacterPanel(
