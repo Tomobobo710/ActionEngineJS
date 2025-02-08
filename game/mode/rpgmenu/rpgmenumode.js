@@ -41,77 +41,82 @@ class RPGMenuMode {
             })
         );
 
-        this.oldcolors = {
-            // Menu backgrounds
-            mainBackground: "rgba(0, 0, 51, 0.95)",
-            menuBackground: "rgba(0, 0, 102, 0.95)",
-            headerBackground: "rgba(0, 0, 153, 0.95)",
-            selectedBackground: "rgba(0, 51, 102, 0.95)",
-            infoBackground: "rgba(0, 0, 102, 0.8)",
-            descriptionBackground: "rgba(0, 0, 102, 0.8)",
-
-            // Text colors
-            normalText: "#ffffff",
-            selectedText: "#00ffff",
-            headerText: "#00ffff",
-
-            // Button colors
-            buttonNormal: "rgba(0, 0, 102, 0.95)",
-            buttonHover: "rgba(0, 51, 102, 0.95)",
-            buttonTextNormal: "#ffffff",
-            buttonTextHover: "#00ffff",
-
-            // Effects
-            glowColor: "#00ffff",
-            glowBlur: 15,
-
-            // Pagination
-            paginationNormal: "#ffffff",
-            paginationHover: "#00ffff"
-        };
         this.colors = {
             // Gradient pairs for backgrounds
             mainBackground: {
-                start: "rgba(0, 0, 51, 0.95)",
-                end: "rgba(0, 0, 102, 0.95)"
+                start: "rgba(2, 4, 12, 0.97)",     // Almost black to deep navy
+                end: "rgba(8, 15, 40, 0.97)"
             },
             menuBackground: {
-                start: "rgba(0, 0, 102, 0.95)",
-                end: "rgba(0, 51, 153, 0.95)"
+                start: "rgba(5, 10, 25, 0.97)",    // Deep navy to medium navy
+                end: "rgba(15, 30, 70, 0.97)"
             },
             headerBackground: {
-                start: "rgba(0, 0, 153, 0.95)",
-                end: "rgba(0, 51, 204, 0.95)"
+                start: "rgba(10, 20, 45, 0.97)",   // Navy to dark blue
+                end: "rgba(25, 45, 90, 0.97)"
             },
             selectedBackground: {
-                start: "rgba(0, 51, 102, 0.95)",
-                end: "rgba(0, 102, 153, 0.95)"
+                start: "rgba(15, 30, 60, 0.97)",   // Dark blue to medium blue
+                end: "rgba(35, 60, 110, 0.97)"
             },
             descriptionBackground: {
-                start: "rgba(0, 0, 102, 0.95)",
-                end: "rgba(0, 51, 153, 0.95)"
+                start: "rgba(8, 15, 35, 0.97)",    // Deep navy to navy
+                end: "rgba(20, 35, 75, 0.97)"
             },
             buttonNormal: {
-                start: "rgba(0, 0, 102, 0.95)",
-                end: "rgba(0, 51, 153, 0.95)"
+                start: "rgba(12, 25, 50, 0.97)",   // Dark navy to blue
+                end: "rgba(30, 50, 95, 0.97)"
             },
             buttonHover: {
-                start: "rgba(0, 51, 102, 0.95)",
-                end: "rgba(0, 102, 153, 0.95)"
+                start: "rgba(20, 40, 80, 0.97)",   // Navy to brighter blue
+                end: "rgba(40, 70, 130, 0.97)"
+            },
+            // Single colors - All brightened up
+            normalText: "#E2E8F0",                 // Very light gray-blue
+            selectedText: "#9BB6FF",               // Bright blue
+            headerText: "#BFD4FF",                 // Very light blue
+            buttonTextNormal: "#E2E8F0",           // Very light gray-blue
+            buttonTextHover: "#FFFFFF",            // Pure white
+            glowColor: "#60A5FA",                 // Bright blue glow
+            glowBlur: 12,
+            paginationNormal: "#E2E8F0",          // Very light gray-blue
+            paginationHover: "#FFFFFF",           // Pure white
+            // Slider colors
+            sliderTrack: {
+                start: '#1a2a3a',
+                end: '#2a3a4a'
+            },
+            sliderKnob: {
+                start: '#00ff00',
+                end: '#00cc00'
+            },
+            sliderKnobGlow: '#00ff00',
+
+            // Toggle colors
+            toggleOn: {
+                start: '#00cc00',
+                end: '#00ff00'
+            },
+            toggleOff: {
+                start: '#333333',
+                end: '#444444'
+            },
+            toggleKnob: {
+                start: '#ffffff',
+                end: '#eeeeee'
+            },
+            toggleGlow: {
+                on: '#00ff00',
+                off: '#666666'
             },
 
-            // Single colors
-            normalText: "#ffffff",
-            selectedText: "#00ffff",
-            headerText: "#00ffff",
-            buttonTextNormal: "#ffffff",
-            buttonTextHover: "#00ffff",
-            glowColor: "#00ffff",
-            glowBlur: 15,
-            paginationNormal: "#ffffff",
-            paginationHover: "#00ffff"
+            // Color picker colors
+            colorPickerIndicator: {
+                fill: '#ffffff',
+                stroke: '#000000',
+                glow: '#00ff00'
+            }
         };
-
         // Create character panel
         this.characterPanel = new CharacterPanel(
             this.ctx,
@@ -221,6 +226,9 @@ class RPGMenuMode {
                 return;
             case "Status":
             case "Configure":
+                this.activeSubmenu = new ConfigMenu(this.ctx, this.input, this.gameMaster);
+                this.deactivateMainMenu();
+                break;
             case "Equipment":
             case "Formation":
             case "Quest Log":
@@ -258,33 +266,36 @@ class RPGMenuMode {
     }
 
     draw() {
-        // Clear canvas
-        this.ctx.clearRect(0, 0, Game.WIDTH, Game.HEIGHT);
+    // Clear canvas
+    this.ctx.clearRect(0, 0, Game.WIDTH, Game.HEIGHT);
 
-        // Main background with gradient
-        this.ctx.fillStyle = this.createGradient(
-            0,
-            0,
-            Game.WIDTH,
-            Game.HEIGHT,
-            this.colors.mainBackground.start,
-            this.colors.mainBackground.end
-        );
-        this.ctx.fillRect(0, 0, Game.WIDTH, Game.HEIGHT);
-
-        // Draw character panel
-        this.characterPanel.draw();
-
-        // Draw active submenu or main menu
-        if (this.activeSubmenu) {
-            this.activeSubmenu.draw();
-        } else {
-            this.drawMenuOptions();
-        }
-
-        // Draw info panel
-        this.drawInfoPanel();
+    // If we have an active fullscreen submenu, only draw that
+    if (this.activeSubmenu instanceof BaseFullScreenMenu) {
+        this.activeSubmenu.draw();
+        return;
     }
+
+    // Otherwise draw everything as normal
+    this.ctx.fillStyle = this.createGradient(
+        0,
+        0,
+        Game.WIDTH,
+        Game.HEIGHT,
+        this.colors.mainBackground.start,
+        this.colors.mainBackground.end
+    );
+    this.ctx.fillRect(0, 0, Game.WIDTH, Game.HEIGHT);
+
+    this.characterPanel.draw();
+
+    if (this.activeSubmenu) {
+        this.activeSubmenu.draw();
+    } else {
+        this.drawMenuOptions();
+    }
+
+    this.drawInfoPanel();
+}
 
     drawMenuOptions() {
         const l = this.menuLayout;
