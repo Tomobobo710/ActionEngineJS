@@ -130,13 +130,13 @@ class Lure extends ActionPhysicsSphere3D {
             }
 
             // Check for reeling in completion
-            const distanceToFisher = this.position.distanceTo(this.fisher.position);
-            if (distanceToFisher < 1) {
-                if (this.fisher.game) {
-                    this.hookedFish = null;
-                    this.fishPullForce = new Vector3(0, 0, 0);
-                }
-            }
+            //const distanceToFisher = this.position.distanceTo(this.fisher.position);
+           // if (distanceToFisher < 1) {
+                //if (this.fisher.game) {
+                    //this.hookedFish = null;
+                  //  this.fishPullForce = new Vector3(0, 0, 0);
+              //  }
+           // }
         } else {
             // If fish is missing required properties, release it
             console.warn("Hooked fish missing required properties, releasing...");
@@ -172,6 +172,11 @@ class Lure extends ActionPhysicsSphere3D {
         const distanceToFisher = this.position.distanceTo(this.fisher.position);
         const tension = distanceToFisher / this.fisher.maxLineLength;
         this.fisher.lineTension = tension;
+
+        // Let Fisher know we're close enough to complete catch
+        if (distanceToFisher < 1) {
+            this.fisher.onLureReachedFisher();
+        }
 
         if (tension > this.lineTensionThreshold && Math.random() < 0.1) {
             this.fishEscapes();

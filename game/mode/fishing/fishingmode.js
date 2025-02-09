@@ -52,16 +52,20 @@ class FishingMode {
 
     // Handle caught fish decisions
     if (this.lure.hookedFish) {
-            if (this.input.isKeyJustPressed("KeyK")) {
+            if (this.input.isKeyPressed("Action3")) {
+                console.log("KEY PRESSED ACTION 3");
                 const totalCaught = Object.values(this.catchBag).reduce((a, b) => a + b, 0);
                 if (totalCaught < this.maxBagSize) {
                     this.keepFish(this.lure.hookedFish);
+                    this.fisher.state = "ready";
                     this.ui.catchMenu.visible = false;
                 } else {
                     // Could add a "bag full" message here
                     console.log("Catch bag is full!");
                 }
-            } else if (this.input.isKeyJustPressed("KeyR")) {
+            } else if (this.input.isKeyPressed("Action4")) {
+                console.log("KEY PRESSED ACTION 4");
+                this.fisher.state = "ready";
                 this.releaseFish();
                 this.ui.catchMenu.visible = false;
             }

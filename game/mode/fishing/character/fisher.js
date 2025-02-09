@@ -114,17 +114,24 @@ class Fisher {
                 break;
 
             case "caught":
-                if (input.isKeyJustPressed("KeyK")) {
-                    const totalCaught = Object.values(this.game.catchBag).reduce((a, b) => a + b, 0);
-                    if (totalCaught < this.game.maxBagSize) {
-                        this.game.keepFish(this.lure.hookedFish);
-                        this.state = "ready";
-                    }
-                } else if (input.isKeyJustPressed("KeyR")) {
-                    this.game.releaseFish();
-                    this.state = "ready";
-                }
-                break;
+    // Prevent movement while in caught state
+    if (input.isKeyPressed("Action1")) {
+        console.log("KEY PRESSED ACTION 1");
+        const totalCaught = Object.values(this.game.catchBag).reduce((a, b) => a + b, 0);
+        if (totalCaught < this.game.maxBagSize) {
+            this.game.keepFish(this.lure.hookedFish);
+            this.state = "ready";
+            this.castPower = 0;
+            this.lure.reset();
+        }
+    } else if (input.isKeyPressed("Action2")) {
+        console.log("KEY PRESSED ACTION 2");
+        this.game.releaseFish();
+        this.state = "ready";
+        this.castPower = 0;
+        this.lure.reset();
+    }
+    break;
         }
     }
 
@@ -166,15 +173,23 @@ class Fisher {
 
     const distanceToFisher = this.lure.position.distanceTo(this.position);
 
-    // If lure is close enough, reset to ready state
+    // If lure is close enough
     if (distanceToFisher < 1) {
-        this.state = "ready";
-        this.castPower = 0;
-        this.lure.reset();
-        this.game.fishingArea.setLure(this.lure);
+        if (this.lure.hookedFish) {
+            // If we have a fish, transition to caught state
+            this.state = "caught";
+        } else {
+            // If no fish, reset to ready state
+            this.state = "ready";
+            this.castPower = 0;
+            this.lure.reset();
+            this.game.fishingArea.setLure(this.lure);
+        }
         return;
     }
 
+        
+        
     const reelAmount = this.reelSpeed * deltaTime;
     const reelDirection = this.position.subtract(this.lure.position).normalize();
     this.lure.position = this.lure.position.add(reelDirection.scale(reelAmount));
@@ -187,6 +202,31 @@ class Fisher {
     this.lineLength = distanceToFisher;
 }
 
+    onLureReachedFisher() {
+    if (this.lure.hookedFish) {
+        this.state = "caught";
+        this.lure.state = "caught";  // Add this state to Lure
+    } else {
+        this.state = "ready";
+        this.lure.reset();
+    }
+}
+    keepFish() {
+    if (this.lure.hookedFish) {
+        this.game.catchBag[this.lure.hookedFish.type]++;
+        this.lure.hookedFish = null;  // Now we clear it
+        this.state = "ready";
+        this.lure.reset();
+    }
+}
+
+releaseFish() {
+    if (this.lure.hookedFish) {
+        this.lure.releaseHookedFish();  // This method already exists
+        this.state = "ready";
+        this.lure.reset();
+    }
+}
     cast() {
         if (this.state !== "ready" || !this.lure) return;
 
