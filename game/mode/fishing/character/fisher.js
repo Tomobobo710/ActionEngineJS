@@ -21,7 +21,7 @@ class Fisher {
         this.maxLineLength = 200;
         this.lineTension = 0;
         this.reelSpeed = 30;
-        this.caughtStateTimer = 0;
+        //this.caughtStateTimer = 0;
     }
 
     attachLure(lure) {
@@ -138,7 +138,7 @@ class Fisher {
         for (const [fish, fishAI] of fishingArea.fish) {
             if (fishAI.tryHook(this.lure)) {
                 console.log("Fish successfully hooked!");
-                this.state = "caught";
+                this.state = "fighting";
                 break;
             }
         }

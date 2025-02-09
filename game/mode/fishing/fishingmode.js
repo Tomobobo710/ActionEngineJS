@@ -144,7 +144,7 @@ class FishingMode {
             }
             break;
 
-        case "caught":
+        case "fighting":
             if (this.lure && this.lure.position) {
                 targetPos = this.lure.position.add(new Vector3(-12, 8, -12));
                 targetLookAt = this.lure.position;
