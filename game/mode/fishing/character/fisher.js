@@ -162,24 +162,30 @@ class Fisher {
     }
 
     handleReeling(deltaTime) {
-        if (!this.lure || !this.isReeling) return;
+    if (!this.lure || !this.isReeling) return;
 
-        const distanceToFisher = this.lure.position.distanceTo(this.position);
+    const distanceToFisher = this.lure.position.distanceTo(this.position);
 
-        // If lure is close enough, reset to ready state
-        if (distanceToFisher < 1) {
-            this.state = "ready";
-            this.castPower = 0;
-            this.lure.reset();
-            this.game.fishingArea.setLure(this.lure);
-            return;
-        }
-
-        const reelAmount = this.reelSpeed * deltaTime;
-        const reelDirection = this.position.subtract(this.lure.position).normalize();
-        this.lure.position = this.lure.position.add(reelDirection.scale(reelAmount));
-        this.lineLength = distanceToFisher;
+    // If lure is close enough, reset to ready state
+    if (distanceToFisher < 1) {
+        this.state = "ready";
+        this.castPower = 0;
+        this.lure.reset();
+        this.game.fishingArea.setLure(this.lure);
+        return;
     }
+
+    const reelAmount = this.reelSpeed * deltaTime;
+    const reelDirection = this.position.subtract(this.lure.position).normalize();
+    this.lure.position = this.lure.position.add(reelDirection.scale(reelAmount));
+    
+    // Update physics body position to match
+    this.lure.body.position.x = this.lure.position.x;
+    this.lure.body.position.y = this.lure.position.y;
+    this.lure.body.position.z = this.lure.position.z;
+    
+    this.lineLength = distanceToFisher;
+}
 
     cast() {
         if (this.state !== "ready" || !this.lure) return;
