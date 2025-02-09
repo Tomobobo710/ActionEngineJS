@@ -24,34 +24,40 @@ class FishingMode {
     }
 
     update(deltaTime) {
-        // Reset hooking UI state at start of update
-        this.hookingBarVisible = false;
-        this.hookingProgress = 0;
+    // Reset hooking UI state at start of update
+    this.hookingBarVisible = false;
+    this.hookingProgress = 0;
 
-        this.fisher.update(deltaTime, this.input);
-        this.lure.update(deltaTime);
-        this.updateCamera(deltaTime);
+    this.fisher.update(deltaTime, this.input);
+    this.lure.update(deltaTime);
+    this.updateCamera(deltaTime);
 
-        // Update fishing area (which updates fish movement)
-        this.fishingArea.update(deltaTime);
+    // Update all fish animations - modified to work with Map
+    this.fishingArea.fish.forEach((fishAI, fish) => {
+        fish.update(deltaTime);
+    });
 
-        for (const [fish, fishAI] of this.fishingArea.fish) {
-            if (fishAI.currentBehavior === fishAI.behaviors.attack && fishAI.canBeHooked) {
-                this.hookingBarVisible = true;
-                this.hookingProgress = fishAI.currentBehavior.getHookingWindowProgress();
-            }
+    // Update fishing area (which updates fish movement)
+    this.fishingArea.update(deltaTime);
+
+    // Modified to work with Map
+    this.fishingArea.fish.forEach((fishAI, fish) => {
+        if (fishAI.currentBehavior === fishAI.behaviors.attack && fishAI.canBeHooked) {
+            this.hookingBarVisible = true;
+            this.hookingProgress = fishAI.currentBehavior.getHookingWindowProgress();
         }
+    });
 
-        this.physicsWorld.update(deltaTime);
+    this.physicsWorld.update(deltaTime);
 
-        if (this.input.isKeyJustPressed("Numpad0")) {
-            this.camera.isDetached = !this.camera.isDetached;
-        }
-        if (this.camera.isDetached) {
-            this.camera.handleDetachedInput(this.input, deltaTime);
-            return;
-        }
+    if (this.input.isKeyJustPressed("Numpad0")) {
+        this.camera.isDetached = !this.camera.isDetached;
     }
+    if (this.camera.isDetached) {
+        this.camera.handleDetachedInput(this.input, deltaTime);
+        return;
+    }
+}
 
     updateCamera(deltaTime) {
         if (this.camera.isDetached) return;

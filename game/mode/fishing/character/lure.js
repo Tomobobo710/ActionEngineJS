@@ -15,9 +15,9 @@ class Lure extends ActionPhysicsSphere3D {
             length: 500,
             depth: 50
         };
-        const characterModel = GLBLoader.loadModel(lureModel);
+       
         physicsWorld.addObject(this);
-
+        const characterModel = GLBLoader.loadModel(lureModel);
         const triangles = characterModel.triangles;
         
         this.animator = new ModelAnimationController(characterModel);
