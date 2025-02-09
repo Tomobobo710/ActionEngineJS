@@ -258,6 +258,7 @@ class BaseFullScreenMenu {
                           indicatorStrokeWidth: config.colorPicker?.indicatorStrokeWidth || 1,
                           glowRadius: config.colorPicker?.glowRadius || 10,
                           value: config.colorPicker?.value || false,
+                        preview: config.colorPicker?.preview || null,
                           onChange: config.colorPicker?.onChange
                       }
                     : null
@@ -607,35 +608,58 @@ drawValueBox(x, y, value) {
     }
 
     drawColorPicker(x, y, element) {
-        const config = element.colorPicker;
+    const config = element.colorPicker;
 
-        // Draw wheel
-        const gradient = this.ctx.createConicGradient(0, config.centerX, config.centerY);
-        for (let i = 0; i <= 1; i += 1 / 360) {
-            gradient.addColorStop(i, `hsl(${i * 360}, 100%, 50%)`);
-        }
+    // Draw wheel (existing code)
+    const gradient = this.ctx.createConicGradient(0, config.centerX, config.centerY);
+    for (let i = 0; i <= 1; i += 1 / 360) {
+        gradient.addColorStop(i, `hsl(${i * 360}, 100%, 50%)`);
+    }
+
+    this.ctx.beginPath();
+    this.ctx.arc(config.centerX, config.centerY, config.radius, 0, Math.PI * 2);
+    this.ctx.fillStyle = gradient;
+    this.ctx.fill();
+
+    // Draw indicator (existing code)
+    if (config.value) {
+        this.ctx.save();
+        this.ctx.shadowColor = this.colors.colorPickerIndicator.glow;
+        this.ctx.shadowBlur = config.glowRadius;
 
         this.ctx.beginPath();
-        this.ctx.arc(config.centerX, config.centerY, config.radius, 0, Math.PI * 2);
-        this.ctx.fillStyle = gradient;
+        this.ctx.arc(config.indicatorX, config.indicatorY, config.indicatorSize, 0, Math.PI * 2);
+        this.ctx.fillStyle = this.colors.colorPickerIndicator.fill;
         this.ctx.fill();
-
-        // Draw indicator
-        if (config.value) {
-            this.ctx.save();
-            this.ctx.shadowColor = this.colors.colorPickerIndicator.glow;
-            this.ctx.shadowBlur = config.glowRadius;
-
-            this.ctx.beginPath();
-            this.ctx.arc(config.indicatorX, config.indicatorY, config.indicatorSize, 0, Math.PI * 2);
-            this.ctx.fillStyle = this.colors.colorPickerIndicator.fill;
-            this.ctx.fill();
-            this.ctx.strokeStyle = this.colors.colorPickerIndicator.stroke;
-            this.ctx.lineWidth = config.indicatorStrokeWidth;
-            this.ctx.stroke();
-            this.ctx.restore();
-        }
+        this.ctx.strokeStyle = this.colors.colorPickerIndicator.stroke;
+        this.ctx.lineWidth = config.indicatorStrokeWidth;
+        this.ctx.stroke();
+        this.ctx.restore();
     }
+
+    // Draw color preview
+    if (config.preview && config.value) {
+    // Use the wheel's current HSL values
+    const hslColor = `hsl(${config.value.hue}, ${config.value.saturation * 100}%, 50%)`;
+    this.ctx.fillStyle = hslColor;
+    this.ctx.fillRect(
+        config.preview.x, 
+        config.preview.y, 
+        config.preview.size, 
+        config.preview.size
+    );
+
+    // Draw border
+    this.ctx.strokeStyle = this.colors.colorPickerIndicator.stroke;
+    this.ctx.lineWidth = 1;
+    this.ctx.strokeRect(
+        config.preview.x, 
+        config.preview.y, 
+        config.preview.size, 
+        config.preview.size
+    );
+}
+}
 
     registerElements() {
         this.registerBackButton();

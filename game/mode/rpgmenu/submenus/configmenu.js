@@ -152,6 +152,11 @@ class ConfigMenu extends BaseFullScreenMenu {
                 glowRadius: 10,
                 indicatorStrokeWidth: 1,
                 value: { hue: 180, saturation: 0.8, brightness: 1 },
+                preview: {
+            x: 375, // Position to the right of the wheel
+            y: 375, // Aligned roughly with wheel center
+            size: 50  // Size of the preview square
+        },
                 onChange: (value) => console.log("Color:", value)
             }
         });
