@@ -146,29 +146,38 @@ class Lure extends ActionPhysicsSphere3D {
 }
 
     handleFishFight(deltaTime) {
-        // Fish regularly changes direction to fight
-        if (Math.random() < 0.05) {
-            const angle = Math.random() * Math.PI * 2;
-            this.fishPullForce = new Vector3(Math.cos(angle), 0, Math.sin(angle)).scale(50);
-        }
+    // Fish regularly changes direction to fight
+    if (Math.random() < 0.05) {
+        const angle = Math.random() * Math.PI * 2;
+        this.fishPullForce = new Vector3(Math.cos(angle), 0, Math.sin(angle)).scale(50);
+    }
 
-        // Apply fish pull force to position and physics body
-        const pullAmount = this.fishPullForce.scale(deltaTime);
-        this.position = this.position.add(pullAmount);
-        this.body.position.x = this.position.x;
-        this.body.position.y = this.position.y;
-        this.body.position.z = this.position.z;
+    let finalForce = this.fishPullForce.clone();
 
-        if (this.fisher) {
-            const distanceToFisher = this.position.distanceTo(this.fisher.position);
-            const tension = distanceToFisher / this.fisher.maxLineLength;
-            this.fisher.lineTension = tension;
+    // Add reeling force if fisher is reeling
+    if (this.fisher && this.fisher.isReeling) {
+        const reelDirection = this.fisher.position.subtract(this.position).normalize();
+        const reelForce = reelDirection.scale(this.fisher.reelSpeed); // You might want to adjust this value
+        finalForce = finalForce.add(reelForce);
+    }
 
-            if (tension > this.lineTensionThreshold && Math.random() < 0.1) {
-                this.fishEscapes();
-            }
+    // Apply combined forces to position and physics body
+    const moveAmount = finalForce.scale(deltaTime);
+    this.position = this.position.add(moveAmount);
+    this.body.position.x = this.position.x;
+    this.body.position.y = this.position.y;
+    this.body.position.z = this.position.z;
+
+    if (this.fisher) {
+        const distanceToFisher = this.position.distanceTo(this.fisher.position);
+        const tension = distanceToFisher / this.fisher.maxLineLength;
+        this.fisher.lineTension = tension;
+
+        if (tension > this.lineTensionThreshold && Math.random() < 0.1) {
+            this.fishEscapes();
         }
     }
+}
 
     move(direction, amount) {
         if (this.state !== "inWater") return;
