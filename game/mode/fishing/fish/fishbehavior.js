@@ -156,13 +156,13 @@ class InterestBehavior extends FishBehavior {
 class AttackBehavior extends FishBehavior {
     constructor(fish, bounds) {
         super(fish, bounds);
-        this.moveSpeed = 15;
-        this.turnSpeed = 4;
+        this.moveSpeed = 20;
+        this.turnSpeed = 5;
         this.lure = null;
         this.currentRotation = new Quaternion();
         this.attackComplete = false;
         
-        this.hookingWindowDuration = 2000;
+        this.hookingWindowDuration = 3000;
         this.hookingWindowStart = null;
         this.hookingWindowActive = false;
         this.missed = false;

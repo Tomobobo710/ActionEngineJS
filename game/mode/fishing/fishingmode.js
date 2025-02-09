@@ -16,14 +16,22 @@ class FishingMode {
         this.fishingArea = new FishingArea();
         this.fisher = new Fisher(this, new Vector3(0, 50, 0));
         this.lure = new Lure(this.physicsWorld);
+        this.lure.setFisher(this.fisher);  // Make sure this line is here
         this.fisher.attachLure(this.lure);
         this.hookingBarVisible = false;
         this.hookingProgress = 0;
         this.fishes = [];
         this.fishingArea.generateInitialFish(20, this.physicsWorld);
+    
+            this.catchBag = {
+            BASS: 0,
+            TROUT: 0,
+            SWORDFISH: 0
+        };
+        this.maxBagSize = 5; // Or whatever limit you want
     }
 
-    update(deltaTime) {
+   update(deltaTime) {
     // Reset hooking UI state at start of update
     this.hookingBarVisible = false;
     this.hookingProgress = 0;
@@ -32,7 +40,7 @@ class FishingMode {
     this.lure.update(deltaTime);
     this.updateCamera(deltaTime);
 
-    // Update all fish animations - modified to work with Map
+    // Update all fish animations
     this.fishingArea.fish.forEach((fishAI, fish) => {
         fish.update(deltaTime);
     });
@@ -40,13 +48,26 @@ class FishingMode {
     // Update fishing area (which updates fish movement)
     this.fishingArea.update(deltaTime);
 
-    // Modified to work with Map
-    this.fishingArea.fish.forEach((fishAI, fish) => {
+    // Handle caught fish decisions
+    if (this.lure.hookedFish) {
+        if (this.input.isKeyJustPressed("KeyK")) { // 'K' for keep
+            const totalCaught = Object.values(this.catchBag).reduce((a, b) => a + b, 0);
+            if (totalCaught < this.maxBagSize) {
+                this.keepFish(this.lure.hookedFish);
+            } else {
+                console.log("Catch bag is full!");
+            }
+        } else if (this.input.isKeyJustPressed("KeyR")) { // 'R' for release
+            this.releaseFish();
+        }
+    }
+
+    for (const [fish, fishAI] of this.fishingArea.fish) {
         if (fishAI.currentBehavior === fishAI.behaviors.attack && fishAI.canBeHooked) {
             this.hookingBarVisible = true;
             this.hookingProgress = fishAI.currentBehavior.getHookingWindowProgress();
         }
-    });
+    }
 
     this.physicsWorld.update(deltaTime);
 
@@ -58,6 +79,7 @@ class FishingMode {
         return;
     }
 }
+    
 
     updateCamera(deltaTime) {
         if (this.camera.isDetached) return;
@@ -127,12 +149,48 @@ class FishingMode {
             isChargingCast: this.fisher.isChargingCast,
             castPowerPercentage: this.fisher.getCastPowerPercentage(),
             hasHookedFish: Boolean(this.fisher.lure?.hookedFish),
-            lineTension: this.fisher.lineTension
+            lineTension: this.fisher.lineTension,
+            catchBag: this.catchBag
         };
 
         this.ui.draw(gameState);
     }
 
+    keepFish(fish) {
+    // Get fish type and increment bag count
+    const fishType = fish.type; // Assuming fish has a type property
+    this.catchBag[fishType]++;
+    
+    // Remove fish from game
+    this.physicsWorld.removeObject(fish);
+    this.fishingArea.fish.delete(fish);
+    
+    // Reset lure state
+    this.lure.hookedFish = null;
+    this.lure.reset();
+    
+    // Optional: Log catch
+    console.log(`Caught ${fishType}! Bag: `, this.catchBag);
+}
+
+releaseFish() {
+    if (!this.lure.hookedFish) return;
+    
+    const fish = this.lure.hookedFish;
+    const fishAI = this.fishingArea.fish.get(fish);
+    
+    // Reset fish AI state
+    fishAI.isHooked = false;
+    fishAI.hasLostInterest = false;
+    fishAI.changeBehavior('patrol');
+    
+    // Reset lure
+    this.lure.hookedFish = null;
+    this.lure.reset();
+    
+    FishAI.resetAllFishInterest();
+}
+    
     // When switching "game modes" cleanup() will be called to destroy this mode
     cleanup() {
         if (this.physicsWorld) {

@@ -9,17 +9,17 @@ class FishingUI {
         this.guiContext.clearRect(0, 0, this.guiCanvas.width, this.guiCanvas.height);
         
         this.drawInstructions();
+        this.drawCatchBag(gameState.catchBag);
         
         if (gameState.hookingBarVisible) {
             this.drawHookingBar(gameState.hookingProgress);
         }
-
         if (gameState.isChargingCast) {
             this.drawCastingPowerMeter(gameState.castPowerPercentage);
         }
-
         if (gameState.hasHookedFish) {
             this.drawLineTensionMeter(gameState.lineTension);
+            this.drawHookedFishControls();
         }
     }
 
@@ -31,6 +31,31 @@ class FishingUI {
         this.guiContext.fillText("Release SHIFT to cast", 10, 50);
         this.guiContext.fillText("WASD to move lure", 10, 70);
         this.guiContext.fillText("SPACE to reel in", 10, 90);
+    }
+
+    drawHookedFishControls() {
+        this.guiContext.fillStyle = "#fff";
+        this.guiContext.font = "16px Arial";
+        this.guiContext.textAlign = "right";
+        this.guiContext.fillText("Press 'K' to keep fish", this.guiCanvas.width - 10, 30);
+        this.guiContext.fillText("Press 'R' to release fish", this.guiCanvas.width - 10, 50);
+    }
+
+    drawCatchBag(catchBag) {
+        if (!catchBag) return;
+
+        this.guiContext.fillStyle = "#fff";
+        this.guiContext.font = "16px Arial";
+        this.guiContext.textAlign = "right";
+        
+        let y = 90;
+        this.guiContext.fillText("Catch Bag:", this.guiCanvas.width - 10, y);
+        y += 25;
+
+        for (const [fishType, count] of Object.entries(catchBag)) {
+            this.guiContext.fillText(`${fishType}: ${count}`, this.guiCanvas.width - 10, y);
+            y += 20;
+        }
     }
 
     drawLineTensionMeter(tension) {

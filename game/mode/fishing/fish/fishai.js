@@ -19,7 +19,7 @@ class FishAI {
         this.currentBehavior = this.behaviors.patrol;
         this.timeSinceLastBehaviorChange = 0;
         this.minTimeBetweenBehaviorChanges = 10;
-        this.attackProbability = 0.2;
+        this.attackProbability = 0.5;
         this.hasLostInterest = false;
     }
 
