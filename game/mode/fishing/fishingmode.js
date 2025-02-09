@@ -177,6 +177,9 @@ class FishingMode {
         renderableObjects: Array.from(this.physicsWorld.objects)
     });
 
+    const distanceToFisher = this.lure?.position.distanceTo(this.fisher.position) || Infinity;
+    const isLureAtFisher = distanceToFisher < 1;
+
     const gameState = {
         hookingBarVisible: this.hookingBarVisible,
         hookingProgress: this.hookingProgress,
@@ -186,7 +189,8 @@ class FishingMode {
         hookedFish: this.lure?.hookedFish,
         lineTension: this.fisher.lineTension,
         catchBag: this.catchBag,
-        fisherState: this.fisher.state
+        fisherState: this.fisher.state,
+        isLureAtFisher: isLureAtFisher  // Add this new state
     };
 
     this.ui.draw(gameState);

@@ -11,24 +11,25 @@ class FishingUI {
     }
 
     draw(gameState) {
-        this.guiContext.clearRect(0, 0, this.guiCanvas.width, this.guiCanvas.height);
-        
-        this.drawInstructions();
-        this.drawCatchBag(gameState.catchBag);
-        
-        if (gameState.hookingBarVisible) {
-            this.drawHookingBar(gameState.hookingProgress);
-        }
-        if (gameState.isChargingCast) {
-            this.drawCastingPowerMeter(gameState.castPowerPercentage);
-        }
-        if (gameState.hasHookedFish) {
-            this.drawLineTensionMeter(gameState.lineTension);
-            if (gameState.fisherState === "caught") {
-                this.drawCatchMenu(gameState.hookedFish);
-            }
+    this.guiContext.clearRect(0, 0, this.guiCanvas.width, this.guiCanvas.height);
+    
+    this.drawInstructions();
+    this.drawCatchBag(gameState.catchBag);
+    
+    if (gameState.hookingBarVisible) {
+        this.drawHookingBar(gameState.hookingProgress);
+    }
+    if (gameState.isChargingCast) {
+        this.drawCastingPowerMeter(gameState.castPowerPercentage);
+    }
+    if (gameState.hasHookedFish) {
+        this.drawLineTensionMeter(gameState.lineTension);
+        // Only show catch menu when in caught state AND lure is close to fisher
+        if (gameState.fisherState === "caught" && gameState.isLureAtFisher) {
+            this.drawCatchMenu(gameState.hookedFish);
         }
     }
+}
 
     drawCatchMenu(fish) {
         const menu = this.catchMenu;
