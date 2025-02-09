@@ -45,7 +45,7 @@ class RPGMenuMode {
             // Gradient pairs for backgrounds
             mainBackground: {
                 start: "rgba(2, 4, 12, 0.97)",     // Almost black to deep navy
-                end: "rgba(8, 15, 40, 0.97)"
+                end: "rgba(15, 30, 70, 0.97)"
             },
             menuBackground: {
                 start: "rgba(5, 10, 25, 0.97)",    // Deep navy to medium navy
@@ -71,7 +71,7 @@ class RPGMenuMode {
                 start: "rgba(20, 40, 80, 0.97)",   // Navy to brighter blue
                 end: "rgba(40, 70, 130, 0.97)"
             },
-            // Single colors - All brightened up
+            // Single colors
             normalText: "#E2E8F0",                 // Very light gray-blue
             selectedText: "#9BB6FF",               // Bright blue
             headerText: "#BFD4FF",                 // Very light blue
@@ -82,33 +82,17 @@ class RPGMenuMode {
             paginationNormal: "#E2E8F0",          // Very light gray-blue
             paginationHover: "#FFFFFF",           // Pure white
             // Slider colors
-            sliderTrack: {
-                start: '#1a2a3a',
-                end: '#2a3a4a'
-            },
-            sliderKnob: {
-                start: '#00ff00',
-                end: '#00cc00'
-            },
+            sliderTrack: '#1a2a3a',
+            sliderKnobInactive: '#ffffff',
+            sliderKnobActive: '#00ff00',
             sliderKnobGlow: '#00ff00',
 
             // Toggle colors
-            toggleOn: {
-                start: '#00cc00',
-                end: '#00ff00'
-            },
-            toggleOff: {
-                start: '#333333',
-                end: '#444444'
-            },
-            toggleKnob: {
-                start: '#ffffff',
-                end: '#eeeeee'
-            },
-            toggleGlow: {
-                on: '#00ff00',
-                off: '#666666'
-            },
+            toggleBGOn: '#00ff00',
+            toggleBGOff: '#333333',
+            toggleKnob: '#ffffff',
+            toggleShadowOn:'#00ff00',
+            toggleShadowOff:'#666666',
 
             // Color picker colors
             colorPickerIndicator: {

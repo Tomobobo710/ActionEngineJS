@@ -2,7 +2,6 @@ class ConfigMenu extends BaseFullScreenMenu {
     constructor(ctx, input, gameMaster) {
         super(ctx, input, gameMaster);
 
-        // State tracking for sliders and color picker
         this.adjustingSlider = false;
         this.adjustingColor = false;
 
@@ -11,62 +10,65 @@ class ConfigMenu extends BaseFullScreenMenu {
             name: "slider1",
             type: "slider",
             text: "Slider 1",
-            value: 0.5,
             x: 100,
             y: 100,
-            width: 400,
+            width: 340,
             height: 40,
             focusable: true,
             highlight: {
-                x: 80,
-                y: 100,
-                width: 310,
+                width: 340,
                 height: 40,
+                xOffset: 0,
+                yOffset: 0,
                 glow: 15
             },
             slider: {
                 trackX: 270,
-                trackY: 98,
+                trackY: 100,
                 trackWidth: 150,
                 trackHeight: 4,
                 knobX: 345,
-                knobY: 98,
+                knobY: 100,
                 knobSize: 20,
                 glowRadius: 15,
-                roundness: 2
-            },
-            onChange: (value) => console.log("Slider 1:", value)
+                roundness: 2,
+                value: 0.5,
+                onChange: (value) => console.log("Slider 1:", value)
+            }
         });
 
         this.addElement("main", {
             name: "slider2",
             type: "slider",
             text: "Slider 2",
-            value: 0.7,
             x: 100,
-            y: 200,
-            width: 200,
+            y: 150,
+            width: 340,
             height: 40,
             focusable: true,
             highlight: {
-                x: 80,
-                y: 200,
-                width: 310,
+                width: 340,
                 height: 40,
                 glow: 15
             },
             slider: {
                 trackX: 270,
-                trackY: 198,
+                trackY: 150,
                 trackWidth: 150,
                 trackHeight: 4,
                 knobX: 375,
-                knobY: 198,
+                knobY: 150,
                 knobSize: 20,
                 glowRadius: 15,
-                roundness: 2
-            },
-            onChange: (value) => console.log("Slider 2:", value)
+                roundness: 2,
+                value: 0.5,
+                valueToText: (value) => {
+                    if (value < 0.33) return "Low";
+                    if (value < 0.66) return "Medium";
+                    return "High";
+                },
+                onChange: (value) => console.log("Slider 2:", value)
+            }
         });
 
         // Add toggles
@@ -74,70 +76,61 @@ class ConfigMenu extends BaseFullScreenMenu {
             name: "toggle1",
             type: "toggle",
             text: "Toggle 1",
-            value: true,
             x: 100,
-            y: 300,
-            width: 400,
+            y: 200,
+            width: 240,
             height: 40,
             focusable: true,
             highlight: {
-                x: 80,
-                y: 300,
-                width: 200,
+                width: 240,
                 height: 40,
                 glow: 15
             },
             toggle: {
                 x: 270,
-                y: 285,
+                y: 185, // could be like element's y - toggle's height / 2?
                 width: 60,
                 height: 30,
-                knobX: 270,
-                knobY: 285,
                 knobSize: 24,
-                glowRadius: 10
-            },
-            onChange: (value) => console.log("Toggle 1:", value)
+                glowRadius: 10,
+                value: true,
+                onChange: (value) => console.log("Toggle 1:", value)
+            }
         });
 
         this.addElement("main", {
             name: "toggle2",
             type: "toggle",
             text: "Toggle 2",
-            value: false,
             x: 100,
-            y: 400,
-            width: 400,
+            y: 250,
+            width: 240,
             height: 40,
             focusable: true,
             highlight: {
-                x: 80,
-                y: 400,
-                width: 200,
+                width: 240,
                 height: 40,
                 glow: 15
             },
             toggle: {
                 x: 270,
-                y: 385,
+                y: 235,
                 width: 60,
                 height: 30,
-                knobX: 270,
-                knobY: 385,
                 knobSize: 24,
-                glowRadius: 10
-            },
-            onChange: (value) => console.log("Toggle 2:", value)
+                glowRadius: 10,
+                value: false,
+                onChange: (value) => console.log("Toggle 2:", value)
+            }
         });
 
         this.addElement("main", {
             name: "color1",
             type: "colorPicker",
             text: "Color",
-            value: { hue: 180, saturation: 0.8, brightness: 1 },
             x: 100,
-            y: 500,
-            width: 200,
+            y: 400,
+            width: 300,
             height: 200,
             focusable: true,
             label: {
@@ -145,23 +138,22 @@ class ConfigMenu extends BaseFullScreenMenu {
                 padding: 10
             },
             highlight: {
-                width: 300,
+                width: 340,
                 height: 200,
-                x: 80,
-                y: 500,
                 glow: 15
             },
             colorPicker: {
                 centerX: 275,
-                centerY: 485,
+                centerY: 400,
                 radius: 75,
                 indicatorX: 275,
-                indicatorY: 485,
+                indicatorY: 400,
                 indicatorSize: 6,
                 glowRadius: 10,
-                indicatorStrokeWidth: 1
-            },
-            onChange: (value) => console.log("Color:", value)
+                indicatorStrokeWidth: 1,
+                value: { hue: 180, saturation: 0.8, brightness: 1 },
+                onChange: (value) => console.log("Color:", value)
+            }
         });
 
         this.registerElements();
@@ -188,15 +180,47 @@ class ConfigMenu extends BaseFullScreenMenu {
     }
 
     handleDirectionalInput(direction) {
-        if (!this.focusableElements.length) return;
+    if (!this.focusableElements.length) return;
 
-        if (!this.currentFocus) {
-            this.currentFocus = this.focusableElements[0];
+    if (!this.currentFocus) {
+        this.currentFocus = this.focusableElements[0];
+        this.currentFocus.selected = true;
+        return;
+    }
+
+    const current = this.currentFocus;
+    
+    if (direction === "left" || direction === "right") {
+        // Find elements with different xOrder
+        const validElements = this.focusableElements.filter(element => {
+            if (direction === "right") {
+                return element.xOrder > current.xOrder;
+            } else {
+                return element.xOrder < current.xOrder;
+            }
+        });
+
+        // If no valid elements, don't move
+        if (validElements.length === 0) return;
+
+        // Find closest valid element
+        let nextElement = validElements[0];
+        let bestDistance = Math.abs(nextElement.y - current.y);
+
+        validElements.forEach(element => {
+            const distance = Math.abs(element.y - current.y);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                nextElement = element;
+            }
+        });
+
+        if (nextElement) {
+            this.currentFocus.selected = false;
+            this.currentFocus = nextElement;
             this.currentFocus.selected = true;
-            return;
         }
-
-        const current = this.currentFocus;
+    } else {
         let nextElement = null;
         let bestDistance = Infinity;
 
@@ -213,12 +237,6 @@ class ConfigMenu extends BaseFullScreenMenu {
             const deltaY = elementY - currentY;
 
             switch (direction) {
-                case "right":
-                    if (deltaX <= 0) return;
-                    break;
-                case "left":
-                    if (deltaX >= 0) return;
-                    break;
                 case "up":
                     if (deltaY >= 0) return;
                     break;
@@ -241,6 +259,7 @@ class ConfigMenu extends BaseFullScreenMenu {
             this.currentFocus.selected = true;
         }
     }
+}
 
     handleAction1() {
         if (!this.currentFocus) return;
@@ -249,10 +268,13 @@ class ConfigMenu extends BaseFullScreenMenu {
         switch (element.type) {
             case "slider":
                 this.adjustingSlider = true;
+                element.slider.active = true;
                 break;
             case "toggle":
-                element.value = !element.value;
-                element.onChange(element.value);
+                element.toggle.value = !element.toggle.value;
+                if (element.toggle.onChange) {
+                    element.toggle.onChange(element.toggle.value);
+                }
                 break;
             case "colorPicker":
                 this.adjustingColor = true;
@@ -261,8 +283,9 @@ class ConfigMenu extends BaseFullScreenMenu {
     }
 
     handleAction2() {
-        if (this.adjustingSlider) {
+        if (this.currentFocus?.type === "slider" && this.currentFocus.slider.active) {
             this.adjustingSlider = false;
+            this.currentFocus.slider.active = false;
             return null;
         }
         if (this.adjustingColor) {

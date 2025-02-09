@@ -59,62 +59,148 @@ class BaseFullScreenMenu {
     }
 
     handleMouseInput() {
-        // Back button check
-        if (this.input.isElementJustPressed("back_button")) {
-            return "exit";
-        }
+    // Back button check
+    if (this.input.isElementJustPressed("back_button")) {
+        return "exit";
+    }
 
-        // Reset hover states
-        let foundHover = false;
-        this.containers.forEach((container) => {
-            if (!container.visible) return;
+    // Reset hover states
+    let foundHover = false;
+    this.containers.forEach((container) => {
+        if (!container.visible) return;
 
-            container.elements.forEach((element) => {
-                if (!element.visible || !element.focusable) return;
+        container.elements.forEach((element) => {
+            if (!element.visible || !element.focusable) return;
 
-                if (this.input.isElementHovered(`menu_element_${element.name}`)) {
-                    foundHover = true;
-                    // Update currentFocus and selection on hover
-                    if (this.currentFocus !== element) {
-                        if (this.currentFocus) {
-                            this.currentFocus.selected = false;
-                        }
-                        this.currentFocus = element;
-                        element.selected = true;
+            // Handle slider
+            if (element.type === "slider") {
+                const isInSliderBounds = this.input.isElementHovered(`menu_element_${element.name}_slider`);
+
+                // Handle click or drag while in bounds
+                if (isInSliderBounds && (
+                    this.input.isElementJustPressed(`menu_element_${element.name}_slider`) || 
+                    this.input.isPointerDown()
+                )) {
+                    const mousePos = this.input.getPointerPosition();
+                    const trackStart = container.x + element.slider.trackX;
+                    const value = (mousePos.x - trackStart) / element.slider.trackWidth;
+                    element.slider.value = Math.max(0, Math.min(1, value));
+                    if (element.slider.onChange) {
+                        element.slider.onChange(element.slider.value);
                     }
+                }
+            }
+            if (element.type === "toggle") {
+                // Calculate toggle button bounds (the actual switch area)
+                const toggleBounds = {
+                    x: container.x + element.toggle.x,
+                    y: container.y + element.toggle.y,
+                    width: element.toggle.width,
+                    height: element.toggle.height
+                };
 
-                    // Handle click
-                    if (this.input.isElementJustPressed(`menu_element_${element.name}`)) {
-                        if (element.onChange) {
-                            element.onChange(element.value);
+                // Check if click is within toggle bounds
+                if (this.input.isElementJustPressed(`menu_element_${element.name}`)) {
+                    const mousePos = this.input.getPointerPosition();
+                    if (this.input.isPointInBounds(mousePos.x, mousePos.y, toggleBounds)) {
+                        element.toggle.value = !element.toggle.value;
+                        if (element.toggle.onChange) {
+                            element.toggle.onChange(element.toggle.value);
                         }
                     }
                 }
-            });
-        });
+            }
+            if (element.type === "colorPicker") {
+                // Get center and mouse positions
+                const centerX = container.x + element.colorPicker.centerX;
+                const centerY = container.y + element.colorPicker.centerY;
+                const mousePos = this.input.getPointerPosition();
 
-        // If we're not hovering any element, keep the current selection
-        if (!foundHover && this.currentFocus) {
-            this.currentFocus.selected = true;
-        }
+                // Calculate distance from center
+                const dx = mousePos.x - centerX;
+                const dy = mousePos.y - centerY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                // Check if click/drag is within wheel radius
+                if (distance <= element.colorPicker.radius) {
+                    if (this.input.isElementJustPressed(`menu_element_${element.name}`) || 
+                        this.input.isPointerDown()) {
+
+                        // Calculate hue (angle) and saturation (distance)
+                        let angle = Math.atan2(dy, dx);
+                        if (angle < 0) angle += Math.PI * 2;
+                        const hue = (angle * 180 / Math.PI);
+                        const saturation = Math.min(1, distance / element.colorPicker.radius);
+
+                        // Update indicator position
+                        element.colorPicker.indicatorX = centerX + dx;
+                        element.colorPicker.indicatorY = centerY + dy;
+
+                        // Update value and call onChange
+                        element.colorPicker.value = { hue, saturation, brightness: 1 };
+                        if (element.colorPicker.onChange) {
+                            element.colorPicker.onChange(element.colorPicker.value);
+                        }
+                    }
+                }
+            }
+            if (this.input.isElementHovered(`menu_element_${element.name}`)) {
+                foundHover = true;
+                // Update currentFocus and selection on hover
+                if (this.currentFocus !== element) {
+                    if (this.currentFocus) {
+                        // Clean up any ongoing interactions
+                        if (this.currentFocus.type === "slider") {
+                            this.currentFocus.slider.active = false;
+                            this.adjustingSlider = false;
+                        }
+                        else if (this.currentFocus.type === "colorPicker") {
+                            this.adjustingColor = false;
+                        }
+
+                        this.currentFocus.selected = false;
+                    }
+
+                    this.currentFocus = element;
+                    element.selected = true;
+                }
+
+                // Handle click
+                if (this.input.isElementJustPressed(`menu_element_${element.name}`)) {
+                    if (element.onChange) {
+                        element.onChange(element.value);
+                    }
+                }
+            }
+        });
+    });
+
+    // If we're not hovering any element, keep the current selection
+    if (!foundHover && this.currentFocus) {
+        this.currentFocus.selected = true;
     }
+}
 
     addElement(containerId, config) {
         const element = {
             // Base properties
-            name: config.name,
-            type: config.type,
-            x: config.x || 0,
-            y: config.y || 0,
-            width: config.width || 50,
-            height: config.height || 50,
+            name: config.name || "unnamed element", // optional identifier
+            type: config.type, // element type (slider, toggle, color picker)
+            x: config.x || 0, // anchor x
+            y: config.y || 0, // anchor y
+            width: config.width || 50, // hitbox width
+            height: config.height || 50, // hitbox height
             text: config.text || "",
-            value: config.value,
-            focusable: config.focusable || false,
-            selected: false,
-            visible: true,
-            onChange: config.onChange,
-
+            textOffsetX: config.textOffsetX || 10,
+            textOffsetY: config.textOffsetY || 0,
+            font: config.fontSize || "24px monospace",
+            textAlign: config.textAlign || "left",
+            textBaseline: config.textBaseline || "middle",
+            focusable: config.focusable || false, // whether this element's hitbox is "active"
+            selected: config.selected || false, // if this is the currently focused element this will be set to true
+            visible: config.visible || true, // toggles visibility of this element
+            xOrder: config.xOrder || 0, // order of horizontal significance to directional input navigation
+            
             // Highlight config
             highlight: {
                 width: config.highlight?.width || config.width + 10,
@@ -136,7 +222,11 @@ class BaseFullScreenMenu {
                           knobY: config.slider?.knobY || 0,
                           knobSize: config.slider?.knobSize || 20,
                           glowRadius: config.slider?.glowRadius || 15,
-                          roundness: config.slider?.roundness || 2
+                          roundness: config.slider?.roundness || 2,
+                          value: config.slider?.value || 0,
+                            active: false,
+                        interactionPadding: config.slider?.interactionPadding || 20, // how much space above/below track is clickable
+                          onChange: config.slider?.onChange
                       }
                     : null,
 
@@ -148,10 +238,10 @@ class BaseFullScreenMenu {
                           y: config.toggle?.y || 0,
                           width: config.toggle?.width || 60,
                           height: config.toggle?.height || 30,
-                          knobX: config.toggle?.knobX || 0,
-                          knobY: config.toggle?.knobY || 0,
                           knobSize: config.toggle?.knobSize || 24,
-                          glowRadius: config.toggle?.glowRadius || 10
+                          glowRadius: config.toggle?.glowRadius || 10,
+                          value: config.toggle?.value || false,
+                          onChange: config.toggle?.onChange
                       }
                     : null,
 
@@ -166,7 +256,9 @@ class BaseFullScreenMenu {
                           indicatorY: config.colorPicker?.indicatorY || 0,
                           indicatorSize: config.colorPicker?.indicatorSize || 6,
                           indicatorStrokeWidth: config.colorPicker?.indicatorStrokeWidth || 1,
-                          glowRadius: config.colorPicker?.glowRadius || 10
+                          glowRadius: config.colorPicker?.glowRadius || 10,
+                          value: config.colorPicker?.value || false,
+                          onChange: config.colorPicker?.onChange
                       }
                     : null
         };
@@ -176,7 +268,17 @@ class BaseFullScreenMenu {
             container.elements.push(element);
             if (element.focusable) {
                 this.focusableElements.push(element);
-
+                // Add hitbox for slider track if this is a slider
+                if (element.type === "slider") {
+                    this.input.registerElement(`menu_element_${element.name}_slider`, {
+                        bounds: () => ({
+                            x: container.x + element.slider.trackX - element.slider.interactionPadding,
+                            y: container.y + element.slider.trackY - element.slider.interactionPadding,
+                            width: element.slider.trackWidth + (element.slider.interactionPadding * 2),
+                            height: element.slider.interactionPadding * 2
+                        })
+                    });
+                }
                 // Register hitbox to exactly match where we draw
                 this.input.registerElement(`menu_element_${element.name}`, {
                     bounds: () => ({
@@ -195,20 +297,63 @@ class BaseFullScreenMenu {
 
     update() {
         // Keep slider adjustment in base class since it's common functionality
-        if (this.currentFocus && this.currentFocus.type === "slider") {
+        if (this.currentFocus && this.currentFocus.type === "slider" && this.currentFocus.slider.active) {
             if (this.input.isKeyPressed("DirLeft")) {
-                this.currentFocus.value = Math.max(0, this.currentFocus.value - 0.01);
-                if (this.currentFocus.onChange) {
-                    this.currentFocus.onChange(this.currentFocus.value);
+                this.currentFocus.slider.value = Math.max(0, this.currentFocus.slider.value - 0.01);
+                if (this.currentFocus.slider.onChange) {
+                    this.currentFocus.slider.onChange(this.currentFocus.slider.value);
                 }
             }
             if (this.input.isKeyPressed("DirRight")) {
-                this.currentFocus.value = Math.min(1, this.currentFocus.value + 0.01);
-                if (this.currentFocus.onChange) {
-                    this.currentFocus.onChange(this.currentFocus.value);
+                this.currentFocus.slider.value = Math.min(1, this.currentFocus.slider.value + 0.01);
+                if (this.currentFocus.slider.onChange) {
+                    this.currentFocus.slider.onChange(this.currentFocus.slider.value);
                 }
             }
         }
+        else if (this.currentFocus && this.currentFocus.type === "colorPicker" && this.adjustingColor) {
+            const speed = 2; // Adjust this for faster/slower movement
+            const config = this.currentFocus.colorPicker;
+            let dx = 0;
+            let dy = 0;
+
+            if (this.input.isKeyPressed("DirLeft")) dx -= speed;
+            if (this.input.isKeyPressed("DirRight")) dx += speed;
+            if (this.input.isKeyPressed("DirUp")) dy -= speed;
+            if (this.input.isKeyPressed("DirDown")) dy += speed;
+
+            if (dx !== 0 || dy !== 0) {
+                // Update indicator position
+                const newX = config.indicatorX + dx;
+                const newY = config.indicatorY + dy;
+
+                // Calculate distance from center
+                const centerX = config.centerX;
+                const centerY = config.centerY;
+                const distance = Math.sqrt(
+                    Math.pow(newX - centerX, 2) + 
+                    Math.pow(newY - centerY, 2)
+                );
+
+                // Only update if still within radius
+                if (distance <= config.radius) {
+                    config.indicatorX = newX;
+                    config.indicatorY = newY;
+
+                    // Calculate new hue and saturation
+                    const angle = Math.atan2(newY - centerY, newX - centerX);
+                    let hue = (angle * 180 / Math.PI);
+                    if (hue < 0) hue += 360;
+                    const saturation = Math.min(1, distance / config.radius);
+
+                    config.value = { hue, saturation, brightness: 1 };
+                    if (config.onChange) {
+                        config.onChange(config.value);
+                    }
+                }
+            }
+        }
+    
 
         // Handle mouse input first, since we want to check for back button
         const mouseResult = this.handleMouseInput();
@@ -247,18 +392,19 @@ class BaseFullScreenMenu {
         );
         this.ctx.fillRect(0, 0, Game.WIDTH, Game.HEIGHT);
 
-        // Then draw all containers
+        // Draw all containers' elements
         this.containers.forEach((container) => {
             if (container.visible) {
                 this.drawContainer(container);
             }
         });
+
         // Draw back button last
-        const backButtonX = Game.WIDTH - 35; // 5px from right edge
-        const backButtonY = 5; // 5px from top
+        const backButtonX = Game.WIDTH - 35;
+        const backButtonY = 5;
         this.drawBackButton(backButtonX, backButtonY, this.backButtonSize);
     }
-
+    
     drawBackButton(x, y, size) {
         this.ctx.fillStyle = this.input.isElementHovered("back_button")
             ? this.colors.buttonTextHover
@@ -269,17 +415,6 @@ class BaseFullScreenMenu {
     }
 
     drawContainer(container) {
-        // Draw container background with gradient
-        this.ctx.fillStyle = this.createGradient(
-            container.x,
-            container.y,
-            container.width,
-            container.height,
-            this.colors.menuBackground.start,
-            this.colors.menuBackground.end
-        );
-        this.ctx.fillRect(container.x, container.y, container.width, container.height);
-
         // Draw container elements
         container.elements.forEach((element) => {
             if (element.visible) {
@@ -304,7 +439,11 @@ class BaseFullScreenMenu {
         }
 
         // Draw the element's text
-        this.ctx.fillText(element.text, x, y);
+        this.ctx.fillText(
+            element.text, 
+            x + element.textOffsetX,
+            y + element.textOffsetY
+        );
 
         // Draw the appropriate control based on type
         switch (element.type) {
@@ -346,85 +485,120 @@ class BaseFullScreenMenu {
     }
 
     drawSlider(x, y, element) {
-        const config = element.slider;
+    const config = element.slider;
+    
+    // Draw track (unchanged)
+    this.ctx.fillStyle = this.colors.sliderTrack;
+    this.ctx.beginPath();
+    this.ctx.roundRect(config.trackX, config.trackY, config.trackWidth, config.trackHeight, config.roundness);
+    this.ctx.fill();
+    
+    // Calculate knob position based on value
+    const knobX = config.trackX + config.trackWidth * config.value;
 
-        // Track
-        const trackGradient = this.createGradient(
-            config.trackX,
+    // Determine if knob is active
+    const isMouseDragging = this.input.isElementHovered(`menu_element_${element.name}_slider`) && 
+                           this.input.isPointerDown();
+    const isActive = config.active || isMouseDragging;
+
+    // Draw value box if active
+    if (isActive) {
+        const displayValue = config.valueToText ? 
+            config.valueToText(config.value) : 
+            config.value.toFixed(2);
+        this.drawValueBox(
+            knobX,
             config.trackY,
-            config.trackWidth,
-            config.trackHeight,
-            this.colors.sliderTrack.start,
-            this.colors.sliderTrack.end
+            displayValue
         );
+    }
 
-        this.ctx.fillStyle = trackGradient;
-        this.ctx.beginPath();
-        this.ctx.roundRect(config.trackX, config.trackY, config.trackWidth, config.trackHeight, config.roundness);
-        this.ctx.fill();
-
-        // Calculate knob position based on value
-        const knobX = config.trackX + config.trackWidth * element.value;
-
-        // Knob
+    // Draw knob (existing code with active/inactive states)
+    if (isActive) {
         this.ctx.save();
         this.ctx.shadowColor = this.colors.sliderKnobGlow;
         this.ctx.shadowBlur = config.glowRadius;
+    }
 
-        const knobGradient = this.ctx.createRadialGradient(
-            knobX,
-            config.trackY,
-            0,
-            knobX,
-            config.trackY,
-            config.knobSize / 2
-        );
-        knobGradient.addColorStop(0, this.colors.sliderKnob.start);
-        knobGradient.addColorStop(1, this.colors.sliderKnob.end);
+    this.ctx.fillStyle = isActive ? this.colors.sliderKnobActive : this.colors.sliderKnobInactive;
+    this.ctx.beginPath();
+    this.ctx.arc(knobX, config.trackY, config.knobSize / 2, 0, Math.PI * 2);
+    this.ctx.fill();
 
-        this.ctx.fillStyle = knobGradient;
-        this.ctx.beginPath();
-        this.ctx.arc(knobX, config.trackY, config.knobSize / 2, 0, Math.PI * 2);
-        this.ctx.fill();
+    if (isActive) {
         this.ctx.restore();
     }
+}
+
+drawValueBox(x, y, value) {
+    const padding = 8;
+    const boxHeight = 30;
+    const arrowHeight = 8;
+    const arrowWidth = 12;
+    const verticalOffset = 15;
+    
+    this.ctx.save();
+    
+    // Measure text for box width
+    this.ctx.font = '16px monospace';
+    const textWidth = this.ctx.measureText(value).width;
+    const boxWidth = textWidth + (padding * 2);
+    
+    // Calculate positions
+    const boxY = y - boxHeight - arrowHeight - verticalOffset;
+    
+    // Draw background box with arrow
+    this.ctx.fillStyle = this.colors.menuBackground.start;
+    this.ctx.beginPath();
+    
+    // Main box
+    this.ctx.roundRect(
+        x - boxWidth/2,
+        boxY,
+        boxWidth,
+        boxHeight,
+        4
+    );
+    
+    // Arrow
+    this.ctx.moveTo(x - arrowWidth/2, boxY + boxHeight);
+    this.ctx.lineTo(x, boxY + boxHeight + arrowHeight);
+    this.ctx.lineTo(x + arrowWidth/2, boxY + boxHeight);
+    
+    this.ctx.fill();
+    
+    // Draw text in normalText color
+    this.ctx.fillStyle = this.colors.normalText;
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'middle';
+    this.ctx.fillText(
+        value,
+        x,
+        boxY + boxHeight/2
+    );
+    
+    this.ctx.restore();
+}
 
     drawToggle(x, y, element) {
         const config = element.toggle;
 
-        // Draw background
+        // Draw shadow
         this.ctx.save();
-        this.ctx.shadowColor = element.value ? this.colors.toggleGlow.on : this.colors.toggleGlow.off;
+        this.ctx.shadowColor = config.value ? this.colors.toggleShadowOn : this.colors.toggleShadowOff;
         this.ctx.shadowBlur = config.glowRadius;
-
-        const bgGradient = this.createGradient(
-            config.x,
-            config.y,
-            config.width,
-            config.height,
-            element.value ? this.colors.toggleOn.start : this.colors.toggleOff.start,
-            element.value ? this.colors.toggleOn.end : this.colors.toggleOff.end
-        );
-
-        this.ctx.fillStyle = bgGradient;
+        
+        // Draw toggle background
+        this.ctx.fillStyle = config.value ? this.colors.toggleBGOn : this.colors.toggleBGOff;
         this.ctx.beginPath();
         this.ctx.roundRect(config.x, config.y, config.width, config.height, config.height / 2);
         this.ctx.fill();
 
         // Calculate knob position based on value
-        const knobX = config.x + (element.value ? config.width - config.knobSize : 0);
+        const knobX = config.x + (config.value ? config.width - config.knobSize : 0);
 
         // Draw knob
-        const knobGradient = this.createGradient(
-            knobX,
-            config.y,
-            config.knobSize,
-            config.knobSize,
-            this.colors.toggleKnob.start,
-            this.colors.toggleKnob.end
-        );
-
-        this.ctx.fillStyle = knobGradient;
+        this.ctx.fillStyle = this.colors.toggleKnob;
         this.ctx.beginPath();
         this.ctx.arc(knobX + config.knobSize / 2, config.y + config.height / 2, config.knobSize / 2, 0, Math.PI * 2);
         this.ctx.fill();
@@ -447,7 +621,7 @@ class BaseFullScreenMenu {
         this.ctx.fill();
 
         // Draw indicator
-        if (element.value) {
+        if (config.value) {
             this.ctx.save();
             this.ctx.shadowColor = this.colors.colorPickerIndicator.glow;
             this.ctx.shadowBlur = config.glowRadius;
