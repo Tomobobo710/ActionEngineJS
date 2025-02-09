@@ -11,21 +11,17 @@ class Fisher {
         this.maxCastPower = 10;
         this.castPowerRate = 3;
         this.isChargingCast = false;
-
-        // Create the visual model and set reference
         this.model = new FishermanModel(game.physicsWorld, 10, position);
         this.model.fisher = this;
-
         this.minCastStrength = 20;
         this.maxCastStrength = 300;
-        
         this.lureYOffset = 5;
-        
         this.isReeling = false;
-        this.lineLength = 0; // Current line length
-        this.maxLineLength = 200; // Maximum line length
-        this.lineTension = 0; // 0-1, where 1 is about to snap
-        this.reelSpeed = 30; // Base reel-in speed
+        this.lineLength = 0;
+        this.maxLineLength = 200;
+        this.lineTension = 0;
+        this.reelSpeed = 30;
+        this.caughtStateTimer = 0;
     }
 
     attachLure(lure) {
@@ -36,56 +32,53 @@ class Fisher {
 
     update(deltaTime, input) {
         const waterHeight = this.game.ocean.getWaterHeightAt(this.position.x, this.position.z);
-        // Move body to position
+        
         if (this.model && this.model.body) {
             this.model.body.position.x = this.position.x;
             this.model.body.position.y = this.position.y;
             this.model.body.position.z = this.position.z;
         }
 
-        // Keep lure with fisher when not cast
         if (this.state === "ready" && this.lure) {
             this.lure.position.x = this.position.x;
             this.lure.position.y = this.position.y + this.lureYOffset;
             this.lure.position.z = this.position.z;
 
-            // Update lure's body position as well
             this.lure.body.position.x = this.position.x;
             this.lure.body.position.y = this.position.y + this.lureYOffset;
             this.lure.body.position.z = this.position.z;
         }
 
-        if (this.state === "ready") {
-            if (input.isKeyPressed("DirLeft")) {
-                this.aimAngle += 1.5 * deltaTime;
-            }
-            if (input.isKeyPressed("DirRight")) {
-                this.aimAngle -= 1.5 * deltaTime;
-            }
-
-            if (input.isKeyPressed("DirUp")) {
-                this.aimElevation = Math.min(this.aimElevation + deltaTime, -0.1);
-            }
-            if (input.isKeyPressed("DirDown")) {
-                this.aimElevation = Math.max(this.aimElevation - deltaTime, -0.8);
-            }
-
-            this.castDirection = new Vector3(
-                Math.sin(this.aimAngle),
-                Math.sin(this.aimElevation),
-                Math.cos(this.aimAngle)
-            ).normalize();
-
-            if (input.isKeyPressed("Action2")) {
-                this.isChargingCast = true;
-                this.castPower = Math.min(this.maxCastPower, this.castPower + this.castPowerRate * deltaTime);
-            } else if (this.isChargingCast) {
-                this.isChargingCast = false;
-                this.cast();
-            }
-        }
-
         switch (this.state) {
+            case "ready":
+                if (input.isKeyPressed("DirLeft")) {
+                    this.aimAngle += 1.5 * deltaTime;
+                }
+                if (input.isKeyPressed("DirRight")) {
+                    this.aimAngle -= 1.5 * deltaTime;
+                }
+                if (input.isKeyPressed("DirUp")) {
+                    this.aimElevation = Math.min(this.aimElevation + deltaTime, -0.1);
+                }
+                if (input.isKeyPressed("DirDown")) {
+                    this.aimElevation = Math.max(this.aimElevation - deltaTime, -0.8);
+                }
+
+                this.castDirection = new Vector3(
+                    Math.sin(this.aimAngle),
+                    Math.sin(this.aimElevation),
+                    Math.cos(this.aimAngle)
+                ).normalize();
+
+                if (input.isKeyPressed("Action2")) {
+                    this.isChargingCast = true;
+                    this.castPower = Math.min(this.maxCastPower, this.castPower + this.castPowerRate * deltaTime);
+                } else if (this.isChargingCast) {
+                    this.isChargingCast = false;
+                    this.cast();
+                }
+                break;
+
             case "casting":
                 if (this.lure.state === "inWater") {
                     this.state = "fishing";
@@ -93,20 +86,8 @@ class Fisher {
                 break;
 
             case "fishing":
-                const moveSpeed = 30 * deltaTime;
-                if (input.isKeyPressed("DirUp")) {
-                    this.lure.move("forward", moveSpeed);
-                }
-                if (input.isKeyPressed("DirDown")) {
-                    this.lure.move("backward", moveSpeed);
-                }
-                if (input.isKeyPressed("DirRight")) {
-                    this.lure.move("left", moveSpeed);
-                }
-                if (input.isKeyPressed("DirLeft")) {
-                    this.lure.move("right", moveSpeed);
-                }
-
+                this.handleLureMovement(input, deltaTime);
+                
                 if (input.isKeyPressed("Action1")) {
                     this.isReeling = true;
                     this.handleReeling(deltaTime);
@@ -114,13 +95,9 @@ class Fisher {
                     this.isReeling = false;
                 }
 
-                // Handle hooking input
                 if (input.isKeyJustPressed("Action1")) {
                     this.tryHookFish();
                 }
-
-                // Allow lure movement during fishing
-                this.handleLureMovement(input, deltaTime);
                 break;
 
             case "reeling":
@@ -135,16 +112,33 @@ class Fisher {
                     this.lure.position = this.lure.position.add(direction.scale(50 * deltaTime));
                 }
                 break;
+
+            case "caught":
+                if (input.isKeyJustPressed("KeyK")) {
+                    const totalCaught = Object.values(this.game.catchBag).reduce((a, b) => a + b, 0);
+                    if (totalCaught < this.game.maxBagSize) {
+                        this.game.keepFish(this.lure.hookedFish);
+                        this.state = "ready";
+                    }
+                } else if (input.isKeyJustPressed("KeyR")) {
+                    this.game.releaseFish();
+                    this.state = "ready";
+                }
+                break;
         }
     }
 
+
     tryHookFish() {
+        if (this.state !== "fishing") return;
+        
         console.log("Attempting to hook fish!");
         const fishingArea = this.game.fishingArea;
 
         for (const [fish, fishAI] of fishingArea.fish) {
             if (fishAI.tryHook(this.lure)) {
                 console.log("Fish successfully hooked!");
+                this.state = "caught";
                 break;
             }
         }

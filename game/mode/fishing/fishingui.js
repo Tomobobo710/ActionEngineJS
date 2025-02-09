@@ -2,10 +2,15 @@ class FishingUI {
     constructor(guiCanvas, guiContext) {
         this.guiCanvas = guiCanvas;
         this.guiContext = guiContext;
+        this.catchMenu = {
+            visible: false,
+            position: { x: guiCanvas.width / 2 - 150, y: guiCanvas.height / 2 - 100 },
+            width: 300,
+            height: 200
+        };
     }
 
     draw(gameState) {
-        // Clear the GUI canvas first
         this.guiContext.clearRect(0, 0, this.guiCanvas.width, this.guiCanvas.height);
         
         this.drawInstructions();
@@ -19,9 +24,52 @@ class FishingUI {
         }
         if (gameState.hasHookedFish) {
             this.drawLineTensionMeter(gameState.lineTension);
-            this.drawHookedFishControls();
+            if (gameState.fisherState === "caught") {
+                this.drawCatchMenu(gameState.hookedFish);
+            }
         }
     }
+
+    drawCatchMenu(fish) {
+        const menu = this.catchMenu;
+        const ctx = this.guiContext;
+
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        ctx.fillRect(menu.position.x, menu.position.y, menu.width, menu.height);
+
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(menu.position.x, menu.position.y, menu.width, menu.height);
+
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 24px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('You caught a fish!', 
+            menu.position.x + menu.width/2, 
+            menu.position.y + 50);
+
+        ctx.font = '20px Arial';
+        ctx.fillText(`Type: ${fish?.type || 'Fish'}`, 
+            menu.position.x + menu.width/2, 
+            menu.position.y + 90);
+
+        ctx.fillStyle = '#4CAF50';
+        ctx.fillRect(menu.position.x + 40, menu.position.y + 120, 100, 40);
+        
+        ctx.fillStyle = '#f44336';
+        ctx.fillRect(menu.position.x + menu.width - 140, menu.position.y + 120, 100, 40);
+
+        ctx.fillStyle = '#fff';
+        ctx.font = '18px Arial';
+        ctx.fillText('Keep (K)', 
+            menu.position.x + 90, 
+            menu.position.y + 145);
+        ctx.fillText('Release (R)', 
+            menu.position.x + menu.width - 90, 
+            menu.position.y + 145);
+    }
+
+
 
     drawInstructions() {
         this.guiContext.fillStyle = "#fff";

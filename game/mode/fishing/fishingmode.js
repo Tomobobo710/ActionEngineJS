@@ -8,7 +8,9 @@ class FishingMode {
         this.renderer3d = new ActionRenderer3D(this.canvas);
         this.guiContext = this.guiCanvas.getContext("2d");
         this.ui = new FishingUI(this.guiCanvas, this.guiContext);
-        this.camera = new ActionCamera(new Vector3(0, 20, -60), new Vector3(0, 0, 0));
+    const initialCameraPos = new Vector3(0, 20, -60);
+    const initialCameraTarget = new Vector3(0, 0, 0);
+        this.camera = new ActionCamera(initialCameraPos, initialCameraTarget);
         this.shaderManager = new ShaderManager(this.renderer3d.gl);
         this.shaderManager.registerAllShaders(this.renderer3d);
         this.physicsWorld.setShaderManager(this.shaderManager);
@@ -50,15 +52,35 @@ class FishingMode {
 
     // Handle caught fish decisions
     if (this.lure.hookedFish) {
-        if (this.input.isKeyJustPressed("KeyK")) { // 'K' for keep
-            const totalCaught = Object.values(this.catchBag).reduce((a, b) => a + b, 0);
-            if (totalCaught < this.maxBagSize) {
-                this.keepFish(this.lure.hookedFish);
-            } else {
-                console.log("Catch bag is full!");
+            if (this.input.isKeyJustPressed("KeyK")) {
+                const totalCaught = Object.values(this.catchBag).reduce((a, b) => a + b, 0);
+                if (totalCaught < this.maxBagSize) {
+                    this.keepFish(this.lure.hookedFish);
+                    this.ui.catchMenu.visible = false;
+                } else {
+                    // Could add a "bag full" message here
+                    console.log("Catch bag is full!");
+                }
+            } else if (this.input.isKeyJustPressed("KeyR")) {
+                this.releaseFish();
+                this.ui.catchMenu.visible = false;
             }
-        } else if (this.input.isKeyJustPressed("KeyR")) { // 'R' for release
-            this.releaseFish();
+        }
+    
+
+    // Handle reeling with spacebar
+    if (this.input.isKeyPressed("Space")) {
+        if (this.lure.state === "inWater") {
+            const distanceToFisher = this.lure.position.distanceTo(this.fisher.position);
+            if (distanceToFisher < 1) {
+                this.state = "ready";
+                this.castPower = 0;
+                this.lure.reset();
+                this.game.fishingArea.setLure(this.lure);
+            } else {
+                const direction = this.fisher.position.subtract(this.lure.position).normalize();
+                this.lure.position = this.lure.position.add(direction.scale(50 * deltaTime));
+            }
         }
     }
 
@@ -82,47 +104,60 @@ class FishingMode {
     
 
     updateCamera(deltaTime) {
-        if (this.camera.isDetached) return;
+    if (this.camera.isDetached) return;
 
-        const CAMERA_LERP_SPEED = 3;
-        let targetPos, targetLookAt;
+    const CAMERA_LERP_SPEED = 3;
+    let targetPos, targetLookAt;
 
-        switch (this.fisher.state) {
-            case "ready":
-                // Simple behind-the-player camera
-                targetPos = this.fisher.position.add(
-                    new Vector3(-Math.sin(this.fisher.aimAngle) * 15, 8, -Math.cos(this.fisher.aimAngle) * 15)
-                );
-                targetLookAt = this.fisher.position.add(
-                    new Vector3(Math.sin(this.fisher.aimAngle), 0, Math.cos(this.fisher.aimAngle)).scale(20)
-                );
-                break;
+    // Default camera positions in case state handling fails
+    targetPos = this.fisher.position.add(new Vector3(0, 8, -15));
+    targetLookAt = this.fisher.position;
 
-            case "casting":
-            case "fishing":
-                // Follow the lure with an offset back and up
+    switch (this.fisher.state) {
+        case "ready":
+            targetPos = this.fisher.position.add(
+                new Vector3(-Math.sin(this.fisher.aimAngle) * 15, 8, -Math.cos(this.fisher.aimAngle) * 15)
+            );
+            targetLookAt = this.fisher.position.add(
+                new Vector3(Math.sin(this.fisher.aimAngle), 0, Math.cos(this.fisher.aimAngle)).scale(20)
+            );
+            break;
+
+        case "casting":
+        case "fishing":
+            if (this.lure && this.lure.position) {
                 targetPos = this.lure.position.add(new Vector3(-8, 6, -8));
                 targetLookAt = this.lure.position;
-                break;
+            }
+            break;
 
-            case "reeling":
+        case "reeling":
+            if (this.lure && this.lure.position) {
                 const distanceToFisher = this.lure.position.distanceTo(this.fisher.position);
                 if (distanceToFisher < 15) {
-                    // Transition back to behind-player view when close
                     targetPos = this.fisher.position.add(new Vector3(0, 8, -15));
                     targetLookAt = this.fisher.position;
                 } else {
-                    // Keep following lure while reeling
                     targetPos = this.lure.position.add(new Vector3(-8, 6, -8));
                     targetLookAt = this.lure.position;
                 }
-                break;
-        }
+            }
+            break;
 
-        // Smooth camera movement
+        case "caught":
+            if (this.lure && this.lure.position) {
+                targetPos = this.lure.position.add(new Vector3(-12, 8, -12));
+                targetLookAt = this.lure.position;
+            }
+            break;
+    }
+
+    // Ensure we have valid vectors before lerping
+    if (targetPos && targetLookAt) {
         this.camera.position = this.camera.position.lerp(targetPos, deltaTime * CAMERA_LERP_SPEED);
         this.camera.target = this.camera.target.lerp(targetLookAt, deltaTime * CAMERA_LERP_SPEED);
     }
+}
 
     pause() {
         this.physicsWorld.pause();
@@ -133,28 +168,29 @@ class FishingMode {
     }
 
     draw() {
-        // Draw 3D scene
-        const bufferInfo = this.shaderManager.getBufferInfo();
-        this.renderer3d.render({
-            renderableBuffers: bufferInfo.renderableBuffers,
-            renderableIndexCount: bufferInfo.renderableIndexCount,
-            camera: this.camera,
-            renderableObjects: Array.from(this.physicsWorld.objects)
-        });
+    // Draw 3D scene
+    const bufferInfo = this.shaderManager.getBufferInfo();
+    this.renderer3d.render({
+        renderableBuffers: bufferInfo.renderableBuffers,
+        renderableIndexCount: bufferInfo.renderableIndexCount,
+        camera: this.camera,
+        renderableObjects: Array.from(this.physicsWorld.objects)
+    });
 
-        // Draw UI elements
-        const gameState = {
-            hookingBarVisible: this.hookingBarVisible,
-            hookingProgress: this.hookingProgress,
-            isChargingCast: this.fisher.isChargingCast,
-            castPowerPercentage: this.fisher.getCastPowerPercentage(),
-            hasHookedFish: Boolean(this.fisher.lure?.hookedFish),
-            lineTension: this.fisher.lineTension,
-            catchBag: this.catchBag
-        };
+    const gameState = {
+        hookingBarVisible: this.hookingBarVisible,
+        hookingProgress: this.hookingProgress,
+        isChargingCast: this.fisher.isChargingCast,
+        castPowerPercentage: this.fisher.getCastPowerPercentage(),
+        hasHookedFish: Boolean(this.lure?.hookedFish),
+        hookedFish: this.lure?.hookedFish,
+        lineTension: this.fisher.lineTension,
+        catchBag: this.catchBag,
+        fisherState: this.fisher.state
+    };
 
-        this.ui.draw(gameState);
-    }
+    this.ui.draw(gameState);
+}
 
     keepFish(fish) {
     // Get fish type and increment bag count
