@@ -265,22 +265,34 @@ class BaseFullScreenMenu {
             // Slider config
             slider:
                 config.type === "slider"
-                    ? {
-                          trackX: config.slider?.trackX || 0,
-                          trackY: config.slider?.trackY || 0,
-                          trackWidth: config.slider?.trackWidth || 200,
-                          trackHeight: config.slider?.trackHeight || 4,
-                          knobX: config.slider?.knobX || 0,
-                          knobY: config.slider?.knobY || 0,
-                          knobSize: config.slider?.knobSize || 20,
-                          glowRadius: config.slider?.glowRadius || 15,
-                          roundness: config.slider?.roundness || 2,
-                          value: config.slider?.value || 0,
-                          active: false,
-                          interactionPadding: config.slider?.interactionPadding || 20, // how much space above/below track is clickable
-                          onChange: config.slider?.onChange
+                ? {
+                      trackX: config.slider?.trackX || 0,
+                      trackY: config.slider?.trackY || 0,
+                      trackWidth: config.slider?.trackWidth || 200,
+                      trackHeight: config.slider?.trackHeight || 4,
+                      knobX: config.slider?.knobX || 0,
+                      knobY: config.slider?.knobY || 0,
+                      knobSize: config.slider?.knobSize || 20,
+                      glowRadius: config.slider?.glowRadius || 15,
+                      roundness: config.slider?.roundness || 2,
+                      value: config.slider?.value || 0,
+                      active: false,
+                      interactionPadding: config.slider?.interactionPadding || 20,
+                      onChange: config.slider?.onChange,
+                      // Add default valueBox configuration
+                      valueBox: {
+                          font: config.slider?.valueBox?.font || "16px monospace",
+                          padding: config.slider?.valueBox?.padding || 8,
+                          height: config.slider?.valueBox?.height || 30,
+                          arrow: {
+                              height: config.slider?.valueBox?.arrow?.height || 8,
+                              width: config.slider?.valueBox?.arrow?.width || 12
+                          },
+                          verticalOffset: config.slider?.valueBox?.verticalOffset || 15,
+                          cornerRadius: config.slider?.valueBox?.cornerRadius || 4
                       }
-                    : null,
+                  }
+                : null,
 
             // Toggle config
             toggle:
@@ -511,21 +523,23 @@ class BaseFullScreenMenu {
         const x = container.x + element.x;
         const y = container.y + element.y;
 
-        // Set text properties
-        this.ctx.fillStyle = element.selected ? this.colors.selectedText : this.colors.normalText;
-        this.ctx.font = "24px monospace"; // Hardcoded font size
-        this.ctx.textAlign = "left";
-        this.ctx.textBaseline = "middle";
+        // Set all text properties
+        this.ctx.font = element.font;
+        this.ctx.textAlign = element.textAlign;
+        this.ctx.textBaseline = element.textBaseline;
 
-        // Draw selection highlight
+        // Draw selection highlight if needed
         if (element.selected) {
             this.drawSelectionHighlight(x, y, element);
         }
 
-        // Draw the element's text
-        this.ctx.fillText(element.text, x + element.textOffsetX, y + element.textOffsetY);
+        // Draw text if the element has any
+        if (element.text) {
+            this.ctx.fillStyle = element.selected ? this.colors.selectedText : this.colors.normalText;
+            this.ctx.fillText(element.text, x + element.textOffsetX, y + element.textOffsetY);
+        }
 
-        // Draw the appropriate control based on type
+        // Draw the appropriate element based on type
         switch (element.type) {
             case "textButton":
                 this.drawTextButton(x, y, element);
@@ -577,16 +591,6 @@ class BaseFullScreenMenu {
     }
 
     drawTextButton(x, y, element) {
-        // Set text properties
-        this.ctx.font = element.font || "24px monospace";
-        this.ctx.textAlign = "left";
-        this.ctx.textBaseline = "middle";
-
-        // Draw selection highlight if selected
-        if (element.selected) {
-            this.drawSelectionHighlight(x, y, element);
-        }
-
         // Choose text color based on state
         if (element.button.pressed) {
             this.ctx.fillStyle = this.colors.buttonTextPressed;
@@ -599,6 +603,7 @@ class BaseFullScreenMenu {
         // Draw the text
         this.ctx.fillText(element.text, x + element.textOffsetX, y + element.textOffsetY);
     }
+
     drawImageButton(x, y, element) {
         if (element.selected) {
             this.drawSelectionHighlight(x, y, element);
@@ -652,7 +657,7 @@ class BaseFullScreenMenu {
     drawSlider(x, y, element) {
         const config = element.slider;
 
-        // Draw track (unchanged)
+        // Draw track
         this.ctx.fillStyle = this.colors.sliderTrack;
         this.ctx.beginPath();
         this.ctx.roundRect(config.trackX, config.trackY, config.trackWidth, config.trackHeight, config.roundness);
@@ -669,10 +674,10 @@ class BaseFullScreenMenu {
         // Draw value box if active
         if (isActive) {
             const displayValue = config.valueToText ? config.valueToText(config.value) : config.value.toFixed(2);
-            this.drawValueBox(knobX, config.trackY, displayValue);
+            this.drawValueBox(knobX, config.trackY, displayValue, element.slider);
         }
 
-        // Draw knob (existing code with active/inactive states)
+        // Draw knob with active/inactive states
         if (isActive) {
             this.ctx.save();
             this.ctx.shadowColor = this.colors.sliderKnobGlow;
@@ -689,45 +694,33 @@ class BaseFullScreenMenu {
         }
     }
 
-    drawValueBox(x, y, value) {
-        const padding = 8;
-        const boxHeight = 30;
-        const arrowHeight = 8;
-        const arrowWidth = 12;
-        const verticalOffset = 15;
+    drawValueBox(x, y, value, config) {
+    const vbox = config.valueBox;
+    this.ctx.save();
+    
+    this.ctx.font = vbox.font;
 
-        this.ctx.save();
+    const textWidth = this.ctx.measureText(value).width;
+    const boxWidth = textWidth + (vbox.padding * 2);
+    const boxY = y - vbox.height - vbox.arrow.height - vbox.verticalOffset;
 
-        // Measure text for box width
-        this.ctx.font = "16px monospace";
-        const textWidth = this.ctx.measureText(value).width;
-        const boxWidth = textWidth + padding * 2;
+    // Draw background box with arrow
+    this.ctx.fillStyle = this.colors.menuBackground.start;
+    this.ctx.beginPath();
+    this.ctx.roundRect(x - boxWidth / 2, boxY, boxWidth, vbox.height, vbox.cornerRadius);
+    this.ctx.moveTo(x - vbox.arrow.width / 2, boxY + vbox.height);
+    this.ctx.lineTo(x, boxY + vbox.height + vbox.arrow.height);
+    this.ctx.lineTo(x + vbox.arrow.width / 2, boxY + vbox.height);
+    this.ctx.fill();
 
-        // Calculate positions
-        const boxY = y - boxHeight - arrowHeight - verticalOffset;
+    // Draw text
+    this.ctx.fillStyle = this.colors.normalText;
+    this.ctx.textAlign = "center";
+    this.ctx.textBaseline = "middle";
+    this.ctx.fillText(value, x, boxY + vbox.height / 2);
 
-        // Draw background box with arrow
-        this.ctx.fillStyle = this.colors.menuBackground.start;
-        this.ctx.beginPath();
-
-        // Main box
-        this.ctx.roundRect(x - boxWidth / 2, boxY, boxWidth, boxHeight, 4);
-
-        // Arrow
-        this.ctx.moveTo(x - arrowWidth / 2, boxY + boxHeight);
-        this.ctx.lineTo(x, boxY + boxHeight + arrowHeight);
-        this.ctx.lineTo(x + arrowWidth / 2, boxY + boxHeight);
-
-        this.ctx.fill();
-
-        // Draw text in normalText color
-        this.ctx.fillStyle = this.colors.normalText;
-        this.ctx.textAlign = "center";
-        this.ctx.textBaseline = "middle";
-        this.ctx.fillText(value, x, boxY + boxHeight / 2);
-
-        this.ctx.restore();
-    }
+    this.ctx.restore();
+}
 
     drawToggle(x, y, element) {
         const config = element.toggle;
@@ -852,11 +845,8 @@ class BaseFullScreenMenu {
     }
 
     drawTextLabel(x, y, element) {
-        this.ctx.font = element.font || "24px monospace";
-        this.ctx.textAlign = "left";
-        this.ctx.textBaseline = "middle";
         this.ctx.fillStyle = this.colors.normalText;
-        this.ctx.fillText(element.text, x + (element.textOffsetX || 0), y + (element.textOffsetY || 0));
+        this.ctx.fillText(element.text, x + element.textOffsetX, y + element.textOffsetY);
     }
 
     registerElements() {

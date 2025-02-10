@@ -5,12 +5,13 @@ class ConfigMenu extends BaseFullScreenMenu {
         this.loadSprites();
         this.adjustingSlider = false;
         this.adjustingColor = false;
-        this.colorPickerMode = "none"; // Can be "none", "wheel", "brightness"
-        // Add sliders
+        
+        
         this.addElement("main", {
             name: "slider1",
             type: "slider",
             text: "Slider 1",
+            font: "24px monospace",
             x: 100,
             y: 100,
             width: 340,
@@ -34,7 +35,18 @@ class ConfigMenu extends BaseFullScreenMenu {
                 glowRadius: 15,
                 roundness: 2,
                 value: 0.5,
-                onChange: (value) => console.log("Slider 1:", value)
+                onChange: (value) => console.log("Slider 1:", value),
+                valueBox: {
+                    font: "16px monospace",
+                    padding: 8,
+                    height: 30,
+                    arrow: {
+                        height: 8,
+                        width: 12
+                },
+            verticalOffset: 15,
+            cornerRadius: 4
+        }
             }
         });
 
@@ -42,6 +54,7 @@ class ConfigMenu extends BaseFullScreenMenu {
             name: "slider2",
             type: "slider",
             text: "Slider 2",
+            font: "24px monospace",
             x: 100,
             y: 150,
             width: 340,
@@ -63,20 +76,24 @@ class ConfigMenu extends BaseFullScreenMenu {
                 glowRadius: 15,
                 roundness: 2,
                 value: 0.5,
-                valueToText: (value) => {
-                    if (value < 0.33) return "Low";
-                    if (value < 0.66) return "Medium";
-                    return "High";
-                },
-                onChange: (value) => console.log("Slider 2:", value)
+                onChange: (value) => console.log("Slider 2:", value),
+                valueBox: {
+                    font: "16px monospace",
+                    padding: 8,
+                    height: 30,
+                    arrow: {
+                        height: 8,
+                        width: 12
+                    }
+                }
             }
         });
 
-        // Add toggles
         this.addElement("main", {
             name: "toggle1",
             type: "toggle",
             text: "Toggle 1",
+            font: "24px monospace",
             x: 100,
             y: 200,
             width: 240,
@@ -103,6 +120,7 @@ class ConfigMenu extends BaseFullScreenMenu {
             name: "toggle2",
             type: "toggle",
             text: "Toggle 2",
+            font: "24px monospace",
             x: 100,
             y: 250,
             width: 240,
@@ -129,15 +147,12 @@ class ConfigMenu extends BaseFullScreenMenu {
             name: "color1",
             type: "colorPicker",
             text: "Color",
+            font: "24px monospace",
             x: 100,
             y: 380,
             width: 300,
             height: 200,
             focusable: true,
-            label: {
-                font: "24px monospace",
-                padding: 10
-            },
             highlight: {
                 width: 340,
                 height: 200,
@@ -168,17 +183,18 @@ class ConfigMenu extends BaseFullScreenMenu {
                 onChange: (value) => console.log("Color:", value)
             }
         });
+        
         this.addElement("main", {
             name: "button1",
             type: "textButton",
             text: "Click Me",
+            font: "24px monospace",
             x: 100,
             y: 520,
             width: 200,
             height: 40,
             textOffsetX: 10,
-            textOffsetY: 0,
-            font: "24px monospace",
+            textOffsetY: 0,        
             textAlign: "left",
             textBaseline: "middle",
             focusable: true,
@@ -202,13 +218,13 @@ class ConfigMenu extends BaseFullScreenMenu {
             name: "label1",
             type: "textLabel",
             text: "Some Label Text",
+            font: "24px monospace",
             x: 100,
             y: 570,
             width: 200,
             height: 40,
             textOffsetX: 10,
             textOffsetY: 0,
-            font: "24px monospace",
             textAlign: "left",
             textBaseline: "middle",
             focusable: false,
@@ -220,6 +236,7 @@ class ConfigMenu extends BaseFullScreenMenu {
         this.addElement("main", {
             name: "imageButton1",
             type: "imageButton",
+            text: "",
             x: 600,
             y: 300,
             width: 64,
@@ -248,6 +265,8 @@ class ConfigMenu extends BaseFullScreenMenu {
         this.addElement("main", {
             name: "imageLabel1",
             type: "imageLabel",
+            text: "",
+            font: "24px monospace",
             x: 600,
             y: 400,
             width: 64,
@@ -285,12 +304,14 @@ class ConfigMenu extends BaseFullScreenMenu {
 
         return super.update();
     }
+    
     loadSprites() {
         ["warrior", "mage", "thief"].forEach((type) => {
             this.sprites[type] = Sprite.genHeroSprite(type);
             console.log(`Loaded sprite ${type}:`, this.sprites[type]);
         });
     }
+    
     handleDirectionalInput(direction) {
         if (!this.focusableElements.length) return;
 
