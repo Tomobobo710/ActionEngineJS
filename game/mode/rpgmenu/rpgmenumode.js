@@ -99,7 +99,9 @@ class RPGMenuMode {
                 fill: '#ffffff',
                 stroke: '#000000',
                 glow: '#00ff00'
-            }
+            },
+            
+            buttonTextPressed: '#666666'
         };
         // Create character panel
         this.characterPanel = new CharacterPanel(
