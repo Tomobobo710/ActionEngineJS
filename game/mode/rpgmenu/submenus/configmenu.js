@@ -167,7 +167,25 @@ class ConfigMenu extends BaseFullScreenMenu {
                 onChange: (value) => console.log("Color:", value)
             }
         });
-
+        this.addElement("main", {
+            name: "button1",
+            type: "textButton",
+            text: "Click Me",
+            x: 100,
+            y: 300,
+            width: 200,  // Width will be based on text
+            height: 40,
+            focusable: true,
+            highlight: {
+                width: 200,
+                height: 40,
+                glow: 15
+            },
+            button: {
+                pressed: false,  // Track pressed state
+                onClick: () => console.log("Button clicked!")
+            }
+        });
         this.registerElements();
     }
 
@@ -278,6 +296,16 @@ class ConfigMenu extends BaseFullScreenMenu {
     const element = this.currentFocus;
 
     switch (element.type) {
+        case "textButton":
+            element.button.pressed = true;
+            if (element.button.onClick) {
+                element.button.onClick();
+            }
+            // Reset pressed state after a short delay
+            setTimeout(() => {
+                element.button.pressed = false;
+            }, 100);
+            break;
         case "slider":
             this.adjustingSlider = true;
             element.slider.active = true;

@@ -197,6 +197,16 @@ class BaseFullScreenMenu {
 
                     // Handle click
                     if (this.input.isElementJustPressed(`menu_element_${element.name}`)) {
+                        if (element.type === "textButton") {
+                            element.button.pressed = true;
+                            if (element.button.onClick) {
+                                element.button.onClick();
+                            }
+                            // Reset pressed state after a short delay
+                            setTimeout(() => {
+                                element.button.pressed = false;
+                            }, 100);
+                        }
                         if (element.onChange) {
                             element.onChange(element.value);
                         }
@@ -293,7 +303,11 @@ class BaseFullScreenMenu {
                           brightnessSlider: config.colorPicker?.brightnessSlider || null,
                           onChange: config.colorPicker?.onChange
                       }
-                    : null
+                    : null,
+            button : {
+                pressed: false,
+                onClick: config.button?.onClick
+            }
         };
 
         const container = this.containers.get(containerId);
@@ -492,6 +506,9 @@ class BaseFullScreenMenu {
 
         // Draw the appropriate control based on type
         switch (element.type) {
+            case "textButton":
+                this.drawTextButton(x, y, element);
+                break;
             case "slider":
                 this.drawSlider(x, y, element);
                 break;
@@ -528,7 +545,31 @@ class BaseFullScreenMenu {
         );
         this.ctx.restore();
     }
+    
+    drawTextButton(x, y, element) {
+    // Set text properties
+    this.ctx.font = element.font || "24px monospace";
+    this.ctx.textAlign = "left";
+    this.ctx.textBaseline = "middle";
 
+    // Draw selection highlight if selected
+    if (element.selected) {
+        this.drawSelectionHighlight(x, y, element);
+    }
+
+    // Choose text color based on state
+    if (element.button.pressed) {
+        this.ctx.fillStyle = this.colors.buttonTextPressed;
+    } else if (element.selected) {
+        this.ctx.fillStyle = this.colors.selectedText;
+    } else {
+        this.ctx.fillStyle = this.colors.normalText;
+    }
+
+    // Draw the text
+    this.ctx.fillText(element.text, x + element.textOffsetX, y + element.textOffsetY);
+}
+    
     drawSlider(x, y, element) {
         const config = element.slider;
 
