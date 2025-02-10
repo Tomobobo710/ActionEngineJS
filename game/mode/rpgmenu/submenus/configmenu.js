@@ -4,7 +4,7 @@ class ConfigMenu extends BaseFullScreenMenu {
 
         this.adjustingSlider = false;
         this.adjustingColor = false;
-
+        this.colorPickerMode = "none"; // Can be "none", "wheel", "brightness"
         // Add sliders
         this.addElement("main", {
             name: "slider1",
@@ -151,12 +151,19 @@ class ConfigMenu extends BaseFullScreenMenu {
                 indicatorSize: 6,
                 glowRadius: 10,
                 indicatorStrokeWidth: 1,
-                value: { hue: 180, saturation: 0.8, brightness: 1 },
+                value: { hue: 180, saturation: 0.8, brightness: 0.5 }, // Set default brightness to 0.5
                 preview: {
-            x: 375, // Position to the right of the wheel
-            y: 375, // Aligned roughly with wheel center
-            size: 50  // Size of the preview square
-        },
+                    x: 375,     // Move further right
+                    y: 325,     // Move up higher
+                    size: 50
+                },
+                brightnessSlider: {
+                    x: 395,     // Position to the right of the preview
+                    y: 425,     // Align with top of preview
+                    width: 4,   // Thin width for vertical slider
+                    height: 50, // Match preview height
+                    value: 0.5  // Start in middle
+                },
                 onChange: (value) => console.log("Color:", value)
             }
         });
@@ -164,7 +171,7 @@ class ConfigMenu extends BaseFullScreenMenu {
         this.registerElements();
     }
 
-    // Rest of the class implementation remains the same
+
     update() {
         if (!this.adjustingSlider && !this.adjustingColor) {
             if (this.input.isKeyJustPressed("DirUp")) {
@@ -267,36 +274,57 @@ class ConfigMenu extends BaseFullScreenMenu {
 }
 
     handleAction1() {
-        if (!this.currentFocus) return;
+    if (!this.currentFocus) return;
+    const element = this.currentFocus;
+
+    switch (element.type) {
+        case "slider":
+            this.adjustingSlider = true;
+            element.slider.active = true;
+            break;
+        case "toggle":
+            element.toggle.value = !element.toggle.value;
+            if (element.toggle.onChange) {
+                element.toggle.onChange(element.toggle.value);
+            }
+            break;
+        case "colorPicker":
+            switch(element.colorPicker.mode) {
+                case "none":
+                    element.colorPicker.mode = "wheel";
+                    this.adjustingColor = true;
+                    break;
+                case "wheel":
+                    element.colorPicker.mode = "brightness";
+                    break;
+                case "brightness":
+                    element.colorPicker.mode = "none";
+                    this.adjustingColor = false;
+                    break;
+            }
+            break;
+    }
+}
+
+handleAction2() {
+    if (this.currentFocus?.type === "slider" && this.currentFocus.slider.active) {
+        this.adjustingSlider = false;
+        this.currentFocus.slider.active = false;
+        return null;
+    }
+    if (this.adjustingColor) {
         const element = this.currentFocus;
-
-        switch (element.type) {
-            case "slider":
-                this.adjustingSlider = true;
-                element.slider.active = true;
+        switch(element.colorPicker.mode) {
+            case "brightness":
+                element.colorPicker.mode = "wheel";
                 break;
-            case "toggle":
-                element.toggle.value = !element.toggle.value;
-                if (element.toggle.onChange) {
-                    element.toggle.onChange(element.toggle.value);
-                }
-                break;
-            case "colorPicker":
-                this.adjustingColor = true;
+            case "wheel":
+                element.colorPicker.mode = "none";
+                this.adjustingColor = false;
                 break;
         }
+        return null;
     }
-
-    handleAction2() {
-        if (this.currentFocus?.type === "slider" && this.currentFocus.slider.active) {
-            this.adjustingSlider = false;
-            this.currentFocus.slider.active = false;
-            return null;
-        }
-        if (this.adjustingColor) {
-            this.adjustingColor = false;
-            return null;
-        }
-        return "exit";
-    }
+    return "exit";
+}
 }
