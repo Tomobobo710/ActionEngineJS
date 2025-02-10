@@ -207,6 +207,18 @@ class BaseFullScreenMenu {
                                 element.button.pressed = false;
                             }, 100);
                         }
+
+                        if (element.type === "imageButton") {
+                            element.button.pressed = true;
+                            if (element.button.onClick) {
+                                element.button.onClick();
+                            }
+                            // Reset pressed state after a short delay
+                            setTimeout(() => {
+                                element.button.pressed = false;
+                            }, 100);
+                        }
+
                         if (element.onChange) {
                             element.onChange(element.value);
                         }
@@ -304,10 +316,20 @@ class BaseFullScreenMenu {
                           onChange: config.colorPicker?.onChange
                       }
                     : null,
-            button : {
-                pressed: false,
-                onClick: config.button?.onClick
-            }
+            button:
+                config.type === "textButton" || config.type === "imageButton"
+                    ? {
+                          pressed: config.button.pressed,
+                          onClick: config.button.onClick
+                      }
+                    : null,
+            image:
+                config.type === "imageButton" || config.type === "imageLabel"
+                    ? {
+                          sprite: config.image?.sprite || null,
+                          smoothing: config.image?.smoothing ?? false
+                      }
+                    : null
         };
 
         const container = this.containers.get(containerId);
@@ -358,65 +380,64 @@ class BaseFullScreenMenu {
                 }
             }
         } else if (this.currentFocus && this.currentFocus.type === "colorPicker" && this.adjustingColor) {
-    const config = this.currentFocus.colorPicker;
-    
-    if (config.mode === "wheel") {
-        const speed = 2;
-        let dx = 0;
-        let dy = 0;
+            const config = this.currentFocus.colorPicker;
 
-        if (this.input.isKeyPressed("DirLeft")) dx -= speed;
-        if (this.input.isKeyPressed("DirRight")) dx += speed;
-        if (this.input.isKeyPressed("DirUp")) dy -= speed;
-        if (this.input.isKeyPressed("DirDown")) dy += speed;
+            if (config.mode === "wheel") {
+                const speed = 2;
+                let dx = 0;
+                let dy = 0;
 
-        if (dx !== 0 || dy !== 0) {
-            // Update indicator position
-            const newX = config.indicatorX + dx;
-            const newY = config.indicatorY + dy;
+                if (this.input.isKeyPressed("DirLeft")) dx -= speed;
+                if (this.input.isKeyPressed("DirRight")) dx += speed;
+                if (this.input.isKeyPressed("DirUp")) dy -= speed;
+                if (this.input.isKeyPressed("DirDown")) dy += speed;
 
-            // Calculate distance from center
-            const centerX = config.centerX;
-            const centerY = config.centerY;
-            const distance = Math.sqrt(Math.pow(newX - centerX, 2) + Math.pow(newY - centerY, 2));
+                if (dx !== 0 || dy !== 0) {
+                    // Update indicator position
+                    const newX = config.indicatorX + dx;
+                    const newY = config.indicatorY + dy;
 
-            // Only update if still within radius
-            if (distance <= config.radius) {
-                config.indicatorX = newX;
-                config.indicatorY = newY;
+                    // Calculate distance from center
+                    const centerX = config.centerX;
+                    const centerY = config.centerY;
+                    const distance = Math.sqrt(Math.pow(newX - centerX, 2) + Math.pow(newY - centerY, 2));
 
-                // Calculate new hue and saturation
-                const angle = Math.atan2(newY - centerY, newX - centerX);
-                let hue = (angle * 180) / Math.PI;
-                if (hue < 0) hue += 360;
-                const saturation = Math.min(1, distance / config.radius);
+                    // Only update if still within radius
+                    if (distance <= config.radius) {
+                        config.indicatorX = newX;
+                        config.indicatorY = newY;
 
-                config.value = { 
-                    hue, 
-                    saturation, 
-                    brightness: config.value.brightness // Preserve existing brightness
-                };
-                if (config.onChange) {
-                    config.onChange(config.value);
+                        // Calculate new hue and saturation
+                        const angle = Math.atan2(newY - centerY, newX - centerX);
+                        let hue = (angle * 180) / Math.PI;
+                        if (hue < 0) hue += 360;
+                        const saturation = Math.min(1, distance / config.radius);
+
+                        config.value = {
+                            hue,
+                            saturation,
+                            brightness: config.value.brightness // Preserve existing brightness
+                        };
+                        if (config.onChange) {
+                            config.onChange(config.value);
+                        }
+                    }
+                }
+            } else if (config.mode === "brightness") {
+                if (this.input.isKeyPressed("DirUp")) {
+                    config.value.brightness = Math.min(1, config.value.brightness + 0.01);
+                    if (config.onChange) {
+                        config.onChange(config.value);
+                    }
+                }
+                if (this.input.isKeyPressed("DirDown")) {
+                    config.value.brightness = Math.max(0, config.value.brightness - 0.01);
+                    if (config.onChange) {
+                        config.onChange(config.value);
+                    }
                 }
             }
         }
-    } 
-    else if (config.mode === "brightness") {
-        if (this.input.isKeyPressed("DirUp")) {
-            config.value.brightness = Math.min(1, config.value.brightness + 0.01);
-            if (config.onChange) {
-                config.onChange(config.value);
-            }
-        }
-        if (this.input.isKeyPressed("DirDown")) {
-            config.value.brightness = Math.max(0, config.value.brightness - 0.01);
-            if (config.onChange) {
-                config.onChange(config.value);
-            }
-        }
-    }
-}
 
         // Handle mouse input first, since we want to check for back button
         const mouseResult = this.handleMouseInput();
@@ -518,6 +539,15 @@ class BaseFullScreenMenu {
             case "colorPicker":
                 this.drawColorPicker(x, y, element);
                 break;
+            case "textLabel":
+                this.drawTextLabel(x, y, element);
+                break;
+            case "imageButton":
+                this.drawImageButton(x, y, element);
+                break;
+            case "imageLabel":
+                this.drawImageLabel(x, y, element);
+                break;
         }
     }
 
@@ -545,31 +575,80 @@ class BaseFullScreenMenu {
         );
         this.ctx.restore();
     }
-    
+
     drawTextButton(x, y, element) {
-    // Set text properties
-    this.ctx.font = element.font || "24px monospace";
-    this.ctx.textAlign = "left";
-    this.ctx.textBaseline = "middle";
+        // Set text properties
+        this.ctx.font = element.font || "24px monospace";
+        this.ctx.textAlign = "left";
+        this.ctx.textBaseline = "middle";
 
-    // Draw selection highlight if selected
-    if (element.selected) {
-        this.drawSelectionHighlight(x, y, element);
+        // Draw selection highlight if selected
+        if (element.selected) {
+            this.drawSelectionHighlight(x, y, element);
+        }
+
+        // Choose text color based on state
+        if (element.button.pressed) {
+            this.ctx.fillStyle = this.colors.buttonTextPressed;
+        } else if (element.selected) {
+            this.ctx.fillStyle = this.colors.selectedText;
+        } else {
+            this.ctx.fillStyle = this.colors.normalText;
+        }
+
+        // Draw the text
+        this.ctx.fillText(element.text, x + element.textOffsetX, y + element.textOffsetY);
+    }
+    drawImageButton(x, y, element) {
+        if (element.selected) {
+            this.drawSelectionHighlight(x, y, element);
+        }
+
+        this.ctx.save();
+
+        if (element.button.pressed) {
+            this.ctx.shadowColor = this.colors.glowColor;
+            this.ctx.shadowBlur = this.colors.glowBlur;
+        }
+
+        if (element.image.sprite) {
+            this.ctx.imageSmoothingEnabled = element.image.smoothing;
+            this.ctx.drawImage(
+                element.image.sprite,
+                0,
+                0,
+                32,
+                32,
+                x + element.highlight.xOffset + element.textOffsetX / 2,
+                y - element.height / 2,
+                element.width,
+                element.height
+            );
+        }
+
+        this.ctx.restore();
     }
 
-    // Choose text color based on state
-    if (element.button.pressed) {
-        this.ctx.fillStyle = this.colors.buttonTextPressed;
-    } else if (element.selected) {
-        this.ctx.fillStyle = this.colors.selectedText;
-    } else {
-        this.ctx.fillStyle = this.colors.normalText;
-    }
+    drawImageLabel(x, y, element) {
+        this.ctx.save();
 
-    // Draw the text
-    this.ctx.fillText(element.text, x + element.textOffsetX, y + element.textOffsetY);
-}
-    
+        if (element.image.sprite) {
+            this.ctx.imageSmoothingEnabled = element.image.smoothing;
+            this.ctx.drawImage(
+                element.image.sprite,
+                0,
+                0,
+                32,
+                32,
+                x + element.highlight.xOffset + element.textOffsetX / 2,
+                y - element.height / 2,
+                element.width,
+                element.height
+            );
+        }
+
+        this.ctx.restore();
+    }
     drawSlider(x, y, element) {
         const config = element.slider;
 
@@ -692,28 +771,28 @@ class BaseFullScreenMenu {
 
         // Draw indicator with conditional glow
         if (config.value) {
-        // Check for mouse interaction with wheel
-        const isMouseOnWheel = this.input.isElementHovered(`menu_element_${element.name}`) && 
-            this.input.isPointerDown();
+            // Check for mouse interaction with wheel
+            const isMouseOnWheel =
+                this.input.isElementHovered(`menu_element_${element.name}`) && this.input.isPointerDown();
 
-        if (config.mode === "wheel" || isMouseOnWheel) {
-            this.ctx.save();
-            this.ctx.shadowColor = this.colors.colorPickerIndicator.glow;
-            this.ctx.shadowBlur = config.glowRadius;
+            if (config.mode === "wheel" || isMouseOnWheel) {
+                this.ctx.save();
+                this.ctx.shadowColor = this.colors.colorPickerIndicator.glow;
+                this.ctx.shadowBlur = config.glowRadius;
+            }
+
+            this.ctx.beginPath();
+            this.ctx.arc(config.indicatorX, config.indicatorY, config.indicatorSize, 0, Math.PI * 2);
+            this.ctx.fillStyle = this.colors.colorPickerIndicator.fill;
+            this.ctx.fill();
+            this.ctx.strokeStyle = this.colors.colorPickerIndicator.stroke;
+            this.ctx.lineWidth = config.indicatorStrokeWidth;
+            this.ctx.stroke();
+
+            if (config.mode === "wheel" || isMouseOnWheel) {
+                this.ctx.restore();
+            }
         }
-
-        this.ctx.beginPath();
-        this.ctx.arc(config.indicatorX, config.indicatorY, config.indicatorSize, 0, Math.PI * 2);
-        this.ctx.fillStyle = this.colors.colorPickerIndicator.fill;
-        this.ctx.fill();
-        this.ctx.strokeStyle = this.colors.colorPickerIndicator.stroke;
-        this.ctx.lineWidth = config.indicatorStrokeWidth;
-        this.ctx.stroke();
-
-        if (config.mode === "wheel" || isMouseOnWheel) {
-            this.ctx.restore();
-        }
-    }
 
         // Draw preview
         if (config.preview && config.value) {
@@ -727,49 +806,57 @@ class BaseFullScreenMenu {
 
         // Draw brightness slider with conditional active state
         if (config.brightnessSlider) {
-        // Draw track
-        this.ctx.fillStyle = "#333";
-        this.ctx.fillRect(
-            config.brightnessSlider.x,
-            config.brightnessSlider.y,
-            config.brightnessSlider.width,
-            config.brightnessSlider.height
-        );
+            // Draw track
+            this.ctx.fillStyle = "#333";
+            this.ctx.fillRect(
+                config.brightnessSlider.x,
+                config.brightnessSlider.y,
+                config.brightnessSlider.width,
+                config.brightnessSlider.height
+            );
 
-        // Check for mouse interaction with brightness slider
-        const sliderBounds = {
-            x: config.brightnessSlider.x - 6,
-            y: config.brightnessSlider.y,
-            width: 16,
-            height: config.brightnessSlider.height
-        };
-        const mousePos = this.input.getPointerPosition();
-        const isMouseOnSlider = this.input.isPointInBounds(mousePos.x, mousePos.y, sliderBounds) && 
-            this.input.isPointerDown();
+            // Check for mouse interaction with brightness slider
+            const sliderBounds = {
+                x: config.brightnessSlider.x - 6,
+                y: config.brightnessSlider.y,
+                width: 16,
+                height: config.brightnessSlider.height
+            };
+            const mousePos = this.input.getPointerPosition();
+            const isMouseOnSlider =
+                this.input.isPointInBounds(mousePos.x, mousePos.y, sliderBounds) && this.input.isPointerDown();
 
-        // Draw knob with conditional glow
-        if (config.mode === "brightness" || isMouseOnSlider) {
-            this.ctx.save();
-            this.ctx.shadowColor = this.colors.sliderKnobGlow;
-            this.ctx.shadowBlur = config.glowRadius;
-        }
+            // Draw knob with conditional glow
+            if (config.mode === "brightness" || isMouseOnSlider) {
+                this.ctx.save();
+                this.ctx.shadowColor = this.colors.sliderKnobGlow;
+                this.ctx.shadowBlur = config.glowRadius;
+            }
 
-        this.ctx.fillStyle =
-            (config.mode === "brightness" || isMouseOnSlider) ? 
-            this.colors.sliderKnobActive : 
-            this.colors.sliderKnobInactive;
+            this.ctx.fillStyle =
+                config.mode === "brightness" || isMouseOnSlider
+                    ? this.colors.sliderKnobActive
+                    : this.colors.sliderKnobInactive;
 
-        this.ctx.fillRect(
-            config.brightnessSlider.x - 6,
-            config.brightnessSlider.y + config.brightnessSlider.height * (1 - config.value.brightness) - 2,
-            16,
-            4
-        );
+            this.ctx.fillRect(
+                config.brightnessSlider.x - 6,
+                config.brightnessSlider.y + config.brightnessSlider.height * (1 - config.value.brightness) - 2,
+                16,
+                4
+            );
 
-        if (config.mode === "brightness" || isMouseOnSlider) {
-            this.ctx.restore();
+            if (config.mode === "brightness" || isMouseOnSlider) {
+                this.ctx.restore();
+            }
         }
     }
+
+    drawTextLabel(x, y, element) {
+        this.ctx.font = element.font || "24px monospace";
+        this.ctx.textAlign = "left";
+        this.ctx.textBaseline = "middle";
+        this.ctx.fillStyle = this.colors.normalText;
+        this.ctx.fillText(element.text, x + (element.textOffsetX || 0), y + (element.textOffsetY || 0));
     }
 
     registerElements() {

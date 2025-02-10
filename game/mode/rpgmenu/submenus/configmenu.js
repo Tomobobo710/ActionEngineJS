@@ -1,7 +1,8 @@
 class ConfigMenu extends BaseFullScreenMenu {
     constructor(ctx, input, gameMaster) {
         super(ctx, input, gameMaster);
-
+        this.sprites = {};
+        this.loadSprites();
         this.adjustingSlider = false;
         this.adjustingColor = false;
         this.colorPickerMode = "none"; // Can be "none", "wheel", "brightness"
@@ -129,7 +130,7 @@ class ConfigMenu extends BaseFullScreenMenu {
             type: "colorPicker",
             text: "Color",
             x: 100,
-            y: 400,
+            y: 380,
             width: 300,
             height: 200,
             focusable: true,
@@ -144,25 +145,25 @@ class ConfigMenu extends BaseFullScreenMenu {
             },
             colorPicker: {
                 centerX: 275,
-                centerY: 400,
+                centerY: 380,
                 radius: 75,
                 indicatorX: 275,
                 indicatorY: 400,
                 indicatorSize: 6,
                 glowRadius: 10,
                 indicatorStrokeWidth: 1,
-                value: { hue: 180, saturation: 0.8, brightness: 0.5 }, // Set default brightness to 0.5
+                value: { hue: 180, saturation: 0.8, brightness: 0.5 },
                 preview: {
-                    x: 375,     // Move further right
-                    y: 325,     // Move up higher
+                    x: 375,
+                    y: 325,
                     size: 50
                 },
                 brightnessSlider: {
-                    x: 395,     // Position to the right of the preview
-                    y: 425,     // Align with top of preview
-                    width: 4,   // Thin width for vertical slider
+                    x: 395, // Position to the right of the preview
+                    y: 405, // Align with top of preview
+                    width: 4, // Thin width for vertical slider
                     height: 50, // Match preview height
-                    value: 0.5  // Start in middle
+                    value: 0.5 // Start in middle
                 },
                 onChange: (value) => console.log("Color:", value)
             }
@@ -172,23 +173,99 @@ class ConfigMenu extends BaseFullScreenMenu {
             type: "textButton",
             text: "Click Me",
             x: 100,
-            y: 300,
-            width: 200,  // Width will be based on text
+            y: 520,
+            width: 200,
             height: 40,
+            textOffsetX: 10,
+            textOffsetY: 0,
+            font: "24px monospace",
+            textAlign: "left",
+            textBaseline: "middle",
             focusable: true,
+            selected: false,
+            visible: true,
+            xOrder: 0,
             highlight: {
                 width: 200,
                 height: 40,
+                xOffset: 0,
+                yOffset: 0,
                 glow: 15
             },
             button: {
-                pressed: false,  // Track pressed state
+                pressed: false,
                 onClick: () => console.log("Button clicked!")
             }
         });
+
+        this.addElement("main", {
+            name: "label1",
+            type: "textLabel",
+            text: "Some Label Text",
+            x: 100,
+            y: 570,
+            width: 200,
+            height: 40,
+            textOffsetX: 10,
+            textOffsetY: 0,
+            font: "24px monospace",
+            textAlign: "left",
+            textBaseline: "middle",
+            focusable: false,
+            selected: false,
+            visible: true,
+            xOrder: 0
+        });
+
+        this.addElement("main", {
+            name: "imageButton1",
+            type: "imageButton",
+            x: 600,
+            y: 300,
+            width: 64,
+            height: 64,
+            focusable: true,
+            selected: false,
+            visible: true,
+            xOrder: 1,
+            highlight: {
+                width: 74,
+                height: 74,
+                xOffset: 0,
+                yOffset: 0,
+                glow: 15
+            },
+            image: {
+                sprite: this.sprites.warrior,
+                smoothing: false
+            },
+            button: {
+                pressed: false,
+                onClick: () => console.log("Warrior clicked!")
+            }
+        });
+
+        this.addElement("main", {
+            name: "imageLabel1",
+            type: "imageLabel",
+            x: 600,
+            y: 400,
+            width: 64,
+            height: 64,
+            focusable: false,
+            selected: false,
+            visible: true,
+            xOrder: 0,
+            textOffsetX: 10,
+            textOffsetY: 0,
+            image: {
+                sprite: this.sprites.mage,
+                smoothing: false
+            }
+        });
+
         this.registerElements();
     }
-
 
     update() {
         if (!this.adjustingSlider && !this.adjustingColor) {
@@ -208,151 +285,166 @@ class ConfigMenu extends BaseFullScreenMenu {
 
         return super.update();
     }
-
+    loadSprites() {
+        ["warrior", "mage", "thief"].forEach((type) => {
+            this.sprites[type] = Sprite.genHeroSprite(type);
+            console.log(`Loaded sprite ${type}:`, this.sprites[type]);
+        });
+    }
     handleDirectionalInput(direction) {
-    if (!this.focusableElements.length) return;
+        if (!this.focusableElements.length) return;
 
-    if (!this.currentFocus) {
-        this.currentFocus = this.focusableElements[0];
-        this.currentFocus.selected = true;
-        return;
-    }
-
-    const current = this.currentFocus;
-    
-    if (direction === "left" || direction === "right") {
-        // Find elements with different xOrder
-        const validElements = this.focusableElements.filter(element => {
-            if (direction === "right") {
-                return element.xOrder > current.xOrder;
-            } else {
-                return element.xOrder < current.xOrder;
-            }
-        });
-
-        // If no valid elements, don't move
-        if (validElements.length === 0) return;
-
-        // Find closest valid element
-        let nextElement = validElements[0];
-        let bestDistance = Math.abs(nextElement.y - current.y);
-
-        validElements.forEach(element => {
-            const distance = Math.abs(element.y - current.y);
-            if (distance < bestDistance) {
-                bestDistance = distance;
-                nextElement = element;
-            }
-        });
-
-        if (nextElement) {
-            this.currentFocus.selected = false;
-            this.currentFocus = nextElement;
+        if (!this.currentFocus) {
+            this.currentFocus = this.focusableElements[0];
             this.currentFocus.selected = true;
+            return;
         }
-    } else {
-        let nextElement = null;
-        let bestDistance = Infinity;
 
-        const currentX = current.x + current.width / 2;
-        const currentY = current.y + current.height / 2;
+        const current = this.currentFocus;
 
-        this.focusableElements.forEach((element) => {
-            if (element === current) return;
+        if (direction === "left" || direction === "right") {
+            // Find elements with different xOrder
+            const validElements = this.focusableElements.filter((element) => {
+                if (direction === "right") {
+                    return element.xOrder > current.xOrder;
+                } else {
+                    return element.xOrder < current.xOrder;
+                }
+            });
 
-            const elementX = element.x + element.width / 2;
-            const elementY = element.y + element.height / 2;
+            // If no valid elements, don't move
+            if (validElements.length === 0) return;
 
-            const deltaX = elementX - currentX;
-            const deltaY = elementY - currentY;
+            // Find closest valid element
+            let nextElement = validElements[0];
+            let bestDistance = Math.abs(nextElement.y - current.y);
 
-            switch (direction) {
-                case "up":
-                    if (deltaY >= 0) return;
-                    break;
-                case "down":
-                    if (deltaY <= 0) return;
-                    break;
+            validElements.forEach((element) => {
+                const distance = Math.abs(element.y - current.y);
+                if (distance < bestDistance) {
+                    bestDistance = distance;
+                    nextElement = element;
+                }
+            });
+
+            if (nextElement) {
+                this.currentFocus.selected = false;
+                this.currentFocus = nextElement;
+                this.currentFocus.selected = true;
             }
+        } else {
+            let nextElement = null;
+            let bestDistance = Infinity;
 
-            const distance = Math.abs(deltaX) + Math.abs(deltaY);
+            const currentX = current.x + current.width / 2;
+            const currentY = current.y + current.height / 2;
 
-            if (distance < bestDistance) {
-                bestDistance = distance;
-                nextElement = element;
+            this.focusableElements.forEach((element) => {
+                if (element === current) return;
+
+                const elementX = element.x + element.width / 2;
+                const elementY = element.y + element.height / 2;
+
+                const deltaX = elementX - currentX;
+                const deltaY = elementY - currentY;
+
+                switch (direction) {
+                    case "up":
+                        if (deltaY >= 0) return;
+                        break;
+                    case "down":
+                        if (deltaY <= 0) return;
+                        break;
+                }
+
+                const distance = Math.abs(deltaX) + Math.abs(deltaY);
+
+                if (distance < bestDistance) {
+                    bestDistance = distance;
+                    nextElement = element;
+                }
+            });
+
+            if (nextElement) {
+                this.currentFocus.selected = false;
+                this.currentFocus = nextElement;
+                this.currentFocus.selected = true;
             }
-        });
-
-        if (nextElement) {
-            this.currentFocus.selected = false;
-            this.currentFocus = nextElement;
-            this.currentFocus.selected = true;
         }
     }
-}
 
     handleAction1() {
-    if (!this.currentFocus) return;
-    const element = this.currentFocus;
+        if (!this.currentFocus) return;
+        const element = this.currentFocus;
 
-    switch (element.type) {
-        case "textButton":
-            element.button.pressed = true;
-            if (element.button.onClick) {
-                element.button.onClick();
-            }
-            // Reset pressed state after a short delay
-            setTimeout(() => {
-                element.button.pressed = false;
-            }, 100);
-            break;
-        case "slider":
-            this.adjustingSlider = true;
-            element.slider.active = true;
-            break;
-        case "toggle":
-            element.toggle.value = !element.toggle.value;
-            if (element.toggle.onChange) {
-                element.toggle.onChange(element.toggle.value);
-            }
-            break;
-        case "colorPicker":
-            switch(element.colorPicker.mode) {
-                case "none":
+        switch (element.type) {
+            case "textButton":
+                element.button.pressed = true;
+                if (element.button.onClick) {
+                    element.button.onClick();
+                }
+                // Reset pressed state after a short delay
+                setTimeout(() => {
+                    element.button.pressed = false;
+                }, 100);
+                break;
+            case "imageButton":
+                element.button.pressed = true;
+                if (element.button.onClick) {
+                    element.button.onClick();
+                }
+                // Reset pressed state after a short delay
+                setTimeout(() => {
+                    element.button.pressed = false;
+                }, 100);
+                break;
+            case "slider":
+                this.adjustingSlider = true;
+                element.slider.active = true;
+                break;
+            case "toggle":
+                element.toggle.value = !element.toggle.value;
+                if (element.toggle.onChange) {
+                    element.toggle.onChange(element.toggle.value);
+                }
+                break;
+            case "colorPicker":
+                switch (element.colorPicker.mode) {
+                    case "none":
+                        element.colorPicker.mode = "wheel";
+                        this.adjustingColor = true;
+                        break;
+                    case "wheel":
+                        element.colorPicker.mode = "brightness";
+                        break;
+                    case "brightness":
+                        element.colorPicker.mode = "none";
+                        this.adjustingColor = false;
+                        break;
+                }
+                break;
+        }
+    }
+
+    handleAction2() {
+        if (this.currentFocus?.type === "slider" && this.currentFocus.slider.active) {
+            this.adjustingSlider = false;
+            this.currentFocus.slider.active = false;
+            return null;
+        }
+        if (this.adjustingColor) {
+            const element = this.currentFocus;
+            switch (element.colorPicker.mode) {
+                case "brightness":
                     element.colorPicker.mode = "wheel";
-                    this.adjustingColor = true;
                     break;
                 case "wheel":
-                    element.colorPicker.mode = "brightness";
-                    break;
-                case "brightness":
                     element.colorPicker.mode = "none";
                     this.adjustingColor = false;
                     break;
             }
-            break;
-    }
-}
-
-handleAction2() {
-    if (this.currentFocus?.type === "slider" && this.currentFocus.slider.active) {
-        this.adjustingSlider = false;
-        this.currentFocus.slider.active = false;
-        return null;
-    }
-    if (this.adjustingColor) {
-        const element = this.currentFocus;
-        switch(element.colorPicker.mode) {
-            case "brightness":
-                element.colorPicker.mode = "wheel";
-                break;
-            case "wheel":
-                element.colorPicker.mode = "none";
-                this.adjustingColor = false;
-                break;
+            return null;
         }
-        return null;
+        return "exit";
     }
-    return "exit";
-}
 }
