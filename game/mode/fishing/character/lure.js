@@ -146,40 +146,57 @@ class Lure extends ActionPhysicsObject3D {
     }
 }
 
-    handleFishFight(deltaTime) {
-    // Safety check - if no fish or no game/ocean, clean up and return
+   handleFishFight(deltaTime) {
+    // Safety checks
     if (!this.hookedFish || !this.fisher?.game?.ocean) {
         this.fishEscapes();
         return;
     }
 
-    // Ensure fish stays in water
+    // Keep fish and lure in water
     const waterHeight = this.fisher.game.ocean.getWaterHeightAt(
         this.hookedFish.position.x, 
         this.hookedFish.position.z
     );
     this.hookedFish.position.y = Math.min(this.hookedFish.position.y, waterHeight);
     
-    // Fish regularly changes direction to fight
-    if (Math.random() < 0.05) {
-        const angle = Math.random() * Math.PI * 2;
-        this.fishPullForce = new Vector3(Math.cos(angle), 0, Math.sin(angle)).scale(50);
+    // Fish changes direction occasionally
+    if (Math.random() < 0.05) {  
+        // Get direction AWAY from fisher by subtracting fisher position FROM lure position
+        const escapeDirection = this.position.subtract(this.fisher.position).normalize();
+        
+        const randomOffset = new Vector3(
+            (Math.random() - 0.5) * 0.5,
+            0,
+            (Math.random() - 0.5) * 0.5
+        );
+        
+        const behaviorRoll = Math.random();
+        if (behaviorRoll < 0.6) {  
+            this.fishPullForce = escapeDirection.add(randomOffset).normalize().scale(50);
+        } else if (behaviorRoll < 0.8) {  
+            const sideDirection = new Vector3(-escapeDirection.z, 0, escapeDirection.x);
+            this.fishPullForce = sideDirection.add(randomOffset).normalize().scale(40);
+        } else {  
+            this.fishPullForce = new Vector3(0, 0, 0);
+        }
     }
 
     let finalForce = this.fishPullForce.clone();
-
-    // Add reeling force if fisher is reeling
-    if (this.fisher && this.fisher.isReeling) {
+    
+    if (this.fisher.isReeling) {
         const reelDirection = this.fisher.position.subtract(this.position).normalize();
         const reelForce = reelDirection.scale(this.fisher.reelSpeed);
         finalForce = finalForce.add(reelForce);
     }
 
-    // Apply combined forces to position and physics body
+    // Apply movement
     const moveAmount = finalForce.scale(deltaTime);
     this.position = this.position.add(moveAmount);
+    
+    // Update physics body
     this.body.position.x = this.position.x;
-    this.body.position.y = Math.min(this.position.y, waterHeight);  // Keep lure in water too
+    this.body.position.y = Math.min(this.position.y, waterHeight);
     this.body.position.z = this.position.z;
 
     if (this.fisher) {
@@ -187,42 +204,30 @@ class Lure extends ActionPhysicsObject3D {
         const tension = distanceToFisher / this.fisher.maxLineLength;
         this.fisher.lineTension = tension;
 
-        // Let Fisher know we're close enough to complete catch
         if (distanceToFisher < 1) {
             this.fisher.onLureReachedFisher();
             return;
         }
 
-        // If tension too high, line breaks - clean up states in correct order
         if (tension > this.lineTensionThreshold) {
-            // Clear hooked fish reference first
             const escapingFish = this.hookedFish;
             this.hookedFish = null;
-            
-            // Reset lure state
             this.state = "inactive";
             this.fishPullForce = new Vector3(0, 0, 0);
-            
-            // Reset fisher state
             this.fisher.state = "ready";
             this.fisher.lineTension = 0;
             this.fisher.isReeling = false;
 
-            // Handle fish AI cleanup last, after all state changes
-            if (escapingFish) {
-                const fishAI = this.fisher?.game?.fishingArea?.fish.get(escapingFish);
-                if (fishAI) {
-                    fishAI.isHooked = false;
-                    fishAI.changeBehavior('patrol');
-                }
-                
-                // Reset global fish states
-                FishAI.currentlyAttackingFish = null;
-                this.fisher?.game?.fishingArea?.fish.forEach((ai) => {
-                    ai.hasLostInterest = false;
-                });
+            const fishAI = this.fisher?.game?.fishingArea?.fish.get(escapingFish);
+            if (fishAI) {
+                fishAI.isHooked = false;
+                fishAI.changeBehavior('patrol');
             }
-            return;
+            
+            FishAI.currentlyAttackingFish = null;
+            this.fisher?.game?.fishingArea?.fish.forEach((ai) => {
+                ai.hasLostInterest = false;
+            });
         }
     }
 }
