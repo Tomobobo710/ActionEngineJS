@@ -235,24 +235,30 @@ class BaseFullScreenMenu {
 
     addElement(containerId, config) {
         const element = {
-            // Base properties
+            // Base identification
             name: config.name || "unnamed element", // optional identifier
             type: config.type, // element type (slider, toggle, color picker)
+            
+            // Position and size
             x: config.x || 0, // anchor x
             y: config.y || 0, // anchor y
             width: config.width || 50, // hitbox width
             height: config.height || 50, // hitbox height
+            
+            // Text properties
             text: config.text || "",
             textOffsetX: config.textOffsetX || 10,
             textOffsetY: config.textOffsetY || 0,
-            font: config.fontSize || "24px monospace",
+            font: config.font || "24px monospace",
             textAlign: config.textAlign || "left",
             textBaseline: config.textBaseline || "middle",
+            
+            // State properties
             focusable: config.focusable || false, // whether this element's hitbox is "active"
             selected: config.selected || false, // if this is the currently focused element this will be set to true
-            visible: config.visible || true, // toggles visibility of this element
+            visible: config.visible ?? true, // toggles visibility of this element
             xOrder: config.xOrder || 0, // order of horizontal significance to directional input navigation
-
+            
             // Highlight config
             highlight: {
                 width: config.highlight?.width || config.width + 10,
@@ -331,8 +337,8 @@ class BaseFullScreenMenu {
             button:
                 config.type === "textButton" || config.type === "imageButton"
                     ? {
-                          pressed: config.button.pressed,
-                          onClick: config.button.onClick
+                          pressed: config.button?.pressed || false,
+                          onClick: config.button?.onClick
                       }
                     : null,
             image:
