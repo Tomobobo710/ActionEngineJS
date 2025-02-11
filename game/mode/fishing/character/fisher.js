@@ -160,7 +160,7 @@ class Fisher {
        const fishingArea = this.game.fishingArea;
        for (const [fish, fishAI] of fishingArea.fish) {
            if (fishAI.tryHook(this.lure)) {
-               this.state = "fighting";
+               //this.state = "fighting";
                break;
            }
        }
