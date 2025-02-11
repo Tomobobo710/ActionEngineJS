@@ -136,13 +136,13 @@ class Fisher {
    }
 
    handleCaughtState(input) {
-       if (input.isKeyPressed("Action1")) {
+       if (input.isKeyJustPressed("Action1")) {
            const totalCaught = Object.values(this.game.catchBag).reduce((a, b) => a + b, 0);
            if (totalCaught < this.game.maxBagSize) {
                this.game.keepFish(this.lure.hookedFish);
                this.reset();
            }
-       } else if (input.isKeyPressed("Action2")) {
+       } else if (input.isKeyJustPressed("Action2")) {
            this.game.releaseFish();
            this.reset();
        }
