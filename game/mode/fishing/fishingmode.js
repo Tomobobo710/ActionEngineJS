@@ -129,11 +129,15 @@ class FishingMode {
 
         case "casting":
         case "fishing":
-            if (this.lure && this.lure.position) {
-                targetPos = this.lure.position.add(new Vector3(-8, 6, -8));
-                targetLookAt = this.lure.position;
-            }
-            break;
+    if (this.lure && this.lure.position) {
+        // Calculate direction from fisher to lure
+        const castDirection = this.lure.position.subtract(this.fisher.position).normalize();
+        
+        // Use this direction to position camera behind lure
+        targetPos = this.lure.position.subtract(castDirection.scale(12)).add(new Vector3(0, 6, 0));
+        targetLookAt = this.lure.position;
+    }
+    break;
 
         case "reeling":
             if (this.lure && this.lure.position) {

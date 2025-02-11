@@ -152,21 +152,35 @@ class Fisher {
     }
 
     handleLureMovement(input, deltaTime) {
-        const moveSpeed = 30 * deltaTime;
+    const moveSpeed = 30 * deltaTime;
+    
+    // Calculate forward and right vectors based on fisher's aim angle
+    const forward = new Vector3(
+        Math.sin(this.aimAngle),
+        0,
+        Math.cos(this.aimAngle)
+    ).normalize();
+    
+    // Right vector is perpendicular to forward
+    const right = new Vector3(
+        Math.cos(this.aimAngle),
+        0,
+        -Math.sin(this.aimAngle)
+    ).normalize();
 
-        if (input.isKeyPressed("DirUp")) {
-            this.lure.move("forward", moveSpeed);
-        }
-        if (input.isKeyPressed("DirDown")) {
-            this.lure.move("backward", moveSpeed);
-        }
-        if (input.isKeyPressed("DirRight")) {
-            this.lure.move("left", moveSpeed);
-        }
-        if (input.isKeyPressed("DirLeft")) {
-            this.lure.move("right", moveSpeed);
-        }
+    if (input.isKeyPressed("DirUp")) {
+        this.lure.move(forward, moveSpeed);
     }
+    if (input.isKeyPressed("DirDown")) {
+        this.lure.move(forward.scale(-1), moveSpeed);
+    }
+    if (input.isKeyPressed("DirLeft")) {
+        this.lure.move(right, moveSpeed);
+    }
+    if (input.isKeyPressed("DirRight")) {
+        this.lure.move(right.scale(-1), moveSpeed);
+    }
+}
 
     handleReeling(deltaTime) {
     if (!this.lure || !this.isReeling) return;

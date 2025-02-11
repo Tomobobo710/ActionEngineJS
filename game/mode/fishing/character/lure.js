@@ -184,45 +184,40 @@ class Lure extends ActionPhysicsSphere3D {
     }
 }
 
-    move(direction, amount) {
-        if (this.state !== "inWater") return;
-
-        // Calculate movement based on direction
-        let moveVector = new Vector3(0, 0, 0);
-        switch (direction) {
-            case "forward":
-                moveVector.z = amount;
-                break;
-            case "backward":
-                moveVector.z = -amount;
-                break;
-            case "left":
-                moveVector.x = -amount;
-                break;
-            case "right":
-                moveVector.x = amount;
-                break;
-        }
-
-        // If fish is hooked, movement affects tension
-        if (this.hookedFish) {
-            const towardsFish = this.hookedFish.position.subtract(this.position).normalize();
-            const movementAngle = Math.abs(moveVector.dot(towardsFish));
-
-            // Moving against fish direction increases tension
-            if (movementAngle < 0.3) {
-                this.fisher.lineTension += 0.1;
-            } else if (movementAngle > 0.7) {
-                this.fisher.lineTension -= 0.05;
-            }
-        }
-
-        // Update both position and physics body
-        this.position = this.position.add(moveVector);
+    move(direction, speed) {
+    // Store old position for physics interpolation if needed
+    const oldPosition = this.position.clone();
+    
+    // Update position based on direction and speed
+    this.position = this.position.add(direction.scale(speed));
+    
+    // Update physics body position
+    if (this.body) {
         this.body.position.x = this.position.x;
         this.body.position.y = this.position.y;
         this.body.position.z = this.position.z;
     }
+    
+    // If in water, maintain y position at water level
+    if (this.state === "inWater" && this.game && this.game.ocean) {
+        const waterHeight = this.game.ocean.getWaterHeightAt(this.position.x, this.position.z);
+        this.position.y = waterHeight;
+        if (this.body) {
+            this.body.position.y = waterHeight;
+        }
+    }
+
+    // Update velocity for physics calculations if needed
+    if (this.body) {
+        const velocity = this.position.subtract(oldPosition);
+        this.body.velocity = velocity;
+    }
+    
+    // Emit any necessary events or update any attached components
+    if (this.onPositionUpdated) {
+        this.onPositionUpdated();
+    }
+}
 
     fishEscapes() {
         this.hookedFish = null;
