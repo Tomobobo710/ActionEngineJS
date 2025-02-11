@@ -30,7 +30,7 @@ class FishingMode {
             TROUT: 0,
             SWORDFISH: 0   
         };   
-        this.maxBagSize = 5; // Or whatever limit you want
+        this.maxBagSize = 20; // Or whatever limit you want
     }
 
    update(deltaTime) {
