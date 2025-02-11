@@ -71,7 +71,9 @@ class BaseFullScreenMenu {
 
             container.elements.forEach((element) => {
                 if (!element.visible || !element.focusable) return;
-
+                
+                
+                
                 // Handle slider
                 if (element.type === "slider") {
                     const isInSliderBounds = this.input.isElementHovered(`menu_element_${element.name}_slider`);
@@ -91,6 +93,8 @@ class BaseFullScreenMenu {
                         }
                     }
                 }
+
+
                 if (element.type === "toggle") {
                     // Calculate toggle button bounds (the actual switch area)
                     const toggleBounds = {
@@ -197,6 +201,12 @@ class BaseFullScreenMenu {
 
                     // Handle click
                     if (this.input.isElementJustPressed(`menu_element_${element.name}`)) {
+                        if (element.type === "selectable") {
+                            if (element.selectable.onClick) {
+                                element.selectable.onClick();
+                            }
+                        }
+                        
                         if (element.type === "textButton") {
                             element.button.pressed = true;
                             if (element.button.onClick) {
@@ -238,14 +248,14 @@ class BaseFullScreenMenu {
             // Base identification
             name: config.name || "unnamed element", // optional identifier
             type: config.type, // element type (slider, toggle, color picker)
-            
+
             // Position and size
             x: config.x || 0, // anchor x
             y: config.y || 0, // anchor y
             width: config.width || 50, // hitbox width
             height: config.height || 50, // hitbox height
             glowIntensity: config.glowIntensity || 15,
-            
+
             // Text properties
             text: config.text || "",
             textOffsetX: config.textOffsetX || 10,
@@ -253,13 +263,13 @@ class BaseFullScreenMenu {
             font: config.font || "24px monospace",
             textAlign: config.textAlign || "left",
             textBaseline: config.textBaseline || "middle",
-            
+
             // State properties
-            focusable: config.focusable || false, // whether this element's hitbox is "active"
+            focusable: config.focusable || true, // whether this element's hitbox is "active"
             selected: config.selected || false, // if this is the currently focused element this will be set to true
             visible: config.visible ?? true, // toggles visibility of this element
             xOrder: config.xOrder || 0, // order of horizontal significance to directional input navigation
-            
+
             // background config
             background: {
                 width: config.background?.width || config.width + 10,
@@ -268,38 +278,51 @@ class BaseFullScreenMenu {
                 yOffset: config.background?.yOffset || 0,
                 visible: config.background?.visible ?? true
             },
-
+            
+            panel:
+            config.type === "panel"
+                ? {
+                      borderWidth: config.panel?.borderWidth || 2,
+                      drawBackground: config.panel?.drawBackground ?? true
+                  }
+                : null,
+            selectable:
+                config.type === "selectable"
+                    ? {
+                          onClick: config.selectable?.onClick
+                      }
+                    : null,
             // Slider config
             slider:
                 config.type === "slider"
-                ? {
-                      trackX: config.slider?.trackX || 0,
-                      trackY: config.slider?.trackY || 0,
-                      trackWidth: config.slider?.trackWidth || 200,
-                      trackHeight: config.slider?.trackHeight || 4,
-                      knobX: config.slider?.knobX || 0,
-                      knobY: config.slider?.knobY || 0,
-                      knobSize: config.slider?.knobSize || 20,
-                      glowRadius: config.slider?.glowRadius || 15,
-                      roundness: config.slider?.roundness || 2,
-                      value: config.slider?.value || 0,
-                      active: false,
-                      interactionPadding: config.slider?.interactionPadding || 20,
-                      onChange: config.slider?.onChange,
-                      // Add default valueBox configuration
-                      valueBox: {
-                          font: config.slider?.valueBox?.font || "16px monospace",
-                          padding: config.slider?.valueBox?.padding || 8,
-                          height: config.slider?.valueBox?.height || 30,
-                          arrow: {
-                              height: config.slider?.valueBox?.arrow?.height || 8,
-                              width: config.slider?.valueBox?.arrow?.width || 12
-                          },
-                          verticalOffset: config.slider?.valueBox?.verticalOffset || 15,
-                          cornerRadius: config.slider?.valueBox?.cornerRadius || 4
+                    ? {
+                          trackX: config.slider?.trackX || 0,
+                          trackY: config.slider?.trackY || 0,
+                          trackWidth: config.slider?.trackWidth || 200,
+                          trackHeight: config.slider?.trackHeight || 4,
+                          knobX: config.slider?.knobX || 0,
+                          knobY: config.slider?.knobY || 0,
+                          knobSize: config.slider?.knobSize || 20,
+                          glowRadius: config.slider?.glowRadius || 15,
+                          roundness: config.slider?.roundness || 2,
+                          value: config.slider?.value || 0,
+                          active: false,
+                          interactionPadding: config.slider?.interactionPadding || 20,
+                          onChange: config.slider?.onChange,
+                          // Add default valueBox configuration
+                          valueBox: {
+                              font: config.slider?.valueBox?.font || "16px monospace",
+                              padding: config.slider?.valueBox?.padding || 8,
+                              height: config.slider?.valueBox?.height || 30,
+                              arrow: {
+                                  height: config.slider?.valueBox?.arrow?.height || 8,
+                                  width: config.slider?.valueBox?.arrow?.width || 12
+                              },
+                              verticalOffset: config.slider?.valueBox?.verticalOffset || 15,
+                              cornerRadius: config.slider?.valueBox?.cornerRadius || 4
+                          }
                       }
-                  }
-                : null,
+                    : null,
 
             // Toggle config
             toggle:
@@ -518,26 +541,138 @@ class BaseFullScreenMenu {
     }
 
     drawContainer(container) {
-        // Draw container elements
-        container.elements.forEach((element) => {
-            if (element.visible) {
-                this.drawElement(container, element);
-            }
-        });
-    }
+    // First draw all panels
+    container.elements.forEach((element) => {
+        if (element.visible && element.type === "panel") {
+            this.drawElement(container, element);
+        }
+    });
+
+    // Then draw all non-panel elements
+    container.elements.forEach((element) => {
+        if (element.visible && element.type !== "panel") {
+            this.drawElement(container, element);
+        }
+    });
+}
 
     drawElement(container, element) {
-    const x = container.x + element.x;
-    const y = container.y + element.y;
-    
-    this.ctx.save();    
-    // Add glow if selected
-    if (element.selected) {
-        this.ctx.shadowColor = this.colors.glowColor;
-        this.ctx.shadowBlur = element.glowIntensity;
-    }
+        const x = container.x + element.x;
+        const y = container.y + element.y;
 
-     // Draw background if it should be visible
+        this.ctx.save();
+        // Add glow if selected
+        if (element.selected) {
+            this.ctx.shadowColor = this.colors.glowColor;
+            this.ctx.shadowBlur = element.glowIntensity;
+        }
+
+        // Draw background if it should be visible
+        if (element.background.visible) {
+            const bgX = x + element.background.xOffset;
+            const bgY = y + element.background.yOffset;
+
+            // Use selected colors if selected, otherwise menu background colors
+            const gradientColors = element.selected ? this.colors.selectedBackground : this.colors.menuBackground;
+
+            this.ctx.fillStyle = this.createGradient(
+                bgX,
+                bgY - element.background.height / 2,
+                element.background.width,
+                element.background.height,
+                gradientColors.start,
+                gradientColors.end
+            );
+
+            this.ctx.fillRect(
+                bgX,
+                bgY - element.background.height / 2,
+                element.background.width,
+                element.background.height
+            );
+        }
+        this.ctx.restore();
+        // Set all text properties
+        this.ctx.font = element.font;
+        this.ctx.textAlign = element.textAlign;
+        this.ctx.textBaseline = element.textBaseline;
+
+        // Draw text if the element has any
+        if (element.text) {
+            this.ctx.fillStyle = element.selected ? this.colors.selectedText : this.colors.normalText;
+            this.ctx.fillText(element.text, x + element.textOffsetX, y + element.textOffsetY);
+        }
+
+        // Draw the appropriate element based on type
+        switch (element.type) {
+            case "panel":
+                this.drawPanel(x, y, element);
+                break;
+            case "selectable":
+                this.drawSelectable(x, y, element);
+                break;
+            case "textButton":
+                this.drawTextButton(x, y, element);
+                break;
+            case "slider":
+                this.drawSlider(x, y, element);
+                break;
+            case "toggle":
+                this.drawToggle(x, y, element);
+                break;
+            case "colorPicker":
+                this.drawColorPicker(x, y, element);
+                break;
+            case "textLabel":
+                this.drawTextLabel(x, y, element);
+                break;
+            case "imageButton":
+                this.drawImageButton(x, y, element);
+                break;
+            case "imageLabel":
+                this.drawImageLabel(x, y, element);
+                break;
+        }
+    }
+    
+    drawPanel(x, y, element) {
+    const config = element.panel;
+    
+    // Draw background if enabled
+    if (config.drawBackground) {
+        this.ctx.fillStyle = this.createGradient(
+            x,
+            y,
+            element.width,
+            element.height,
+            this.colors.menuBackground.start,
+            this.colors.menuBackground.end
+        );
+        this.ctx.fillRect(x, y, element.width, element.height);
+    }
+    
+    // Draw borders
+    this.ctx.lineWidth = config.borderWidth;
+    
+    // Draw light borders (top and left)
+    this.ctx.strokeStyle = this.colors.panelBorder.light;
+    this.ctx.beginPath();
+    this.ctx.moveTo(x, y + element.height);
+    this.ctx.lineTo(x, y);
+    this.ctx.lineTo(x + element.width, y);
+    this.ctx.stroke();
+    
+    // Draw dark borders (bottom and right)
+    this.ctx.strokeStyle = this.colors.panelBorder.dark;
+    this.ctx.beginPath();
+    this.ctx.moveTo(x, y + element.height);
+    this.ctx.lineTo(x + element.width, y + element.height);
+    this.ctx.lineTo(x + element.width, y);
+    this.ctx.stroke();
+}
+    
+    drawSelectable(x, y, element) {
+    // Draw background if it should be visible (using existing background logic)
     if (element.background.visible) {
         const bgX = x + element.background.xOffset;
         const bgY = y + element.background.yOffset;
@@ -563,46 +698,11 @@ class BaseFullScreenMenu {
             element.background.height
         );
     }
-this.ctx.restore();
-        // Set all text properties
-        this.ctx.font = element.font;
-        this.ctx.textAlign = element.textAlign;
-        this.ctx.textBaseline = element.textBaseline;
 
-        // Draw text if the element has any
-        if (element.text) {
-            this.ctx.fillStyle = element.selected ? this.colors.selectedText : this.colors.normalText;
-            this.ctx.fillText(element.text, x + element.textOffsetX, y + element.textOffsetY);
-        }
-
-        // Draw the appropriate element based on type
-        switch (element.type) {
-            case "textButton":
-                this.drawTextButton(x, y, element);
-                break;
-            case "slider":
-                this.drawSlider(x, y, element);
-                break;
-            case "toggle":
-                this.drawToggle(x, y, element);
-                break;
-            case "colorPicker":
-                this.drawColorPicker(x, y, element);
-                break;
-            case "textLabel":
-                this.drawTextLabel(x, y, element);
-                break;
-            case "imageButton":
-                this.drawImageButton(x, y, element);
-                break;
-            case "imageLabel":
-                this.drawImageLabel(x, y, element);
-                break;
-        }
-    }
-
-
-
+    // Draw the text
+    this.ctx.fillStyle = element.selected ? this.colors.selectedText : this.colors.normalText;
+    this.ctx.fillText(element.text, x + element.textOffsetX, y + element.textOffsetY);
+}
     drawTextButton(x, y, element) {
         // Choose text color based on state
         if (element.button.pressed) {
@@ -618,7 +718,6 @@ this.ctx.restore();
     }
 
     drawImageButton(x, y, element) {
-
         this.ctx.save();
 
         if (element.button.pressed) {
@@ -705,32 +804,32 @@ this.ctx.restore();
     }
 
     drawValueBox(x, y, value, config) {
-    const vbox = config.valueBox;
-    this.ctx.save();
-    
-    this.ctx.font = vbox.font;
+        const vbox = config.valueBox;
+        this.ctx.save();
 
-    const textWidth = this.ctx.measureText(value).width;
-    const boxWidth = textWidth + (vbox.padding * 2);
-    const boxY = y - vbox.height - vbox.arrow.height - vbox.verticalOffset;
+        this.ctx.font = vbox.font;
 
-    // Draw background box with arrow
-    this.ctx.fillStyle = this.colors.menuBackground.start;
-    this.ctx.beginPath();
-    this.ctx.roundRect(x - boxWidth / 2, boxY, boxWidth, vbox.height, vbox.cornerRadius);
-    this.ctx.moveTo(x - vbox.arrow.width / 2, boxY + vbox.height);
-    this.ctx.lineTo(x, boxY + vbox.height + vbox.arrow.height);
-    this.ctx.lineTo(x + vbox.arrow.width / 2, boxY + vbox.height);
-    this.ctx.fill();
+        const textWidth = this.ctx.measureText(value).width;
+        const boxWidth = textWidth + vbox.padding * 2;
+        const boxY = y - vbox.height - vbox.arrow.height - vbox.verticalOffset;
 
-    // Draw text
-    this.ctx.fillStyle = this.colors.normalText;
-    this.ctx.textAlign = "center";
-    this.ctx.textBaseline = "middle";
-    this.ctx.fillText(value, x, boxY + vbox.height / 2);
+        // Draw background box with arrow
+        this.ctx.fillStyle = this.colors.menuBackground.start;
+        this.ctx.beginPath();
+        this.ctx.roundRect(x - boxWidth / 2, boxY, boxWidth, vbox.height, vbox.cornerRadius);
+        this.ctx.moveTo(x - vbox.arrow.width / 2, boxY + vbox.height);
+        this.ctx.lineTo(x, boxY + vbox.height + vbox.arrow.height);
+        this.ctx.lineTo(x + vbox.arrow.width / 2, boxY + vbox.height);
+        this.ctx.fill();
 
-    this.ctx.restore();
-}
+        // Draw text
+        this.ctx.fillStyle = this.colors.normalText;
+        this.ctx.textAlign = "center";
+        this.ctx.textBaseline = "middle";
+        this.ctx.fillText(value, x, boxY + vbox.height / 2);
+
+        this.ctx.restore();
+    }
 
     drawToggle(x, y, element) {
         const config = element.toggle;
