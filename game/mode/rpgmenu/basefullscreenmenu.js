@@ -263,7 +263,7 @@ class BaseFullScreenMenu {
             // background config
             background: {
                 width: config.background?.width || config.width + 10,
-                height: config.background?.height || 30,
+                height: config.background?.height || 40,
                 xOffset: config.background?.xOffset || 0,
                 yOffset: config.background?.yOffset || 0,
                 visible: config.background?.visible ?? true
@@ -537,18 +537,23 @@ class BaseFullScreenMenu {
         this.ctx.shadowBlur = element.glowIntensity;
     }
 
-    // Draw background if it should be visible
+     // Draw background if it should be visible
     if (element.background.visible) {
         const bgX = x + element.background.xOffset;
         const bgY = y + element.background.yOffset;
+        
+        // Use selected colors if selected, otherwise menu background colors
+        const gradientColors = element.selected ? 
+            this.colors.selectedBackground : 
+            this.colors.menuBackground;
         
         this.ctx.fillStyle = this.createGradient(
             bgX,
             bgY - element.background.height / 2,
             element.background.width,
             element.background.height,
-            this.colors.selectedBackground.start,
-            this.colors.selectedBackground.end
+            gradientColors.start,
+            gradientColors.end
         );
         
         this.ctx.fillRect(
