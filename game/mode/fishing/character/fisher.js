@@ -136,17 +136,23 @@ class Fisher {
    }
 
    handleCaughtState(input) {
-       if (input.isKeyJustPressed("Action1")) {
-           const totalCaught = Object.values(this.game.catchBag).reduce((a, b) => a + b, 0);
-           if (totalCaught < this.game.maxBagSize) {
-               this.game.keepFish(this.lure.hookedFish);
-               this.reset();
-           }
-       } else if (input.isKeyJustPressed("Action2")) {
-           this.game.releaseFish();
-           this.reset();
-       }
-   }
+    if (input.isKeyJustPressed("Action1")) {
+        const totalCaught = Object.values(this.game.catchBag).reduce((a, b) => a + b, 0);
+        if (totalCaught < this.game.maxBagSize) {
+            this.game.keepFish(this.lure.hookedFish);
+            
+            // Reset interest for all remaining fish
+            this.game.fishingArea.fish.forEach((ai) => {
+                ai.hasLostInterest = false;
+            });
+            
+            this.reset();
+        }
+    } else if (input.isKeyJustPressed("Action2")) {
+        this.game.releaseFish();
+        this.reset();
+    }
+}
 
    tryHookFish() {
        if (this.state !== "fishing") return;

@@ -4,17 +4,20 @@ class FishGenerator {
         let profile = FISH_TYPES[type];
         if (!profile) {
             console.warn(`Unknown fish type: ${type}, using BASS`);
+            type = "BASS";  // Make sure to update the type if we fall back
             profile = FISH_TYPES.BASS;
         }
-
+        
         // Get a randomized configuration from the profile
         const config = profile.generateRandomizedConfig();
         
         // Generate random size within type's range
-        const size = this.randomRange(config.sizeRange.min, config.sizeRange.max);
-
+        const size = FishGenerator.randomRange(config.sizeRange.min, config.sizeRange.max);
+        
         // Create the fish with the generated configuration
-        return new Fish(physicsWorld, size, position, config, rotationAxis);
+        const fish = new Fish(physicsWorld, size, position, config, rotationAxis);
+        fish.type = type;  // Store the original type string directly
+        return fish;
     }
 
     static randomRange(min, max) {

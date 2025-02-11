@@ -28,8 +28,8 @@ class FishingMode {
             this.catchBag = {
             BASS: 0,
             TROUT: 0,
-            SWORDFISH: 0
-        };
+            SWORDFISH: 0   
+        };   
         this.maxBagSize = 5; // Or whatever limit you want
     }
 

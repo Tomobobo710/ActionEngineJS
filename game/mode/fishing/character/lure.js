@@ -246,6 +246,11 @@ class Lure extends ActionPhysicsObject3D {
         
         // Reset global attacking fish state
         FishAI.currentlyAttackingFish = null;
+        
+        // Reset interest for ALL fish
+        this.fisher?.game?.fishingArea?.fish.forEach((ai) => {
+            ai.hasLostInterest = false;
+        });
     }
 }
     

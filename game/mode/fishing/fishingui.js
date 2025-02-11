@@ -62,10 +62,10 @@ class FishingUI {
 
         ctx.fillStyle = '#fff';
         ctx.font = '18px Arial';
-        ctx.fillText('Keep (action1)', 
+        ctx.fillText('Release (action1)', 
             menu.position.x + 90, 
             menu.position.y + 145);
-        ctx.fillText('Release (action2)', 
+        ctx.fillText('Keep (action2)', 
             menu.position.x + menu.width - 90, 
             menu.position.y + 145);
     }
@@ -86,7 +86,7 @@ class FishingUI {
         this.guiContext.fillStyle = "#fff";
         this.guiContext.font = "16px Arial";
         this.guiContext.textAlign = "right";
-        this.guiContext.fillText("Press 'action1' to keep fish", this.guiCanvas.width - 10, 30);
+        this.guiContext.fillText("Press 'action1' to Keep fish", this.guiCanvas.width - 10, 30);
         this.guiContext.fillText("Press 'action2' to release fish", this.guiCanvas.width - 10, 50);
     }
 

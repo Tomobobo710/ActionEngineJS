@@ -400,7 +400,7 @@ class Fish extends ActionPhysicsObject3D {
         const shape = new Goblin.SphereShape(size);
         this.body = new Goblin.RigidBody(shape, 0);
         this.body.position.set(position.x, position.y, position.z);
-
+        
         this.rotationAxis = rotationAxis;
         this.rotation = 0;
         this.rotationSpeed = 0.2;

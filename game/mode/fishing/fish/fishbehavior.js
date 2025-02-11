@@ -186,6 +186,14 @@ class AttackBehavior extends FishBehavior {
             if (timeElapsed > this.hookingWindowDuration) {
                 console.log("Hooking window expired!");
                 this.missed = true;
+                // Important: Reset the global attacking fish state here
+                FishAI.currentlyAttackingFish = null;
+                // Reset interest for all fish in the area
+                if (this.fish?.game?.fishingArea) {
+                    this.fish.game.fishingArea.fish.forEach((ai) => {
+                        ai.hasLostInterest = false;
+                    });
+                }
                 return;
             }
         }
@@ -219,7 +227,12 @@ class AttackBehavior extends FishBehavior {
 
     onEnter(lure) {
         console.log("Fish entering ATTACK mode!");
-        this.lure = lure;  // Store lure reference
+        this.lure = lure;
+        // Reset all attack-related state
+        this.hookingWindowActive = false;
+        this.hookingWindowStart = null;
+        this.missed = false;
+        this.attackComplete = false;
     }
 
    

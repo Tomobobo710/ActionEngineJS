@@ -24,29 +24,41 @@ class FishAI {
     }
 
    update(deltaTime, lure) {
-       const activeLure = lure?.state === 'inWater' ? lure : null;
+    const activeLure = lure?.state === 'inWater' ? lure : null;
+    
+    if (this.isHooked) {
+        this.currentBehavior.update(deltaTime);
+        return;
+    }
+
+    // Update hooking window status
+    if (this.currentBehavior === this.behaviors.attack) {
+        this.canBeHooked = this.currentBehavior.hookingWindowActive && 
+                          !this.currentBehavior.missed;
+    } else {
+        this.canBeHooked = false;
+    }
+
+    // Handle missed hook attempt
+    if (this.currentBehavior === this.behaviors.attack && 
+        this.currentBehavior.missed) {
+        console.log("Fish missed - returning to patrol");
+        this.hasLostInterest = false;  // Changed this to false
+        this.changeBehavior('patrol');
         
-        if (this.isHooked) {
-            this.currentBehavior.update(deltaTime);
-            return;
+        // Make sure currentlyAttackingFish is reset
+        if (FishAI.currentlyAttackingFish === this.fish) {
+            FishAI.currentlyAttackingFish = null;
         }
-
-        // Update hooking window status
-        if (this.currentBehavior === this.behaviors.attack) {
-            this.canBeHooked = this.currentBehavior.hookingWindowActive && 
-                              !this.currentBehavior.missed;
-        } else {
-            this.canBeHooked = false;
+        
+        // Reset interest for all fish
+        if (this.fish?.game?.fishingArea) {
+            this.fish.game.fishingArea.fish.forEach((ai) => {
+                ai.hasLostInterest = false;
+            });
         }
-
-        // Handle missed hook attempt
-        if (this.currentBehavior === this.behaviors.attack && 
-            this.currentBehavior.missed) {
-            console.log("Fish missed - returning to patrol");
-            this.hasLostInterest = true;
-            this.changeBehavior('patrol');
-            return;
-        }
+        return;
+    }
        if (lure) {
             // If another fish is attacking and this isn't the attacking fish
             if (FishAI.currentlyAttackingFish && FishAI.currentlyAttackingFish !== this.fish) {
@@ -106,16 +118,21 @@ class FishAI {
     }
 
     changeBehavior(newBehaviorName, lure = null) {
-        this.currentBehavior.onExit();
-        this.currentBehavior = this.behaviors[newBehaviorName];
-        if (lure && newBehaviorName === 'attack') {
-            this.currentBehavior.onEnter(lure);
-        } else {
-            this.currentBehavior.onEnter();
-        }
-        
-        this.timeSinceLastBehaviorChange = 0;
+    // Properly cleanup old behavior
+    this.currentBehavior.onExit();
+    
+    // Switch to new behavior
+    this.currentBehavior = this.behaviors[newBehaviorName];
+    
+    // Initialize new behavior
+    if (lure && newBehaviorName === 'attack') {
+        this.currentBehavior.onEnter(lure);
+    } else {
+        this.currentBehavior.onEnter();
     }
+    
+    this.timeSinceLastBehaviorChange = 0;
+}
      tryHook(lure) {
         if (!this.canBeHooked) return false;
 
