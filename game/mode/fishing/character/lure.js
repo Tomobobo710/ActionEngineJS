@@ -113,25 +113,22 @@ class Lure extends ActionPhysicsObject3D {
 
     // Handle hooked fish state
     if (this.state === "inWater" && this.hookedFish) {
-        // Verify fish has required properties before handling fight
-        if (this.hookedFish.position && this.position && this.fisher) {
-            this.handleFishFight(deltaTime);
-
-            // Add small offset so fish isn't exactly on lure
-            const offsetX = (Math.random() - 0.5) * 2;
-            const offsetY = (Math.random() - 0.5) * 2;
-            const offsetZ = (Math.random() - 0.5) * 2;
-
-            this.hookedFish.position.x = this.position.x + offsetX;
-            this.hookedFish.position.y = this.position.y + offsetY;
-            this.hookedFish.position.z = this.position.z + offsetZ;
-
-            // Update fish's physics body position with null check
-            if (this.hookedFish.body) {
-                this.hookedFish.body.position.x = this.hookedFish.position.x;
-                this.hookedFish.body.position.y = this.hookedFish.position.y;
-                this.hookedFish.body.position.z = this.hookedFish.position.z;
+        // Safety check - make sure fish exists AND is in water
+        const ocean = this.fisher?.game?.ocean;
+        if (ocean && typeof ocean.getWaterHeightAt === 'function') {
+            const waterHeight = ocean.getWaterHeightAt(this.hookedFish.position.x, this.hookedFish.position.z);
+            
+            // If fish is above water, force it back down
+            if (this.hookedFish.position.y > waterHeight) {
+                this.hookedFish.position.y = waterHeight;
+                if (this.hookedFish.body) {
+                    this.hookedFish.body.position.y = waterHeight;
+                }
             }
+        
+
+        this.handleFishFight(deltaTime);
+    
 
             // Check for reeling in completion
             //const distanceToFisher = this.position.distanceTo(this.fisher.position);
@@ -150,6 +147,19 @@ class Lure extends ActionPhysicsObject3D {
 }
 
     handleFishFight(deltaTime) {
+    // Safety check - if no fish or no game/ocean, clean up and return
+    if (!this.hookedFish || !this.fisher?.game?.ocean) {
+        this.fishEscapes();
+        return;
+    }
+
+    // Ensure fish stays in water
+    const waterHeight = this.fisher.game.ocean.getWaterHeightAt(
+        this.hookedFish.position.x, 
+        this.hookedFish.position.z
+    );
+    this.hookedFish.position.y = Math.min(this.hookedFish.position.y, waterHeight);
+    
     // Fish regularly changes direction to fight
     if (Math.random() < 0.05) {
         const angle = Math.random() * Math.PI * 2;
@@ -161,7 +171,7 @@ class Lure extends ActionPhysicsObject3D {
     // Add reeling force if fisher is reeling
     if (this.fisher && this.fisher.isReeling) {
         const reelDirection = this.fisher.position.subtract(this.position).normalize();
-        const reelForce = reelDirection.scale(this.fisher.reelSpeed); // You might want to adjust this value
+        const reelForce = reelDirection.scale(this.fisher.reelSpeed);
         finalForce = finalForce.add(reelForce);
     }
 
@@ -169,7 +179,7 @@ class Lure extends ActionPhysicsObject3D {
     const moveAmount = finalForce.scale(deltaTime);
     this.position = this.position.add(moveAmount);
     this.body.position.x = this.position.x;
-    this.body.position.y = this.position.y;
+    this.body.position.y = Math.min(this.position.y, waterHeight);  // Keep lure in water too
     this.body.position.z = this.position.z;
 
     if (this.fisher) {
@@ -180,10 +190,39 @@ class Lure extends ActionPhysicsObject3D {
         // Let Fisher know we're close enough to complete catch
         if (distanceToFisher < 1) {
             this.fisher.onLureReachedFisher();
+            return;
         }
 
-        if (tension > this.lineTensionThreshold && Math.random() < 0.1) {
-            this.fishEscapes();
+        // If tension too high, line breaks - clean up states in correct order
+        if (tension > this.lineTensionThreshold) {
+            // Clear hooked fish reference first
+            const escapingFish = this.hookedFish;
+            this.hookedFish = null;
+            
+            // Reset lure state
+            this.state = "inWater";
+            this.fishPullForce = new Vector3(0, 0, 0);
+            
+            // Reset fisher state
+            this.fisher.state = "ready";
+            this.fisher.lineTension = 0;
+            this.fisher.isReeling = false;
+
+            // Handle fish AI cleanup last, after all state changes
+            if (escapingFish) {
+                const fishAI = this.fisher?.game?.fishingArea?.fish.get(escapingFish);
+                if (fishAI) {
+                    fishAI.isHooked = false;
+                    fishAI.changeBehavior('patrol');
+                }
+                
+                // Reset global fish states
+                FishAI.currentlyAttackingFish = null;
+                this.fisher?.game?.fishingArea?.fish.forEach((ai) => {
+                    ai.hasLostInterest = false;
+                });
+            }
+            return;
         }
     }
 }
@@ -224,11 +263,23 @@ class Lure extends ActionPhysicsObject3D {
 }
 
     fishEscapes() {
-        this.hookedFish = null;
-        this.fishPullForce = new Vector3(0, 0, 0);
-        this.state = "inWater";
-        // Trigger any escape animations/effects
+    // Reset fish AI state
+    const fishAI = this.fisher?.game?.fishingArea?.fish.get(this.hookedFish);
+    if (fishAI) {
+        fishAI.isHooked = false;
+        fishAI.changeBehavior('patrol');
     }
+
+    // Reset global fish states
+    FishAI.currentlyAttackingFish = null;
+    
+    // Reset all fish interest
+    if (this.fisher?.game?.fishingArea) {
+        this.fisher.game.fishingArea.fish.forEach((ai) => {
+            ai.hasLostInterest = false;
+        });
+    }
+}
     
     releaseHookedFish() {
     if (this.hookedFish) {
