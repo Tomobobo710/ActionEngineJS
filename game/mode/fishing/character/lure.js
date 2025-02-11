@@ -200,7 +200,7 @@ class Lure extends ActionPhysicsObject3D {
             this.hookedFish = null;
             
             // Reset lure state
-            this.state = "inWater";
+            this.state = "inactive";
             this.fishPullForce = new Vector3(0, 0, 0);
             
             // Reset fisher state
