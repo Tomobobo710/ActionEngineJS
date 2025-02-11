@@ -231,16 +231,23 @@ class Lure extends ActionPhysicsObject3D {
     }
     
     releaseHookedFish() {
-        if (this.hookedFish) {
-            // Reset the fish's AI state
-            const fishAI = this.fisher.game.fishingArea.fish.get(this.hookedFish);
-            if (fishAI) {
-                fishAI.isHooked = false;
-                fishAI.changeBehavior("patrol");
-            }
-            this.hookedFish = null;
+    if (this.hookedFish) {
+        // Get the AI controller for the fish
+        const fishAI = this.fisher?.game?.fishingArea?.fish.get(this.hookedFish);
+        if (fishAI) {
+            // Reset all fish states
+            fishAI.isHooked = false;
+            fishAI.hasLostInterest = false;
+            fishAI.changeBehavior('patrol');
         }
+        
+        // Clear the hooked fish reference
+        this.hookedFish = null;
+        
+        // Reset global attacking fish state
+        FishAI.currentlyAttackingFish = null;
     }
+}
     
     reset() {
         if (!this.fisher) return;

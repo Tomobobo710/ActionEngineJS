@@ -222,21 +222,10 @@ class FishingMode {
 }
 
 releaseFish() {
-    if (!this.lure.hookedFish) return;
-    
-    const fish = this.lure.hookedFish;
-    const fishAI = this.fishingArea.fish.get(fish);
-    
-    // Reset fish AI state
-    fishAI.isHooked = false;
-    fishAI.hasLostInterest = false;
-    fishAI.changeBehavior('patrol');
-    
-    // Reset lure
-    this.lure.hookedFish = null;
-    this.lure.reset();
-    
-    FishAI.resetAllFishInterest();
+    if (this.lure.hookedFish) {
+        this.lure.releaseHookedFish();
+        this.lure.reset();
+    }
 }
     
     // When switching "game modes" cleanup() will be called to destroy this mode
