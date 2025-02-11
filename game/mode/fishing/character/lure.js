@@ -1,6 +1,9 @@
-class Lure extends ActionPhysicsSphere3D {
+class Lure extends ActionPhysicsObject3D {
     constructor(physicsWorld, radius = 2) {
-        super(physicsWorld, radius, 0, new Vector3(0, 0, 0)); // mass 0
+        const characterModel = GLBLoader.loadModel(lureModel);
+        const triangles = characterModel.triangles;
+        super(physicsWorld, triangles);
+        //super(physicsWorld, radius, 0, new Vector3(0, 0, 0)); // mass 0
         this.fisher = null;
         this.state = "inactive"; // inactive, casting, inWater
         this.visible = false;
@@ -17,8 +20,9 @@ class Lure extends ActionPhysicsSphere3D {
         };
        
         physicsWorld.addObject(this);
-        const characterModel = GLBLoader.loadModel(lureModel);
-        const triangles = characterModel.triangles;
+        
+         const shape = new Goblin.BoxShape(radius, radius, radius);
+        this.body = new Goblin.RigidBody(shape, 0); // 0 mass for static body
         
         this.animator = new ModelAnimationController(characterModel);
         this.animator.play(0, true);
