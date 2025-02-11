@@ -71,6 +71,10 @@ class RPGMenuMode {
                 start: "rgba(20, 40, 80, 0.97)",   // Navy to brighter blue
                 end: "rgba(40, 70, 130, 0.97)"
             },
+            panelBorder: {
+                light: "#2A4374",    // A medium-light blue that fits your scheme
+                dark: "#2A4374"      // A very dark blue that fits your scheme
+            },
             // Single colors
             normalText: "#E2E8F0",                 // Very light gray-blue
             selectedText: "#9BB6FF",               // Bright blue
