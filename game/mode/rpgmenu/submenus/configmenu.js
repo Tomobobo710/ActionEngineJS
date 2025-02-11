@@ -16,7 +16,8 @@ class ConfigMenu extends BaseFullScreenMenu {
             y: 100,
             width: 340,
             height: 40,
-
+            glowIntensity: 15,
+            
             // Text properties
             text: "Slider 1",
             textOffsetX: 10,
@@ -31,13 +32,13 @@ class ConfigMenu extends BaseFullScreenMenu {
             visible: true,
             xOrder: 0,
 
-            // Visual enhancement
-            highlight: {
+            // Background
+            background: {
                 width: 340,
                 height: 40,
                 xOffset: 0,
                 yOffset: 0,
-                glow: 15
+                visible: true
             },
 
             // Slider-specific properties
@@ -80,7 +81,8 @@ class ConfigMenu extends BaseFullScreenMenu {
             y: 150,
             width: 340,
             height: 40,
-
+            glowIntensity: 15,
+            
             // Text properties
             text: "Slider 2",
             textOffsetX: 10,
@@ -95,13 +97,13 @@ class ConfigMenu extends BaseFullScreenMenu {
             visible: true,
             xOrder: 0,
 
-            // Visual enhancement
-            highlight: {
+            // Background
+            background: {
                 width: 340,
                 height: 40,
                 xOffset: 0,
                 yOffset: 0,
-                glow: 15
+                visible: true
             },
 
             // Slider-specific properties
@@ -144,7 +146,8 @@ class ConfigMenu extends BaseFullScreenMenu {
             y: 200,
             width: 240,
             height: 40,
-
+            glowIntensity: 15,
+            
             // Text properties
             text: "Toggle 1",
             textOffsetX: 10,
@@ -159,13 +162,13 @@ class ConfigMenu extends BaseFullScreenMenu {
             visible: true,
             xOrder: 0,
 
-            // Visual enhancement
-            highlight: {
+            // Background
+            background: {
                 width: 240,
                 height: 40,
                 xOffset: 0,
                 yOffset: 0,
-                glow: 15
+                visible: true
             },
 
             // Toggle-specific properties
@@ -192,7 +195,8 @@ class ConfigMenu extends BaseFullScreenMenu {
             y: 250,
             width: 240,
             height: 40,
-
+            glowIntensity: 15,
+            
             // Text properties
             text: "Toggle 2",
             textOffsetX: 10,
@@ -207,13 +211,13 @@ class ConfigMenu extends BaseFullScreenMenu {
             visible: true,
             xOrder: 0,
 
-            // Visual enhancement
-            highlight: {
+            // Background
+            background: {
                 width: 240,
                 height: 40,
                 xOffset: 0,
                 yOffset: 0,
-                glow: 15
+                visible: true
             },
 
             // Toggle-specific properties
@@ -240,7 +244,8 @@ class ConfigMenu extends BaseFullScreenMenu {
             y: 380,
             width: 300,
             height: 200,
-
+            glowIntensity: 15,
+            
             // Text properties
             text: "Color",
             textOffsetX: 10,
@@ -255,13 +260,13 @@ class ConfigMenu extends BaseFullScreenMenu {
             visible: true,
             xOrder: 0,
 
-            // Visual enhancement
-            highlight: {
+            // Background
+            background: {
                 width: 340,
                 height: 200,
                 xOffset: 0,
                 yOffset: 0,
-                glow: 15
+                visible: true
             },
 
             // ColorPicker-specific properties
@@ -303,7 +308,8 @@ class ConfigMenu extends BaseFullScreenMenu {
             y: 520,
             width: 200,
             height: 40,
-
+            glowIntensity: 15,
+            
             // Text properties
             text: "Click Me",
             textOffsetX: 10,
@@ -318,13 +324,13 @@ class ConfigMenu extends BaseFullScreenMenu {
             visible: true,
             xOrder: 0,
 
-            // Visual enhancement
-            highlight: {
+            // Background
+            background: {
                 width: 200,
                 height: 40,
                 xOffset: 0,
                 yOffset: 0,
-                glow: 15
+                visible: true
             },
 
             // Button-specific properties
@@ -345,7 +351,8 @@ class ConfigMenu extends BaseFullScreenMenu {
             y: 570,
             width: 200,
             height: 40,
-
+            glowIntensity: 15,
+            
             // Text properties
             text: "Some Label Text",
             textOffsetX: 10,
@@ -358,9 +365,17 @@ class ConfigMenu extends BaseFullScreenMenu {
             focusable: false,
             selected: false,
             visible: true,
-            xOrder: 0
+            xOrder: 0,
+            
+            // Background
+            background: {
+                width: 240,
+                height: 40,
+                xOffset: 0,
+                yOffset: 0,
+                visible: false
+            }
 
-            // Note: textLabels don't have highlight or type-specific properties
         });
 
         // Fully explicit imageButton1:
@@ -374,7 +389,8 @@ class ConfigMenu extends BaseFullScreenMenu {
             y: 300,
             width: 64,
             height: 64,
-
+            glowIntensity: 15,
+            
             // Text properties (even though not used)
             text: "",
             textOffsetX: 10,
@@ -389,13 +405,13 @@ class ConfigMenu extends BaseFullScreenMenu {
             visible: true,
             xOrder: 1,
 
-            // Visual enhancement
-            highlight: {
+            // Background
+            background: {
                 width: 74,
                 height: 74,
                 xOffset: 0,
                 yOffset: 0,
-                glow: 15
+                visible: true
             },
 
             // Image-specific properties
@@ -422,7 +438,8 @@ class ConfigMenu extends BaseFullScreenMenu {
             y: 400,
             width: 64,
             height: 64,
-
+            glowIntensity: 15,
+            
             // Text properties (even though not used)
             text: "",
             textOffsetX: 10,
@@ -436,14 +453,22 @@ class ConfigMenu extends BaseFullScreenMenu {
             selected: false,
             visible: true,
             xOrder: 0,
-
+            
+            // Background
+            background: {
+                width: 74,
+                height: 74,
+                xOffset: 0,
+                yOffset: 0,
+                visible: false
+            },
+            
             // Image-specific properties
             image: {
                 sprite: this.sprites.mage,
                 smoothing: false
             }
 
-            // Note: imageLables don't have highlight properties
         });
 
         this.registerElements();

@@ -244,6 +244,7 @@ class BaseFullScreenMenu {
             y: config.y || 0, // anchor y
             width: config.width || 50, // hitbox width
             height: config.height || 50, // hitbox height
+            glowIntensity: config.glowIntensity || 15,
             
             // Text properties
             text: config.text || "",
@@ -259,13 +260,13 @@ class BaseFullScreenMenu {
             visible: config.visible ?? true, // toggles visibility of this element
             xOrder: config.xOrder || 0, // order of horizontal significance to directional input navigation
             
-            // Highlight config
-            highlight: {
-                width: config.highlight?.width || config.width + 10,
-                height: config.highlight?.height || 30,
-                xOffset: config.highlight?.xOffset || 0,
-                yOffset: config.highlight?.yOffset || 0,
-                glow: config.highlight?.glow || 15
+            // background config
+            background: {
+                width: config.background?.width || config.width + 10,
+                height: config.background?.height || 30,
+                xOffset: config.background?.xOffset || 0,
+                yOffset: config.background?.yOffset || 0,
+                visible: config.background?.visible ?? true
             },
 
             // Slider config
@@ -526,18 +527,42 @@ class BaseFullScreenMenu {
     }
 
     drawElement(container, element) {
-        const x = container.x + element.x;
-        const y = container.y + element.y;
+    const x = container.x + element.x;
+    const y = container.y + element.y;
+    
+    this.ctx.save();    
+    // Add glow if selected
+    if (element.selected) {
+        this.ctx.shadowColor = this.colors.glowColor;
+        this.ctx.shadowBlur = element.glowIntensity;
+    }
 
+    // Draw background if it should be visible
+    if (element.background.visible) {
+        const bgX = x + element.background.xOffset;
+        const bgY = y + element.background.yOffset;
+        
+        this.ctx.fillStyle = this.createGradient(
+            bgX,
+            bgY - element.background.height / 2,
+            element.background.width,
+            element.background.height,
+            this.colors.selectedBackground.start,
+            this.colors.selectedBackground.end
+        );
+        
+        this.ctx.fillRect(
+            bgX,
+            bgY - element.background.height / 2,
+            element.background.width,
+            element.background.height
+        );
+    }
+this.ctx.restore();
         // Set all text properties
         this.ctx.font = element.font;
         this.ctx.textAlign = element.textAlign;
         this.ctx.textBaseline = element.textBaseline;
-
-        // Draw selection highlight if needed
-        if (element.selected) {
-            this.drawSelectionHighlight(x, y, element);
-        }
 
         // Draw text if the element has any
         if (element.text) {
@@ -571,30 +596,7 @@ class BaseFullScreenMenu {
         }
     }
 
-    drawSelectionHighlight(x, y, element) {
-        this.ctx.save();
-        this.ctx.shadowColor = this.colors.glowColor;
-        this.ctx.shadowBlur = this.colors.glowBlur;
 
-        const highlightX = x + element.highlight.xOffset;
-        const highlightY = y + element.highlight.yOffset;
-
-        this.ctx.fillStyle = this.createGradient(
-            highlightX,
-            highlightY - element.highlight.height / 2,
-            element.highlight.width,
-            element.highlight.height,
-            this.colors.selectedBackground.start,
-            this.colors.selectedBackground.end
-        );
-        this.ctx.fillRect(
-            highlightX,
-            highlightY - element.highlight.height / 2,
-            element.highlight.width,
-            element.highlight.height
-        );
-        this.ctx.restore();
-    }
 
     drawTextButton(x, y, element) {
         // Choose text color based on state
@@ -611,9 +613,6 @@ class BaseFullScreenMenu {
     }
 
     drawImageButton(x, y, element) {
-        if (element.selected) {
-            this.drawSelectionHighlight(x, y, element);
-        }
 
         this.ctx.save();
 
@@ -630,7 +629,7 @@ class BaseFullScreenMenu {
                 0,
                 32,
                 32,
-                x + element.highlight.xOffset + element.textOffsetX / 2,
+                x + element.background.xOffset + element.textOffsetX / 2,
                 y - element.height / 2,
                 element.width,
                 element.height
@@ -651,7 +650,7 @@ class BaseFullScreenMenu {
                 0,
                 32,
                 32,
-                x + element.highlight.xOffset + element.textOffsetX / 2,
+                x + element.background.xOffset + element.textOffsetX / 2,
                 y - element.height / 2,
                 element.width,
                 element.height
