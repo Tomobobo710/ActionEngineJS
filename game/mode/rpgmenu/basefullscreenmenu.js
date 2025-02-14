@@ -71,9 +71,7 @@ class BaseFullScreenMenu {
 
             container.elements.forEach((element) => {
                 if (!element.visible || !element.focusable) return;
-                
-                
-                
+
                 // Handle slider
                 if (element.type === "slider") {
                     const isInSliderBounds = this.input.isElementHovered(`menu_element_${element.name}_slider`);
@@ -94,12 +92,11 @@ class BaseFullScreenMenu {
                     }
                 }
 
-
                 if (element.type === "toggle") {
                     // Calculate toggle button bounds (the actual switch area)
                     const toggleBounds = {
                         x: container.x + element.toggle.x,
-                        y: container.y + element.toggle.y,
+                        y: container.y + element.toggle.y - element.toggle.height/2,
                         width: element.toggle.width,
                         height: element.toggle.height
                     };
@@ -157,7 +154,7 @@ class BaseFullScreenMenu {
                     if (element.colorPicker.brightnessSlider) {
                         const sliderBounds = {
                             x: element.colorPicker.brightnessSlider.x - 6,
-                            y: element.colorPicker.brightnessSlider.y,
+                            y: element.colorPicker.brightnessSlider.y - (element.colorPicker.brightnessSlider.height / 2),  // Added offset
                             width: 16,
                             height: element.colorPicker.brightnessSlider.height
                         };
@@ -206,7 +203,7 @@ class BaseFullScreenMenu {
                                 element.selectable.onClick();
                             }
                         }
-                        
+
                         if (element.type === "textButton") {
                             element.button.pressed = true;
                             if (element.button.onClick) {
@@ -244,6 +241,7 @@ class BaseFullScreenMenu {
     }
 
     addElement(containerId, config) {
+        console.log(config.name, " Config focusable:", config.focusable);
         const element = {
             // Base identification
             name: config.name || "unnamed element", // optional identifier
@@ -265,8 +263,8 @@ class BaseFullScreenMenu {
             textBaseline: config.textBaseline || "middle",
 
             // State properties
-            focusable: config.focusable || true, // whether this element's hitbox is "active"
-            selected: config.selected || false, // if this is the currently focused element this will be set to true
+            focusable: config.focusable ?? true, // whether this element's hitbox is "active"
+            selected: config.selected ?? false, // if this is the currently focused element this will be set to true
             visible: config.visible ?? true, // toggles visibility of this element
             xOrder: config.xOrder || 0, // order of horizontal significance to directional input navigation
 
@@ -278,14 +276,14 @@ class BaseFullScreenMenu {
                 yOffset: config.background?.yOffset || 0,
                 visible: config.background?.visible ?? true
             },
-            
+
             panel:
-            config.type === "panel"
-                ? {
-                      borderWidth: config.panel?.borderWidth || 2,
-                      drawBackground: config.panel?.drawBackground ?? true
-                  }
-                : null,
+                config.type === "panel"
+                    ? {
+                          borderWidth: config.panel?.borderWidth || 2,
+                          drawBackground: config.panel?.drawBackground ?? true
+                      }
+                    : null,
             selectable:
                 config.type === "selectable"
                     ? {
@@ -390,6 +388,7 @@ class BaseFullScreenMenu {
                         })
                     });
                 }
+                
                 // Register hitbox to exactly match where we draw
                 this.input.registerElement(`menu_element_${element.name}`, {
                     bounds: () => ({
@@ -541,20 +540,20 @@ class BaseFullScreenMenu {
     }
 
     drawContainer(container) {
-    // First draw all panels
-    container.elements.forEach((element) => {
-        if (element.visible && element.type === "panel") {
-            this.drawElement(container, element);
-        }
-    });
+        // First draw all panels
+        container.elements.forEach((element) => {
+            if (element.visible && element.type === "panel") {
+                this.drawElement(container, element);
+            }
+        });
 
-    // Then draw all non-panel elements
-    container.elements.forEach((element) => {
-        if (element.visible && element.type !== "panel") {
-            this.drawElement(container, element);
-        }
-    });
-}
+        // Then draw all non-panel elements
+        container.elements.forEach((element) => {
+            if (element.visible && element.type !== "panel") {
+                this.drawElement(container, element);
+            }
+        });
+    }
 
     drawElement(container, element) {
         const x = container.x + element.x;
@@ -634,75 +633,73 @@ class BaseFullScreenMenu {
                 break;
         }
     }
-    
+
     drawPanel(x, y, element) {
-    const config = element.panel;
-    
-    // Draw background if enabled
-    if (config.drawBackground) {
-        this.ctx.fillStyle = this.createGradient(
-            x,
-            y,
-            element.width,
-            element.height,
-            this.colors.menuBackground.start,
-            this.colors.menuBackground.end
-        );
-        this.ctx.fillRect(x, y, element.width, element.height);
-    }
-    
-    // Draw borders
-    this.ctx.lineWidth = config.borderWidth;
-    
-    // Draw light borders (top and left)
-    this.ctx.strokeStyle = this.colors.panelBorder.light;
-    this.ctx.beginPath();
-    this.ctx.moveTo(x, y + element.height);
-    this.ctx.lineTo(x, y);
-    this.ctx.lineTo(x + element.width, y);
-    this.ctx.stroke();
-    
-    // Draw dark borders (bottom and right)
-    this.ctx.strokeStyle = this.colors.panelBorder.dark;
-    this.ctx.beginPath();
-    this.ctx.moveTo(x, y + element.height);
-    this.ctx.lineTo(x + element.width, y + element.height);
-    this.ctx.lineTo(x + element.width, y);
-    this.ctx.stroke();
-}
-    
-    drawSelectable(x, y, element) {
-    // Draw background if it should be visible (using existing background logic)
-    if (element.background.visible) {
-        const bgX = x + element.background.xOffset;
-        const bgY = y + element.background.yOffset;
-        
-        // Use selected colors if selected, otherwise menu background colors
-        const gradientColors = element.selected ? 
-            this.colors.selectedBackground : 
-            this.colors.menuBackground;
-        
-        this.ctx.fillStyle = this.createGradient(
-            bgX,
-            bgY - element.background.height / 2,
-            element.background.width,
-            element.background.height,
-            gradientColors.start,
-            gradientColors.end
-        );
-        
-        this.ctx.fillRect(
-            bgX,
-            bgY - element.background.height / 2,
-            element.background.width,
-            element.background.height
-        );
+        const config = element.panel;
+
+        // Draw background if enabled
+        if (config.drawBackground) {
+            this.ctx.fillStyle = this.createGradient(
+                x,
+                y,
+                element.width,
+                element.height,
+                this.colors.menuBackground.start,
+                this.colors.menuBackground.end
+            );
+            this.ctx.fillRect(x, y, element.width, element.height);
+        }
+
+        // Draw borders
+        this.ctx.lineWidth = config.borderWidth;
+
+        // Draw light borders (top and left)
+        this.ctx.strokeStyle = this.colors.panelBorder.light;
+        this.ctx.beginPath();
+        this.ctx.moveTo(x, y + element.height);
+        this.ctx.lineTo(x, y);
+        this.ctx.lineTo(x + element.width, y);
+        this.ctx.stroke();
+
+        // Draw dark borders (bottom and right)
+        this.ctx.strokeStyle = this.colors.panelBorder.dark;
+        this.ctx.beginPath();
+        this.ctx.moveTo(x, y + element.height);
+        this.ctx.lineTo(x + element.width, y + element.height);
+        this.ctx.lineTo(x + element.width, y);
+        this.ctx.stroke();
     }
 
-    // Draw the text
-    this.ctx.fillStyle = element.selected ? this.colors.selectedText : this.colors.normalText;
-    this.ctx.fillText(element.text, x + element.textOffsetX, y + element.textOffsetY);
-}
+    drawSelectable(x, y, element) {
+        // Draw background if it should be visible (using existing background logic)
+        if (element.background.visible) {
+            const bgX = x + element.background.xOffset;
+            const bgY = y + element.background.yOffset;
+
+            // Use selected colors if selected, otherwise menu background colors
+            const gradientColors = element.selected ? this.colors.selectedBackground : this.colors.menuBackground;
+
+            this.ctx.fillStyle = this.createGradient(
+                bgX,
+                bgY - element.background.height / 2,
+                element.background.width,
+                element.background.height,
+                gradientColors.start,
+                gradientColors.end
+            );
+
+            this.ctx.fillRect(
+                bgX,
+                bgY - element.background.height / 2,
+                element.background.width,
+                element.background.height
+            );
+        }
+
+        // Draw the text
+        this.ctx.fillStyle = element.selected ? this.colors.selectedText : this.colors.normalText;
+        this.ctx.fillText(element.text, x + element.textOffsetX, y + element.textOffsetY);
+    }
     drawTextButton(x, y, element) {
         // Choose text color based on state
         if (element.button.pressed) {
@@ -763,13 +760,14 @@ class BaseFullScreenMenu {
 
         this.ctx.restore();
     }
+
     drawSlider(x, y, element) {
         const config = element.slider;
 
         // Draw track
         this.ctx.fillStyle = this.colors.sliderTrack;
         this.ctx.beginPath();
-        this.ctx.roundRect(config.trackX, config.trackY, config.trackWidth, config.trackHeight, config.roundness);
+        this.ctx.roundRect(config.trackX, config.trackY - (config.trackHeight / 2), config.trackWidth, config.trackHeight, config.roundness);
         this.ctx.fill();
 
         // Calculate knob position based on value
@@ -795,7 +793,7 @@ class BaseFullScreenMenu {
 
         this.ctx.fillStyle = isActive ? this.colors.sliderKnobActive : this.colors.sliderKnobInactive;
         this.ctx.beginPath();
-        this.ctx.arc(knobX, config.trackY, config.knobSize / 2, 0, Math.PI * 2);
+        this.ctx.arc(knobX, config.trackY - 1, config.knobSize / 2, 0, Math.PI * 2);
         this.ctx.fill();
 
         if (isActive) {
@@ -832,30 +830,37 @@ class BaseFullScreenMenu {
     }
 
     drawToggle(x, y, element) {
-        const config = element.toggle;
+    const config = element.toggle;
+    const toggleOffset = -(config.height / 2);  // Move up by half the toggle height
 
-        // Draw shadow
-        this.ctx.save();
-        this.ctx.shadowColor = config.value ? this.colors.toggleShadowOn : this.colors.toggleShadowOff;
-        this.ctx.shadowBlur = config.glowRadius;
+    // Draw shadow
+    this.ctx.save();
+    this.ctx.shadowColor = config.value ? this.colors.toggleShadowOn : this.colors.toggleShadowOff;
+    this.ctx.shadowBlur = config.glowRadius;
 
-        // Draw toggle background
-        this.ctx.fillStyle = config.value ? this.colors.toggleBGOn : this.colors.toggleBGOff;
-        this.ctx.beginPath();
-        this.ctx.roundRect(config.x, config.y, config.width, config.height, config.height / 2);
-        this.ctx.fill();
+    // Draw toggle background
+    this.ctx.fillStyle = config.value ? this.colors.toggleBGOn : this.colors.toggleBGOff;
+    this.ctx.beginPath();
+    this.ctx.roundRect(config.x, config.y + toggleOffset, config.width, config.height, config.height / 2);
+    this.ctx.fill();
 
-        // Calculate knob position based on value
-        const knobX = config.x + (config.value ? config.width - config.knobSize : 0);
+    // Calculate knob position based on value
+    const knobX = config.x + (config.value ? config.width - config.knobSize : 0);
 
-        // Draw knob
-        this.ctx.fillStyle = this.colors.toggleKnob;
-        this.ctx.beginPath();
-        this.ctx.arc(knobX + config.knobSize / 2, config.y + config.height / 2, config.knobSize / 2, 0, Math.PI * 2);
-        this.ctx.fill();
+    // Draw knob
+    this.ctx.fillStyle = this.colors.toggleKnob;
+    this.ctx.beginPath();
+    this.ctx.arc(
+        knobX + config.knobSize / 2,
+        config.y + toggleOffset + config.height / 2,
+        config.knobSize / 2,
+        0,
+        Math.PI * 2
+    );
+    this.ctx.fill();
 
-        this.ctx.restore();
-    }
+    this.ctx.restore();
+}
 
     drawColorPicker(x, y, element) {
         const config = element.colorPicker;
@@ -898,21 +903,34 @@ class BaseFullScreenMenu {
 
         // Draw preview
         if (config.preview && config.value) {
+            const previewOffset = -(config.preview.size / 2);  // Move up by half the preview size
             const hslColor = `hsl(${config.value.hue}, ${config.value.saturation * 100}%, ${config.value.brightness * 100}%)`;
             this.ctx.fillStyle = hslColor;
-            this.ctx.fillRect(config.preview.x, config.preview.y, config.preview.size, config.preview.size);
+            this.ctx.fillRect(
+                config.preview.x, 
+                config.preview.y + previewOffset, 
+                config.preview.size, 
+                config.preview.size
+            );
             this.ctx.strokeStyle = this.colors.colorPickerIndicator.stroke;
             this.ctx.lineWidth = 1;
-            this.ctx.strokeRect(config.preview.x, config.preview.y, config.preview.size, config.preview.size);
+            this.ctx.strokeRect(
+                config.preview.x, 
+                config.preview.y + previewOffset, 
+                config.preview.size, 
+                config.preview.size
+            );
         }
 
         // Draw brightness slider with conditional active state
         if (config.brightnessSlider) {
+            const sliderOffset = -(config.brightnessSlider.height / 2);  // Move up by half height
+
             // Draw track
             this.ctx.fillStyle = "#333";
             this.ctx.fillRect(
                 config.brightnessSlider.x,
-                config.brightnessSlider.y,
+                config.brightnessSlider.y + sliderOffset,
                 config.brightnessSlider.width,
                 config.brightnessSlider.height
             );
@@ -920,7 +938,7 @@ class BaseFullScreenMenu {
             // Check for mouse interaction with brightness slider
             const sliderBounds = {
                 x: config.brightnessSlider.x - 6,
-                y: config.brightnessSlider.y,
+                y: config.brightnessSlider.y + sliderOffset,
                 width: 16,
                 height: config.brightnessSlider.height
             };
@@ -942,7 +960,7 @@ class BaseFullScreenMenu {
 
             this.ctx.fillRect(
                 config.brightnessSlider.x - 6,
-                config.brightnessSlider.y + config.brightnessSlider.height * (1 - config.value.brightness) - 2,
+                config.brightnessSlider.y + sliderOffset + config.brightnessSlider.height * (1 - config.value.brightness) - 2,
                 16,
                 4
             );
