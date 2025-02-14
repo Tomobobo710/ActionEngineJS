@@ -40,73 +40,9 @@ class RPGMenuMode {
                 borderGlow: 0
             })
         );
-
-        this.colors = {
-            // Gradient pairs for backgrounds
-            mainBackground: {
-                start: "rgba(15, 30, 70, 0.97)",     // Almost black to deep navy
-                end: "rgba(2, 4, 12, 0.97)"
-            },
-            menuBackground: {
-                start: "rgba(5, 10, 25, 0.97)",    // Deep navy to medium navy
-                end: "rgba(15, 30, 70, 0.97)"
-            },
-            headerBackground: {
-                start: "rgba(10, 20, 45, 0.97)",   // Navy to dark blue
-                end: "rgba(25, 45, 90, 0.97)"
-            },
-            selectedBackground: {
-                start: "rgba(15, 30, 60, 0.97)",   // Dark blue to medium blue
-                end: "rgba(35, 60, 110, 0.97)"
-            },
-            descriptionBackground: {
-                start: "rgba(8, 15, 35, 0.97)",    // Deep navy to navy
-                end: "rgba(20, 35, 75, 0.97)"
-            },
-            buttonNormal: {
-                start: "rgba(12, 25, 50, 0.97)",   // Dark navy to blue
-                end: "rgba(30, 50, 95, 0.97)"
-            },
-            buttonHover: {
-                start: "rgba(20, 40, 80, 0.97)",   // Navy to brighter blue
-                end: "rgba(40, 70, 130, 0.97)"
-            },
-            panelBorder: {
-                light: "#2A4374",    // A medium-light blue that fits your scheme
-                dark: "#2A4374"      // A very dark blue that fits your scheme
-            },
-            // Single colors
-            normalText: "#E2E8F0",                 // Very light gray-blue
-            selectedText: "#9BB6FF",               // Bright blue
-            headerText: "#BFD4FF",                 // Very light blue
-            buttonTextNormal: "#E2E8F0",           // Very light gray-blue
-            buttonTextHover: "#FFFFFF",            // Pure white
-            glowColor: "#60A5FA",                 // Bright blue glow
-            glowBlur: 12,
-            paginationNormal: "#E2E8F0",          // Very light gray-blue
-            paginationHover: "#FFFFFF",           // Pure white
-            // Slider colors
-            sliderTrack: '#1a2a3a',
-            sliderKnobInactive: '#ffffff',
-            sliderKnobActive: '#00ff00',
-            sliderKnobGlow: '#00ff00',
-
-            // Toggle colors
-            toggleBGOn: '#00ff00',
-            toggleBGOff: '#333333',
-            toggleKnob: '#ffffff',
-            toggleShadowOn:'#00ff00',
-            toggleShadowOff:'#666666',
-
-            // Color picker colors
-            colorPickerIndicator: {
-                fill: '#ffffff',
-                stroke: '#000000',
-                glow: '#00ff00'
-            },
-            
-            buttonTextPressed: '#666666'
-        };
+        
+        this.colors = gameMaster.persistentParty.colors;
+        
         // Create character panel
         this.characterPanel = new CharacterPanel(
             this.ctx,
@@ -213,17 +149,21 @@ class RPGMenuMode {
                 break;
             case "Save":
                 this.gameMaster.modeManager.switchMode("start");
-                return;
+                break;
             case "Status":
+                break;
             case "Configure":
                 this.activeSubmenu = new ConfigMenu(this.ctx, this.input, this.gameMaster);
                 this.deactivateMainMenu();
                 break;
             case "Equipment":
+                break;
             case "Formation":
+                break;
             case "Quest Log":
-                console.log(`${menuItem} menu selected`);
-                return;
+                this.activeSubmenu = new DemoMenu(this.ctx, this.input, this.gameMaster);
+                this.deactivateMainMenu();
+                break;
         }
 
         if (this.activeSubmenu) {
