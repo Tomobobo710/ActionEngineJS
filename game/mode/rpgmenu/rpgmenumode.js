@@ -44,8 +44,8 @@ class RPGMenuMode {
         this.colors = {
             // Gradient pairs for backgrounds
             mainBackground: {
-                start: "rgba(2, 4, 12, 0.97)",     // Almost black to deep navy
-                end: "rgba(15, 30, 70, 0.97)"
+                start: "rgba(15, 30, 70, 0.97)",     // Almost black to deep navy
+                end: "rgba(2, 4, 12, 0.97)"
             },
             menuBackground: {
                 start: "rgba(5, 10, 25, 0.97)",    // Deep navy to medium navy
