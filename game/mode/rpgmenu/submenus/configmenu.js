@@ -340,7 +340,16 @@ class ConfigMenu extends BaseFullScreenMenu {
                    height: 50,
                    value: 0.5
                },
-               onChange: (value) => console.log("Color picker:", value)
+               onChange: (value) => {
+                    // Convert HSB to RGBA
+                    const hue = value.hue;
+                    const saturation = value.saturation * 100;
+                    const brightness = value.brightness * 100;
+
+                    // Update the mainBackground.start color
+                    this.gameMaster.persistentParty.colors.mainBackground.start = 
+                        `hsla(${hue}, ${saturation}%, ${brightness}%, 0.97)`;
+                }
            }
        });
 
