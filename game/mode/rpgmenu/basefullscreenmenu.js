@@ -241,7 +241,7 @@ class BaseFullScreenMenu {
     }
 
     addElement(containerId, config) {
-        console.log(config.name, " Config focusable:", config.focusable);
+        //console.log(config.name, " Config focusable:", config.focusable);
         const element = {
             // Base identification
             name: config.name || "unnamed element", // optional identifier
