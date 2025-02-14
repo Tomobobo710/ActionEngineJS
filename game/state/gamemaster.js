@@ -22,7 +22,10 @@ class GameMaster {
                     sprite: null // Sprites will be handled by BattleMode
                 })
         );
-
+        
+        // Add colors as a deep copy of the defaults
+        this.persistentParty.colors = JSON.parse(JSON.stringify(DEFAULT_COLORS));
+        
         // Attach inventory to party
         Object.defineProperty(this.persistentParty, "inventory", {
             value: this.partyInventory,
