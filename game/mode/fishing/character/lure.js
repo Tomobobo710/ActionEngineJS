@@ -30,6 +30,15 @@ class Lure extends ActionPhysicsObject3D {
         this.hookedFish = null;
         this.fishPullForce = new Vector3(0, 0, 0);
         this.lineTensionThreshold = 0.8; // When line might snap
+    
+        this.currentTension = 0;
+        this.maxTension = 1.0;
+        this.tensionIncreaseRate = 0.8;  // How fast tension builds when fighting
+        this.tensionDecreaseRate = 0.4;  // How fast tension reduces when giving line
+        this.breakingTension = 0.95;     // Tension level where line breaks
+        
+        // Track the current fish movement direction
+        this.lastFishDirection = new Vector3(0, 0, 0);
     }
 
     setFisher(fisher) {
@@ -162,7 +171,7 @@ class Lure extends ActionPhysicsObject3D {
     
     // Fish changes direction occasionally
     if (Math.random() < 0.05) {  
-        // Get direction AWAY from fisher by subtracting fisher position FROM lure position
+        // Get direction AWAY from fisher
         const escapeDirection = this.position.subtract(this.fisher.position).normalize();
         
         const randomOffset = new Vector3(
@@ -182,6 +191,45 @@ class Lure extends ActionPhysicsObject3D {
         }
     }
 
+    // Get the current fish movement direction
+    this.lastFishDirection = this.fishPullForce.normalize();
+    
+    // Get player's input direction
+    const input = this.fisher.game.input;
+    let playerDirection = new Vector3(0, 0, 0);
+    
+    if (input.isKeyPressed("DirLeft")) {
+        playerDirection.x = -1;
+    } else if (input.isKeyPressed("DirRight")) {
+        playerDirection.x = 1;
+    }
+    if (input.isKeyPressed("DirUp")) {
+        playerDirection.z = 1;
+    } else if (input.isKeyPressed("DirDown")) {
+        playerDirection.z = -1;
+    }
+    
+    // Calculate tension based on player input vs fish direction
+    if (playerDirection.length() > 0) {
+        playerDirection = playerDirection.normalize();
+        
+        // Calculate dot product to determine if player is fighting or giving line
+        const dotProduct = playerDirection.dot(this.lastFishDirection);
+        
+        if (dotProduct < -0.2) { // Player is fighting against fish
+            this.currentTension = Math.min(
+                this.maxTension,
+                this.currentTension + this.tensionIncreaseRate * deltaTime
+            );
+        } else if (dotProduct > 0.2) { // Player is giving line
+            this.currentTension = Math.max(
+                0,
+                this.currentTension - this.tensionDecreaseRate * deltaTime
+            );
+        }
+    }
+
+    // Apply final movement
     let finalForce = this.fishPullForce.clone();
     
     if (this.fisher.isReeling) {
@@ -199,26 +247,36 @@ class Lure extends ActionPhysicsObject3D {
     this.body.position.y = Math.min(this.position.y, waterHeight);
     this.body.position.z = this.position.z;
 
+    // Check distance constraints
     if (this.fisher) {
         const distanceToFisher = this.position.distanceTo(this.fisher.position);
-        const tension = distanceToFisher / this.fisher.maxLineLength;
-        this.fisher.lineTension = tension;
+        
+        // Add distance-based tension as a secondary factor
+        if (distanceToFisher > this.fisher.maxLineLength * 0.8) {
+            const distanceTension = (distanceToFisher - this.fisher.maxLineLength * 0.8) / 
+                                  (this.fisher.maxLineLength * 0.2);
+            this.currentTension = Math.max(this.currentTension, distanceTension);
+        }
 
+        // Update fisher's tension value
+        this.fisher.lineTension = this.currentTension;
+
+        // Check for being reeled in
         if (distanceToFisher < 1) {
             this.fisher.onLureReachedFisher();
             return;
         }
 
-        if (tension > this.lineTensionThreshold) {
-            const escapingFish = this.hookedFish;
-            this.hookedFish = null;
+        // Check for line break
+        if (this.currentTension >= this.breakingTension) {
+            this.fishEscapes();
             this.state = "inactive";
             this.fishPullForce = new Vector3(0, 0, 0);
             this.fisher.state = "ready";
             this.fisher.lineTension = 0;
             this.fisher.isReeling = false;
 
-            const fishAI = this.fisher?.game?.fishingArea?.fish.get(escapingFish);
+            const fishAI = this.fisher?.game?.fishingArea?.fish.get(this.hookedFish);
             if (fishAI) {
                 fishAI.isHooked = false;
                 fishAI.changeBehavior('patrol');

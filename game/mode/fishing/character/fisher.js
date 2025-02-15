@@ -110,20 +110,38 @@ class Fisher {
        }
    }
 
-   handleFishingState(input, deltaTime) {
-       this.handleLureMovement(input, deltaTime);
-       
-       if (input.isKeyPressed("Action1")) {
-           this.isReeling = true;
-           this.handleReeling(deltaTime);
-       } else {
-           this.isReeling = false;
-       }
+    handleFishingState(input, deltaTime) {
+        if (this.lure.hookedFish) {
+            // Handle directional inputs for fighting fish
+            if (input.isKeyPressed("DirLeft") || 
+                input.isKeyPressed("DirRight") ||
+                input.isKeyPressed("DirUp") ||
+                input.isKeyPressed("DirDown")) {
+                // Movement is now handled in Lure's handleFishFight
+                this.isReeling = false;
+            } else if (input.isKeyPressed("Action1")) {
+                this.isReeling = true;
+                this.handleReeling(deltaTime);
+            } else {
+                this.isReeling = false;
+            }
+        } else {
+            // Normal lure movement when no fish is hooked
+            this.handleLureMovement(input, deltaTime);
+            
+            if (input.isKeyPressed("Action1")) {
+                this.isReeling = true;
+                this.handleReeling(deltaTime);
+            } else {
+                this.isReeling = false;
+            }
+        }
 
-       if (input.isKeyJustPressed("Action1")) {
-           this.tryHookFish();
-       }
-   }
+        if (input.isKeyJustPressed("Action1")) {
+            this.tryHookFish();
+        }
+    }
+
 
    handleReelingState(deltaTime) {
        const distanceToFisher = this.lure.position.distanceTo(this.position);
