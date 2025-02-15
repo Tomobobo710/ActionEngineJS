@@ -36,6 +36,9 @@ class FishingMode {
     }
 
    update(deltaTime) {
+    if (this.input.isKeyJustPressed("Numpad5")) {
+            this.renderer3d.programRegistry.cycleShaders();
+        }
     // Reset hooking UI state at start of update
     this.hookingBarVisible = false;
     this.hookingProgress = 0;
