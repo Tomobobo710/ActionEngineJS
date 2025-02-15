@@ -50,7 +50,7 @@ class WaterRenderer3D {
    this.gl.useProgram(this.waterProgram);
 
    this.gl.enable(this.gl.DEPTH_TEST);
-   this.gl.depthMask(false);
+   this.gl.depthMask(true);
    this.gl.enable(this.gl.BLEND); 
    this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
 
