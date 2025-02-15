@@ -902,25 +902,62 @@ class BaseFullScreenMenu {
         }
 
         // Draw preview
-        if (config.preview && config.value) {
-            const previewOffset = -(config.preview.size / 2);  // Move up by half the preview size
-            const hslColor = `hsl(${config.value.hue}, ${config.value.saturation * 100}%, ${config.value.brightness * 100}%)`;
-            this.ctx.fillStyle = hslColor;
-            this.ctx.fillRect(
-                config.preview.x, 
-                config.preview.y + previewOffset, 
-                config.preview.size, 
-                config.preview.size
-            );
-            this.ctx.strokeStyle = this.colors.colorPickerIndicator.stroke;
-            this.ctx.lineWidth = 1;
-            this.ctx.strokeRect(
-                config.preview.x, 
-                config.preview.y + previewOffset, 
-                config.preview.size, 
-                config.preview.size
-            );
-        }
+if (config.preview && config.value) {
+    const previewOffset = -(config.preview.size / 2);
+    
+    // Convert HSB to RGB same as onChange
+    const h = config.value.hue;
+    const s = config.value.saturation;
+    const v = config.value.brightness;
+    
+    const max = v * 255;
+    const delta = s * max;
+    const min = max - delta;
+
+    let r, g, b;
+    
+    if (h < 60) {
+        r = max;
+        g = (h * delta / 60) + min;
+        b = min;
+    } else if (h < 120) {
+        r = ((120 - h) * delta / 60) + min;
+        g = max;
+        b = min;
+    } else if (h < 180) {
+        r = min;
+        g = max;
+        b = ((h - 120) * delta / 60) + min;
+    } else if (h < 240) {
+        r = min;
+        g = ((240 - h) * delta / 60) + min;
+        b = max;
+    } else if (h < 300) {
+        r = ((h - 240) * delta / 60) + min;
+        g = min;
+        b = max;
+    } else {
+        r = max;
+        g = min;
+        b = ((360 - h) * delta / 60) + min;
+    }
+
+    this.ctx.fillStyle = `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, 0.97)`;
+    this.ctx.fillRect(
+        config.preview.x, 
+        config.preview.y + previewOffset, 
+        config.preview.size, 
+        config.preview.size
+    );
+    this.ctx.strokeStyle = this.colors.colorPickerIndicator.stroke;
+    this.ctx.lineWidth = 1;
+    this.ctx.strokeRect(
+        config.preview.x, 
+        config.preview.y + previewOffset, 
+        config.preview.size, 
+        config.preview.size
+    );
+}
 
         // Draw brightness slider with conditional active state
         if (config.brightnessSlider) {
