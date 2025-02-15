@@ -17,20 +17,14 @@ class WaterShader {
         void main() {
             vec3 pos = aPosition;
             
-            // Match Ocean class wave parameters exactly
-            vec3 wave1Dir = normalize(vec3(1.0, 0.0, 0.2));
-            vec3 wave2Dir = normalize(vec3(0.8, 0.0, 0.3));
-            vec3 wave3Dir = normalize(vec3(0.3, 0.0, 1.0));
+            // Simplified wave calculation
+            float wave = sin(pos.x * 2.0 + uTime) * 0.5 + 
+                        sin(pos.z * 1.5 + uTime * 0.8) * 0.4;
+            pos.y += wave;
             
-           float wave1 = 1.0 * sin(1.0 * dot(wave1Dir.xz, pos.xz) - 1.0 * uTime);
-float wave2 = 0.6 * sin(2.0 * dot(wave2Dir.xz, pos.xz) - 0.5 * uTime);
-float wave3 = 0.4 * sin(3.0 * dot(wave3Dir.xz, pos.xz) - 1.5 * uTime);
-            
-            pos.y += wave1 + wave2 + wave3;
-            
-            // Calculate normal using wave derivatives
+            // Simple normal calculation
             vec3 normal = aNormal;
-            normal.y = 1.0;
+            normal.xz += cos(pos.xz * 2.0 + uTime) * 0.2;
             normal = normalize(normal);
             
             vPosition = (uModelMatrix * vec4(pos, 1.0)).xyz;
@@ -57,21 +51,27 @@ float wave3 = 0.4 * sin(3.0 * dot(wave3Dir.xz, pos.xz) - 1.5 * uTime);
         
         void main() {
             vec3 viewDir = normalize(uCameraPos - vPosition);
+            
+            // Basic water color
+            vec3 waterColor = vec3(0.0, 0.4, 0.6);
+            
+            // Simple fresnel
+            float fresnel = pow(1.0 - max(dot(viewDir, vNormal), 0.0), 3.0);
+            
+            // Specular highlight
             vec3 reflectDir = reflect(-uLightDir, vNormal);
+            float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);
             
-            float specular = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);
-            float fresnel = pow(1.0 - max(dot(viewDir, vNormal), 0.0), 2.0);
+            // Final color
+            vec3 finalColor = waterColor + fresnel * 0.5 + spec;
             
-            vec3 deepColor = vec3(0.0, 0.1, 0.2);
-            vec3 shallowColor = vec3(0.0, 0.5, 0.8);
-            vec3 waterColor = mix(deepColor, shallowColor, fresnel);
+            // Transparency based on view angle
+            float alpha = mix(0.6, 0.9, fresnel);
             
-            vec3 finalColor = waterColor + vec3(specular);
-            ${isWebGL2 ? "fragColor" : "gl_FragColor"} = vec4(finalColor, 0.8);
+            ${isWebGL2 ? "fragColor" : "gl_FragColor"} = vec4(finalColor, alpha);
         }`;
     }
 }
-
  class WaterVolumetricShader {
     constructor() {
         this.numSteps = 64; // Ray marching steps
