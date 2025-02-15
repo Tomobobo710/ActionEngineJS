@@ -1,306 +1,505 @@
 class ConfigMenu extends BaseFullScreenMenu {
-   constructor(ctx, input, gameMaster) {
-       super(ctx, input, gameMaster);
-       this.sprites = {};
-       this.loadSprites();
-       this.adjustingSlider = false;
-       this.adjustingColor = false;
+    constructor(ctx, input, gameMaster) {
+        super(ctx, input, gameMaster);
+        this.adjustingColor = false;
 
-       // First create our panels to establish layout
-       this.addElement("main", {
-           name: "titlePanel",
-           type: "panel",
-           x: 40,
-           y: 20,
-           width: 320,
-           height: 60,
-           focusable: false,
-           background: {
-               visible: false
-           },
-           panel: {
-               borderWidth: 2,
-               drawBackground: true
-           }
-       });
+        // Title panel at top
+        this.addElement("main", {
+            name: "titlePanel",
+            type: "panel",
+            x: 40,
+            y: 20,
+            width: 720,
+            height: 60,
+            focusable: false,
+            background: {
+                visible: false,
+                width: 720,
+                height: 60,
+                xOffset: 0,
+                yOffset: 0
+            },
+            panel: {
+                borderWidth: 2,
+                drawBackground: true
+            }
+        });
 
-       this.addElement("main", {
-           name: "leftPanel", 
-           type: "panel",
-           x: 40,
-           y: 100,
-           width: 400,
-           height: 410,
-           focusable: false,
-           background: {
-               visible: false
-           },
-           panel: {
-               borderWidth: 2,
-               drawBackground: true
-           }
-       });
+        // Content panel
+        this.addElement("main", {
+            name: "contentPanel",
+            type: "panel",
+            x: 40,
+            y: 100,
+            width: 720,
+            height: 440,
+            focusable: false,
+            background: {
+                visible: false,
+                width: 720,
+                height: 440,
+                xOffset: 0,
+                yOffset: 0
+            },
+            panel: {
+                borderWidth: 2,
+                drawBackground: true
+            }
+        });
 
-       this.addElement("main", {
-           name: "rightPanel",
-           type: "panel", 
-           x: 460,
-           y: 100,
-           width: 300,
-           height: 430,
-           focusable: false,
-           background: {
-               visible: false
-           },
-           panel: {
-               borderWidth: 2,
-               drawBackground: true
-           }
-       });
+        // Title text
+        this.addElement("main", {
+            name: "titleText",
+            type: "textLabel",
+            x: 50,
+            y: 50,
+            width: 400,
+            height: 40,
+            text: "Configuration",
+            font: "32px monospace",
+            textAlign: "left",
+            textBaseline: "middle",
+            focusable: false,
+            background: {
+                visible: false,
+                width: 400,
+                height: 40,
+                xOffset: 0,
+                yOffset: 0
+            }
+        });
 
-       this.addElement("main", {
-           name: "bottomPanel",
-           type: "panel",
-           x: 40,
-           y: 540,
-           width: 720,
-           height: 40,
-           focusable: false,
-           background: {
-               visible: false
-           },
-           panel: {
-               borderWidth: 2,
-               drawBackground: true
-           }
-       });
+        // Background Colors Label
+        this.addElement("main", {
+            name: "bgColorsLabel",
+            type: "textLabel",
+            x: 60,
+            y: 120,
+            width: 360,
+            height: 30,
+            text: "Background Colors",
+            font: "20px monospace",
+            textAlign: "left",
+            textBaseline: "middle",
+            focusable: false,
+            background: {
+                visible: false,
+                width: 360,
+                height: 30,
+                xOffset: 0,
+                yOffset: 0
+            }
+        });
 
-       // Title text
-       this.addElement("main", {
-           name: "titleText",
-           type: "textLabel",
-           x: 50,
-           y: 50,
-           width: 400,
-           height: 40,
-           text: "Element Showcase",
-           font: "32px monospace",
-           textAlign: "left",
-           textBaseline: "middle",
-           focusable: false,
-           background: {
-               visible: false
-           }
-       });
-       
-       // Sliders section
-       this.addElement("main", {
-           name: "sliderLabel",
-           type: "textLabel",
-           x: 40,
-           y: 120,
-           width: 360,
-           height: 30,
-           text: "Sliders (One Fully Configured, One Minimal)",
-           font: "15px monospace",
-           textAlign: "left",
-           textBaseline: "middle",
-           focusable: false,
-           background: {
-               visible: false
-           }
-       });
+        // Main BG Start Color Picker
+        const color1 = this.gameMaster.persistentParty.colors.mainBackground.start;
+        const matches1 = color1.match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/);
+        const r1 = parseInt(matches1[1]);
+        const g1 = parseInt(matches1[2]);
+        const b1 = parseInt(matches1[3]);
 
-       // Fully configured slider
-       this.addElement("main", {
-           name: "sliderFull",
-           type: "slider",
-           x: 60,
-           y: 160,
-           width: 360,
-           height: 40,
-           glowIntensity: 15,
-           text: "Full Slider",
-           textOffsetX: 10,
-           textOffsetY: 0,
-           font: "24px monospace",
-           textAlign: "left",
-           textBaseline: "middle",
-           focusable: true,
-           selected: false,
-           visible: true,
-           xOrder: 0,
-           background: {
-               width: 360,
-               height: 40,
-               xOffset: 0,
-               yOffset: 0,
-               visible: true
-           },
-           slider: {
-               trackX: 250,
-               trackY: 160,
-               knobY: 128,
-               trackWidth: 150,
-               trackHeight: 4,
-               knobSize: 20,
-               glowRadius: 15,
-               roundness: 2,
-               value: 0.7,
-               active: false,
-               interactionPadding: 20,
-               onChange: (value) => console.log("Full slider:", value),
-               valueBox: {
-                   font: "16px monospace",
-                   padding: 8,
-                   height: 30,
-                   arrow: {
-                       height: 8,
-                       width: 12
-                   },
-                   verticalOffset: 15,
-                   cornerRadius: 4
+        const max1 = Math.max(r1, g1, b1);
+        const min1 = Math.min(r1, g1, b1);
+        const brightness1 = max1 / 255;
+        const delta1 = max1 - min1;
+        const saturation1 = max1 === 0 ? 0 : delta1 / max1;
+
+        let hue1;
+        if (delta1 === 0) {
+            hue1 = 0;
+        } else if (max1 === r1) {
+            hue1 = ((g1 - b1) / delta1) % 6;
+        } else if (max1 === g1) {
+            hue1 = (b1 - r1) / delta1 + 2;
+        } else {
+            hue1 = (r1 - g1) / delta1 + 4;
+        }
+        hue1 = Math.round(hue1 * 60);
+        if (hue1 < 0) hue1 += 360;
+
+        const angle1 = (hue1 * Math.PI) / 180;
+        const dist1 = saturation1 * 30;
+        const indicatorX1 = 280 + Math.cos(angle1) * dist1;
+        const indicatorY1 = 160 - Math.sin(angle1) * dist1;
+
+        this.addElement("main", {
+            name: "mainBgStart",
+            type: "colorPicker",
+            x: 60,
+            y: 180,
+            width: 360,
+            height: 80,
+            glowIntensity: 15,
+            text: "Main BG Start",
+            textOffsetX: 10,
+            textOffsetY: 0,
+            font: "24px monospace",
+            textAlign: "left",
+            textBaseline: "middle",
+            focusable: true,
+            selected: false,
+            visible: true,
+            xOrder: 0,
+            background: {
+                width: 360,
+                height: 80,
+                xOffset: 0,
+                yOffset: 0,
+                visible: true
+            },
+            colorPicker: {
+    centerX: 280,
+    centerY: 160,
+    radius: 30,
+    indicatorX: indicatorX1,
+    indicatorY: indicatorY1,
+    indicatorSize: 4,
+    glowRadius: 10,
+    indicatorStrokeWidth: 1,
+    mode: "none",
+    value: { hue: hue1, saturation: saturation1, brightness: brightness1 },
+    preview: {
+        x: 340,
+        y: 160,
+        size: 40
+    },
+    brightnessSlider: {
+        x: 320,
+        y: 160,
+        width: 4,
+        height: 40,
+        value: brightness1
+    },
+    onChange: (value) => {
+        const h = value.hue;
+        const s = value.saturation;
+        const v = value.brightness;
+        
+        const max = v * 255;
+        const delta = s * max;
+        const min = max - delta;
+
+        let r, g, b;
+        
+        if (h < 60) {
+            r = max;
+            g = (h * delta / 60) + min;
+            b = min;
+        } else if (h < 120) {
+            r = ((120 - h) * delta / 60) + min;
+            g = max;
+            b = min;
+        } else if (h < 180) {
+            r = min;
+            g = max;
+            b = ((h - 120) * delta / 60) + min;
+        } else if (h < 240) {
+            r = min;
+            g = ((240 - h) * delta / 60) + min;
+            b = max;
+        } else if (h < 300) {
+            r = ((h - 240) * delta / 60) + min;
+            g = min;
+            b = max;
+        } else {
+            r = max;
+            g = min;
+            b = ((360 - h) * delta / 60) + min;
+        }
+
+        const rgba = `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, 0.97)`;
+        this.gameMaster.persistentParty.colors.mainBackground.start = rgba;
+        
+        // Update preview with the actual RGBA color
+        return rgba;
+    }
+}
+        });
+
+        // Main BG End Color Picker
+        const color2 = this.gameMaster.persistentParty.colors.mainBackground.end;
+        const matches2 = color2.match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/);
+        const r2 = parseInt(matches2[1]);
+        const g2 = parseInt(matches2[2]);
+        const b2 = parseInt(matches2[3]);
+
+        const max2 = Math.max(r2, g2, b2);
+        const min2 = Math.min(r2, g2, b2);
+        const brightness2 = max2 / 255;
+        const delta2 = max2 - min2;
+        const saturation2 = max2 === 0 ? 0 : delta2 / max2;
+
+        let hue2;
+        if (delta2 === 0) {
+            hue2 = 0;
+        } else if (max2 === r2) {
+            hue2 = ((g2 - b2) / delta2) % 6;
+        } else if (max2 === g2) {
+            hue2 = (b2 - r2) / delta2 + 2;
+        } else {
+            hue2 = (r2 - g2) / delta2 + 4;
+        }
+        hue2 = Math.round(hue2 * 60);
+        if (hue2 < 0) hue2 += 360;
+
+        const angle2 = (hue2 * Math.PI) / 180;
+        const dist2 = saturation2 * 30;
+        const indicatorX2 = 280 + Math.cos(angle2) * dist2;
+        const indicatorY2 = 250 - Math.sin(angle2) * dist2;
+
+        this.addElement("main", {
+            name: "mainBgEnd",
+            type: "colorPicker",
+            x: 60,
+            y: 270,
+            width: 360,
+            height: 80,
+            glowIntensity: 15,
+            text: "Main BG End",
+            textOffsetX: 10,
+            textOffsetY: 0,
+            font: "24px monospace",
+            textAlign: "left",
+            textBaseline: "middle",
+            focusable: true,
+            selected: false,
+            visible: true,
+            xOrder: 0,
+            background: {
+                width: 360,
+                height: 80,
+                xOffset: 0,
+                yOffset: 0,
+                visible: true
+            },
+            colorPicker: {
+                centerX: 280,
+                centerY: 270,
+                radius: 30,
+                indicatorX: indicatorX2,
+                indicatorY: indicatorY2,
+                indicatorSize: 4,
+                glowRadius: 10,
+                indicatorStrokeWidth: 1,
+                mode: "none",
+                value: { hue: hue2, saturation: saturation2, brightness: brightness2 },
+                preview: {
+                    x: 340,
+                    y: 270,
+                    size: 40
+                },
+                brightnessSlider: {
+                    x: 320,
+                    y: 270,
+                    width: 4,
+                    height: 40,
+                    value: brightness2
+                },
+                onChange: (value) => {
+                    const h = value.hue;
+                    const s = value.saturation;
+                    const v = value.brightness;
+                    
+                    const max = v * 255;
+                    const delta = s * max;
+                    const min = max - delta;
+
+                    let r, g, b;
+                    
+                    if (h < 60) {
+                        r = max;
+                        g = (h * delta / 60) + min;
+                        b = min;
+                    } else if (h < 120) {
+                        r = ((120 - h) * delta / 60) + min;
+                        g = max;
+                        b = min;
+                    } else if (h < 180) {
+                        r = min;
+                        g = max;
+                        b = ((h - 120) * delta / 60) + min;
+                    } else if (h < 240) {
+                        r = min;
+                        g = ((240 - h) * delta / 60) + min;
+                        b = max;
+                    } else if (h < 300) {
+                        r = ((h - 240) * delta / 60) + min;
+                        g = min;
+                        b = max;
+                    } else {
+                        r = max;
+                        g = min;
+                        b = ((360 - h) * delta / 60) + min;
+                    }
+
+                    this.gameMaster.persistentParty.colors.mainBackground.end = 
+                        `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, 0.97)`;
+                }
+            }
+        });
+
+        // Menu BG Start Color Picker
+        const color3 = this.gameMaster.persistentParty.colors.menuBackground.start;
+        const matches3 = color3.match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/);
+        const r3 = parseInt(matches3[1]);
+        const g3 = parseInt(matches3[2]);
+        const b3 = parseInt(matches3[3]);
+
+        const max3 = Math.max(r3, g3, b3);
+        const min3 = Math.min(r3, g3, b3);
+        const brightness3 = max3 / 255;
+        const delta3 = max3 - min3;
+        const saturation3 = max3 === 0 ? 0 : delta3 / max3;
+
+        let hue3;
+        if (delta3 === 0) {
+            hue3 = 0;
+        } else if (max3 === r3) {
+            hue3 = ((g3 - b3) / delta3) % 6;
+        } else if (max3 === g3) {
+            hue3 = (b3 - r3) / delta3 + 2;
+        } else {
+            hue3 = (r3 - g3) / delta3 + 4;
+        }
+        hue3 = Math.round(hue3 * 60);
+        if (hue3 < 0) hue3 += 360;
+
+        const angle3 = (hue3 * Math.PI) / 180;
+        const dist3 = saturation3 * 30;
+        const indicatorX3 = 280 + Math.cos(angle3) * dist3;
+        const indicatorY3 = 340 - Math.sin(angle3) * dist3;
+
+        this.addElement("main", {
+            name: "menuBgStart",
+            type: "colorPicker",
+            x: 60,
+            y: 360,
+            width: 360,
+            height: 80,
+            glowIntensity: 15,
+            text: "Menu BG Start",
+            textOffsetX: 10,
+            textOffsetY: 0,
+            font: "24px monospace",
+            textAlign: "left",
+            textBaseline: "middle",
+            focusable: true,
+            selected: false,
+            visible: true,
+            xOrder: 0,
+            background: {
+                width: 360,
+                height: 80,
+                xOffset: 0,
+                yOffset: 0,
+                visible: true
+            },
+            colorPicker: {
+                centerX: 280,
+                centerY: 360,
+                radius: 30,
+                indicatorX: indicatorX3,
+                indicatorY: indicatorY3,
+                indicatorSize: 4,
+                glowRadius: 10,
+                indicatorStrokeWidth: 1,
+                mode: "none",
+                value: { hue: hue3, saturation: saturation3, brightness: brightness3 },
+                preview: {
+                    x: 340,
+                    y: 360,
+                    size: 40
+                },
+                brightnessSlider: {
+                    x: 320,
+                    y: 360,
+                    width: 4,
+                    height: 40,
+                    value: brightness3
+                },
+                onChange: (value) => {
+                   const h = value.hue;
+                   const s = value.saturation;
+                   const v = value.brightness;
+                   
+                   const max = v * 255;
+                   const delta = s * max;
+                   const min = max - delta;
+
+                   let r, g, b;
+                   
+                   if (h < 60) {
+                       r = max;
+                       g = (h * delta / 60) + min;
+                       b = min;
+                   } else if (h < 120) {
+                       r = ((120 - h) * delta / 60) + min;
+                       g = max;
+                       b = min;
+                   } else if (h < 180) {
+                       r = min;
+                       g = max;
+                       b = ((h - 120) * delta / 60) + min;
+                   } else if (h < 240) {
+                       r = min;
+                       g = ((240 - h) * delta / 60) + min;
+                       b = max;
+                   } else if (h < 300) {
+                       r = ((h - 240) * delta / 60) + min;
+                       g = min;
+                       b = max;
+                   } else {
+                       r = max;
+                       g = min;
+                       b = ((360 - h) * delta / 60) + min;
+                   }
+
+                   this.gameMaster.persistentParty.colors.menuBackground.start = 
+                       `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, 0.97)`;
                }
            }
        });
 
-       // Minimal slider
-       this.addElement("main", {
-           name: "sliderMinimal",
-           type: "slider",
-           x: 60,
-           y: 210,
-           width: 360,
-           height: 40,
-           text: "Basic Slider",
-           focusable: true,
-           xOrder: 0,
-           background: {
-               width: 360,
-               height: 40,
-               visible: true
-           },
-           slider: {
-               trackX: 250,
-               trackY: 210,
-               trackWidth: 150,
-               trackHeight: 4,
-               value: 0.3,
-               onChange: (value) => console.log("Basic slider:", value)
-           }
-       });
-       
-       // Toggles section
-       this.addElement("main", {
-           name: "toggleLabel",
-           type: "textLabel",
-           x: 40,
-           y: 250,
-           width: 360,
-           height: 40,
-           text: "Toggles (One Fully Configured, One Minimal)",
-           font: "15px monospace",
-           textAlign: "left",
-           textBaseline: "middle",
-           focusable: false,
-           background: {
-               visible: false
-           }
-       });
+       // Menu BG End Color Picker
+       const color4 = this.gameMaster.persistentParty.colors.menuBackground.end;
+       const matches4 = color4.match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/);
+       const r4 = parseInt(matches4[1]);
+       const g4 = parseInt(matches4[2]);
+       const b4 = parseInt(matches4[3]);
 
-       // Fully configured toggle
-       this.addElement("main", {
-           name: "toggleFull",
-           type: "toggle",
-           x: 60,
-           y: 290,
-           width: 360,
-           height: 40,
-           glowIntensity: 15,
-           text: "Full Toggle",
-           textOffsetX: 10,
-           textOffsetY: 0,
-           font: "24px monospace",
-           textAlign: "left",
-           textBaseline: "middle",
-           focusable: true,
-           selected: false,
-           visible: true,
-           xOrder: 0,
-           background: {
-               width: 360,
-               height: 40,
-               xOffset: 0,
-               yOffset: 0,
-               visible: true
-           },
-           toggle: {
-               x: 300,
-               y: 290,
-               width: 60,
-               height: 30,
-               knobSize: 24,
-               glowRadius: 10,
-               value: true,
-               onChange: (value) => console.log("Full toggle:", value)
-           }
-       });
+       const max4 = Math.max(r4, g4, b4);
+       const min4 = Math.min(r4, g4, b4);
+       const brightness4 = max4 / 255;
+       const delta4 = max4 - min4;
+       const saturation4 = max4 === 0 ? 0 : delta4 / max4;
 
-       // Minimal toggle
-       this.addElement("main", {
-           name: "toggleMinimal",
-           type: "toggle",
-           x: 60,
-           y: 340,
-           width: 360,
-           height: 40,
-           text: "Basic Toggle",
-           focusable: true,
-           xOrder: 0,
-           background: {
-               width: 360,
-               height: 40,
-               visible: true
-           },
-           toggle: {
-               x: 300,
-               y: 340,
-               width: 60,
-               height: 30,
-               value: false,
-               onChange: (value) => console.log("Basic toggle:", value)
-           }
-       });
-       
-       
-       // Color picker section
-       this.addElement("main", {
-           name: "colorLabel",
-           type: "textLabel",
-           x: 40,
-           y: 380,
-           width: 360,
-           height: 30,
-           text: "Color Picker (Fully Configured)",
-           font: "15px monospace",
-           textAlign: "left",
-           textBaseline: "middle",
-           focusable: false,
-           background: {
-               visible: false
-           }
-       });
+       let hue4;
+       if (delta4 === 0) {
+           hue4 = 0;
+       } else if (max4 === r4) {
+           hue4 = ((g4 - b4) / delta4) % 6;
+       } else if (max4 === g4) {
+           hue4 = (b4 - r4) / delta4 + 2;
+       } else {
+           hue4 = (r4 - g4) / delta4 + 4;
+       }
+       hue4 = Math.round(hue4 * 60);
+       if (hue4 < 0) hue4 += 360;
 
-       // Fully configured color picker
+       const angle4 = (hue4 * Math.PI) / 180;
+       const dist4 = saturation4 * 30;
+       const indicatorX4 = 280 + Math.cos(angle4) * dist4;
+       const indicatorY4 = 430 - Math.sin(angle4) * dist4;
+
        this.addElement("main", {
-           name: "colorFull",
+           name: "menuBgEnd",
            type: "colorPicker",
            x: 60,
            y: 450,
            width: 360,
-           height: 100,
+           height: 80,
            glowIntensity: 15,
-           text: "Choose Color",
+           text: "Menu BG End",
            textOffsetX: 10,
            textOffsetY: 0,
            font: "24px monospace",
@@ -312,7 +511,7 @@ class ConfigMenu extends BaseFullScreenMenu {
            xOrder: 0,
            background: {
                width: 360,
-               height: 100,
+               height: 80,
                xOffset: 0,
                yOffset: 0,
                visible: true
@@ -320,522 +519,166 @@ class ConfigMenu extends BaseFullScreenMenu {
            colorPicker: {
                centerX: 280,
                centerY: 450,
-               radius: 40,
-               indicatorX: 280,
-               indicatorY: 450,
+               radius: 30,
+               indicatorX: indicatorX4,
+               indicatorY: indicatorY4,
                indicatorSize: 4,
                glowRadius: 10,
                indicatorStrokeWidth: 1,
                mode: "none",
-               value: { hue: 180, saturation: 0.8, brightness: 0.5 },
+               value: { hue: hue4, saturation: saturation4, brightness: brightness4 },
                preview: {
-                   x: 360,
-                   y: 450,
-                   size: 50
-               },
-               brightnessSlider: {
                    x: 340,
                    y: 450,
+                   size: 40
+               },
+               brightnessSlider: {
+                   x: 320,
+                   y: 450,
                    width: 4,
-                   height: 50,
-                   value: 0.5
+                   height: 40,
+                   value: brightness4
                },
                onChange: (value) => {
-                    // Convert HSB to RGBA
-                    const hue = value.hue;
-                    const saturation = value.saturation * 100;
-                    const brightness = value.brightness * 100;
+                   const h = value.hue;
+                   const s = value.saturation;
+                   const v = value.brightness;
+                   
+                   const max = v * 255;
+                   const delta = s * max;
+                   const min = max - delta;
 
-                    // Update the mainBackground.start color
-                    this.gameMaster.persistentParty.colors.mainBackground.start = 
-                        `hsla(${hue}, ${saturation}%, ${brightness}%, 0.97)`;
-                }
-           }
-       });
+                   let r, g, b;
+                   
+                   if (h < 60) {
+                       r = max;
+                       g = (h * delta / 60) + min;
+                       b = min;
+                   } else if (h < 120) {
+                       r = ((120 - h) * delta / 60) + min;
+                       g = max;
+                       b = min;
+                   } else if (h < 180) {
+                       r = min;
+                       g = max;
+                       b = ((h - 120) * delta / 60) + min;
+                   } else if (h < 240) {
+                       r = min;
+                       g = ((240 - h) * delta / 60) + min;
+                       b = max;
+                   } else if (h < 300) {
+                       r = ((h - 240) * delta / 60) + min;
+                       g = min;
+                       b = max;
+                   } else {
+                       r = max;
+                       g = min;
+                       b = ((360 - h) * delta / 60) + min;
+                   }
 
-       // Right panel elements
-       // Buttons section
-       this.addElement("main", {
-           name: "textButtonLabel",
-           type: "textLabel",
-           x: 460,
-           y: 120,
-           width: 360,
-           height: 30,
-           text: "Text Buttons (Full and Minimal)",
-           font: "15px monospace",
-           textAlign: "left",
-           textBaseline: "middle",
-           focusable: false,
-           background: {
-               visible: false
-           }
-       });
-
-       // Fully configured text button
-       this.addElement("main", {
-           name: "textButtonFull",
-           type: "textButton",
-           x: 480,
-           y: 160,
-           width: 250,
-           height: 40,
-           glowIntensity: 15,
-           text: "Full Text Button",
-           textOffsetX: 10,
-           textOffsetY: 0,
-           font: "24px monospace",
-           textAlign: "left",
-           textBaseline: "middle",
-           focusable: true,
-           selected: false,
-           visible: true,
-           xOrder: 1,
-           background: {
-               width: 250,
-               height: 40,
-               xOffset: 0,
-               yOffset: 0,
-               visible: true
-           },
-           button: {
-               pressed: false,
-               onClick: () => console.log("Full button clicked!")
-           }
-       });
-
-       // Minimal text button
-       this.addElement("main", {
-           name: "textButtonMinimal",
-           type: "textButton",
-           x: 480,
-           y: 210,
-           width: 250,
-           height: 40,
-           text: "Basic Text Button",
-           focusable: true,
-           xOrder: 1,
-           background: {
-               width: 250,
-               height: 40,
-               visible: true
-           },
-           button: {
-               onClick: () => console.log("Basic button clicked!")
-           }
-       });
-       
-       // Image buttons label
-       this.addElement("main", {
-           name: "imageButtonLabel",
-           type: "textLabel",
-           x: 460,
-           y: 250,
-           width: 360,
-           height: 30,
-           text: "Image Buttons (Full and Minimal)",
-           font: "15px monospace",
-           textAlign: "left",
-           textBaseline: "middle",
-           focusable: false,
-           background: {
-               visible: false
-           }
-       });
-       
-       // Image buttons with sprites
-       this.addElement("main", {
-           name: "imageButtonFull",
-           type: "imageButton",
-           x: 480,
-           y: 290,
-           width: 32,
-           height: 32,
-           glowIntensity: 15,
-           focusable: true,
-           selected: false,
-           visible: true,
-           xOrder: 1,
-           background: {
-               width: 40,
-               height: 40,
-               xOffset: 0,
-               yOffset: 0,
-               visible: true
-           },
-           image: {
-               sprite: this.sprites.warrior,
-               smoothing: false
-           },
-           button: {
-               pressed: false,
-               onClick: () => console.log("Warrior clicked!")
-           }
-       });
-       
-       // Minimal image button
-       this.addElement("main", {
-           name: "imageButtonMinimal",
-           type: "imageButton",
-           x: 580,
-           y: 290,
-           width: 32,
-           height: 32,
-           focusable: true,
-           xOrder: 1,
-           background: {
-               width: 40,
-               height: 40,
-               visible: true
-           },
-           image: {
-               sprite: this.sprites.thief,
-               smoothing: false
-           },
-           button: {
-               onClick: () => console.log("Thief clicked!")
-           }
-       });
-
-       // Selectable section
-       this.addElement("main", {
-           name: "selectableLabel",
-           type: "textLabel",
-           x: 460,
-           y: 330,
-           width: 360,
-           height: 30,
-           text: "Selectables (Full and Minimal)",
-           font: "15px monospace",
-           textAlign: "left",
-           textBaseline: "middle",
-           focusable: false,
-           background: {
-               visible: false
-           }
-       });
-
-       // Fully configured selectable
-       this.addElement("main", {
-           name: "selectableFull",
-           type: "selectable",
-           x: 480,
-           y: 370,
-           width: 250,
-           height: 40,
-           glowIntensity: 15,
-           text: "Full Selectable",
-           textOffsetX: 10,
-           textOffsetY: 0,
-           font: "24px monospace",
-           textAlign: "left",
-           textBaseline: "middle",
-           focusable: true,
-           selected: false,
-           visible: true,
-           xOrder: 1,
-           background: {
-               width: 250,
-               height: 40,
-               xOffset: 0,
-               yOffset: 0,
-               visible: true
-           },
-           selectable: {
-               onClick: () => console.log("Full selectable clicked!")
-           }
-       });
-
-       // Minimal selectable
-       this.addElement("main", {
-           name: "selectableMinimal",
-           type: "selectable",
-           x: 480,
-           y: 420,
-           width: 250,
-           height: 40,
-           text: "Basic Selectable",
-           focusable: true,
-           xOrder: 1,
-           background: {
-               width: 250,
-               height: 40,
-               visible: true
-           },
-           selectable: {
-               onClick: () => console.log("Basic selectable clicked!")
-           }
-       });
-
-       // Image labels section
-       this.addElement("main", {
-           name: "imageLabelTitle",
-           type: "textLabel",
-           x: 460,
-           y: 460,
-           width: 360,
-           height: 30,
-           text: "Image Labels (Full and Minimal)",
-           font: "15px monospace",
-           textAlign: "left",
-           textBaseline: "middle",
-           focusable: false,
-           background: {
-               visible: false
-           }
-       });
-       
-       // Fully configured image label
-       this.addElement("main", {
-           name: "imageLabelFull",
-           type: "imageLabel",
-           x: 480,
-           y: 500,
-           width: 32,
-           height: 32,
-           glowIntensity: 15,
-           text: "",
-           textOffsetX: 10,
-           textOffsetY: 0,
-           font: "24px monospace",
-           textAlign: "left",
-           textBaseline: "middle",
-           focusable: false,
-           selected: false,
-           visible: true,
-           xOrder: 0,
-           background: {
-               width: 40,
-               height: 40,
-               xOffset: 0,
-               yOffset: 0,
-               visible: true
-           },
-           image: {
-               sprite: this.sprites.mage,
-               smoothing: false
-           }
-       });
-
-       // Minimal image label
-       this.addElement("main", {
-           name: "imageLabelMinimal",
-           type: "imageLabel",
-           x: 580,
-           y: 500,
-           width: 32,
-           height: 32,
-           focusable: false,
-           background: {
-               visible: false
-           },
-           image: {
-               sprite: this.sprites.warrior,
-               smoothing: false
-           }
-       });
-
-       // Bottom info text
-       this.addElement("main", {
-           name: "infoText",
-           type: "textLabel",
-           x: 50,
-           y: 560,
-           width: 500,
-           height: 30,
-           text: "Use DirKeys to navigate, Action1 to interact, Action2 to cancel/exit",
-           font: "18px monospace",
-           textAlign: "left",
-           textBaseline: "middle",
-           focusable: false,
-           background: {
-               visible: false
+                   this.gameMaster.persistentParty.colors.menuBackground.end = 
+                       `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, 0.97)`;
+               }
            }
        });
 
        this.registerElements();
    }
 
-   loadSprites() {
-       ["warrior", "mage", "thief"].forEach((type) => {
-           this.sprites[type] = Sprite.genHeroSprite(type);
-       });
-   }
+    update() {
+        if (!this.adjustingColor) {
+            if (this.input.isKeyJustPressed("DirUp")) {
+                this.handleDirectionalInput("up");
+            }
+            if (this.input.isKeyJustPressed("DirDown")) {
+                this.handleDirectionalInput("down");
+            }
+        }
 
-   // Rest of the class methods remain unchanged
-   update() {
-       if (!this.adjustingSlider && !this.adjustingColor) {
-           if (this.input.isKeyJustPressed("DirUp")) {
-               this.handleDirectionalInput("up");
-           }
-           if (this.input.isKeyJustPressed("DirDown")) {
-               this.handleDirectionalInput("down");
-           }
-           if (this.input.isKeyJustPressed("DirLeft")) {
-               this.handleDirectionalInput("left");
-           }
-           if (this.input.isKeyJustPressed("DirRight")) {
-               this.handleDirectionalInput("right");
-           }
-       }
-
-       return super.update();
-   }
-    
+        return super.update();
+    }
 
     handleDirectionalInput(direction) {
-       if (!this.focusableElements.length) return;
+        if (!this.focusableElements.length) return;
 
-       if (!this.currentFocus) {
-           this.currentFocus = this.focusableElements[0];
-           this.currentFocus.selected = true;
-           return;
-       }
+        if (!this.currentFocus) {
+            this.currentFocus = this.focusableElements[0];
+            this.currentFocus.selected = true;
+            return;
+        }
 
-       const current = this.currentFocus;
+        const current = this.currentFocus;
+        let nextElement = null;
+        let bestDistance = Infinity;
 
-       if (direction === "left" || direction === "right") {
-           // Find elements with different xOrder
-           const validElements = this.focusableElements.filter((element) => {
-               if (direction === "right") {
-                   return element.xOrder > current.xOrder;
-               } else {
-                   return element.xOrder < current.xOrder;
-               }
-           });
+        const currentY = current.y + current.height / 2;
 
-           if (validElements.length === 0) return;
+        this.focusableElements.forEach((element) => {
+            if (element === current) return;
 
-           let nextElement = validElements[0];
-           let bestDistance = Math.abs(nextElement.y - current.y);
+            const elementY = element.y + element.height / 2;
+            const deltaY = elementY - currentY;
 
-           validElements.forEach((element) => {
-               const distance = Math.abs(element.y - current.y);
-               if (distance < bestDistance) {
-                   bestDistance = distance;
-                   nextElement = element;
-               }
-           });
+            switch (direction) {
+                case "up":
+                    if (deltaY >= 0) return;
+                    break;
+                case "down":
+                    if (deltaY <= 0) return;
+                    break;
+            }
 
-           if (nextElement) {
-               this.currentFocus.selected = false;
-               this.currentFocus = nextElement;
-               this.currentFocus.selected = true;
-           }
-       } else {
-           let nextElement = null;
-           let bestDistance = Infinity;
+            const distance = Math.abs(deltaY);
 
-           const currentX = current.x + current.width / 2;
-           const currentY = current.y + current.height / 2;
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                nextElement = element;
+            }
+        });
 
-           this.focusableElements.forEach((element) => {
-               if (element === current) return;
+        if (nextElement) {
+            this.currentFocus.selected = false;
+            this.currentFocus = nextElement;
+            this.currentFocus.selected = true;
+        }
+    }
 
-               const elementX = element.x + element.width / 2;
-               const elementY = element.y + element.height / 2;
-
-               const deltaX = elementX - currentX;
-               const deltaY = elementY - currentY;
-
-               switch (direction) {
-                   case "up":
-                       if (deltaY >= 0) return;
-                       break;
-                   case "down":
-                       if (deltaY <= 0) return;
-                       break;
-               }
-
-               const distance = Math.abs(deltaX) + Math.abs(deltaY);
-
-               if (distance < bestDistance) {
-                   bestDistance = distance;
-                   nextElement = element;
-               }
-           });
-
-           if (nextElement) {
-               this.currentFocus.selected = false;
-               this.currentFocus = nextElement;
-               this.currentFocus.selected = true;
-           }
-       }
-   }
-    
     handleAction1() {
-       if (!this.currentFocus) return;
-       const element = this.currentFocus;
+        if (!this.currentFocus) return;
+        const element = this.currentFocus;
 
-       switch (element.type) {
-           case "selectable":
-               if (element.selectable.onClick) {
-                   element.selectable.onClick();
-               }
-               break;
+        if (element.type === "colorPicker") {
+            switch (element.colorPicker.mode) {
+                case "none":
+                    element.colorPicker.mode = "wheel";
+                    this.adjustingColor = true;
+                    break;
+                case "wheel":
+                    element.colorPicker.mode = "brightness";
+                    break;
+                case "brightness":
+                    element.colorPicker.mode = "none";
+                    this.adjustingColor = false;
+                    break;
+            }
+        }
+    }
 
-           case "textButton":
-           case "imageButton":
-               element.button.pressed = true;
-               if (element.button.onClick) {
-                   element.button.onClick();
-               }
-               setTimeout(() => {
-                   element.button.pressed = false;
-               }, 100);
-               break;
-
-           case "slider":
-               this.adjustingSlider = true;
-               element.slider.active = true;
-               break;
-
-           case "toggle":
-               element.toggle.value = !element.toggle.value;
-               if (element.toggle.onChange) {
-                   element.toggle.onChange(element.toggle.value);
-               }
-               break;
-
-           case "colorPicker":
-               switch (element.colorPicker.mode) {
-                   case "none":
-                       element.colorPicker.mode = "wheel";
-                       this.adjustingColor = true;
-                       break;
-                   case "wheel":
-                       element.colorPicker.mode = "brightness";
-                       break;
-                   case "brightness":
-                       element.colorPicker.mode = "none";
-                       this.adjustingColor = false;
-                       break;
-               }
-               break;
-       }
-   }
-
-   handleAction2() {
-       if (this.currentFocus?.type === "slider" && this.currentFocus.slider.active) {
-           this.adjustingSlider = false;
-           this.currentFocus.slider.active = false;
-           return null;
-       }
-       
-       if (this.adjustingColor) {
-           const element = this.currentFocus;
-           switch (element.colorPicker.mode) {
-               case "brightness":
-                   element.colorPicker.mode = "wheel";
-                   break;
-               case "wheel":
-                   element.colorPicker.mode = "none";
-                   this.adjustingColor = false;
-                   break;
-           }
-           return null;
-       }
-       
-       return "exit";
-   }
+    handleAction2() {
+        if (this.adjustingColor) {
+            const element = this.currentFocus;
+            switch (element.colorPicker.mode) {
+                case "brightness":
+                    element.colorPicker.mode = "wheel";
+                    break;
+                case "wheel":
+                    element.colorPicker.mode = "none";
+                    this.adjustingColor = false;
+                    break;
+            }
+            return null;
+        }
+        
+        return "exit";
+    }
 }
