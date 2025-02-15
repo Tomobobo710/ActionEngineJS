@@ -62,10 +62,10 @@ class FishingUI {
 
         ctx.fillStyle = '#fff';
         ctx.font = '18px Arial';
-        ctx.fillText('Release (action1)', 
+        ctx.fillText('Release', 
             menu.position.x + 90, 
             menu.position.y + 145);
-        ctx.fillText('Keep (action2)', 
+        ctx.fillText('Keep', 
             menu.position.x + menu.width - 90, 
             menu.position.y + 145);
     }

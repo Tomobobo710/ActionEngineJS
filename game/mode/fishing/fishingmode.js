@@ -110,7 +110,7 @@ class FishingMode {
     updateCamera(deltaTime) {
     if (this.camera.isDetached) return;
 
-    const CAMERA_LERP_SPEED = 3;
+    let CAMERA_LERP_SPEED = 3;
     let targetPos, targetLookAt;
 
     // Default camera positions in case state handling fails
@@ -128,16 +128,45 @@ class FishingMode {
             break;
 
         case "casting":
+            if (this.lure && this.lure.position) {
+                // Get lure's height above water
+                const waterHeight = this.ocean.getWaterHeightAt(this.lure.position.x, this.lure.position.z);
+                const heightAboveWater = this.lure.position.y - waterHeight;
+                
+                if (heightAboveWater > 10) {
+                    // During initial cast, keep camera behind fisher
+                    targetPos = this.fisher.position.add(
+                        new Vector3(-Math.sin(this.fisher.aimAngle) * 15, 8, -Math.cos(this.fisher.aimAngle) * 15)
+                    );
+                    targetLookAt = this.lure.position;
+                } else if (heightAboveWater > 2) {
+                    // As lure descends, start transitioning camera
+                    const castDirection = this.lure.position.subtract(this.fisher.position).normalize();
+                    targetPos = this.lure.position.subtract(castDirection.scale(12)).add(new Vector3(0, 6, 0));
+                    targetLookAt = this.lure.position;
+                    
+                    CAMERA_LERP_SPEED = 5;
+                } else {
+                    // Near water, snap camera to lure
+                    const castDirection = this.lure.position.subtract(this.fisher.position).normalize();
+                    targetPos = this.lure.position.subtract(castDirection.scale(12)).add(new Vector3(0, 6, 0));
+                    targetLookAt = this.lure.position;
+                    
+                    CAMERA_LERP_SPEED = 10;
+                }
+            }
+            break;
+
         case "fishing":
-    if (this.lure && this.lure.position) {
-        // Calculate direction from fisher to lure
-        const castDirection = this.lure.position.subtract(this.fisher.position).normalize();
-        
-        // Use this direction to position camera behind lure
-        targetPos = this.lure.position.subtract(castDirection.scale(12)).add(new Vector3(0, 6, 0));
-        targetLookAt = this.lure.position;
-    }
-    break;
+            if (this.lure && this.lure.position) {
+                // Calculate direction from fisher to lure
+                const castDirection = this.lure.position.subtract(this.fisher.position).normalize();
+                
+                // Use this direction to position camera behind lure
+                targetPos = this.lure.position.subtract(castDirection.scale(12)).add(new Vector3(0, 6, 0));
+                targetLookAt = this.lure.position;
+            }
+            break;
 
         case "reeling":
             if (this.lure && this.lure.position) {
