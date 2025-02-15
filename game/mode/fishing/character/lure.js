@@ -70,58 +70,82 @@ class Lure extends ActionPhysicsObject3D {
     }
 
     update(deltaTime) {
-        // Initialize position if null
-        if (!this.position) {
-            this.position = new Vector3(0, 0, 0);
+    // Initialize position if null
+    if (!this.position) {
+        this.position = new Vector3(0, 0, 0);
+    }
+
+    // Early return if no fisher or no physics body
+    if (!this.fisher || !this.body) {
+        console.warn("Lure missing required components");
+        return;
+    }
+
+    if (this.state === "casting") {
+        // Calculate new position before applying it
+        const newX = this.position.x + this.lureVelocity.x * deltaTime;
+        const newY = this.position.y + this.lureVelocity.y * deltaTime;
+        const newZ = this.position.z + this.lureVelocity.z * deltaTime;
+
+        // Check bounds before updating position
+        const halfWidth = this.bounds.width / 2;
+        const halfLength = this.bounds.length / 2;
+
+        // Only update if within bounds
+        if (newX >= -halfWidth && newX <= halfWidth && newZ >= -halfLength && newZ <= halfLength) {
+            this.position.x = newX;
+            this.position.z = newZ;
+            this.body.position.x = this.position.x;
+            this.body.position.z = this.position.z;
+        } else {
+            this.state = "inWater";
         }
 
-        // Early return if no fisher or no physics body
-        if (!this.fisher || !this.body) {
-            console.warn("Lure missing required components");
-            return;
-        }
+        // Y position and gravity always update
+        this.position.y = newY;
+        this.body.position.y = this.position.y;
+        this.lureVelocity.y += this.lureGravity * deltaTime;
 
-        if (this.state === "casting") {
-            // Calculate new position before applying it
-            const newX = this.position.x + this.lureVelocity.x * deltaTime;
-            const newY = this.position.y + this.lureVelocity.y * deltaTime;
-            const newZ = this.position.z + this.lureVelocity.z * deltaTime;
-
-            // Check bounds before updating position
-            const halfWidth = this.bounds.width / 2;
-            const halfLength = this.bounds.length / 2;
-
-            // Only update if within bounds
-            if (newX >= -halfWidth && newX <= halfWidth && newZ >= -halfLength && newZ <= halfLength) {
-                this.position.x = newX;
-                this.position.z = newZ;
-                this.body.position.x = this.position.x;
-                this.body.position.z = this.position.z;
-            } else {
+        // Check for water contact
+        const ocean = this.fisher?.game?.ocean;
+        if (ocean && typeof ocean.getWaterHeightAt === "function") {
+            const waterHeight = ocean.getWaterHeightAt(this.position.x, this.position.z);
+            if (this.position.y <= waterHeight) {
                 this.state = "inWater";
-            }
-
-            // Y position and gravity always update
-            this.position.y = newY;
-            this.body.position.y = this.position.y;
-            this.lureVelocity.y += this.lureGravity * deltaTime;
-
-            // Check for water contact - with safety checks
-            const ocean = this.fisher?.game?.ocean;
-            if (ocean && typeof ocean.getWaterHeightAt === "function") {
-                const waterHeight = ocean.getWaterHeightAt(this.position.x, this.position.z);
-                if (this.position.y <= waterHeight) {
-                    this.state = "inWater";
-                    const fishingArea = this.fisher?.game?.fishingArea;
-                    if (fishingArea && typeof fishingArea.setLure === "function") {
-                        fishingArea.setLure(this);
-                    }
+                const fishingArea = this.fisher?.game?.fishingArea;
+                if (fishingArea && typeof fishingArea.setLure === "function") {
+                    fishingArea.setLure(this);
                 }
             }
         }
+    } else if (this.state === "inWater") {
+        // Sinking behavior when in water
+        const ocean = this.fisher?.game?.ocean;
+        const floor = this.fisher?.game?.floor;
+        
+        if (ocean && floor) {
+            const waterHeight = ocean.getWaterHeightAt(this.position.x, this.position.z);
+            const floorHeight = -60; // Match floor height from FishingMode
 
-        // Handle hooked fish state
-        if (this.state === "inWater" && this.hookedFish) {
+            // Calculate current depth
+            const depth = waterHeight - this.position.y;
+            
+            // Sinking speed
+            const sinkingSpeed = 20; // Units per second
+            const minHeight = floorHeight + 1; // Keep slightly above floor
+            
+            // Apply sinking if not reeling and not at floor
+            if (this.position.y > minHeight && !this.fisher.isReeling) {
+                this.position.y = Math.max(
+                    minHeight,
+                    this.position.y - sinkingSpeed * deltaTime
+                );
+                this.body.position.y = this.position.y;
+            }
+        }
+
+        // Handle hooked fish behavior
+        if (this.hookedFish) {
             // Safety check - make sure fish exists AND is in water
             const ocean = this.fisher?.game?.ocean;
             if (ocean && typeof ocean.getWaterHeightAt === "function") {
@@ -136,15 +160,6 @@ class Lure extends ActionPhysicsObject3D {
                 }
 
                 this.handleFishFight(deltaTime);
-
-                // Check for reeling in completion
-                //const distanceToFisher = this.position.distanceTo(this.fisher.position);
-                // if (distanceToFisher < 1) {
-                //if (this.fisher.game) {
-                //this.hookedFish = null;
-                //  this.fishPullForce = new Vector3(0, 0, 0);
-                //  }
-                // }
             } else {
                 // If fish is missing required properties, release it
                 console.warn("Hooked fish missing required properties, releasing...");
@@ -152,6 +167,7 @@ class Lure extends ActionPhysicsObject3D {
             }
         }
     }
+}
 
     handleFishFight(deltaTime) {
         // Safety checks

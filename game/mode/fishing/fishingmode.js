@@ -16,6 +16,8 @@ class FishingMode {
         this.physicsWorld.setShaderManager(this.shaderManager);
         this.ocean = new Ocean(this.physicsWorld, 500, 500, 8, 1);
         this.fishingArea = new FishingArea();
+        this.fishingArea.setPhysicsWorld(this.physicsWorld);
+        this.floor = new Floor(this.physicsWorld, 500, 500, 8, -60); // -50 for height to put it below ocean
         this.fisher = new Fisher(this, new Vector3(0, 50, 0));
         this.lure = new Lure(this.physicsWorld);
         this.lure.setFisher(this.fisher);  // Make sure this line is here
@@ -227,7 +229,7 @@ class FishingMode {
         lineTension: this.fisher.lineTension,
         catchBag: this.catchBag,
         fisherState: this.fisher.state,
-        isLureAtFisher: isLureAtFisher  // Add this new state
+        isLureAtFisher: isLureAtFisher
     };
 
     this.ui.draw(gameState);
