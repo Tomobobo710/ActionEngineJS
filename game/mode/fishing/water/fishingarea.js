@@ -244,7 +244,71 @@ class Floor extends ActionPhysicsObject3D {
         physicsWorld.addObject(this);
     }
 
-    
+    getHeightAt(x, z) {
+    // Guard against missing triangles
+    if (!this.triangles || !Array.isArray(this.triangles) || this.triangles.length === 0) {
+        return this.body.position.y;
+    }
+
+    // Find valid triangles (those with all vertices)
+    const validTriangles = this.triangles.filter(triangle => 
+        triangle && triangle.v1 && triangle.v2 && triangle.v3 &&
+        typeof triangle.v1.x === 'number' && typeof triangle.v1.z === 'number' &&
+        typeof triangle.v2.x === 'number' && typeof triangle.v2.z === 'number' &&
+        typeof triangle.v3.x === 'number' && typeof triangle.v3.z === 'number'
+    );
+
+    if (validTriangles.length === 0) {
+        return this.body.position.y;
+    }
+
+    // Try to find containing triangle
+    for (const triangle of validTriangles) {
+        try {
+            if (this.pointInTriangle(
+                x, z,
+                triangle.v1.x, triangle.v1.z,
+                triangle.v2.x, triangle.v2.z,
+                triangle.v3.x, triangle.v3.z
+            )) {
+                return this.barycentricInterpolation(x, z, triangle);
+            }
+        } catch (e) {
+            continue; // Skip any problematic triangles
+        }
+    }
+
+    return this.body.position.y;
+}
+
+    pointInTriangle(px, pz, x1, z1, x2, z2, x3, z3) {
+        let d1 = this.sign(px, pz, x1, z1, x2, z2);
+        let d2 = this.sign(px, pz, x2, z2, x3, z3);
+        let d3 = this.sign(px, pz, x3, z3, x1, z1);
+
+        let hasNeg = (d1 < 0) || (d2 < 0) || (d3 < 0);
+        let hasPos = (d1 > 0) || (d2 > 0) || (d3 > 0);
+
+        return !(hasNeg && hasPos);
+    }
+
+    sign(px, pz, x1, z1, x2, z2) {
+        return (px - x2) * (z1 - z2) - (x1 - x2) * (pz - z2);
+    }
+
+    barycentricInterpolation(px, pz, triangle) {
+        let v1 = triangle.v1;
+        let v2 = triangle.v2;
+        let v3 = triangle.v3;
+        
+        let denom = ((v2.z - v3.z) * (v1.x - v3.x) + (v3.x - v2.x) * (v1.z - v3.z));
+        let l1 = ((v2.z - v3.z) * (px - v3.x) + (v3.x - v2.x) * (pz - v3.z)) / denom;
+        let l2 = ((v3.z - v1.z) * (px - v3.x) + (v1.x - v3.x) * (pz - v3.z)) / denom;
+        let l3 = 1.0 - l1 - l2;
+
+        return l1 * v1.y + l2 * v2.y + l3 * v3.y;
+    }
+
     generateFloorMesh() {
         const cellWidth = this.width / this.divisions;
         const cellLength = this.length / this.divisions;

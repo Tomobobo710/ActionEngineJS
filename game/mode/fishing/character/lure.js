@@ -41,6 +41,51 @@ class Lure extends ActionPhysicsObject3D {
         this.lastFishDirection = new Vector3(0, 0, 0);
     }
 
+    getHeightAt(x, z) {
+    if (!this.triangles) return this.body.position.y;
+    
+    for (const triangle of this.triangles) {
+        if (this.pointInTriangle(
+            x, z,
+            triangle.v1.x, triangle.v1.z,
+            triangle.v2.x, triangle.v2.z,
+            triangle.v3.x, triangle.v3.z
+        )) {
+            return this.barycentricInterpolation(x, z, triangle);
+        }
+    }
+    return this.body.position.y;
+}
+
+pointInTriangle(px, pz, x1, z1, x2, z2, x3, z3) {
+    let d1 = this.sign(px, pz, x1, z1, x2, z2);
+    let d2 = this.sign(px, pz, x2, z2, x3, z3);
+    let d3 = this.sign(px, pz, x3, z3, x1, z1);
+
+    let hasNeg = (d1 < 0) || (d2 < 0) || (d3 < 0);
+    let hasPos = (d1 > 0) || (d2 > 0) || (d3 > 0);
+
+    return !(hasNeg && hasPos);
+}
+
+sign(px, pz, x1, z1, x2, z2) {
+    return (px - x2) * (z1 - z2) - (x1 - x2) * (pz - z2);
+}
+
+barycentricInterpolation(px, pz, triangle) {
+    let v1 = triangle.v1;
+    let v2 = triangle.v2;
+    let v3 = triangle.v3;
+    
+    let denom = ((v2.z - v3.z) * (v1.x - v3.x) + (v3.x - v2.x) * (v1.z - v3.z));
+    let l1 = ((v2.z - v3.z) * (px - v3.x) + (v3.x - v2.x) * (pz - v3.z)) / denom;
+    let l2 = ((v3.z - v1.z) * (px - v3.x) + (v1.x - v3.x) * (pz - v3.z)) / denom;
+    let l3 = 1.0 - l1 - l2;
+
+    return l1 * v1.y + l2 * v2.y + l3 * v3.y;
+}
+
+    
     setFisher(fisher) {
         this.fisher = fisher;
         this.reset();
@@ -119,34 +164,49 @@ class Lure extends ActionPhysicsObject3D {
             }
         }
     } else if (this.state === "inWater") {
-        // Sinking behavior when in water
         const ocean = this.fisher?.game?.ocean;
         const floor = this.fisher?.game?.floor;
         
         if (ocean && floor) {
             const waterHeight = ocean.getWaterHeightAt(this.position.x, this.position.z);
-            const floorHeight = -60; // Match floor height from FishingMode
-
-            // Calculate current depth
-            const depth = waterHeight - this.position.y;
+            const floorHeight = floor.getHeightAt(this.position.x, this.position.z);
             
-            // Sinking speed
-            const sinkingSpeed = 20; // Units per second
-            const minHeight = floorHeight + 1; // Keep slightly above floor
-            
-            // Apply sinking if not reeling and not at floor
-            if (this.position.y > minHeight && !this.fisher.isReeling) {
-                this.position.y = Math.max(
-                    minHeight,
-                    this.position.y - sinkingSpeed * deltaTime
-                );
+            if (!this.fisher.isReeling) {
+                // Calculate distance to floor
+                const distanceToFloor = this.position.y - floorHeight;
+                
+                // Adjust sink speed based on distance to floor (slower as we approach)
+                const baseSinkSpeed = 20;
+                const sinkSpeed = baseSinkSpeed * Math.min(1, distanceToFloor / 10);
+                
+                // Only sink if we're above the floor
+                if (distanceToFloor > 1) {
+                    this.position.y = Math.max(
+                        floorHeight + 1, // Stay 1 unit above floor
+                        this.position.y - sinkSpeed * deltaTime
+                    );
+                }
+                
                 this.body.position.y = this.position.y;
+            } else {
+                // Reeling behavior
+                const reelDirection = this.fisher.position.subtract(this.position).normalize();
+                const reelSpeed = this.fisher.reelSpeed * deltaTime;
+                
+                // Calculate new position after reeling
+                const newPosition = this.position.add(reelDirection.scale(reelSpeed));
+                
+                // Ensure we don't go below floor while reeling
+                const newFloorHeight = floor.getHeightAt(newPosition.x, newPosition.z);
+                newPosition.y = Math.max(newPosition.y, newFloorHeight + 1);
+                
+                this.position = newPosition;
+                this.body.position.copy(this.position);
             }
         }
 
         // Handle hooked fish behavior
         if (this.hookedFish) {
-            // Safety check - make sure fish exists AND is in water
             const ocean = this.fisher?.game?.ocean;
             if (ocean && typeof ocean.getWaterHeightAt === "function") {
                 const waterHeight = ocean.getWaterHeightAt(this.hookedFish.position.x, this.hookedFish.position.z);
