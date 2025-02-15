@@ -29,17 +29,19 @@ class Fisher {
        this.lure.state = "inactive";
    }
 
-   reset() {
-       this.state = "ready";
-       this.castPower = 0;
-       this.isChargingCast = false;
-       this.isReeling = false;
-       this.lineTension = 0;
-       if(this.lure) {
-           this.lure.reset();
-           this.game.fishingArea.setLure(this.lure);
-       }
-   }
+    reset() {
+        this.state = "ready";
+        this.castPower = 0;
+        this.isChargingCast = false;
+        this.isReeling = false;
+        this.lineTension = 0;
+        if(this.lure) {
+            this.lure.resetTension(); // Reset tension before resetting lure
+            this.lure.reset();
+            this.game.fishingArea.setLure(this.lure);
+        }
+    }
+
 
    update(deltaTime, input) {
        const waterHeight = this.game.ocean.getWaterHeightAt(this.position.x, this.position.z);
