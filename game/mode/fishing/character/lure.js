@@ -230,123 +230,133 @@ barycentricInterpolation(px, pz, triangle) {
 }
 
     handleFishFight(deltaTime) {
-        // Safety checks
-        if (!this.hookedFish || !this.fisher?.game?.ocean) {
-            this.fishEscapes();
+    // Safety checks
+    if (!this.hookedFish || !this.fisher?.game?.ocean) {
+        this.fishEscapes();
+        return;
+    }
+
+    // Keep fish and lure in water
+    const waterHeight = this.fisher.game.ocean.getWaterHeightAt(
+        this.hookedFish.position.x,
+        this.hookedFish.position.z
+    );
+    this.hookedFish.position.y = Math.min(this.hookedFish.position.y, waterHeight);
+
+    // Fish changes direction occasionally
+    if (Math.random() < 0.05) {
+        // Get direction AWAY from fisher
+        const escapeDirection = this.position.subtract(this.fisher.position).normalize();
+
+        const randomOffset = new Vector3((Math.random() - 0.5) * 0.5, 0, (Math.random() - 0.5) * 0.5);
+
+        const behaviorRoll = Math.random();
+        if (behaviorRoll < 0.6) {
+            this.fishPullForce = escapeDirection.add(randomOffset).normalize().scale(50);
+        } else if (behaviorRoll < 0.8) {
+            const sideDirection = new Vector3(-escapeDirection.z, 0, escapeDirection.x);
+            this.fishPullForce = sideDirection.add(randomOffset).normalize().scale(40);
+        } else {
+            this.fishPullForce = new Vector3(0, 0, 0);
+        }
+    }
+
+    // Get the current fish movement direction
+    this.lastFishDirection = this.fishPullForce.normalize();
+
+    // Get player's input direction based on camera orientation
+    const input = this.fisher.game.input;
+    let playerDirection = new Vector3(0, 0, 0);
+
+    // Get camera's forward direction (normalized)
+    const camera = this.fisher.game.camera;
+    const cameraForward = camera.target.subtract(camera.position).normalize();
+    // Get camera's right direction by crossing forward with up vector
+    const cameraRight = cameraForward.cross(new Vector3(0, 1, 0)).normalize();
+
+    // Convert keyboard input to camera-relative directions
+    if (input.isKeyPressed("DirLeft")) {
+        playerDirection = playerDirection.subtract(cameraRight);
+    } else if (input.isKeyPressed("DirRight")) {
+        playerDirection = playerDirection.add(cameraRight);
+    }
+    if (input.isKeyPressed("DirUp")) {
+        playerDirection = playerDirection.add(cameraForward);
+    } else if (input.isKeyPressed("DirDown")) {
+        playerDirection = playerDirection.subtract(cameraForward);
+    }
+
+    // Ignore vertical component for water-level movement
+    playerDirection.y = 0;
+
+    // Normalize the final direction if we have any movement
+    if (playerDirection.length() > 0) {
+        playerDirection = playerDirection.normalize();
+
+        // Calculate tension based on player input vs fish direction
+        const dotProduct = playerDirection.dot(this.lastFishDirection);
+
+        if (dotProduct < -0.2) {
+            // Player is fighting against fish
+            this.currentTension = Math.min(
+                this.maxTension,
+                this.currentTension + this.tensionIncreaseRate * deltaTime
+            );
+        } else if (dotProduct > 0.2) {
+            // Player is giving line
+            this.currentTension = Math.max(0, this.currentTension - this.tensionDecreaseRate * deltaTime);
+        }
+    }
+
+    // Apply final movement
+    let finalForce = this.fishPullForce.clone();
+
+    if (this.fisher.isReeling) {
+        const reelDirection = this.fisher.position.subtract(this.position).normalize();
+        const reelForce = reelDirection.scale(this.fisher.reelSpeed);
+        finalForce = finalForce.add(reelForce);
+    }
+
+    // Apply movement
+    const moveAmount = finalForce.scale(deltaTime);
+    this.position = this.position.add(moveAmount);
+
+    // Update physics body
+    this.body.position.x = this.position.x;
+    this.body.position.y = Math.min(this.position.y, waterHeight);
+    this.body.position.z = this.position.z;
+
+    // Check distance constraints
+    if (this.fisher) {
+        const distanceToFisher = this.position.distanceTo(this.fisher.position);
+
+        // Add distance-based tension as a secondary factor
+        if (distanceToFisher > this.fisher.maxLineLength * 0.8) {
+            const distanceTension =
+                (distanceToFisher - this.fisher.maxLineLength * 0.8) / (this.fisher.maxLineLength * 0.2);
+            this.currentTension = Math.max(this.currentTension, distanceTension);
+        }
+
+        // Update fisher's tension value
+        this.fisher.lineTension = this.currentTension;
+
+        // Check for being reeled in
+        if (distanceToFisher < 1) {
+            this.fisher.onLureReachedFisher();
             return;
         }
 
-        // Keep fish and lure in water
-        const waterHeight = this.fisher.game.ocean.getWaterHeightAt(
-            this.hookedFish.position.x,
-            this.hookedFish.position.z
-        );
-        this.hookedFish.position.y = Math.min(this.hookedFish.position.y, waterHeight);
-
-        // Fish changes direction occasionally
-        if (Math.random() < 0.05) {
-            // Get direction AWAY from fisher
-            const escapeDirection = this.position.subtract(this.fisher.position).normalize();
-
-            const randomOffset = new Vector3((Math.random() - 0.5) * 0.5, 0, (Math.random() - 0.5) * 0.5);
-
-            const behaviorRoll = Math.random();
-            if (behaviorRoll < 0.6) {
-                this.fishPullForce = escapeDirection.add(randomOffset).normalize().scale(50);
-            } else if (behaviorRoll < 0.8) {
-                const sideDirection = new Vector3(-escapeDirection.z, 0, escapeDirection.x);
-                this.fishPullForce = sideDirection.add(randomOffset).normalize().scale(40);
-            } else {
-                this.fishPullForce = new Vector3(0, 0, 0);
-            }
-        }
-
-        // Get the current fish movement direction
-        this.lastFishDirection = this.fishPullForce.normalize();
-
-        // Get player's input direction
-        const input = this.fisher.game.input;
-        let playerDirection = new Vector3(0, 0, 0);
-
-        if (input.isKeyPressed("DirLeft")) {
-            playerDirection.x = -1;
-        } else if (input.isKeyPressed("DirRight")) {
-            playerDirection.x = 1;
-        }
-        if (input.isKeyPressed("DirUp")) {
-            playerDirection.z = 1;
-        } else if (input.isKeyPressed("DirDown")) {
-            playerDirection.z = -1;
-        }
-
-        // Calculate tension based on player input vs fish direction
-        if (playerDirection.length() > 0) {
-            playerDirection = playerDirection.normalize();
-
-            // Calculate dot product to determine if player is fighting or giving line
-            const dotProduct = playerDirection.dot(this.lastFishDirection);
-
-            if (dotProduct < -0.2) {
-                // Player is fighting against fish
-                this.currentTension = Math.min(
-                    this.maxTension,
-                    this.currentTension + this.tensionIncreaseRate * deltaTime
-                );
-            } else if (dotProduct > 0.2) {
-                // Player is giving line
-                this.currentTension = Math.max(0, this.currentTension - this.tensionDecreaseRate * deltaTime);
-            }
-        }
-
-        // Apply final movement
-        let finalForce = this.fishPullForce.clone();
-
-        if (this.fisher.isReeling) {
-            const reelDirection = this.fisher.position.subtract(this.position).normalize();
-            const reelForce = reelDirection.scale(this.fisher.reelSpeed);
-            finalForce = finalForce.add(reelForce);
-        }
-
-        // Apply movement
-        const moveAmount = finalForce.scale(deltaTime);
-        this.position = this.position.add(moveAmount);
-
-        // Update physics body
-        this.body.position.x = this.position.x;
-        this.body.position.y = Math.min(this.position.y, waterHeight);
-        this.body.position.z = this.position.z;
-
-        // Check distance constraints
-        if (this.fisher) {
-            const distanceToFisher = this.position.distanceTo(this.fisher.position);
-
-            // Add distance-based tension as a secondary factor
-            if (distanceToFisher > this.fisher.maxLineLength * 0.8) {
-                const distanceTension =
-                    (distanceToFisher - this.fisher.maxLineLength * 0.8) / (this.fisher.maxLineLength * 0.2);
-                this.currentTension = Math.max(this.currentTension, distanceTension);
-            }
-
-            // Update fisher's tension value
-            this.fisher.lineTension = this.currentTension;
-
-            // Check for being reeled in
-            if (distanceToFisher < 1) {
-                this.fisher.onLureReachedFisher();
-                return;
-            }
-
-            // Check for line break
-            if (this.currentTension >= this.breakingTension) {
-                this.fishEscapes();
-                this.reset(); // Full reset including tension
-                this.state = "inactive";
-                this.fisher.state = "ready";
-                this.fisher.isReeling = false;
-                return;
-            }
+        // Check for line break
+        if (this.currentTension >= this.breakingTension) {
+            this.fishEscapes();
+            this.reset(); // Full reset including tension
+            this.state = "inactive";
+            this.fisher.state = "ready";
+            this.fisher.isReeling = false;
+            return;
         }
     }
+}
 
     move(direction, speed) {
         // Store old position for physics interpolation if needed

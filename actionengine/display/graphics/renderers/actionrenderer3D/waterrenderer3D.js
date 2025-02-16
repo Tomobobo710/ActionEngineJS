@@ -14,13 +14,13 @@ class WaterRenderer3D {
         
         // Add configuration options for water appearance
         this.waterConfig = {
-            waveHeight: 0.5,
-            waveSpeed: 1.0,
-            transparency: 0.8,
-            reflectivity: 0.6,
-            waterColor: [0.0, 0.48, 0.71], // Nice blue color
-            waveDensity: 2.0
-        };
+    waveHeight: 2.0,  // Increased from 0.5 to 2.0 to match shader
+    waveSpeed: 1.0,
+    transparency: 0.8,
+    reflectivity: 0.6,
+    waterColor: [0.0, 0.48, 0.71],
+    waveDensity: 2.0
+};
         
         this.initializeWaterMesh();
     }
@@ -79,7 +79,7 @@ class WaterRenderer3D {
 
         // Enhanced depth and blending setup
         this.gl.enable(this.gl.DEPTH_TEST);
-        this.gl.depthMask(true); // Changed to false for better transparency handling
+        this.gl.depthMask(false); // Changed to false for better transparency handling
         this.gl.enable(this.gl.BLEND);
         this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
 
@@ -108,7 +108,7 @@ class WaterRenderer3D {
 
         // Set up attributes
         this.setupAttributes();
-
+        
         // Draw water
         this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.waterBuffers.indices);
         this.gl.drawElements(this.gl.TRIANGLES, this.waterIndexCount, this.gl.UNSIGNED_SHORT, 0);
