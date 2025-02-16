@@ -110,15 +110,23 @@ class ActionRenderer3D {
         }
 
         // Render objects if they exist
-        if (renderableObjects?.length) {
-            for (const object of renderableObjects) {
-                if (object instanceof Ocean) {
-                    this.waterRenderer.render(renderData.camera, this.currentTime, object);
-                } else if (object) {
-                    this.objectRenderer.render(object, renderData.camera, shaderSet, this.currentTime);
-                }
-            }
+        // First render all non-water objects
+if (renderableObjects?.length) {
+    for (const object of renderableObjects) {
+        if (!(object instanceof Ocean) && object) {
+            this.objectRenderer.render(object, renderData.camera, shaderSet, this.currentTime);
         }
+    }
+}
+
+// Then render water objects last
+if (renderableObjects?.length) {
+    for (const object of renderableObjects) {
+        if (object instanceof Ocean) {
+            this.waterRenderer.render(renderData.camera, this.currentTime, object);
+        }
+    }
+}
 
         // Render weather if it exists
         if (weatherSystem) {
