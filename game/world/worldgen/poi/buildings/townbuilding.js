@@ -3,7 +3,7 @@ class TownBuilding extends ActionPhysicsObject3D {
         const hw = width / 2;
         const hh = height / 2;
         const hd = depth / 2;
-
+/*
         // Create vertices same as before...
         const v = {
             ftl: new Vector3(-hw, hh, hd),
@@ -36,8 +36,15 @@ class TownBuilding extends ActionPhysicsObject3D {
             new Triangle(v.fbl, v.bbl, v.fbr, "#B026FF"),
             new Triangle(v.bbl, v.bbr, v.fbr, "#B026FF")
         ];
-
+*/
+       const characterModel = GLBLoader.loadModel(townModel);
+        
+        const triangles = characterModel.triangles;
+        
         super(physicsWorld, triangles);
+        
+        this.animator = new ModelAnimationController(characterModel);
+        this.animator.play(0, true);
 
         // Physics setup
         const shape = new Goblin.BoxShape(width / 2 , height / 2 , depth / 2);

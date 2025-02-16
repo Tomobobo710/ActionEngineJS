@@ -12,7 +12,7 @@ class DungeonBuilding extends ActionPhysicsObject3D {
     RUBBLE: "#5D5A63",         // Fallen stones
     FLOOR: "#3D3B41"           // Ground
 };
-
+/*
 // Arch factors
 const ARCH_INNER_FACTOR = 0.8;
 const ARCH_HEIGHT_FACTOR = 1.2;
@@ -307,9 +307,16 @@ triangles.push(new Triangle(v.mesh.frontBottom, v.mesh.frontLeft, v.mesh.backBot
 
 triangles.push(new Triangle(v.mesh.frontBottom, v.mesh.backBottom, v.mesh.frontRight, COLORS.DARK_STONE));
 triangles.push(new Triangle(v.mesh.frontBottom, v.mesh.frontRight, v.mesh.backBottom, COLORS.DARK_STONE)); // Reverse
-
+*/
+        const characterModel = GLBLoader.loadModel(dungeonModel);
+        
+        const triangles = characterModel.triangles;
+        
         super(physicsWorld, triangles);
-
+        
+        this.animator = new ModelAnimationController(characterModel);
+        this.animator.play(0, true);
+        
         // Physics setup
         const shape = new Goblin.BoxShape(width / 2, height / 2, depth / 2);
         this.body = new Goblin.RigidBody(shape, 0);
