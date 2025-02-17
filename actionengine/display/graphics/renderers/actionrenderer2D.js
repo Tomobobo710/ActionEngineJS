@@ -44,7 +44,7 @@ class ActionRenderer2D {
 
 		// Add character triangles if present
 		if (character) {
-			this.processCharacterTriangles(character, camera, nearTriangles, view);
+			this.processCharacterTriangles(character, camera, nearTriangles, farTriangles, view);
 		}
 
 		// Render far triangles first (back to front) WITHOUT depth testing
@@ -273,7 +273,7 @@ class ActionRenderer2D {
 		this.rasterizeTriangleBase(triangle, false);
 	}
 
-	processCharacterTriangles(character, camera, nearTriangles, view) {
+	processCharacterTriangles(character, camera, nearTriangles, farTriangles, view) {
 		const modelMatrix = character.getModelMatrix();
 		const characterModel = character.getCharacterModelTriangles();
 		const lightDir = new Vector3(0.5, 1.0, 0.5).normalize();
@@ -305,12 +305,21 @@ class ActionRenderer2D {
 
 			if (TriangleUtils.isFrontFacing(projectedPoints[0], projectedPoints[1], projectedPoints[2])) {
 				const lighting = Math.max(0.3, Math.min(1.0, worldNormal.dot(lightDir)));
-				nearTriangles.push({
-					points: projectedPoints,
-					color: triangle.color,
-					lighting: lighting,
-					depth: viewZ
-				});
+				if (viewZ <= this.depthConfig.transitionDistance) {
+					nearTriangles.push({
+						points: projectedPoints,
+						color: triangle.color,
+						lighting: lighting,
+						depth: viewZ
+					});
+				} else {
+					farTriangles.push({
+						points: projectedPoints,
+						color: triangle.color,
+						lighting: lighting,
+						depth: viewZ
+					});
+				}
 			}
 		}
 	}
