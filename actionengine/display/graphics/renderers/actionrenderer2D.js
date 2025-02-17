@@ -27,6 +27,14 @@ class ActionRenderer2D {
 	render(terrain, camera, character, showDebugPanel, weatherSystem, renderablePhysicsObjects) {
 		// Get view matrix ONCE at the start
 		const view = camera.getViewMatrix();
+		// Calculate view and projection matrices ONCE
+		Matrix4.lookAt(
+			this.viewMatrix,
+			view.position.toArray(),
+			[view.position.x + view.forward.x, view.position.y + view.forward.y, view.position.z + view.forward.z],
+			view.up.toArray()
+		);
+		Matrix4.perspective(this.projMatrix, camera.fov, this.width / this.height, 0.1, 10000.0);
 
 		// Clear buffers
 		this.clearBuffers();
@@ -136,15 +144,6 @@ class ActionRenderer2D {
 	project(point, camera, view) {
 		const relativePos = point.sub(view.position);
 		const viewZ = relativePos.dot(view.forward);
-
-		Matrix4.lookAt(
-			this.viewMatrix,
-			view.position.toArray(),
-			[view.position.x + view.forward.x, view.position.y + view.forward.y, view.position.z + view.forward.z],
-			view.up.toArray()
-		);
-
-		Matrix4.perspective(this.projMatrix, camera.fov, this.width / this.height, 0.1, 10000.0);
 
 		const worldPoint = [point.x, point.y, point.z, 1];
 		const clipSpace = Matrix4.transformVector(worldPoint, this.viewMatrix, this.projMatrix);
