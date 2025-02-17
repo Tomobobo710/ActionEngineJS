@@ -79,30 +79,26 @@ class ActionRenderer2D {
 		this.zBuffer.fill(Infinity);
 	}
 
-	collectTriangles(terrain, camera, physicsObjects) {
+	collectTriangles(terrain, camera, physicsObjects, view) {
 		const nearTriangles = [];
 		const farTriangles = [];
 
-		// Get view matrix once at start
-		const view = camera.getViewMatrix();
-
 		const processTriangle = (triangle) => {
-			const viewPositions = triangle.vertices.map((vertex) => {
+			// Calculate viewZ values once
+			const viewZs = triangle.vertices.map((vertex) => {
 				const viewSpace = vertex.sub(view.position);
-				return {
-					pos: viewSpace,
-					viewZ: viewSpace.dot(view.forward)
-				};
+				return viewSpace.dot(view.forward);
 			});
 
 			// If ALL vertices are behind, skip it
-			if (viewPositions.every((vp) => vp.viewZ <= 0)) return;
+			if (viewZs.every((z) => z <= 0)) return;
 			// If ALL vertices are too far, skip it
-			if (viewPositions.every((vp) => vp.viewZ > this.depthConfig.far)) return;
+			if (viewZs.every((z) => z > this.depthConfig.far)) return;
 			// Back-face culling using viewspace positions
-			if (triangle.normal.dot(viewPositions[0].pos) >= 0) return;
-			// Skip if projection fails
-			const projectedVerts = triangle.vertices.map((v) => this.project(v, camera, view));
+			if (triangle.normal.dot(triangle.vertices[0].sub(view.position)) >= 0) return;
+
+			// Project using our cached viewZ values
+			const projectedVerts = triangle.vertices.map((v, i) => this.project(v, camera, view, viewZs[i]));
 			if (projectedVerts.some((v) => v === null)) return;
 
 			const lightDir = new Vector3(0.5, 1, 0.5).normalize();
@@ -141,9 +137,8 @@ class ActionRenderer2D {
 		return { nearTriangles, farTriangles };
 	}
 
-	project(point, camera, view) {
-		const relativePos = point.sub(view.position);
-		const viewZ = relativePos.dot(view.forward);
+	project(point, camera, view, cachedViewZ) {
+		const viewZ = cachedViewZ ?? point.sub(view.position).dot(view.forward);
 
 		const worldPoint = [point.x, point.y, point.z, 1];
 		const clipSpace = Matrix4.transformVector(worldPoint, this.viewMatrix, this.projMatrix);
