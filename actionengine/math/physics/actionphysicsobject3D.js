@@ -8,7 +8,7 @@ class ActionPhysicsObject3D extends RenderableObject {
         this.triangles = triangles;
         this.originalNormals = [];
         this.originalVerts = [];
-        this.position = new Vector3(0,0,0);
+        this.position = new Vector3(0, 0, 0);
         this.triangles.forEach((triangle) => {
             this.originalNormals.push(new Vector3(triangle.normal.x, triangle.normal.y, triangle.normal.z));
 
@@ -21,33 +21,45 @@ class ActionPhysicsObject3D extends RenderableObject {
     updateVisual() {
         if (!this.body) return;
 
+        // Cache frequently accessed properties
         const pos = this.body.position;
         const rot = this.body.rotation;
+        const { x: posX, y: posY, z: posZ } = pos;
 
-        this.position = new Vector3(pos.x, pos.y, pos.z);
+        // Update position once
+        this.position.set(posX, posY, posZ);
 
-        this.triangles.forEach((triangle, triIndex) => {
-            // Update normal
-            const origNormal = this.originalNormals[triIndex];
-            const rotatedNormal = this.rotateVector(origNormal, rot);
-            triangle.normal = rotatedNormal;
+        // Preallocate reusable vector to avoid garbage collection
+        const relativeVert = new Goblin.Vector3();
+
+        // Use a for loop instead of forEach for better performance
+        for (let i = 0; i < this.triangles.length; i++) {
+            const triangle = this.triangles[i];
+
+            // Update normal - can be done with direct rotation
+            triangle.normal = this.rotateVector(this.originalNormals[i], rot);
 
             // Update vertices
-            triangle.vertices.forEach((vertex, vertIndex) => {
-                const origVert = this.originalVerts[triIndex * 3 + vertIndex];
-                // Create a new vector relative to origin
-                const relativeVert = new Goblin.Vector3(origVert.x, origVert.y, origVert.z);
+            const baseIndex = i * 3;
+            for (let j = 0; j < 3; j++) {
+                const vertex = triangle.vertices[j];
+                const origVert = this.originalVerts[baseIndex + j];
 
-                // Rotate relative to origin
+                // Reuse vector instead of creating new one
+                relativeVert.set(origVert.x, origVert.y, origVert.z);
+
+                // Rotate and translate in place
                 rot.transformVector3(relativeVert);
+                vertex.x = relativeVert.x + posX;
+                vertex.y = relativeVert.y + posY;
+                vertex.z = relativeVert.z + posZ;
+            }
+        }
 
-                // Add position
-                vertex.x = relativeVert.x + this.position.x;
-                vertex.y = relativeVert.y + this.position.y;
-                vertex.z = relativeVert.z + this.position.z;
-            });
-        });
-        this.physicsWorld.shaderManager?.updateRenderableBuffers(this);
+        // Optional chaining can be replaced with direct check if we know the context
+        if (this.physicsWorld.shaderManager) {
+            this.physicsWorld.shaderManager.updateRenderableBuffers(this);
+        }
     }
 
     rotateVector(vector, rotation) {
