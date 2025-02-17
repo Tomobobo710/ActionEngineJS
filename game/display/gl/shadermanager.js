@@ -1,6 +1,6 @@
 // game/display/gl/shadermanager.js
 class ShaderManager {
-    constructor(gl) {
+    constructor(gl, initialSize = 500) {
         this.gl = gl;
         this.isWebGL2 = gl.getParameter(gl.VERSION).includes("WebGL 2.0");
 
@@ -12,6 +12,16 @@ class ShaderManager {
         this.terrainIndexCount = 0;
         this.characterIndexCount = 0;
         this.renderableIndexCount = 0;
+
+        this.positions = new Float32Array(initialSize * 9);
+        this.normals = new Float32Array(initialSize * 9);
+        this.colors = new Float32Array(initialSize * 9);
+        this.indices = new Uint16Array(initialSize * 3);
+        this.uvs = new Float32Array(initialSize * 6);
+        this.colorCache = new Map();
+
+        // Pre-calculate commonly used values
+        this.colorMultiplier = 1 / 255;
     }
 
     createBuffers() {
@@ -92,71 +102,130 @@ class ShaderManager {
     }
 
     updateTerrainBuffers(terrain) {
-        const positions = [];
-        const normals = [];
-        const colors = [];
-        const uvs = [];
-        const textureIndices = [];
-        const useTextureFlags = []; // New array
-
-        terrain.triangles.forEach((triangle, i) => {
-            // Add positions, normals, colors as before
-            positions.push(...triangle.getVertexArray());
-            normals.push(...triangle.getNormalArray());
-            colors.push(...triangle.getColorArray());
-
-            if (triangle.texture) {
-                // Add UVs if the triangle has a texture
-                if (triangle.uvs) {
-                    triangle.uvs.forEach((uv) => {
-                        uvs.push(uv.u, uv.v);
-                    });
-                } else {
-                    // Default UVs if none specified
-                    uvs.push(0, 0, 1, 0, 0.5, 1);
-                }
-
-                // Get texture index for textured triangles
-                const textureIndex = this.getTextureIndexForProceduralTexture(triangle.texture);
-                textureIndices.push(textureIndex, textureIndex, textureIndex);
-                useTextureFlags.push(1, 1, 1);
-            } else {
-                // Push dummy UVs and texture index since we won't use them
-                uvs.push(0, 0, 0, 0, 0, 0);
-                textureIndices.push(0, 0, 0);
-                useTextureFlags.push(0, 0, 0);
-            }
-        });
-
-        // Update all buffers
-        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.terrainBuffers.position);
-        this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(positions), this.gl.STATIC_DRAW);
-
-        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.terrainBuffers.normal);
-        this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(normals), this.gl.STATIC_DRAW);
-
-        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.terrainBuffers.color);
-        this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(colors), this.gl.STATIC_DRAW);
-
-        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.terrainBuffers.uv);
-        this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(uvs), this.gl.STATIC_DRAW);
-
-        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.terrainBuffers.textureIndex);
-        this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(textureIndices), this.gl.STATIC_DRAW);
-
-        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.terrainBuffers.useTexture);
-        this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(useTextureFlags), this.gl.STATIC_DRAW);
-
-        this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.terrainBuffers.indices);
-        const indices = new Uint16Array(terrain.triangles.length * 3);
-        for (let i = 0; i < indices.length; i++) {
-            indices[i] = i;
+    const triangleCount = terrain.triangles.length;
+    const vertexCount = triangleCount * 9;
+    const uvCount = triangleCount * 6;
+    
+    // Preallocate all arrays
+    const positions = new Float32Array(vertexCount);
+    const normals = new Float32Array(vertexCount);
+    const colors = new Float32Array(vertexCount);
+    const uvs = new Float32Array(uvCount);
+    const textureIndices = new Float32Array(triangleCount * 3);
+    const useTextureFlags = new Float32Array(triangleCount * 3);
+    
+    // Cache texture lookups
+    const textureCache = new Map();
+    
+    for (let i = 0; i < triangleCount; i++) {
+        const triangle = terrain.triangles[i];
+        const baseIndex = i * 9;
+        const baseUVIndex = i * 6;
+        const baseFlagIndex = i * 3;
+        
+        // Vertices
+        for (let j = 0; j < 3; j++) {
+            const vertex = triangle.vertices[j];
+            const idx = baseIndex + (j * 3);
+            positions[idx] = vertex.x;
+            positions[idx + 1] = vertex.y;
+            positions[idx + 2] = vertex.z;
         }
-        this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER, indices, this.gl.STATIC_DRAW);
-
-        this.terrainIndexCount = indices.length;
-        return this.terrainIndexCount;
+        
+        // Normals
+        const normal = triangle.normal;
+        for (let j = 0; j < 3; j++) {
+            const idx = baseIndex + (j * 3);
+            normals[idx] = normal.x;
+            normals[idx + 1] = normal.y;
+            normals[idx + 2] = normal.z;
+        }
+        
+        // Process colors (can reuse the colorCache mechanism)
+        let rgb = this.colorCache.get(triangle.color);
+        if (!rgb) {
+            rgb = {
+                r: parseInt(triangle.color.slice(1, 3), 16) * this.colorMultiplier,
+                g: parseInt(triangle.color.slice(3, 5), 16) * this.colorMultiplier,
+                b: parseInt(triangle.color.slice(5, 7), 16) * this.colorMultiplier
+            };
+            this.colorCache.set(triangle.color, rgb);
+        }
+        
+        for (let j = 0; j < 3; j++) {
+            const idx = baseIndex + (j * 3);
+            colors[idx] = rgb.r;
+            colors[idx + 1] = rgb.g;
+            colors[idx + 2] = rgb.b;
+        }
+        
+        // Handle textures
+        if (triangle.texture) {
+            if (triangle.uvs) {
+                for (let j = 0; j < 3; j++) {
+                    const uv = triangle.uvs[j];
+                    uvs[baseUVIndex + j * 2] = uv.u;
+                    uvs[baseUVIndex + j * 2 + 1] = uv.v;
+                }
+            } else {
+                // Default UVs
+                uvs[baseUVIndex] = 0;
+                uvs[baseUVIndex + 1] = 0;
+                uvs[baseUVIndex + 2] = 1;
+                uvs[baseUVIndex + 3] = 0;
+                uvs[baseUVIndex + 4] = 0.5;
+                uvs[baseUVIndex + 5] = 1;
+            }
+            
+            // Cache texture indices
+            let textureIndex = textureCache.get(triangle.texture);
+            if (textureIndex === undefined) {
+                textureIndex = this.getTextureIndexForProceduralTexture(triangle.texture);
+                textureCache.set(triangle.texture, textureIndex);
+            }
+            
+            textureIndices[baseFlagIndex] = textureIndex;
+            textureIndices[baseFlagIndex + 1] = textureIndex;
+            textureIndices[baseFlagIndex + 2] = textureIndex;
+            
+            useTextureFlags[baseFlagIndex] = 1;
+            useTextureFlags[baseFlagIndex + 1] = 1;
+            useTextureFlags[baseFlagIndex + 2] = 1;
+        }
     }
+    
+    const gl = this.gl;
+    
+    // Use bufferSubData if the buffers are pre-allocated
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.terrainBuffers.position);
+    gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+    
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.terrainBuffers.normal);
+    gl.bufferData(gl.ARRAY_BUFFER, normals, gl.STATIC_DRAW);
+    
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.terrainBuffers.color);
+    gl.bufferData(gl.ARRAY_BUFFER, colors, gl.STATIC_DRAW);
+    
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.terrainBuffers.uv);
+    gl.bufferData(gl.ARRAY_BUFFER, uvs, gl.STATIC_DRAW);
+    
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.terrainBuffers.textureIndex);
+    gl.bufferData(gl.ARRAY_BUFFER, textureIndices, gl.STATIC_DRAW);
+    
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.terrainBuffers.useTexture);
+    gl.bufferData(gl.ARRAY_BUFFER, useTextureFlags, gl.STATIC_DRAW);
+    
+    const indices = new Uint16Array(triangleCount * 3);
+    for (let i = 0; i < indices.length; i++) {
+        indices[i] = i;
+    }
+    
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.terrainBuffers.indices);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
+    
+    this.terrainIndexCount = indices.length;
+    return this.terrainIndexCount;
+}
     getTextureIndexForProceduralTexture(proceduralTexture) {
         // Loop through textureRegistry to find which texture this is
         for (let i = 0; i < textureRegistry.textureList.length; i++) {
@@ -169,85 +238,294 @@ class ShaderManager {
     }
     updateCharacterBuffers(character) {
         const characterModel = character.getCharacterModelTriangles();
+        const triangleCount = characterModel.length;
 
-        const vertices = new Float32Array(characterModel.flatMap((triangle) => triangle.getVertexArray()));
-        const normals = new Float32Array(characterModel.flatMap((triangle) => triangle.getNormalArray()));
-        const colors = new Float32Array(characterModel.flatMap((triangle) => triangle.getColorArray()));
+        // Preallocate arrays once with exact size needed
+        const vertexCount = triangleCount * 9; // 3 vertices * 3 components per triangle
+        const positions = new Float32Array(vertexCount);
+        const normals = new Float32Array(vertexCount);
+        const colors = new Float32Array(vertexCount);
 
-        const indices = new Uint16Array(characterModel.length * 3);
+        // Cache for color conversion
+        const colorCache = new Map();
+
+        // Single pass through triangles
+        for (let i = 0; i < triangleCount; i++) {
+            const triangle = characterModel[i];
+            const baseIndex = i * 9;
+
+            // Process vertices
+            for (let j = 0; j < 3; j++) {
+                const vertex = triangle.vertices[j];
+                const idx = baseIndex + j * 3;
+                positions[idx] = vertex.x;
+                positions[idx + 1] = vertex.y;
+                positions[idx + 2] = vertex.z;
+            }
+
+            // Process normal (same for all 3 vertices)
+            const normal = triangle.normal;
+            for (let j = 0; j < 3; j++) {
+                const idx = baseIndex + j * 3;
+                normals[idx] = normal.x;
+                normals[idx + 1] = normal.y;
+                normals[idx + 2] = normal.z;
+            }
+
+            // Process color with caching
+            let rgb = colorCache.get(triangle.color);
+            if (!rgb) {
+                rgb = {
+                    r: parseInt(triangle.color.substr(1, 2), 16) / 255,
+                    g: parseInt(triangle.color.substr(3, 2), 16) / 255,
+                    b: parseInt(triangle.color.substr(5, 2), 16) / 255
+                };
+                colorCache.set(triangle.color, rgb);
+            }
+
+            // Set same color for all 3 vertices
+            for (let j = 0; j < 3; j++) {
+                const idx = baseIndex + j * 3;
+                colors[idx] = rgb.r;
+                colors[idx + 1] = rgb.g;
+                colors[idx + 2] = rgb.b;
+            }
+        }
+
+        const indices = new Uint16Array(triangleCount * 3);
         for (let i = 0; i < indices.length; i++) {
             indices[i] = i;
         }
 
-        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.characterBuffers.position);
-        this.gl.bufferData(this.gl.ARRAY_BUFFER, vertices, this.gl.STATIC_DRAW);
+        const gl = this.gl;
 
-        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.characterBuffers.normal);
-        this.gl.bufferData(this.gl.ARRAY_BUFFER, normals, this.gl.STATIC_DRAW);
+        // Batch GL operations
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.characterBuffers.position);
+        gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
 
-        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.characterBuffers.color);
-        this.gl.bufferData(this.gl.ARRAY_BUFFER, colors, this.gl.STATIC_DRAW);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.characterBuffers.normal);
+        gl.bufferData(gl.ARRAY_BUFFER, normals, gl.STATIC_DRAW);
 
-        this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.characterBuffers.indices);
-        this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER, indices, this.gl.STATIC_DRAW);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.characterBuffers.color);
+        gl.bufferData(gl.ARRAY_BUFFER, colors, gl.STATIC_DRAW);
+
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.characterBuffers.indices);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
 
         this.characterIndexCount = indices.length;
         return this.characterIndexCount;
     }
 
     updateRenderableBuffers(renderable) {
-        const positions = new Float32Array(renderable.triangles.length * 9);
-        const normals = new Float32Array(renderable.triangles.length * 9);
-        const colors = new Float32Array(renderable.triangles.length * 9);
+        const triangleCount = renderable.triangles.length;
 
-        renderable.triangles.forEach((triangle, i) => {
+        // Resize buffers if needed
+        this.ensureBufferCapacity(triangleCount);
+
+        // Direct array access is faster than repeated property lookups
+        const positions = this.positions;
+        const normals = this.normals;
+        const colors = this.colors;
+        const colorCache = this.colorCache;
+        const triangles = renderable.triangles;
+
+        // Process in chunks for better cache utilization
+        const CHUNK_SIZE = 64; // Adjust based on testing
+
+        for (let chunkStart = 0; chunkStart < triangleCount; chunkStart += CHUNK_SIZE) {
+            const chunkEnd = Math.min(chunkStart + CHUNK_SIZE, triangleCount);
+
+            for (let i = chunkStart; i < chunkEnd; i++) {
+                const triangle = triangles[i];
+                const baseIndex = i * 9;
+
+                // Unroll the vertex loop for better performance
+                // Vertex 0
+                const v0 = triangle.vertices[0];
+                positions[baseIndex] = v0.x;
+                positions[baseIndex + 1] = v0.y;
+                positions[baseIndex + 2] = v0.z;
+
+                // Vertex 1
+                const v1 = triangle.vertices[1];
+                positions[baseIndex + 3] = v1.x;
+                positions[baseIndex + 4] = v1.y;
+                positions[baseIndex + 5] = v1.z;
+
+                // Vertex 2
+                const v2 = triangle.vertices[2];
+                positions[baseIndex + 6] = v2.x;
+                positions[baseIndex + 7] = v2.y;
+                positions[baseIndex + 8] = v2.z;
+
+                // Normal (same for all vertices in triangle)
+                const normal = triangle.normal;
+                for (let j = 0; j < 3; j++) {
+                    const normalOffset = baseIndex + j * 3;
+                    normals[normalOffset] = normal.x;
+                    normals[normalOffset + 1] = normal.y;
+                    normals[normalOffset + 2] = normal.z;
+                }
+
+                // Optimized color processing
+                let rgb = colorCache.get(triangle.color);
+                if (!rgb) {
+                    const color = triangle.color;
+                    rgb = {
+                        r: parseInt(color.slice(1, 3), 16) * this.colorMultiplier,
+                        g: parseInt(color.slice(3, 5), 16) * this.colorMultiplier,
+                        b: parseInt(color.slice(5, 7), 16) * this.colorMultiplier
+                    };
+                    colorCache.set(color, rgb);
+                }
+
+                // Unrolled color assignment
+                colors[baseIndex] = colors[baseIndex + 3] = colors[baseIndex + 6] = rgb.r;
+                colors[baseIndex + 1] = colors[baseIndex + 4] = colors[baseIndex + 7] = rgb.g;
+                colors[baseIndex + 2] = colors[baseIndex + 5] = colors[baseIndex + 8] = rgb.b;
+            }
+        }
+
+        const indexCount = triangleCount * 3;
+
+        // Only update indices if count changed
+        if (indexCount !== this.lastIndexCount) {
+            for (let i = 0; i < indexCount; i++) {
+                this.indices[i] = i;
+            }
+            this.lastIndexCount = indexCount;
+        }
+
+        // Batch GL updates using VAOs if available
+        const gl = this.gl;
+
+        if (this.vao) {
+            gl.bindVertexArray(this.vao);
+        }
+
+        // Use vertex buffer subdata for partial updates
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.renderableBuffers.position);
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, positions.subarray(0, triangleCount * 9));
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.renderableBuffers.normal);
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, normals.subarray(0, triangleCount * 9));
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.renderableBuffers.color);
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, colors.subarray(0, triangleCount * 9));
+
+        if (indexCount !== this.lastIndexCount) {
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.renderableBuffers.indices);
+            gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER, 0, this.indices.subarray(0, indexCount));
+        }
+
+        // No need to update UVs if they're always zero
+
+        if (this.vao) {
+            gl.bindVertexArray(null);
+        }
+
+        this.renderableIndexCount = indexCount;
+        return indexCount;
+    }
+
+    // Helper method
+    ensureBufferCapacity(triangleCount) {
+        const required = triangleCount * 9;
+        if (this.positions.length < required) {
+            const newSize = Math.ceil(required * 1.5); // Add some extra for growth
+            this.positions = new Float32Array(newSize);
+            this.normals = new Float32Array(newSize);
+            this.colors = new Float32Array(newSize);
+            this.indices = new Uint16Array(triangleCount * 3);
+            this.uvs = new Float32Array(triangleCount * 6);
+        }
+    }
+
+    goodupdateRenderableBuffers(renderable) {
+        const triangleCount = renderable.triangles.length;
+        const positions = new Float32Array(triangleCount * 9);
+        const normals = new Float32Array(triangleCount * 9);
+        const colors = new Float32Array(triangleCount * 9);
+
+        // Pre-calculate color values outside the loop
+        const colorCache = new Map();
+
+        for (let i = 0; i < triangleCount; i++) {
+            const triangle = renderable.triangles[i];
             const baseIndex = i * 9;
 
-            for (let j = 0; j < 3; j++) {
-                positions[baseIndex + j * 3] = triangle.vertices[j].x;
-                positions[baseIndex + j * 3 + 1] = triangle.vertices[j].y;
-                positions[baseIndex + j * 3 + 2] = triangle.vertices[j].z;
-
-                normals[baseIndex + j * 3] = triangle.normal.x;
-                normals[baseIndex + j * 3 + 1] = triangle.normal.y;
-                normals[baseIndex + j * 3 + 2] = triangle.normal.z;
-            }
-
-            const r = parseInt(triangle.color.substr(1, 2), 16) / 255;
-            const g = parseInt(triangle.color.substr(3, 2), 16) / 255;
-            const b = parseInt(triangle.color.substr(5, 2), 16) / 255;
+            // Process vertices and normals
+            const vertices = triangle.vertices;
+            const normal = triangle.normal;
 
             for (let j = 0; j < 3; j++) {
-                colors[baseIndex + j * 3] = r;
-                colors[baseIndex + j * 3 + 1] = g;
-                colors[baseIndex + j * 3 + 2] = b;
-            }
-        });
+                const vertexOffset = baseIndex + j * 3;
+                const vertex = vertices[j];
 
-        const indices = new Uint16Array(renderable.triangles.length * 3);
-        for (let i = 0; i < indices.length; i++) {
+                // Positions
+                positions[vertexOffset] = vertex.x;
+                positions[vertexOffset + 1] = vertex.y;
+                positions[vertexOffset + 2] = vertex.z;
+
+                // Normals
+                normals[vertexOffset] = normal.x;
+                normals[vertexOffset + 1] = normal.y;
+                normals[vertexOffset + 2] = normal.z;
+            }
+
+            // Process colors with caching
+            let rgb = colorCache.get(triangle.color);
+            if (!rgb) {
+                rgb = {
+                    r: parseInt(triangle.color.substr(1, 2), 16) / 255,
+                    g: parseInt(triangle.color.substr(3, 2), 16) / 255,
+                    b: parseInt(triangle.color.substr(5, 2), 16) / 255
+                };
+                colorCache.set(triangle.color, rgb);
+            }
+
+            // Fill colors for all vertices of the triangle
+            for (let j = 0; j < 3; j++) {
+                const colorOffset = baseIndex + j * 3;
+                colors[colorOffset] = rgb.r;
+                colors[colorOffset + 1] = rgb.g;
+                colors[colorOffset + 2] = rgb.b;
+            }
+        }
+
+        // Create and fill indices array
+        const indexCount = triangleCount * 3;
+        const indices = new Uint16Array(indexCount);
+        for (let i = 0; i < indexCount; i++) {
             indices[i] = i;
         }
-        const uvs = new Float32Array(renderable.triangles.length * 6);
-        uvs.fill(0); // Fill with zeros since they won't be used anyway
 
-        // Use the existing buffers!
-        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.renderableBuffers.position);
-        this.gl.bufferData(this.gl.ARRAY_BUFFER, positions, this.gl.STATIC_DRAW);
+        // Create UV array
+        const uvs = new Float32Array(triangleCount * 6);
+        // No need to fill with zeros as TypedArrays are zero-initialized
 
-        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.renderableBuffers.normal);
-        this.gl.bufferData(this.gl.ARRAY_BUFFER, normals, this.gl.STATIC_DRAW);
+        // Batch GL operations
+        const gl = this.gl;
 
-        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.renderableBuffers.color);
-        this.gl.bufferData(this.gl.ARRAY_BUFFER, colors, this.gl.STATIC_DRAW);
+        // Update all buffers
+        const bufferUpdates = [
+            { buffer: this.renderableBuffers.position, data: positions },
+            { buffer: this.renderableBuffers.normal, data: normals },
+            { buffer: this.renderableBuffers.color, data: colors },
+            { buffer: this.renderableBuffers.uv, data: uvs }
+        ];
 
-        this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.renderableBuffers.indices);
-        this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER, indices, this.gl.STATIC_DRAW);
-        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.renderableBuffers.uv);
-        this.gl.bufferData(this.gl.ARRAY_BUFFER, uvs, this.gl.STATIC_DRAW);
+        for (const { buffer, data } of bufferUpdates) {
+            gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+            gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+        }
 
-        this.renderableIndexCount = indices.length;
-        return this.renderableIndexCount;
+        // Update indices separately as it uses ELEMENT_ARRAY_BUFFER
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.renderableBuffers.indices);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
+
+        this.renderableIndexCount = indexCount;
+        return indexCount;
     }
 
     deleteBuffers() {
