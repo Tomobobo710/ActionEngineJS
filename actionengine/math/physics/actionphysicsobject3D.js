@@ -55,11 +55,6 @@ class ActionPhysicsObject3D extends RenderableObject {
                 vertex.z = relativeVert.z + posZ;
             }
         }
-
-        // Optional chaining can be replaced with direct check if we know the context
-        if (this.physicsWorld.shaderManager) {
-            this.physicsWorld.shaderManager.updateRenderableBuffers(this);
-        }
     }
 
     rotateVector(vector, rotation) {
