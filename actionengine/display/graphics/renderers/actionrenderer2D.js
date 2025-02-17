@@ -169,98 +169,108 @@ class ActionRenderer2D {
 
 	rasterizeTriangleBase(triangle, useDepthTest = true) {
 		const points = triangle.points;
-		const minX = Math.max(0, Math.floor(Math.min(points[0].x, points[1].x, points[2].x)));
-		const maxX = Math.min(this.width - 1, Math.ceil(Math.max(points[0].x, points[1].x, points[2].x)));
-		const minY = Math.max(0, Math.floor(Math.min(points[0].y, points[1].y, points[2].y)));
-		const maxY = Math.min(this.height - 1, Math.ceil(Math.max(points[0].y, points[1].y, points[2].y)));
+		// Cache array access and bound calculations
+		const p0 = points[0],
+			p1 = points[1],
+			p2 = points[2];
+		const minX = Math.max(0, Math.floor(Math.min(p0.x, p1.x, p2.x)));
+		const maxX = Math.min(this.width - 1, Math.ceil(Math.max(p0.x, p1.x, p2.x)));
+		const minY = Math.max(0, Math.floor(Math.min(p0.y, p1.y, p2.y)));
+		const maxY = Math.min(this.height - 1, Math.ceil(Math.max(p0.y, p1.y, p2.y)));
 
-		// Pre-calculate color values
-		const r = parseInt(triangle.color.substr(1, 2), 16);
-		const g = parseInt(triangle.color.substr(3, 2), 16);
-		const b = parseInt(triangle.color.substr(5, 2), 16);
-		let lighting = triangle.lighting;
+		// Pre-calculate color values once
+		const color = triangle.color;
+		const r = parseInt(color.substr(1, 2), 16);
+		const g = parseInt(color.substr(3, 2), 16);
+		const b = parseInt(color.substr(5, 2), 16);
+		const baseLighting = triangle.lighting;
 
-		// Only calculate texture mapping values if we have a texture
+		// Cache texture-related values
+		const hasTexture = triangle.texture && triangle.uvs;
+		const imageData = this.imageData.data;
 		let oneOverW, uvOverW;
-		if (triangle.texture && triangle.uvs) {
-			//oneOverW = points.map((p) => 1 / p.z);
-			oneOverW = points.map((p) => 1 / Math.max(0.1, p.z));
-			uvOverW = triangle.uvs.map((uv, i) => ({
-				u: uv.u * oneOverW[i],
-				v: uv.v * oneOverW[i]
-			}));
+
+		if (hasTexture) {
+			oneOverW = [1 / Math.max(0.1, p0.z), 1 / Math.max(0.1, p1.z), 1 / Math.max(0.1, p2.z)];
+			const uvs = triangle.uvs;
+			uvOverW = [
+				{ u: uvs[0].u * oneOverW[0], v: uvs[0].v * oneOverW[0] },
+				{ u: uvs[1].u * oneOverW[1], v: uvs[1].v * oneOverW[1] },
+				{ u: uvs[2].u * oneOverW[2], v: uvs[2].v * oneOverW[2] }
+			];
 		}
 
-		// Block-based rasterization for better cache usage
+		// Cache texture dimensions if available
+		const textureWidth = hasTexture ? triangle.texture.width : 0;
+		const textureHeight = hasTexture ? triangle.texture.height : 0;
+
 		const BLOCK_SIZE = 8;
-		for (let blockY = minY; blockY <= maxY; blockY += BLOCK_SIZE) {
-			for (let blockX = minX; blockX <= maxX; blockX += BLOCK_SIZE) {
+		const isWater = triangle.isWater;
+		const zBuffer = this.zBuffer;
+
+		// Pre-calculate block boundaries
+		const numBlocksX = Math.ceil((maxX - minX + 1) / BLOCK_SIZE);
+		const numBlocksY = Math.ceil((maxY - minY + 1) / BLOCK_SIZE);
+
+		for (let blockYIndex = 0; blockYIndex < numBlocksY; blockYIndex++) {
+			const blockY = minY + blockYIndex * BLOCK_SIZE;
+			const endY = Math.min(blockY + BLOCK_SIZE, maxY + 1);
+
+			for (let blockXIndex = 0; blockXIndex < numBlocksX; blockXIndex++) {
+				const blockX = minX + blockXIndex * BLOCK_SIZE;
 				const endX = Math.min(blockX + BLOCK_SIZE, maxX + 1);
-				const endY = Math.min(blockY + BLOCK_SIZE, maxY + 1);
 
 				for (let y = blockY; y < endY; y++) {
 					const rowOffset = y * this.width;
+
 					for (let x = blockX; x < endX; x++) {
-						if (!TriangleUtils.pointInTriangle({ x, y }, points[0], points[1], points[2])) continue;
+						if (!TriangleUtils.pointInTriangle({ x, y }, p0, p1, p2)) continue;
 
-						let currentLighting = lighting;
 						const index = rowOffset + x;
-						let shouldDraw = true;
+						let currentLighting = baseLighting;
 
-						if (triangle.isWater || useDepthTest) {
-							const z = TriangleUtils.interpolateZ(x, y, points[0], points[1], points[2]);
+						// Z-buffer and water effects
+						if (isWater || useDepthTest) {
+							const z = TriangleUtils.interpolateZ(x, y, p0, p1, p2);
 
-							if (triangle.isWater) {
-								const time = performance.now() / 1000;
-								currentLighting *= Math.sin(time + z / 50) * 0.1 + 0.9;
+							if (isWater) {
+								currentLighting *= Math.sin(performance.now() / 1000 + z / 50) * 0.1 + 0.9;
 							}
 
-							if (useDepthTest) {
-								shouldDraw = z < this.zBuffer[index];
-								if (shouldDraw) {
-									this.zBuffer[index] = z;
-								}
-							}
+							if (useDepthTest && z >= zBuffer[index]) continue;
+							if (useDepthTest) zBuffer[index] = z;
 						}
 
-						if (shouldDraw) {
-							const pixelIndex = index * 4;
+						const pixelIndex = index * 4;
 
-							if (triangle.texture && triangle.uvs) {
-								// Get barycentric coordinates
-								const bary = TriangleUtils.getBarycentricCoords(x, y, points[0], points[1], points[2]);
+						if (hasTexture) {
+							const bary = TriangleUtils.getBarycentricCoords(x, y, p0, p1, p2);
+							const interpolatedOneOverW =
+								bary.w1 * oneOverW[0] + bary.w2 * oneOverW[1] + bary.w3 * oneOverW[2];
 
-								// Interpolate 1/w
-								const interpolatedOneOverW =
-									bary.w1 * oneOverW[0] + bary.w2 * oneOverW[1] + bary.w3 * oneOverW[2];
+							const interpolatedUOverW =
+								bary.w1 * uvOverW[0].u + bary.w2 * uvOverW[1].u + bary.w3 * uvOverW[2].u;
 
-								// Interpolate u/w and v/w
-								const interpolatedUOverW =
-									bary.w1 * uvOverW[0].u + bary.w2 * uvOverW[1].u + bary.w3 * uvOverW[2].u;
-								const interpolatedVOverW =
-									bary.w1 * uvOverW[0].v + bary.w2 * uvOverW[1].v + bary.w3 * uvOverW[2].v;
+							const interpolatedVOverW =
+								bary.w1 * uvOverW[0].v + bary.w2 * uvOverW[1].v + bary.w3 * uvOverW[2].v;
 
-								// Perspective-correct UVs
-								const u = interpolatedUOverW / interpolatedOneOverW;
-								const v = interpolatedVOverW / interpolatedOneOverW;
+							const u = interpolatedUOverW / interpolatedOneOverW;
+							const v = interpolatedVOverW / interpolatedOneOverW;
 
-								// Sample texture
-								const texel = triangle.texture.getPixel(
-									Math.floor(u * triangle.texture.width),
-									Math.floor(v * triangle.texture.height)
-								);
+							const texel = triangle.texture.getPixel(
+								Math.floor(u * textureWidth),
+								Math.floor(v * textureHeight)
+							);
 
-								this.imageData.data[pixelIndex] = texel.r * currentLighting;
-								this.imageData.data[pixelIndex + 1] = texel.g * currentLighting;
-								this.imageData.data[pixelIndex + 2] = texel.b * currentLighting;
-								this.imageData.data[pixelIndex + 3] = 255;
-							} else {
-								// Use flat color if no texture
-								this.imageData.data[pixelIndex] = r * currentLighting;
-								this.imageData.data[pixelIndex + 1] = g * currentLighting;
-								this.imageData.data[pixelIndex + 2] = b * currentLighting;
-								this.imageData.data[pixelIndex + 3] = 255;
-							}
+							imageData[pixelIndex] = texel.r * currentLighting;
+							imageData[pixelIndex + 1] = texel.g * currentLighting;
+							imageData[pixelIndex + 2] = texel.b * currentLighting;
+							imageData[pixelIndex + 3] = 255;
+						} else {
+							imageData[pixelIndex] = r * currentLighting;
+							imageData[pixelIndex + 1] = g * currentLighting;
+							imageData[pixelIndex + 2] = b * currentLighting;
+							imageData[pixelIndex + 3] = 255;
 						}
 					}
 				}
