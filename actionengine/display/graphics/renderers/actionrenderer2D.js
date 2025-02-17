@@ -209,21 +209,23 @@ class ActionRenderer2D {
 
 				for (let y = blockY; y < endY; y++) {
 					const rowOffset = y * this.width;
-
 					for (let x = blockX; x < endX; x++) {
 						if (!TriangleUtils.pointInTriangle({ x, y }, p0, p1, p2)) continue;
 
 						const index = rowOffset + x;
 						let currentLighting = baseLighting;
 
+						// Calculate barycentric coords once
+						const bary = TriangleUtils.getBarycentricCoords(x, y, p0, p1, p2);
+
 						// Z-buffer and water effects
 						if (isWater || useDepthTest) {
-							const z = TriangleUtils.interpolateZ(x, y, p0, p1, p2);
+							// Use bary coords instead of recalculating
+							const z = bary.w1 * p0.z + bary.w2 * p1.z + bary.w3 * p2.z;
 
 							if (isWater) {
 								currentLighting *= Math.sin(performance.now() / 1000 + z / 50) * 0.1 + 0.9;
 							}
-
 							if (useDepthTest && z >= zBuffer[index]) continue;
 							if (useDepthTest) zBuffer[index] = z;
 						}
@@ -231,34 +233,33 @@ class ActionRenderer2D {
 						const pixelIndex = index * 4;
 
 						if (hasTexture) {
-							const bary = TriangleUtils.getBarycentricCoords(x, y, p0, p1, p2);
-							const interpolatedOneOverW =
-								bary.w1 * oneOverW[0] + bary.w2 * oneOverW[1] + bary.w3 * oneOverW[2];
-
-							const interpolatedUOverW =
-								bary.w1 * uvOverW[0].u + bary.w2 * uvOverW[1].u + bary.w3 * uvOverW[2].u;
-
-							const interpolatedVOverW =
-								bary.w1 * uvOverW[0].v + bary.w2 * uvOverW[1].v + bary.w3 * uvOverW[2].v;
-
-							const u = interpolatedUOverW / interpolatedOneOverW;
-							const v = interpolatedVOverW / interpolatedOneOverW;
-
-							const texel = triangle.texture.getPixel(
-								Math.floor(u * textureWidth),
-								Math.floor(v * textureHeight)
-							);
-
-							imageData[pixelIndex] = texel.r * currentLighting;
-							imageData[pixelIndex + 1] = texel.g * currentLighting;
-							imageData[pixelIndex + 2] = texel.b * currentLighting;
-							imageData[pixelIndex + 3] = 255;
-						} else {
-							imageData[pixelIndex] = r * currentLighting;
-							imageData[pixelIndex + 1] = g * currentLighting;
-							imageData[pixelIndex + 2] = b * currentLighting;
-							imageData[pixelIndex + 3] = 255;
-						}
+   let u, v;
+   if (useDepthTest) {
+       // Full perspective-correct texture mapping for near triangles
+       const interpolatedOneOverW = bary.w1 * oneOverW[0] + bary.w2 * oneOverW[1] + bary.w3 * oneOverW[2];
+       const interpolatedUOverW = bary.w1 * uvOverW[0].u + bary.w2 * uvOverW[1].u + bary.w3 * uvOverW[2].u;
+       const interpolatedVOverW = bary.w1 * uvOverW[0].v + bary.w2 * uvOverW[1].v + bary.w3 * uvOverW[2].v;
+       u = interpolatedUOverW / interpolatedOneOverW;
+       v = interpolatedVOverW / interpolatedOneOverW;
+   } else {
+       // Simpler linear interpolation for far triangles
+       u = bary.w1 * triangle.uvs[0].u + bary.w2 * triangle.uvs[1].u + bary.w3 * triangle.uvs[2].u;
+       v = bary.w1 * triangle.uvs[0].v + bary.w2 * triangle.uvs[1].v + bary.w3 * triangle.uvs[2].v;
+   }
+   const texel = triangle.texture.getPixel(
+       Math.floor(u * textureWidth),
+       Math.floor(v * textureHeight)
+   );
+   imageData[pixelIndex] = texel.r * currentLighting;
+   imageData[pixelIndex + 1] = texel.g * currentLighting;
+   imageData[pixelIndex + 2] = texel.b * currentLighting;
+   imageData[pixelIndex + 3] = 255;
+} else {
+   imageData[pixelIndex] = r * currentLighting;
+   imageData[pixelIndex + 1] = g * currentLighting;
+   imageData[pixelIndex + 2] = b * currentLighting;
+   imageData[pixelIndex + 3] = 255;
+}
 					}
 				}
 			}
