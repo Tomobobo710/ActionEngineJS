@@ -25,15 +25,18 @@ class ActionRenderer2D {
 	}
 
 	render(terrain, camera, character, showDebugPanel, weatherSystem, renderablePhysicsObjects) {
+		// Get view matrix ONCE at the start
+		const view = camera.getViewMatrix();
+
 		// Clear buffers
 		this.clearBuffers();
 
-		// Collect visible triangles
-		const { nearTriangles, farTriangles } = this.collectTriangles(terrain, camera, renderablePhysicsObjects);
+		// Pass view to collectTriangles
+		const { nearTriangles, farTriangles } = this.collectTriangles(terrain, camera, renderablePhysicsObjects, view);
 
 		// Add character triangles if present
 		if (character) {
-			this.processCharacterTriangles(character, camera, nearTriangles);
+			this.processCharacterTriangles(character, camera, nearTriangles, view);
 		}
 
 		// Render far triangles first (back to front) WITHOUT depth testing
@@ -53,7 +56,7 @@ class ActionRenderer2D {
 
 		// Debug overlays if needed
 		if (showDebugPanel) {
-			this.renderDebugOverlays(character, camera);
+			this.renderDebugOverlays(character, camera, view); // Pass view here too
 		}
 	}
 
@@ -72,24 +75,15 @@ class ActionRenderer2D {
 		const nearTriangles = [];
 		const farTriangles = [];
 
+		// Get view matrix once at start
+		const view = camera.getViewMatrix();
+
 		const processTriangle = (triangle) => {
-			/**
-			 * Transforms triangle vertices into view space and calculates view Z distances.
-			 * View space means positions relative to the camera, where:
-			 * - viewSpace: The vertex position relative to camera position
-			 * - viewZ: The distance along camera's forward vector (positive = in front of camera)
-			 *
-			 * @param {Vector3[]} triangle.vertices - Array of 3 vertices in world space
-			 * @param {Matrix4} camera.getViewMatrix() - Camera's view matrix containing position and orientation
-			 * @returns {Object[]} Array of transformed vertices containing:
-			 *   @returns {Vector3} .pos - The vertex position in view space
-			 *   @returns {number} .viewZ - Distance along camera's forward vector
-			 */
 			const viewPositions = triangle.vertices.map((vertex) => {
-				const viewSpace = vertex.sub(camera.getViewMatrix().position);
+				const viewSpace = vertex.sub(view.position);
 				return {
 					pos: viewSpace,
-					viewZ: viewSpace.dot(camera.getViewMatrix().forward)
+					viewZ: viewSpace.dot(view.forward)
 				};
 			});
 
@@ -100,7 +94,7 @@ class ActionRenderer2D {
 			// Back-face culling using viewspace positions
 			if (triangle.normal.dot(viewPositions[0].pos) >= 0) return;
 			// Skip if projection fails
-			const projectedVerts = triangle.vertices.map((v) => this.project(v, camera));
+			const projectedVerts = triangle.vertices.map((v) => this.project(v, camera, view));
 			if (projectedVerts.some((v) => v === null)) return;
 
 			const lightDir = new Vector3(0.5, 1, 0.5).normalize();
@@ -139,8 +133,7 @@ class ActionRenderer2D {
 		return { nearTriangles, farTriangles };
 	}
 
-	project(point, camera) {
-		const view = camera.getViewMatrix();
+	project(point, camera, view) {
 		const relativePos = point.sub(view.position);
 		const viewZ = relativePos.dot(view.forward);
 
@@ -286,7 +279,7 @@ class ActionRenderer2D {
 		this.rasterizeTriangleBase(triangle, false);
 	}
 
-	processCharacterTriangles(character, camera, nearTriangles) {
+	processCharacterTriangles(character, camera, nearTriangles, view) {
 		const modelMatrix = character.getModelMatrix();
 		const characterModel = character.getCharacterModelTriangles();
 		const lightDir = new Vector3(0.5, 1.0, 0.5).normalize();
@@ -300,11 +293,11 @@ class ActionRenderer2D {
 				transformedVerts[i] = Matrix4.transformVertex(triangle.vertices[i], modelMatrix);
 			}
 
-			// Project to screen space
+			// Project to screen space using our cached view
 			const projectedPoints = new Array(3);
 			let invalidProjection = false;
 			for (let i = 0; i < 3; i++) {
-				projectedPoints[i] = this.project(transformedVerts[i], camera);
+				projectedPoints[i] = this.project(transformedVerts[i], camera, view);
 				if (projectedPoints[i] === null) {
 					invalidProjection = true;
 					break;
@@ -328,26 +321,22 @@ class ActionRenderer2D {
 		}
 	}
 
-	renderDebugOverlays(character, camera) {
+	renderDebugOverlays(character, camera, view) {
 		const ctx = this.ctx;
 		const currentTriangle = character.getCurrentTriangle();
-
 		if (currentTriangle) {
 			const center = {
 				x: (currentTriangle.vertices[0].x + currentTriangle.vertices[1].x + currentTriangle.vertices[2].x) / 3,
 				y: (currentTriangle.vertices[0].y + currentTriangle.vertices[1].y + currentTriangle.vertices[2].y) / 3,
 				z: (currentTriangle.vertices[0].z + currentTriangle.vertices[1].z + currentTriangle.vertices[2].z) / 3
 			};
-
 			const normalEnd = {
 				x: center.x + currentTriangle.normal.x * 10,
 				y: center.y + currentTriangle.normal.y * 10,
 				z: center.z + currentTriangle.normal.z * 10
 			};
-
-			const projectedCenter = this.project(new Vector3(center.x, center.y, center.z), camera);
-			const projectedEnd = this.project(new Vector3(normalEnd.x, normalEnd.y, normalEnd.z), camera);
-
+			const projectedCenter = this.project(new Vector3(center.x, center.y, center.z), camera, view);
+			const projectedEnd = this.project(new Vector3(normalEnd.x, normalEnd.y, normalEnd.z), camera, view);
 			if (projectedCenter && projectedEnd) {
 				ctx.strokeStyle = "#0000FF";
 				ctx.beginPath();
@@ -356,11 +345,10 @@ class ActionRenderer2D {
 				ctx.stroke();
 			}
 		}
-
-		this.renderDirectionIndicator(character, camera);
+		this.renderDirectionIndicator(character, camera, view);
 	}
 
-	renderDirectionIndicator(character, camera) {
+	renderDirectionIndicator(character, camera, view) {
 		const center = character.position;
 		const directionEnd = new Vector3(
 			center.x + character.facingDirection.x * character.size * 2,
@@ -368,8 +356,8 @@ class ActionRenderer2D {
 			center.z + character.facingDirection.z * character.size * 2
 		);
 
-		const projectedCenter = this.project(center, camera);
-		const projectedEnd = this.project(directionEnd, camera);
+		const projectedCenter = this.project(center, camera, view);
+		const projectedEnd = this.project(directionEnd, camera, view);
 
 		if (projectedCenter && projectedEnd) {
 			this.ctx.strokeStyle = "#0000FF";
