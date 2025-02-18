@@ -110,7 +110,10 @@ class WorldMode {
         this.lastTime = currentTime;
         
         if (!this.isPaused) {
-            this.shaderManager.updateCharacterBuffers(this.character);
+            // Only update character buffers in 3D mode
+            if (!this.use2DRenderer) {
+                this.shaderManager.updateCharacterBuffers(this.character);
+            }
             this.physicsWorld.update(this.deltaTime);
             this.handleInput();
             this.weatherSystem.update(this.deltaTime, this.terrain);

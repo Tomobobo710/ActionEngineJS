@@ -26,70 +26,111 @@ class ObjectRenderer3D {
     }
 
     render(object, camera, shaderSet, currentTime) {
-        // Update buffers for this specific object
-        const positions = new Float32Array(object.triangles.length * 9);
-        const normals = new Float32Array(object.triangles.length * 9);
-        const colors = new Float32Array(object.triangles.length * 9);
+        const triangleCount = object.triangles.length;
+        const vertexCount = triangleCount * 9;
 
-        object.triangles.forEach((triangle, i) => {
+        // Preallocate arrays once and reuse them if size hasn't changed
+        if (!this.cachedArrays || this.cachedArrays.positions.length !== vertexCount) {
+            this.cachedArrays = {
+                positions: new Float32Array(vertexCount),
+                normals: new Float32Array(vertexCount),
+                colors: new Float32Array(vertexCount),
+                indices: new Uint16Array(triangleCount * 3)
+            };
+
+            // Indices array can be initialized once since it's always sequential
+            for (let i = 0; i < this.cachedArrays.indices.length; i++) {
+                this.cachedArrays.indices[i] = i;
+            }
+        }
+
+        const { positions, normals, colors, indices } = this.cachedArrays;
+
+        // Use for loop instead of forEach for better performance
+        for (let i = 0; i < triangleCount; i++) {
+            const triangle = object.triangles[i];
             const baseIndex = i * 9;
 
-            for (let j = 0; j < 3; j++) {
-                positions[baseIndex + j * 3] = triangle.vertices[j].x;
-                positions[baseIndex + j * 3 + 1] = triangle.vertices[j].y;
-                positions[baseIndex + j * 3 + 2] = triangle.vertices[j].z;
-
-                normals[baseIndex + j * 3] = triangle.normal.x;
-                normals[baseIndex + j * 3 + 1] = triangle.normal.y;
-                normals[baseIndex + j * 3 + 2] = triangle.normal.z;
+            // Cache color conversion
+            const color = triangle.color;
+            if (color !== triangle.lastColor) {
+                triangle.cachedColor = {
+                    r: parseInt(color.substr(1, 2), 16) / 255,
+                    g: parseInt(color.substr(3, 2), 16) / 255,
+                    b: parseInt(color.substr(5, 2), 16) / 255
+                };
+                triangle.lastColor = color;
             }
+            const { r, g, b } = triangle.cachedColor;
 
-            const r = parseInt(triangle.color.substr(1, 2), 16) / 255;
-            const g = parseInt(triangle.color.substr(3, 2), 16) / 255;
-            const b = parseInt(triangle.color.substr(5, 2), 16) / 255;
-
+            // Batch vertex operations
             for (let j = 0; j < 3; j++) {
-                colors[baseIndex + j * 3] = r;
-                colors[baseIndex + j * 3 + 1] = g;
-                colors[baseIndex + j * 3 + 2] = b;
-            }
-        });
+                const vertexOffset = baseIndex + j * 3;
+                const vertex = triangle.vertices[j];
 
-        const indices = new Uint16Array(object.triangles.length * 3);
-        for (let i = 0; i < indices.length; i++) {
-            indices[i] = i;
+                // Position
+                positions[vertexOffset] = vertex.x;
+                positions[vertexOffset + 1] = vertex.y;
+                positions[vertexOffset + 2] = vertex.z;
+
+                // Normal
+                normals[vertexOffset] = triangle.normal.x;
+                normals[vertexOffset + 1] = triangle.normal.y;
+                normals[vertexOffset + 2] = triangle.normal.z;
+
+                // Color
+                colors[vertexOffset] = r;
+                colors[vertexOffset + 1] = g;
+                colors[vertexOffset + 2] = b;
+            }
         }
 
-        // Update buffers with this object's data
-        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffers.position);
-        this.gl.bufferData(this.gl.ARRAY_BUFFER, positions, this.gl.STATIC_DRAW);
+        // Cache GL context and commonly used values
+        const gl = this.gl;
+        const ARRAY_BUFFER = gl.ARRAY_BUFFER;
+        const STATIC_DRAW = gl.STATIC_DRAW;
 
-        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffers.normal);
-        this.gl.bufferData(this.gl.ARRAY_BUFFER, normals, this.gl.STATIC_DRAW);
+        // Batch buffer updates
+        const bufferUpdates = [
+            { buffer: this.buffers.position, data: positions },
+            { buffer: this.buffers.normal, data: normals },
+            { buffer: this.buffers.color, data: colors }
+        ];
 
-        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffers.color);
-        this.gl.bufferData(this.gl.ARRAY_BUFFER, colors, this.gl.STATIC_DRAW);
+        for (const { buffer, data } of bufferUpdates) {
+            gl.bindBuffer(ARRAY_BUFFER, buffer);
+            gl.bufferData(ARRAY_BUFFER, data, STATIC_DRAW);
+        }
 
-        this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.buffers.indices);
-        this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER, indices, this.gl.STATIC_DRAW);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.buffers.indices);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, STATIC_DRAW);
 
-        // Set up matrices and render
-        const projection = Matrix4.perspective(Matrix4.create(), camera.fov, Game.WIDTH / Game.HEIGHT, 0.1, 10000.0);
-        const view = Matrix4.create();
+        // Cache matrix operations
+        const projection = Matrix4.perspective(
+            this.cachedProjection || (this.cachedProjection = Matrix4.create()),
+            camera.fov,
+            Game.WIDTH / Game.HEIGHT,
+            0.1,
+            10000.0
+        );
+
+        const view = this.cachedView || (this.cachedView = Matrix4.create());
         Matrix4.lookAt(view, camera.position.toArray(), camera.target.toArray(), camera.up.toArray());
-        const model = Matrix4.create(); // Identity matrix for now
 
-        this.gl.useProgram(shaderSet.terrain.program);
-        this.setupObjectShader(shaderSet.terrain.locations, projection, view, model, camera);
+        const model = this.cachedModel || (this.cachedModel = Matrix4.create());
+
+        // Setup shader and draw
+        const terrainProgram = shaderSet.terrain;
+        gl.useProgram(terrainProgram.program);
+        this.setupObjectShader(terrainProgram.locations, projection, view, model, camera);
 
         if (shaderSet === this.programManager.getProgramRegistry().shaders.get("pbr")) {
-            this.gl.activeTexture(this.gl.TEXTURE0);
-            this.gl.bindTexture(this.gl.TEXTURE_2D, this.lightingManager.getShadowMap());
-            this.gl.uniform1i(shaderSet.terrain.locations.shadowMap, 0);
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, this.lightingManager.getShadowMap());
+            gl.uniform1i(terrainProgram.locations.shadowMap, 0);
         }
 
-        // Draw this object
-        this.drawObject(shaderSet.terrain.locations, indices.length);
+        this.drawObject(terrainProgram.locations, indices.length);
     }
 
     setupObjectShader(locations, projection, view, model, camera) {
@@ -108,41 +149,40 @@ class ObjectRenderer3D {
     }
 
     drawObject(locations, indexCount) {
-    // Position attribute
-    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffers.position);
-    this.gl.vertexAttribPointer(locations.position, 3, this.gl.FLOAT, false, 0, 0);
-    this.gl.enableVertexAttribArray(locations.position);
+        // Position attribute
+        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffers.position);
+        this.gl.vertexAttribPointer(locations.position, 3, this.gl.FLOAT, false, 0, 0);
+        this.gl.enableVertexAttribArray(locations.position);
 
-    // Normal attribute
-    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffers.normal);
-    this.gl.vertexAttribPointer(locations.normal, 3, this.gl.FLOAT, false, 0, 0);
-    this.gl.enableVertexAttribArray(locations.normal);
+        // Normal attribute
+        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffers.normal);
+        this.gl.vertexAttribPointer(locations.normal, 3, this.gl.FLOAT, false, 0, 0);
+        this.gl.enableVertexAttribArray(locations.normal);
 
-    // Color attribute
-    if (locations.color !== -1) {
-        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffers.color);
-        this.gl.vertexAttribPointer(locations.color, 3, this.gl.FLOAT, false, 0, 0);
-        this.gl.enableVertexAttribArray(locations.color);
+        // Color attribute
+        if (locations.color !== -1) {
+            this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffers.color);
+            this.gl.vertexAttribPointer(locations.color, 3, this.gl.FLOAT, false, 0, 0);
+            this.gl.enableVertexAttribArray(locations.color);
+        }
+
+        // Set default values for texture attributes without creating buffers
+        if (locations.useTexture !== -1) {
+            this.gl.disableVertexAttribArray(locations.useTexture);
+            this.gl.vertexAttrib1f(locations.useTexture, 0.0);
+        }
+
+        if (locations.textureIndex !== -1) {
+            this.gl.disableVertexAttribArray(locations.textureIndex);
+            this.gl.vertexAttrib1f(locations.textureIndex, 0.0);
+        }
+
+        if (locations.texCoord !== -1) {
+            this.gl.disableVertexAttribArray(locations.texCoord);
+            this.gl.vertexAttrib2f(locations.texCoord, 0.0, 0.0);
+        }
+
+        this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.buffers.indices);
+        this.gl.drawElements(this.gl.TRIANGLES, indexCount, this.gl.UNSIGNED_SHORT, 0);
     }
-
-    // Set default values for texture attributes without creating buffers
-    if (locations.useTexture !== -1) {
-        this.gl.disableVertexAttribArray(locations.useTexture);
-        this.gl.vertexAttrib1f(locations.useTexture, 0.0);
-    }
-
-    if (locations.textureIndex !== -1) {
-        this.gl.disableVertexAttribArray(locations.textureIndex);
-        this.gl.vertexAttrib1f(locations.textureIndex, 0.0);
-    }
-
-    if (locations.texCoord !== -1) {
-        this.gl.disableVertexAttribArray(locations.texCoord);
-        this.gl.vertexAttrib2f(locations.texCoord, 0.0, 0.0);
-    }
-
-    this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.buffers.indices);
-    this.gl.drawElements(this.gl.TRIANGLES, indexCount, this.gl.UNSIGNED_SHORT, 0);
-}
-
 }

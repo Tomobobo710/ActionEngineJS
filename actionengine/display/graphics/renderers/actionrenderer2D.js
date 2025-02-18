@@ -25,15 +25,26 @@ class ActionRenderer2D {
 	}
 
 	render(terrain, camera, character, showDebugPanel, weatherSystem, renderablePhysicsObjects) {
+		// Get view matrix ONCE at the start
+		const view = camera.getViewMatrix();
+		// Calculate view and projection matrices ONCE
+		Matrix4.lookAt(
+			this.viewMatrix,
+			view.position.toArray(),
+			[view.position.x + view.forward.x, view.position.y + view.forward.y, view.position.z + view.forward.z],
+			view.up.toArray()
+		);
+		Matrix4.perspective(this.projMatrix, camera.fov, this.width / this.height, 0.1, 10000.0);
+
 		// Clear buffers
 		this.clearBuffers();
 
-		// Collect visible triangles
-		const { nearTriangles, farTriangles } = this.collectTriangles(terrain, camera, renderablePhysicsObjects);
+		// Pass view to collectTriangles
+		const { nearTriangles, farTriangles } = this.collectTriangles(terrain, camera, renderablePhysicsObjects, view);
 
 		// Add character triangles if present
 		if (character) {
-			this.processCharacterTriangles(character, camera, nearTriangles);
+			this.processCharacterTriangles(character, camera, nearTriangles, farTriangles, view);
 		}
 
 		// Render far triangles first (back to front) WITHOUT depth testing
@@ -53,7 +64,7 @@ class ActionRenderer2D {
 
 		// Debug overlays if needed
 		if (showDebugPanel) {
-			this.renderDebugOverlays(character, camera);
+			this.renderDebugOverlays(character, camera, view); // Pass view here too
 		}
 	}
 
@@ -68,39 +79,26 @@ class ActionRenderer2D {
 		this.zBuffer.fill(Infinity);
 	}
 
-	collectTriangles(terrain, camera, physicsObjects) {
+	collectTriangles(terrain, camera, physicsObjects, view) {
 		const nearTriangles = [];
 		const farTriangles = [];
 
 		const processTriangle = (triangle) => {
-			/**
-			 * Transforms triangle vertices into view space and calculates view Z distances.
-			 * View space means positions relative to the camera, where:
-			 * - viewSpace: The vertex position relative to camera position
-			 * - viewZ: The distance along camera's forward vector (positive = in front of camera)
-			 *
-			 * @param {Vector3[]} triangle.vertices - Array of 3 vertices in world space
-			 * @param {Matrix4} camera.getViewMatrix() - Camera's view matrix containing position and orientation
-			 * @returns {Object[]} Array of transformed vertices containing:
-			 *   @returns {Vector3} .pos - The vertex position in view space
-			 *   @returns {number} .viewZ - Distance along camera's forward vector
-			 */
-			const viewPositions = triangle.vertices.map((vertex) => {
-				const viewSpace = vertex.sub(camera.getViewMatrix().position);
-				return {
-					pos: viewSpace,
-					viewZ: viewSpace.dot(camera.getViewMatrix().forward)
-				};
+			// Calculate viewZ values once
+			const viewZs = triangle.vertices.map((vertex) => {
+				const viewSpace = vertex.sub(view.position);
+				return viewSpace.dot(view.forward);
 			});
 
 			// If ALL vertices are behind, skip it
-			if (viewPositions.every((vp) => vp.viewZ <= 0)) return;
+			if (viewZs.every((z) => z <= 0)) return;
 			// If ALL vertices are too far, skip it
-			if (viewPositions.every((vp) => vp.viewZ > this.depthConfig.far)) return;
+			if (viewZs.every((z) => z > this.depthConfig.far)) return;
 			// Back-face culling using viewspace positions
-			if (triangle.normal.dot(viewPositions[0].pos) >= 0) return;
-			// Skip if projection fails
-			const projectedVerts = triangle.vertices.map((v) => this.project(v, camera));
+			if (triangle.normal.dot(triangle.vertices[0].sub(view.position)) >= 0) return;
+
+			// Project using our cached viewZ values
+			const projectedVerts = triangle.vertices.map((v, i) => this.project(v, camera, view, viewZs[i]));
 			if (projectedVerts.some((v) => v === null)) return;
 
 			const lightDir = new Vector3(0.5, 1, 0.5).normalize();
@@ -139,19 +137,8 @@ class ActionRenderer2D {
 		return { nearTriangles, farTriangles };
 	}
 
-	project(point, camera) {
-		const view = camera.getViewMatrix();
-		const relativePos = point.sub(view.position);
-		const viewZ = relativePos.dot(view.forward);
-
-		Matrix4.lookAt(
-			this.viewMatrix,
-			view.position.toArray(),
-			[view.position.x + view.forward.x, view.position.y + view.forward.y, view.position.z + view.forward.z],
-			view.up.toArray()
-		);
-
-		Matrix4.perspective(this.projMatrix, camera.fov, this.width / this.height, 0.1, 10000.0);
+	project(point, camera, view, cachedViewZ) {
+		const viewZ = cachedViewZ ?? point.sub(view.position).dot(view.forward);
 
 		const worldPoint = [point.x, point.y, point.z, 1];
 		const clipSpace = Matrix4.transformVector(worldPoint, this.viewMatrix, this.projMatrix);
@@ -169,99 +156,110 @@ class ActionRenderer2D {
 
 	rasterizeTriangleBase(triangle, useDepthTest = true) {
 		const points = triangle.points;
-		const minX = Math.max(0, Math.floor(Math.min(points[0].x, points[1].x, points[2].x)));
-		const maxX = Math.min(this.width - 1, Math.ceil(Math.max(points[0].x, points[1].x, points[2].x)));
-		const minY = Math.max(0, Math.floor(Math.min(points[0].y, points[1].y, points[2].y)));
-		const maxY = Math.min(this.height - 1, Math.ceil(Math.max(points[0].y, points[1].y, points[2].y)));
+		// Cache array access and bound calculations
+		const p0 = points[0],
+			p1 = points[1],
+			p2 = points[2];
+		const minX = Math.max(0, Math.floor(Math.min(p0.x, p1.x, p2.x)));
+		const maxX = Math.min(this.width - 1, Math.ceil(Math.max(p0.x, p1.x, p2.x)));
+		const minY = Math.max(0, Math.floor(Math.min(p0.y, p1.y, p2.y)));
+		const maxY = Math.min(this.height - 1, Math.ceil(Math.max(p0.y, p1.y, p2.y)));
 
-		// Pre-calculate color values
-		const r = parseInt(triangle.color.substr(1, 2), 16);
-		const g = parseInt(triangle.color.substr(3, 2), 16);
-		const b = parseInt(triangle.color.substr(5, 2), 16);
-		let lighting = triangle.lighting;
+		// Pre-calculate color values once
+		const color = triangle.color;
+		const r = parseInt(color.substr(1, 2), 16);
+		const g = parseInt(color.substr(3, 2), 16);
+		const b = parseInt(color.substr(5, 2), 16);
+		const baseLighting = triangle.lighting;
 
-		// Only calculate texture mapping values if we have a texture
+		// Cache texture-related values
+		const hasTexture = triangle.texture && triangle.uvs;
+		const imageData = this.imageData.data;
 		let oneOverW, uvOverW;
-		if (triangle.texture && triangle.uvs) {
-			//oneOverW = points.map((p) => 1 / p.z);
-			oneOverW = points.map((p) => 1 / Math.max(0.1, p.z));
-			uvOverW = triangle.uvs.map((uv, i) => ({
-				u: uv.u * oneOverW[i],
-				v: uv.v * oneOverW[i]
-			}));
+
+		if (hasTexture) {
+			oneOverW = [1 / Math.max(0.1, p0.z), 1 / Math.max(0.1, p1.z), 1 / Math.max(0.1, p2.z)];
+			const uvs = triangle.uvs;
+			uvOverW = [
+				{ u: uvs[0].u * oneOverW[0], v: uvs[0].v * oneOverW[0] },
+				{ u: uvs[1].u * oneOverW[1], v: uvs[1].v * oneOverW[1] },
+				{ u: uvs[2].u * oneOverW[2], v: uvs[2].v * oneOverW[2] }
+			];
 		}
 
-		// Block-based rasterization for better cache usage
+		// Cache texture dimensions if available
+		const textureWidth = hasTexture ? triangle.texture.width : 0;
+		const textureHeight = hasTexture ? triangle.texture.height : 0;
+
 		const BLOCK_SIZE = 8;
-		for (let blockY = minY; blockY <= maxY; blockY += BLOCK_SIZE) {
-			for (let blockX = minX; blockX <= maxX; blockX += BLOCK_SIZE) {
+		const isWater = triangle.isWater;
+		const zBuffer = this.zBuffer;
+
+		// Pre-calculate block boundaries
+		const numBlocksX = Math.ceil((maxX - minX + 1) / BLOCK_SIZE);
+		const numBlocksY = Math.ceil((maxY - minY + 1) / BLOCK_SIZE);
+
+		for (let blockYIndex = 0; blockYIndex < numBlocksY; blockYIndex++) {
+			const blockY = minY + blockYIndex * BLOCK_SIZE;
+			const endY = Math.min(blockY + BLOCK_SIZE, maxY + 1);
+
+			for (let blockXIndex = 0; blockXIndex < numBlocksX; blockXIndex++) {
+				const blockX = minX + blockXIndex * BLOCK_SIZE;
 				const endX = Math.min(blockX + BLOCK_SIZE, maxX + 1);
-				const endY = Math.min(blockY + BLOCK_SIZE, maxY + 1);
 
 				for (let y = blockY; y < endY; y++) {
 					const rowOffset = y * this.width;
 					for (let x = blockX; x < endX; x++) {
-						if (!TriangleUtils.pointInTriangle({ x, y }, points[0], points[1], points[2])) continue;
+						if (!TriangleUtils.pointInTriangle({ x, y }, p0, p1, p2)) continue;
 
-						let currentLighting = lighting;
 						const index = rowOffset + x;
-						let shouldDraw = true;
+						let currentLighting = baseLighting;
 
-						if (triangle.isWater || useDepthTest) {
-							const z = TriangleUtils.interpolateZ(x, y, points[0], points[1], points[2]);
+						// Calculate barycentric coords once
+						const bary = TriangleUtils.getBarycentricCoords(x, y, p0, p1, p2);
 
-							if (triangle.isWater) {
-								const time = performance.now() / 1000;
-								currentLighting *= Math.sin(time + z / 50) * 0.1 + 0.9;
+						// Z-buffer and water effects
+						if (isWater || useDepthTest) {
+							// Use bary coords instead of recalculating
+							const z = bary.w1 * p0.z + bary.w2 * p1.z + bary.w3 * p2.z;
+
+							if (isWater) {
+								currentLighting *= Math.sin(performance.now() / 1000 + z / 50) * 0.1 + 0.9;
 							}
-
-							if (useDepthTest) {
-								shouldDraw = z < this.zBuffer[index];
-								if (shouldDraw) {
-									this.zBuffer[index] = z;
-								}
-							}
+							if (useDepthTest && z >= zBuffer[index]) continue;
+							if (useDepthTest) zBuffer[index] = z;
 						}
 
-						if (shouldDraw) {
-							const pixelIndex = index * 4;
+						const pixelIndex = index * 4;
 
-							if (triangle.texture && triangle.uvs) {
-								// Get barycentric coordinates
-								const bary = TriangleUtils.getBarycentricCoords(x, y, points[0], points[1], points[2]);
-
-								// Interpolate 1/w
-								const interpolatedOneOverW =
-									bary.w1 * oneOverW[0] + bary.w2 * oneOverW[1] + bary.w3 * oneOverW[2];
-
-								// Interpolate u/w and v/w
-								const interpolatedUOverW =
-									bary.w1 * uvOverW[0].u + bary.w2 * uvOverW[1].u + bary.w3 * uvOverW[2].u;
-								const interpolatedVOverW =
-									bary.w1 * uvOverW[0].v + bary.w2 * uvOverW[1].v + bary.w3 * uvOverW[2].v;
-
-								// Perspective-correct UVs
-								const u = interpolatedUOverW / interpolatedOneOverW;
-								const v = interpolatedVOverW / interpolatedOneOverW;
-
-								// Sample texture
-								const texel = triangle.texture.getPixel(
-									Math.floor(u * triangle.texture.width),
-									Math.floor(v * triangle.texture.height)
-								);
-
-								this.imageData.data[pixelIndex] = texel.r * currentLighting;
-								this.imageData.data[pixelIndex + 1] = texel.g * currentLighting;
-								this.imageData.data[pixelIndex + 2] = texel.b * currentLighting;
-								this.imageData.data[pixelIndex + 3] = 255;
-							} else {
-								// Use flat color if no texture
-								this.imageData.data[pixelIndex] = r * currentLighting;
-								this.imageData.data[pixelIndex + 1] = g * currentLighting;
-								this.imageData.data[pixelIndex + 2] = b * currentLighting;
-								this.imageData.data[pixelIndex + 3] = 255;
-							}
-						}
+						if (hasTexture) {
+   let u, v;
+   if (useDepthTest) {
+       // Full perspective-correct texture mapping for near triangles
+       const interpolatedOneOverW = bary.w1 * oneOverW[0] + bary.w2 * oneOverW[1] + bary.w3 * oneOverW[2];
+       const interpolatedUOverW = bary.w1 * uvOverW[0].u + bary.w2 * uvOverW[1].u + bary.w3 * uvOverW[2].u;
+       const interpolatedVOverW = bary.w1 * uvOverW[0].v + bary.w2 * uvOverW[1].v + bary.w3 * uvOverW[2].v;
+       u = interpolatedUOverW / interpolatedOneOverW;
+       v = interpolatedVOverW / interpolatedOneOverW;
+   } else {
+       // Simpler linear interpolation for far triangles
+       u = bary.w1 * triangle.uvs[0].u + bary.w2 * triangle.uvs[1].u + bary.w3 * triangle.uvs[2].u;
+       v = bary.w1 * triangle.uvs[0].v + bary.w2 * triangle.uvs[1].v + bary.w3 * triangle.uvs[2].v;
+   }
+   const texel = triangle.texture.getPixel(
+       Math.floor(u * textureWidth),
+       Math.floor(v * textureHeight)
+   );
+   imageData[pixelIndex] = texel.r * currentLighting;
+   imageData[pixelIndex + 1] = texel.g * currentLighting;
+   imageData[pixelIndex + 2] = texel.b * currentLighting;
+   imageData[pixelIndex + 3] = 255;
+} else {
+   imageData[pixelIndex] = r * currentLighting;
+   imageData[pixelIndex + 1] = g * currentLighting;
+   imageData[pixelIndex + 2] = b * currentLighting;
+   imageData[pixelIndex + 3] = 255;
+}
 					}
 				}
 			}
@@ -276,7 +274,7 @@ class ActionRenderer2D {
 		this.rasterizeTriangleBase(triangle, false);
 	}
 
-	processCharacterTriangles(character, camera, nearTriangles) {
+	processCharacterTriangles(character, camera, nearTriangles, farTriangles, view) {
 		const modelMatrix = character.getModelMatrix();
 		const characterModel = character.getCharacterModelTriangles();
 		const lightDir = new Vector3(0.5, 1.0, 0.5).normalize();
@@ -290,11 +288,11 @@ class ActionRenderer2D {
 				transformedVerts[i] = Matrix4.transformVertex(triangle.vertices[i], modelMatrix);
 			}
 
-			// Project to screen space
+			// Project to screen space using our cached view
 			const projectedPoints = new Array(3);
 			let invalidProjection = false;
 			for (let i = 0; i < 3; i++) {
-				projectedPoints[i] = this.project(transformedVerts[i], camera);
+				projectedPoints[i] = this.project(transformedVerts[i], camera, view);
 				if (projectedPoints[i] === null) {
 					invalidProjection = true;
 					break;
@@ -308,36 +306,41 @@ class ActionRenderer2D {
 
 			if (TriangleUtils.isFrontFacing(projectedPoints[0], projectedPoints[1], projectedPoints[2])) {
 				const lighting = Math.max(0.3, Math.min(1.0, worldNormal.dot(lightDir)));
-				nearTriangles.push({
-					points: projectedPoints,
-					color: triangle.color,
-					lighting: lighting,
-					depth: viewZ
-				});
+				if (viewZ <= this.depthConfig.transitionDistance) {
+					nearTriangles.push({
+						points: projectedPoints,
+						color: triangle.color,
+						lighting: lighting,
+						depth: viewZ
+					});
+				} else {
+					farTriangles.push({
+						points: projectedPoints,
+						color: triangle.color,
+						lighting: lighting,
+						depth: viewZ
+					});
+				}
 			}
 		}
 	}
 
-	renderDebugOverlays(character, camera) {
+	renderDebugOverlays(character, camera, view) {
 		const ctx = this.ctx;
 		const currentTriangle = character.getCurrentTriangle();
-
 		if (currentTriangle) {
 			const center = {
 				x: (currentTriangle.vertices[0].x + currentTriangle.vertices[1].x + currentTriangle.vertices[2].x) / 3,
 				y: (currentTriangle.vertices[0].y + currentTriangle.vertices[1].y + currentTriangle.vertices[2].y) / 3,
 				z: (currentTriangle.vertices[0].z + currentTriangle.vertices[1].z + currentTriangle.vertices[2].z) / 3
 			};
-
 			const normalEnd = {
 				x: center.x + currentTriangle.normal.x * 10,
 				y: center.y + currentTriangle.normal.y * 10,
 				z: center.z + currentTriangle.normal.z * 10
 			};
-
-			const projectedCenter = this.project(new Vector3(center.x, center.y, center.z), camera);
-			const projectedEnd = this.project(new Vector3(normalEnd.x, normalEnd.y, normalEnd.z), camera);
-
+			const projectedCenter = this.project(new Vector3(center.x, center.y, center.z), camera, view);
+			const projectedEnd = this.project(new Vector3(normalEnd.x, normalEnd.y, normalEnd.z), camera, view);
 			if (projectedCenter && projectedEnd) {
 				ctx.strokeStyle = "#0000FF";
 				ctx.beginPath();
@@ -346,11 +349,10 @@ class ActionRenderer2D {
 				ctx.stroke();
 			}
 		}
-
-		this.renderDirectionIndicator(character, camera);
+		this.renderDirectionIndicator(character, camera, view);
 	}
 
-	renderDirectionIndicator(character, camera) {
+	renderDirectionIndicator(character, camera, view) {
 		const center = character.position;
 		const directionEnd = new Vector3(
 			center.x + character.facingDirection.x * character.size * 2,
@@ -358,8 +360,8 @@ class ActionRenderer2D {
 			center.z + character.facingDirection.z * character.size * 2
 		);
 
-		const projectedCenter = this.project(center, camera);
-		const projectedEnd = this.project(directionEnd, camera);
+		const projectedCenter = this.project(center, camera, view);
+		const projectedEnd = this.project(directionEnd, camera, view);
 
 		if (projectedCenter && projectedEnd) {
 			this.ctx.strokeStyle = "#0000FF";
