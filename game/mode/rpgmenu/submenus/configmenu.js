@@ -92,35 +92,42 @@ class ConfigMenu extends BaseFullScreenMenu {
         });
 
         // Main BG Start Color Picker
-        const color1 = this.gameMaster.persistentParty.colors.mainBackground.start;
-        const matches1 = color1.match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/);
-        const r1 = parseInt(matches1[1]);
-        const g1 = parseInt(matches1[2]);
-        const b1 = parseInt(matches1[3]);
+const color1 = this.gameMaster.persistentParty.colors.mainBackground.start;
+const matches1 = color1.match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/);
+const r1 = parseInt(matches1[1]);
+const g1 = parseInt(matches1[2]);
+const b1 = parseInt(matches1[3]);
 
-        const max1 = Math.max(r1, g1, b1);
-        const min1 = Math.min(r1, g1, b1);
-        const brightness1 = max1 / 255;
-        const delta1 = max1 - min1;
-        const saturation1 = max1 === 0 ? 0 : delta1 / max1;
+// Convert RGB to HSV using the same algorithm as in your code
+const max1 = Math.max(r1, g1, b1);
+const min1 = Math.min(r1, g1, b1);
+const delta1 = max1 - min1;
+const brightness1 = max1 / 255;
+const saturation1 = max1 === 0 ? 0 : delta1 / max1;
 
-        let hue1;
-        if (delta1 === 0) {
-            hue1 = 0;
-        } else if (max1 === r1) {
-            hue1 = ((g1 - b1) / delta1) % 6;
-        } else if (max1 === g1) {
-            hue1 = (b1 - r1) / delta1 + 2;
-        } else {
-            hue1 = (r1 - g1) / delta1 + 4;
-        }
-        hue1 = Math.round(hue1 * 60);
-        if (hue1 < 0) hue1 += 360;
+let hue1;
+if (delta1 === 0) {
+    hue1 = 0;
+} else if (max1 === r1) {
+    hue1 = ((g1 - b1) / delta1) % 6;
+} else if (max1 === g1) {
+    hue1 = (b1 - r1) / delta1 + 2;
+} else {
+    hue1 = (r1 - g1) / delta1 + 4;
+}
+hue1 = Math.round(hue1 * 60);
+if (hue1 < 0) hue1 += 360;
 
-        const angle1 = (hue1 * Math.PI) / 180;
-        const dist1 = saturation1 * 30;
-        const indicatorX1 = 280 + Math.cos(angle1) * dist1;
-        const indicatorY1 = 160 - Math.sin(angle1) * dist1;
+// Calculate angle in radians
+// Flip the angle to match the wheel orientation
+const angleInRadians1 = (((360 - hue1) % 360) * Math.PI) / 180;
+
+const centerX1 = 280;
+const centerY1 = 180;
+const radius1 = 30;
+const indicatorX1 = centerX1 + Math.cos(angleInRadians1) * (saturation1 * radius1);
+// Use negative sin to account for canvas Y-axis being flipped
+const indicatorY1 = centerY1 - Math.sin(angleInRadians1) * (saturation1 * radius1);
 
         this.addElement("main", {
             name: "mainBgStart",
@@ -148,72 +155,72 @@ class ConfigMenu extends BaseFullScreenMenu {
                 visible: true
             },
             colorPicker: {
-    centerX: 280,
-    centerY: 160,
-    radius: 30,
-    indicatorX: indicatorX1,
-    indicatorY: indicatorY1,
-    indicatorSize: 4,
-    glowRadius: 10,
-    indicatorStrokeWidth: 1,
-    mode: "none",
-    value: { hue: hue1, saturation: saturation1, brightness: brightness1 },
-    preview: {
-        x: 340,
-        y: 160,
-        size: 40
-    },
-    brightnessSlider: {
-        x: 320,
-        y: 160,
-        width: 4,
-        height: 40,
-        value: brightness1
-    },
-    onChange: (value) => {
-        const h = value.hue;
-        const s = value.saturation;
-        const v = value.brightness;
-        
-        const max = v * 255;
-        const delta = s * max;
-        const min = max - delta;
+                centerX: 280,
+                centerY: 180,
+                radius: 30,
+                indicatorX: indicatorX1,
+                indicatorY: indicatorY1,
+                indicatorSize: 4,
+                glowRadius: 10,
+                indicatorStrokeWidth: 1,
+                mode: "none",
+                value: { hue: hue1, saturation: saturation1, brightness: brightness1 },
+                preview: {
+                    x: 340,
+                    y: 180,
+                    size: 40
+                },
+                brightnessSlider: {
+                    x: 320,
+                    y: 180,
+                    width: 4,
+                    height: 40,
+                    value: brightness1
+                },
+                onChange: (value) => {
+                    const h = value.hue;
+                    const s = value.saturation;
+                    const v = value.brightness;
 
-        let r, g, b;
-        
-        if (h < 60) {
-            r = max;
-            g = (h * delta / 60) + min;
-            b = min;
-        } else if (h < 120) {
-            r = ((120 - h) * delta / 60) + min;
-            g = max;
-            b = min;
-        } else if (h < 180) {
-            r = min;
-            g = max;
-            b = ((h - 120) * delta / 60) + min;
-        } else if (h < 240) {
-            r = min;
-            g = ((240 - h) * delta / 60) + min;
-            b = max;
-        } else if (h < 300) {
-            r = ((h - 240) * delta / 60) + min;
-            g = min;
-            b = max;
-        } else {
-            r = max;
-            g = min;
-            b = ((360 - h) * delta / 60) + min;
-        }
+                    const max = v * 255;
+                    const delta = s * max;
+                    const min = max - delta;
 
-        const rgba = `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, 0.97)`;
-        this.gameMaster.persistentParty.colors.mainBackground.start = rgba;
-        
-        // Update preview with the actual RGBA color
-        return rgba;
-    }
-}
+                    let r, g, b;
+
+                    if (h < 60) {
+                        r = max;
+                        g = (h * delta) / 60 + min;
+                        b = min;
+                    } else if (h < 120) {
+                        r = ((120 - h) * delta) / 60 + min;
+                        g = max;
+                        b = min;
+                    } else if (h < 180) {
+                        r = min;
+                        g = max;
+                        b = ((h - 120) * delta) / 60 + min;
+                    } else if (h < 240) {
+                        r = min;
+                        g = ((240 - h) * delta) / 60 + min;
+                        b = max;
+                    } else if (h < 300) {
+                        r = ((h - 240) * delta) / 60 + min;
+                        g = min;
+                        b = max;
+                    } else {
+                        r = max;
+                        g = min;
+                        b = ((360 - h) * delta) / 60 + min;
+                    }
+
+                    const rgba = `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, 0.97)`;
+                    this.gameMaster.persistentParty.colors.mainBackground.start = rgba;
+
+                    // Update preview with the actual RGBA color
+                    return rgba;
+                }
+            }
         });
 
         // Main BG End Color Picker
@@ -223,6 +230,7 @@ class ConfigMenu extends BaseFullScreenMenu {
         const g2 = parseInt(matches2[2]);
         const b2 = parseInt(matches2[3]);
 
+        // Convert RGB to HSV using the same algorithm
         const max2 = Math.max(r2, g2, b2);
         const min2 = Math.min(r2, g2, b2);
         const brightness2 = max2 / 255;
@@ -242,10 +250,16 @@ class ConfigMenu extends BaseFullScreenMenu {
         hue2 = Math.round(hue2 * 60);
         if (hue2 < 0) hue2 += 360;
 
-        const angle2 = (hue2 * Math.PI) / 180;
-        const dist2 = saturation2 * 30;
-        const indicatorX2 = 280 + Math.cos(angle2) * dist2;
-        const indicatorY2 = 250 - Math.sin(angle2) * dist2;
+        // Calculate angle in radians
+        // Flip the angle to match the wheel orientation
+        const angleInRadians2 = (((360 - hue2) % 360) * Math.PI) / 180;
+
+        const centerX2 = 280;
+        const centerY2 = 270;
+        const radius2 = 30;
+        const indicatorX2 = centerX2 + Math.cos(angleInRadians2) * (saturation2 * radius2);
+        // Use negative sin to account for canvas Y-axis being flipped
+        const indicatorY2 = centerY2 - Math.sin(angleInRadians2) * (saturation2 * radius2);
 
         this.addElement("main", {
             name: "mainBgEnd",
@@ -299,41 +313,40 @@ class ConfigMenu extends BaseFullScreenMenu {
                     const h = value.hue;
                     const s = value.saturation;
                     const v = value.brightness;
-                    
+
                     const max = v * 255;
                     const delta = s * max;
                     const min = max - delta;
 
                     let r, g, b;
-                    
+
                     if (h < 60) {
                         r = max;
-                        g = (h * delta / 60) + min;
+                        g = (h * delta) / 60 + min;
                         b = min;
                     } else if (h < 120) {
-                        r = ((120 - h) * delta / 60) + min;
+                        r = ((120 - h) * delta) / 60 + min;
                         g = max;
                         b = min;
                     } else if (h < 180) {
                         r = min;
                         g = max;
-                        b = ((h - 120) * delta / 60) + min;
+                        b = ((h - 120) * delta) / 60 + min;
                     } else if (h < 240) {
                         r = min;
-                        g = ((240 - h) * delta / 60) + min;
+                        g = ((240 - h) * delta) / 60 + min;
                         b = max;
                     } else if (h < 300) {
-                        r = ((h - 240) * delta / 60) + min;
+                        r = ((h - 240) * delta) / 60 + min;
                         g = min;
                         b = max;
                     } else {
                         r = max;
                         g = min;
-                        b = ((360 - h) * delta / 60) + min;
+                        b = ((360 - h) * delta) / 60 + min;
                     }
 
-                    this.gameMaster.persistentParty.colors.mainBackground.end = 
-                        `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, 0.97)`;
+                    this.gameMaster.persistentParty.colors.mainBackground.end = `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, 0.97)`;
                 }
             }
         });
@@ -345,6 +358,7 @@ class ConfigMenu extends BaseFullScreenMenu {
         const g3 = parseInt(matches3[2]);
         const b3 = parseInt(matches3[3]);
 
+        // Convert RGB to HSV
         const max3 = Math.max(r3, g3, b3);
         const min3 = Math.min(r3, g3, b3);
         const brightness3 = max3 / 255;
@@ -364,10 +378,15 @@ class ConfigMenu extends BaseFullScreenMenu {
         hue3 = Math.round(hue3 * 60);
         if (hue3 < 0) hue3 += 360;
 
-        const angle3 = (hue3 * Math.PI) / 180;
-        const dist3 = saturation3 * 30;
-        const indicatorX3 = 280 + Math.cos(angle3) * dist3;
-        const indicatorY3 = 340 - Math.sin(angle3) * dist3;
+        // Calculate angle in radians - flip angle to match wheel orientation
+        const angleInRadians3 = (((360 - hue3) % 360) * Math.PI) / 180;
+
+        const centerX3 = 280;
+        const centerY3 = 360;
+        const radius3 = 30;
+        const indicatorX3 = centerX3 + Math.cos(angleInRadians3) * (saturation3 * radius3);
+        // Use negative sin for Y coordinate
+        const indicatorY3 = centerY3 - Math.sin(angleInRadians3) * (saturation3 * radius3);
 
         this.addElement("main", {
             name: "menuBgStart",
@@ -418,172 +437,176 @@ class ConfigMenu extends BaseFullScreenMenu {
                     value: brightness3
                 },
                 onChange: (value) => {
-                   const h = value.hue;
-                   const s = value.saturation;
-                   const v = value.brightness;
-                   
-                   const max = v * 255;
-                   const delta = s * max;
-                   const min = max - delta;
+                    const h = value.hue;
+                    const s = value.saturation;
+                    const v = value.brightness;
 
-                   let r, g, b;
-                   
-                   if (h < 60) {
-                       r = max;
-                       g = (h * delta / 60) + min;
-                       b = min;
-                   } else if (h < 120) {
-                       r = ((120 - h) * delta / 60) + min;
-                       g = max;
-                       b = min;
-                   } else if (h < 180) {
-                       r = min;
-                       g = max;
-                       b = ((h - 120) * delta / 60) + min;
-                   } else if (h < 240) {
-                       r = min;
-                       g = ((240 - h) * delta / 60) + min;
-                       b = max;
-                   } else if (h < 300) {
-                       r = ((h - 240) * delta / 60) + min;
-                       g = min;
-                       b = max;
-                   } else {
-                       r = max;
-                       g = min;
-                       b = ((360 - h) * delta / 60) + min;
-                   }
+                    const max = v * 255;
+                    const delta = s * max;
+                    const min = max - delta;
 
-                   this.gameMaster.persistentParty.colors.menuBackground.start = 
-                       `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, 0.97)`;
-               }
-           }
-       });
+                    let r, g, b;
 
-       // Menu BG End Color Picker
-       const color4 = this.gameMaster.persistentParty.colors.menuBackground.end;
-       const matches4 = color4.match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/);
-       const r4 = parseInt(matches4[1]);
-       const g4 = parseInt(matches4[2]);
-       const b4 = parseInt(matches4[3]);
+                    if (h < 60) {
+                        r = max;
+                        g = (h * delta) / 60 + min;
+                        b = min;
+                    } else if (h < 120) {
+                        r = ((120 - h) * delta) / 60 + min;
+                        g = max;
+                        b = min;
+                    } else if (h < 180) {
+                        r = min;
+                        g = max;
+                        b = ((h - 120) * delta) / 60 + min;
+                    } else if (h < 240) {
+                        r = min;
+                        g = ((240 - h) * delta) / 60 + min;
+                        b = max;
+                    } else if (h < 300) {
+                        r = ((h - 240) * delta) / 60 + min;
+                        g = min;
+                        b = max;
+                    } else {
+                        r = max;
+                        g = min;
+                        b = ((360 - h) * delta) / 60 + min;
+                    }
 
-       const max4 = Math.max(r4, g4, b4);
-       const min4 = Math.min(r4, g4, b4);
-       const brightness4 = max4 / 255;
-       const delta4 = max4 - min4;
-       const saturation4 = max4 === 0 ? 0 : delta4 / max4;
+                    this.gameMaster.persistentParty.colors.menuBackground.start = `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, 0.97)`;
+                }
+            }
+        });
 
-       let hue4;
-       if (delta4 === 0) {
-           hue4 = 0;
-       } else if (max4 === r4) {
-           hue4 = ((g4 - b4) / delta4) % 6;
-       } else if (max4 === g4) {
-           hue4 = (b4 - r4) / delta4 + 2;
-       } else {
-           hue4 = (r4 - g4) / delta4 + 4;
-       }
-       hue4 = Math.round(hue4 * 60);
-       if (hue4 < 0) hue4 += 360;
+        // Menu BG End Color Picker
+        const color4 = this.gameMaster.persistentParty.colors.menuBackground.end;
+        const matches4 = color4.match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/);
+        const r4 = parseInt(matches4[1]);
+        const g4 = parseInt(matches4[2]);
+        const b4 = parseInt(matches4[3]);
 
-       const angle4 = (hue4 * Math.PI) / 180;
-       const dist4 = saturation4 * 30;
-       const indicatorX4 = 280 + Math.cos(angle4) * dist4;
-       const indicatorY4 = 430 - Math.sin(angle4) * dist4;
+        // Convert RGB to HSV
+        const max4 = Math.max(r4, g4, b4);
+        const min4 = Math.min(r4, g4, b4);
+        const brightness4 = max4 / 255;
+        const delta4 = max4 - min4;
+        const saturation4 = max4 === 0 ? 0 : delta4 / max4;
 
-       this.addElement("main", {
-           name: "menuBgEnd",
-           type: "colorPicker",
-           x: 60,
-           y: 450,
-           width: 360,
-           height: 80,
-           glowIntensity: 15,
-           text: "Menu BG End",
-           textOffsetX: 10,
-           textOffsetY: 0,
-           font: "24px monospace",
-           textAlign: "left",
-           textBaseline: "middle",
-           focusable: true,
-           selected: false,
-           visible: true,
-           xOrder: 0,
-           background: {
-               width: 360,
-               height: 80,
-               xOffset: 0,
-               yOffset: 0,
-               visible: true
-           },
-           colorPicker: {
-               centerX: 280,
-               centerY: 450,
-               radius: 30,
-               indicatorX: indicatorX4,
-               indicatorY: indicatorY4,
-               indicatorSize: 4,
-               glowRadius: 10,
-               indicatorStrokeWidth: 1,
-               mode: "none",
-               value: { hue: hue4, saturation: saturation4, brightness: brightness4 },
-               preview: {
-                   x: 340,
-                   y: 450,
-                   size: 40
-               },
-               brightnessSlider: {
-                   x: 320,
-                   y: 450,
-                   width: 4,
-                   height: 40,
-                   value: brightness4
-               },
-               onChange: (value) => {
-                   const h = value.hue;
-                   const s = value.saturation;
-                   const v = value.brightness;
-                   
-                   const max = v * 255;
-                   const delta = s * max;
-                   const min = max - delta;
+        let hue4;
+        if (delta4 === 0) {
+            hue4 = 0;
+        } else if (max4 === r4) {
+            hue4 = ((g4 - b4) / delta4) % 6;
+        } else if (max4 === g4) {
+            hue4 = (b4 - r4) / delta4 + 2;
+        } else {
+            hue4 = (r4 - g4) / delta4 + 4;
+        }
+        hue4 = Math.round(hue4 * 60);
+        if (hue4 < 0) hue4 += 360;
 
-                   let r, g, b;
-                   
-                   if (h < 60) {
-                       r = max;
-                       g = (h * delta / 60) + min;
-                       b = min;
-                   } else if (h < 120) {
-                       r = ((120 - h) * delta / 60) + min;
-                       g = max;
-                       b = min;
-                   } else if (h < 180) {
-                       r = min;
-                       g = max;
-                       b = ((h - 120) * delta / 60) + min;
-                   } else if (h < 240) {
-                       r = min;
-                       g = ((240 - h) * delta / 60) + min;
-                       b = max;
-                   } else if (h < 300) {
-                       r = ((h - 240) * delta / 60) + min;
-                       g = min;
-                       b = max;
-                   } else {
-                       r = max;
-                       g = min;
-                       b = ((360 - h) * delta / 60) + min;
-                   }
+        // Calculate angle in radians - flip angle to match wheel orientation
+        const angleInRadians4 = (((360 - hue4) % 360) * Math.PI) / 180;
 
-                   this.gameMaster.persistentParty.colors.menuBackground.end = 
-                       `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, 0.97)`;
-               }
-           }
-       });
+        const centerX4 = 280;
+        const centerY4 = 450;
+        const radius4 = 30;
+        const indicatorX4 = centerX4 + Math.cos(angleInRadians4) * (saturation4 * radius4);
+        // Use negative sin for Y coordinate
+        const indicatorY4 = centerY4 - Math.sin(angleInRadians4) * (saturation4 * radius4);
 
-       this.registerElements();
-   }
+        this.addElement("main", {
+            name: "menuBgEnd",
+            type: "colorPicker",
+            x: 60,
+            y: 450,
+            width: 360,
+            height: 80,
+            glowIntensity: 15,
+            text: "Menu BG End",
+            textOffsetX: 10,
+            textOffsetY: 0,
+            font: "24px monospace",
+            textAlign: "left",
+            textBaseline: "middle",
+            focusable: true,
+            selected: false,
+            visible: true,
+            xOrder: 0,
+            background: {
+                width: 360,
+                height: 80,
+                xOffset: 0,
+                yOffset: 0,
+                visible: true
+            },
+            colorPicker: {
+                centerX: 280,
+                centerY: 450,
+                radius: 30,
+                indicatorX: indicatorX4,
+                indicatorY: indicatorY4,
+                indicatorSize: 4,
+                glowRadius: 10,
+                indicatorStrokeWidth: 1,
+                mode: "none",
+                value: { hue: hue4, saturation: saturation4, brightness: brightness4 },
+                preview: {
+                    x: 340,
+                    y: 450,
+                    size: 40
+                },
+                brightnessSlider: {
+                    x: 320,
+                    y: 450,
+                    width: 4,
+                    height: 40,
+                    value: brightness4
+                },
+                onChange: (value) => {
+                    const h = value.hue;
+                    const s = value.saturation;
+                    const v = value.brightness;
+
+                    const max = v * 255;
+                    const delta = s * max;
+                    const min = max - delta;
+
+                    let r, g, b;
+
+                    if (h < 60) {
+                        r = max;
+                        g = (h * delta) / 60 + min;
+                        b = min;
+                    } else if (h < 120) {
+                        r = ((120 - h) * delta) / 60 + min;
+                        g = max;
+                        b = min;
+                    } else if (h < 180) {
+                        r = min;
+                        g = max;
+                        b = ((h - 120) * delta) / 60 + min;
+                    } else if (h < 240) {
+                        r = min;
+                        g = ((240 - h) * delta) / 60 + min;
+                        b = max;
+                    } else if (h < 300) {
+                        r = ((h - 240) * delta) / 60 + min;
+                        g = min;
+                        b = max;
+                    } else {
+                        r = max;
+                        g = min;
+                        b = ((360 - h) * delta) / 60 + min;
+                    }
+
+                    this.gameMaster.persistentParty.colors.menuBackground.end = `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, 0.97)`;
+                }
+            }
+        });
+
+        this.registerElements();
+    }
 
     update() {
         if (!this.adjustingColor) {
@@ -678,7 +701,7 @@ class ConfigMenu extends BaseFullScreenMenu {
             }
             return null;
         }
-        
+
         return "exit";
     }
 }
