@@ -662,7 +662,7 @@ class BaseFullScreenMenu {
         this.ctx.stroke();
 
         // Draw dark borders (bottom and right)
-        this.ctx.strokeStyle = this.colors.panelBorder.dark;
+        this.ctx.strokeStyle = this.colors.panelBorder.light; // dark also available but unused
         this.ctx.beginPath();
         this.ctx.moveTo(x, y + element.height);
         this.ctx.lineTo(x + element.width, y + element.height);
