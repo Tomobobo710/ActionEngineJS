@@ -662,7 +662,6 @@ class DemoMenu extends BaseFullScreenMenu {
        });
    }
 
-   // Rest of the class methods remain unchanged
    update() {
        if (!this.adjustingSlider && !this.adjustingColor) {
            if (this.input.isKeyJustPressed("DirUp")) {
