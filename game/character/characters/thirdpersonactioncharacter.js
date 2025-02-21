@@ -2,6 +2,12 @@ class ThirdPersonActionCharacter extends ActionCharacter {
     constructor(terrain, camera, game) {
         super(terrain, camera);
         this.game = game;
+        
+        // Add these new properties
+        this.stepCounter = 0;
+        this.battleThreshold = this.generateNewBattleThreshold();
+        this.isMoving = false;
+        
         this.debugInfo = null;
         // Create controller
         this.controller = new Goblin.CharacterController(game.physicsWorld.getWorld(), {
@@ -42,6 +48,21 @@ class ThirdPersonActionCharacter extends ActionCharacter {
         this.body.debugName = `CharacterBody_${Date.now()}`;
         this.body.createdAt = Date.now();
 
+         // Get the character body from the controller
+        this.body = this.controller.body;
+
+        // Use saved position if available, otherwise use default
+        const savedState = game.gameModeManager.gameMaster.getPlayerState();
+        if (savedState && savedState.position) {
+            this.body.position.set(
+                savedState.position.x,
+                savedState.position.y,
+                savedState.position.z
+            );
+        } else {
+            this.body.position.set(0, 500, 0);
+        }
+        
         // Fine tune physics properties if needed
         this.body.linear_damping = 0.01;
         this.body.angular_damping = 0;
@@ -60,6 +81,11 @@ class ThirdPersonActionCharacter extends ActionCharacter {
         this.debug = false;
     }
 
+    generateNewBattleThreshold() {
+        //return Math.floor(Math.random() * (1000)) + 1000;
+        return 500;
+    }
+    
     applyInput(input, deltaTime) {
         if (input.isKeyJustPressed("Numpad0")) {
             this.camera.isDetached = !this.camera.isDetached;
@@ -92,8 +118,6 @@ class ThirdPersonActionCharacter extends ActionCharacter {
             const movement = input.getLockedPointerMovement();
 
             if (this.lastPointerX !== movement.x || this.lastPointerY !== movement.y) {
-                //console.log(`Mouse Movement: x=${movement.x}, y=${movement.y}`);
-
                 this.cameraYaw -= movement.x * mouseSensitivity;
 
                 if (this.isFirstPerson) {
@@ -149,28 +173,51 @@ class ThirdPersonActionCharacter extends ActionCharacter {
         const viewMatrix = this.camera.getViewMatrix();
         const moveDir = new Goblin.Vector3();
 
+        // Track if we're moving this frame
+        let isMovingThisFrame = false;
+
         // Get input direction relative to camera
         if (input.isKeyPressed("DirUp")) {
             moveDir.x += viewMatrix.forward.x;
             moveDir.z += viewMatrix.forward.z;
+            isMovingThisFrame = true;
         }
         if (input.isKeyPressed("DirDown")) {
             moveDir.x -= viewMatrix.forward.x;
             moveDir.z -= viewMatrix.forward.z;
+            isMovingThisFrame = true;
         }
         if (input.isKeyPressed("DirRight")) {
             moveDir.x += viewMatrix.right.x;
             moveDir.z += viewMatrix.right.z;
+            isMovingThisFrame = true;
         }
         if (input.isKeyPressed("DirLeft")) {
             moveDir.x -= viewMatrix.right.x;
             moveDir.z -= viewMatrix.right.z;
+            isMovingThisFrame = true;
+        }
+
+        // Check if we should increment the step counter
+        if (isMovingThisFrame && this.debugInfo?.state?.current === "grounded") {
+            this.stepCounter += 1;
+
+            // Check if we've hit the battle threshold
+            if (this.stepCounter >= this.battleThreshold) {
+                // Reset counter and generate new threshold
+                this.stepCounter = 0;
+                this.battleThreshold = this.generateNewBattleThreshold();
+
+                // Instead of switching directly, set the pending flag
+                this.game.pendingBattleTransition = true;
+            }
         }
 
         // Normalize the movement vector if moving diagonally
         if (moveDir.lengthSquared() > 0) {
             moveDir.normalize();
         }
+
         if (input.isKeyJustPressed("Action1")) {
             this.controller.wishJump(); // not implemented
         }
@@ -247,57 +294,67 @@ class ThirdPersonActionCharacter extends ActionCharacter {
             this.debugInfo = this.controller.getDebugInfo();
         }
     }
+    
     updateAnimationState() {
-    const debugInfo = this.controller.getDebugInfo();
-    const state = debugInfo.state.current;
-    const velocity = debugInfo.physics.velocity;
-    const horizontalSpeed = Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
-    const isReallyMoving = horizontalSpeed > 0.5;
+        const debugInfo = this.controller.getDebugInfo();
+        const state = debugInfo.state.current;
+        const velocity = debugInfo.physics.velocity;
+        const horizontalSpeed = Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
+        const isReallyMoving = horizontalSpeed > 0.5;
 
-    // Prevent interrupting non-looping animations
-    if (this.animator.isPlaying && !this.animator.isLooping) {
-        return;
-    }
-
-    // Ground state handling
-    if (state === "grounded") {
-        // Check for ground touch transition
-        const justTouchedGround = !this.wasGroundedLastFrame && 
-            this.animator.currentAnimation?.name !== "toucheground";
-
-        if (justTouchedGround) {
-            this.animator.play("toucheground", false);
-        } 
-        else if (isReallyMoving) {
-            this.animator.play("run", true);
-        } 
-        else if (this.animator.currentAnimation?.name !== "toucheground") {
-            this.animator.play("idle", true);
+        // Prevent interrupting non-looping animations
+        if (this.animator.isPlaying && !this.animator.isLooping) {
+            return;
         }
 
-        this.wasGroundedLastFrame = true;
-    } 
-    // Jumping state
-    else if (state === "jumping") {
-        this.animator.play("jump", false);
-        this.wasGroundedLastFrame = false;
-    } 
-    // Falling state
-    else if (state === "falling") {
-        this.animator.play("fall", true);
-        this.wasGroundedLastFrame = false;
-    }
-    if (this.debug) {
-        // Optional debug logging
-        console.log("Animation Update:", {
-            state, 
-            horizontalSpeed, 
-            isReallyMoving, 
-            currentAnim: this.animator.currentAnimation?.name
-        });
-    }
-}
+        // Ground state handling
+        if (state === "grounded") {
+            // Check for ground touch transition
+            const justTouchedGround = !this.wasGroundedLastFrame && 
+                this.animator.currentAnimation?.name !== "toucheground";
 
+            if (justTouchedGround) {
+                this.animator.play("toucheground", false);
+            } 
+            else if (isReallyMoving) {
+                this.animator.play("run", true);
+            } 
+            else if (this.animator.currentAnimation?.name !== "toucheground") {
+                this.animator.play("idle", true);
+            }
+
+            this.wasGroundedLastFrame = true;
+        } 
+        // Jumping state
+        else if (state === "jumping") {
+            this.animator.play("jump", false);
+            this.wasGroundedLastFrame = false;
+        } 
+        // Falling state
+        else if (state === "falling") {
+            this.animator.play("fall", true);
+            this.wasGroundedLastFrame = false;
+        }
+        if (this.debug) {
+            // Optional debug logging
+            console.log("Animation Update:", {
+                state, 
+                horizontalSpeed, 
+                isReallyMoving, 
+                currentAnim: this.animator.currentAnimation?.name
+            });
+        }
+    }
+    
+    getBattleSystemDebugInfo() {
+        return {
+            stepCounter: this.stepCounter,
+            battleThreshold: this.battleThreshold,
+            stepsRemaining: this.battleThreshold - this.stepCounter,
+            isGrounded: this.debugInfo?.state?.current === "grounded"
+        };
+    }
+    
     getDebugInfo() {
         return this.debugInfo;
     }

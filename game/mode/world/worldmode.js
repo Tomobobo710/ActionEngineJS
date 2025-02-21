@@ -9,6 +9,27 @@ class WorldMode {
         this.isPaused = false;
 
         this.initializeMode();
+        this.pendingBattleTransition = false;
+        
+        if (this.createCharacter) {
+            this.character = new ThirdPersonActionCharacter(this.terrain, this.camera, this);
+
+            // Get saved state
+            const savedState = gameModeManager.gameMaster.getPlayerState();
+            if (savedState && savedState.position) {
+                // Set the character's initial position and rotation from saved state
+                this.character.body.position.set(
+                    savedState.position.x,
+                    savedState.position.y,
+                    savedState.position.z
+                );
+                this.character.rotation = savedState.rotation;
+
+                console.log("Restoring position:", savedState.position, "rotation:", savedState.rotation);
+            }
+
+            this.shaderManager.updateCharacterBuffers(this.character);
+        }
     }
 
     initializeMode() {
@@ -108,15 +129,21 @@ class WorldMode {
         const currentTime = performance.now();
         this.deltaTime = Math.min((currentTime - this.lastTime) / 1000, 0.25);
         this.lastTime = currentTime;
-        
+
         if (!this.isPaused) {
-            // Only update character buffers in 3D mode
             if (!this.use2DRenderer) {
                 this.shaderManager.updateCharacterBuffers(this.character);
             }
             this.physicsWorld.update(this.deltaTime);
             this.handleInput();
             this.weatherSystem.update(this.deltaTime, this.terrain);
+
+            // Check for pending battle transition after all updates are complete
+            if (this.pendingBattleTransition) {
+                this.pendingBattleTransition = false;
+                this.gameModeManager.switchMode('battle');
+                return; // Exit early since we're switching modes
+            }
         }
     }
 

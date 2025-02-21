@@ -12,16 +12,23 @@ class GameModeManager {
     switchMode(modeName) {
         // Clean up current mode if it exists
         if (this.activeMode) {
-            const position = this.activeMode.character?.position;
-            const rotation = this.activeMode.character?.rotation;
-
-            if (position && rotation) {
-                this.gameMaster.savePlayerState(position, rotation);
-            }
-
-            this.activeMode.cleanup();
-            this.activeMode = null;
+        // Make sure we're getting the actual position/rotation from the character
+        if (this.activeMode.character) {
+            const position = new Vector3(
+                this.activeMode.character.position.x,
+                this.activeMode.character.position.y,
+                this.activeMode.character.position.z
+            );
+            const rotation = this.activeMode.character.rotation;
+            
+            // Debug log to verify values
+            console.log("Saving position:", position, "rotation:", rotation);
+            this.gameMaster.savePlayerState(position, rotation);
         }
+        
+        this.activeMode.cleanup();
+        this.activeMode = null;
+    }
 
         // Clear all canvases before switching
         const gl =
