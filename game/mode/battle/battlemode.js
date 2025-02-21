@@ -317,34 +317,41 @@ class BattleMode {
     }
 
     cleanup() {
-        // Clear battle system
-        if (this.battle) {
-            if (this.battle.state === "victory") {
-                this.persistentParty = this.battle.party;
-            }
-            this.battle = null;
+    // Clear battle system
+    if (this.battle) {
+        if (this.battle.state === "victory") {
+            // Reset ATB values before saving
+            this.battle.party.forEach(char => {
+                if (char) {
+                    char.atbCurrent = 0;
+                    char.isReady = false;
+                }
+            });
+            this.persistentParty = this.battle.party;
         }
-
-        // Clear UI elements
-        this.uiElements.clear();
-
-        // Clear sprites and backgrounds
-        this.sprites = {};
-        this.backgrounds = {};
-
-        // Clear canvas
-        if (this.ctx) {
-            this.ctx.clearRect(0, 0, 800, 600);
-        }
-
-        this.input.clearAllElements();
-
-        // Clear references
-        this.canvas = null;
-        this.ctx = null;
-        this.input = null;
-        this.audio = null;
-        this.persistentParty = null;
-        this.partyInventory = null;
+        this.battle = null;
     }
+
+    // Clear UI elements
+    this.uiElements.clear();
+
+    // Clear sprites and backgrounds
+    this.sprites = {};
+    this.backgrounds = {};
+
+    // Clear canvas
+    if (this.ctx) {
+        this.ctx.clearRect(0, 0, 800, 600);
+    }
+
+    this.input.clearAllElements();
+
+    // Clear references
+    this.canvas = null;
+    this.ctx = null;
+    this.input = null;
+    this.audio = null;
+    this.persistentParty = null;
+    this.partyInventory = null;
+}
 }
