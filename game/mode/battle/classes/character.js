@@ -76,28 +76,28 @@ class Character {
 
         this.mp -= spell.mpCost;
 
-        let damage = Math.floor((this.stats.magicAttack * spell.power) / 10);
-
-        // Handle both single targets and arrays of targets
+        let power = Math.floor((this.stats.magicAttack * spell.power) / 10);
         const targets = Array.isArray(target) ? target : [target];
-        let totalDamage = 0;
+        let totalEffect = 0;
 
         targets.forEach((t) => {
             if (!t.isDead) {
-                // Apply elemental weaknesses/resistances
-                let finalDamage = damage;
-                if (t.weaknesses && t.weaknesses.includes(spell.element)) {
-                    finalDamage = Math.floor(finalDamage * 1.5);
+                if (spell.effect === "heal") {
+                    totalEffect += t.heal(power);
+                } else {
+                    let finalDamage = power;
+                    if (t.weaknesses && t.weaknesses.includes(spell.element)) {
+                        finalDamage = Math.floor(finalDamage * 1.5);
+                    }
+                    if (t.resistances && t.resistances.includes(spell.element)) {
+                        finalDamage = Math.floor(finalDamage * 0.5);
+                    }
+                    totalEffect += t.takeDamage(finalDamage, "magical");
                 }
-                if (t.resistances && t.resistances.includes(spell.element)) {
-                    finalDamage = Math.floor(finalDamage * 0.5);
-                }
-
-                totalDamage += t.takeDamage(finalDamage, "magical");
             }
         });
 
-        return totalDamage;
+        return totalEffect;
     }
 
     calculateStats() {

@@ -192,17 +192,44 @@ class ItemMenu extends BaseSubmenu {
     }
 
     handleItemUse(itemData, target) {
-        if (Array.isArray(target)) {
-            // Handle all-target items
-            target.forEach((char) => {
-                console.log(`Using ${itemData.item.name} on ${char.name}`);
-            });
-        } else {
-            // Handle single-target items
-            console.log(`Using ${itemData.item.name} on ${target.name}`);
-        }
-        // Add actual item use logic here
+    const item = itemData.item;
+    
+    // Check if we have the item
+    if (itemData.quantity <= 0) {
+        console.log("No items remaining!");
+        return false;
     }
+
+    let success = false;
+    if (Array.isArray(target)) {
+        // Handle all-target items
+        target.forEach((char) => {
+            if (item.effect) {
+                success = item.effect(char);
+                console.log(`Using ${item.name} on ${char.name}`);
+            }
+        });
+    } else {
+        // Handle single-target items
+        if (item.effect) {
+            success = item.effect(target);
+            console.log(`Using ${item.name} on ${target.name}`);
+        }
+    }
+
+    // If the item was used successfully, decrease the quantity
+    if (success) {
+        itemData.quantity--;
+        // Remove the item if quantity reaches 0
+        if (itemData.quantity <= 0) {
+            const inventory = this.gameMaster.partyInventory;
+            inventory.removeItem(item.id);
+        }
+        return true;
+    }
+
+    return false;
+}
 
     draw() {
         const m = this.layout;

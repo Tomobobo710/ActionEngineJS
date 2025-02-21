@@ -6,6 +6,7 @@ const SPELLS = {
         mpCost: 4,
         power: 20,
         element: "fire",
+         effect: "damage",
         targetType: TARGET_TYPES.SINGLE_ENEMY,
         animation: {
             color: "#ff4400",
@@ -19,6 +20,7 @@ const SPELLS = {
         mpCost: 4,
         power: 18,
         element: "ice",
+         effect: "damage",
         targetType: TARGET_TYPES.SINGLE_ENEMY,
         animation: {
             color: "#88ccff",
@@ -32,6 +34,7 @@ const SPELLS = {
         mpCost: 5,
         power: 25,
         element: "lightning",
+         effect: "damage",
         targetType: TARGET_TYPES.ALL_ENEMIES,
         animation: {
             color: "#ffff00",
@@ -45,6 +48,7 @@ const SPELLS = {
         mpCost: 6,
         power: 12,
         element: "poison",
+         effect: "damage",
         targetType: TARGET_TYPES.SINGLE_ENEMY,
         animation: {
             color: "#88ff88",
@@ -58,6 +62,7 @@ const SPELLS = {
         mpCost: 8,
         power: 40,
         element: "holy",
+        effect: "heal",
         targetType: TARGET_TYPES.SINGLE_ALLY,
         animation: {
             color: "#ffffff",
@@ -71,6 +76,7 @@ const SPELLS = {
         mpCost: 12,
         power: 35,
         element: "earth",
+         effect: "damage",
         targetType: TARGET_TYPES.ALL_ENEMIES,
         animation: {
             color: "#884400",
@@ -84,6 +90,7 @@ const SPELLS = {
         mpCost: 7,
         power: 28,
         element: "air",
+         effect: "damage",
         targetType: TARGET_TYPES.ALL_ENEMIES,
         animation: {
             color: "#88ff88",
@@ -97,6 +104,7 @@ const SPELLS = {
         mpCost: 6,
         power: 25,
         element: "water",
+         effect: "damage",
         targetType: TARGET_TYPES.SINGLE_ENEMY,
         animation: {
             color: "#4488ff",
@@ -110,6 +118,7 @@ const SPELLS = {
         mpCost: 15,
         power: 45,
         element: "holy",
+        effect: "heal",
         targetType: TARGET_TYPES.ALL_ALLIES,
         animation: {
             color: "#ffffff",
