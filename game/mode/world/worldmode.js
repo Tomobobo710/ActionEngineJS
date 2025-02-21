@@ -10,6 +10,7 @@ class WorldMode {
 
         this.initializeMode();
         this.pendingBattleTransition = false;
+        this.pendingMenuTransition = false;  // Add this new flag
         
         if (this.createCharacter) {
             this.character = new ThirdPersonActionCharacter(this.terrain, this.camera, this);
@@ -138,11 +139,17 @@ class WorldMode {
             this.handleInput();
             this.weatherSystem.update(this.deltaTime, this.terrain);
 
-            // Check for pending battle transition after all updates are complete
+            // Check for pending transitions after all updates are complete
             if (this.pendingBattleTransition) {
                 this.pendingBattleTransition = false;
                 this.gameModeManager.switchMode('battle');
-                return; // Exit early since we're switching modes
+                return;
+            }
+
+            if (this.pendingMenuTransition) {
+                this.pendingMenuTransition = false;
+                this.gameModeManager.switchMode('rpgmenu');
+                return;
             }
         }
     }

@@ -129,6 +129,12 @@ class RPGMenuMode {
             this.selectedIndex = Math.min(this.menuOptions.length - 1, this.selectedIndex + 1);
         }
 
+        // Add the new Action2 check here
+        if (this.input.isKeyJustPressed("Action2")) {
+            this.gameMaster.modeManager.switchMode("world");
+            return;
+        }
+        
         if (
             this.input.isKeyJustPressed("Action1") ||
             this.input.isElementJustPressed(`menu_option_${this.selectedIndex}`)

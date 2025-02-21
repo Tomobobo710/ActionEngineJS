@@ -95,6 +95,10 @@ class ThirdPersonActionCharacter extends ActionCharacter {
             return;
         }
 
+       if (input.isKeyJustPressed("Action8")) {
+            this.game.pendingMenuTransition = true;  // Set flag instead of switching directly
+        }
+        
         if (input.isKeyJustPressed("Action5")) {
             this.animator.play("attack", false); // animation test
         }
