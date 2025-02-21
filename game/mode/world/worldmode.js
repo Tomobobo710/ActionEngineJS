@@ -288,10 +288,19 @@ class WorldMode {
             this.debugPanel.clear();
         }
     if (this.guiCtx) {
-            this.guiCtx.font = '20px Arial';
-            this.guiCtx.fillStyle = 'white';
-            this.guiCtx.fillText(this.getTimeString(), 10, 30);
-        }
+    this.guiCtx.save(); // Save whatever state we inherited
+    
+    // Set ALL the text settings we actually need, don't assume anything
+    this.guiCtx.font = '20px Arial';
+    this.guiCtx.fillStyle = 'white';
+    this.guiCtx.textAlign = 'left';
+    this.guiCtx.textBaseline = 'top';
+    
+    // Draw our time
+    this.guiCtx.fillText(this.getTimeString(), 10, 30);
+    
+    this.guiCtx.restore(); // Put back whatever mess was there before
+}
     }
 
     getTimeString() {
