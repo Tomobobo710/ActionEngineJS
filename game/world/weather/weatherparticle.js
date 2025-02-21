@@ -119,27 +119,29 @@ class WeatherParticleEmitter {
         this.timeSinceLastEmission = 0;
     }
 
+    // In WeatherParticleEmitter class
     generateSpawnPosition(config) {
         const spawnArea = config.spawnArea;
+        const centerX = spawnArea.centerX || 0;
+        const centerZ = spawnArea.centerZ || 0;
 
         switch (this.weatherSystem.current) {
             case "hurricane":
                 const angle = Math.random() * Math.PI * 2;
-                const radius =
-                    spawnArea.radiusRange.min + Math.random() * (spawnArea.radiusRange.max - spawnArea.radiusRange.min);
+                const radius = spawnArea.radiusRange.min + 
+                    Math.random() * (spawnArea.radiusRange.max - spawnArea.radiusRange.min);
                 return {
-                    x: Math.cos(angle) * radius,
-                    y:
-                        spawnArea.heightRange.min +
+                    x: centerX + Math.cos(angle) * radius,
+                    y: spawnArea.heightRange.min +
                         Math.random() * (spawnArea.heightRange.max - spawnArea.heightRange.min),
-                    z: Math.sin(angle) * radius
+                    z: centerZ + Math.sin(angle) * radius
                 };
 
             default:
                 return {
-                    x: (Math.random() - 0.5) * spawnArea.width,
+                    x: centerX + (Math.random() - 0.5) * spawnArea.width,
                     y: spawnArea.height,
-                    z: (Math.random() - 0.5) * spawnArea.depth
+                    z: centerZ + (Math.random() - 0.5) * spawnArea.depth
                 };
         }
     }

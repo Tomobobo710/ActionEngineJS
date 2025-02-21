@@ -151,6 +151,28 @@ class WeatherSystem {
     // Weather-specific update methods
     // game/world/weather/WeatherSystem.js - Part 3: Weather-Specific Update Methods
 
+    updatePosition(characterPosition) {
+    // Update spawn areas to be centered on character
+        for (const type in this.configs) {
+            const config = this.configs[type];
+            if (config.spawnArea) {
+                // For regular spawn areas
+                if (!config.spawnArea.radiusRange) {
+                    config.spawnArea.centerX = characterPosition.x;
+                    config.spawnArea.centerZ = characterPosition.z;
+                }
+                // For radial spawn areas (hurricane)
+                else {
+                    this.hurricaneCenter = {
+                        x: characterPosition.x,
+                        y: characterPosition.y,
+                        z: characterPosition.z
+                    };
+                }
+            }
+        }
+    }
+    
     updateRain(deltaTime, config) {
         this.windVector = this.calculateWindForce(deltaTime);
         this.windVector.x *= config.windEffect * 2;

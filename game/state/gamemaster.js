@@ -54,8 +54,22 @@ class GameMaster {
 
         this.lastTime = performance.now();
         this.deltaTime = 0;
+        
+        this.worldTime = {
+            hours: 12,
+            minutes: 0
+        };
     }
 
+    getWorldTime() {
+        return { ...this.worldTime }; // Return copy to prevent direct mutation
+    }
+
+    setWorldTime(hours, minutes) {
+        this.worldTime.hours = hours;
+        this.worldTime.minutes = minutes;
+    }
+    
     update() {
         const currentTime = performance.now();
         this.deltaTime = Math.min((currentTime - this.lastTime) / 1000, 0.25);

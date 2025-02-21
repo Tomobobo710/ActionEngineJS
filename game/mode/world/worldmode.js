@@ -30,7 +30,16 @@ class WorldMode {
             }
 
             this.shaderManager.updateCharacterBuffers(this.character);
+        
+        
+        const savedTime = gameModeManager.gameMaster.getWorldTime();
+        this.worldTime = { ...savedTime };
+        
+        // Time progression speed (minutes per real second)
+        this.timeProgressionRate = 1; // Adjust this to change how fast time moves
+    
         }
+        
     }
 
     initializeMode() {
@@ -132,13 +141,21 @@ class WorldMode {
         this.lastTime = currentTime;
 
         if (!this.isPaused) {
+            // Update world time
+            this.updateWorldTime(this.deltaTime);
+            
             if (!this.use2DRenderer) {
                 this.shaderManager.updateCharacterBuffers(this.character);
             }
+            
             this.physicsWorld.update(this.deltaTime);
             this.handleInput();
             this.weatherSystem.update(this.deltaTime, this.terrain);
 
+            if (this.character && this.weatherSystem) {
+                this.weatherSystem.updatePosition(this.character.position);
+            }
+            
             // Check for pending transitions after all updates are complete
             if (this.pendingBattleTransition) {
                 this.pendingBattleTransition = false;
@@ -154,6 +171,25 @@ class WorldMode {
         }
     }
 
+    updateWorldTime(deltaTime) {
+        // Calculate minutes to add based on delta time and progression rate
+        const minutesToAdd = deltaTime * this.timeProgressionRate;
+        
+        // Add minutes
+        this.worldTime.minutes += minutesToAdd;
+        
+        // Handle minute overflow
+        while (this.worldTime.minutes >= 60) {
+            this.worldTime.minutes -= 60;
+            this.worldTime.hours += 1;
+            
+            // Handle hour overflow
+            if (this.worldTime.hours >= 24) {
+                this.worldTime.hours = 0;
+            }
+        }
+    }
+    
     handleInput() {
         if (this.character) {
             this.character.applyInput(this.input, this.deltaTime);
@@ -217,8 +253,21 @@ class WorldMode {
         } else {
             this.debugPanel.clear();
         }
+    if (this.guiCtx) {
+            this.guiCtx.font = '20px Arial';
+            this.guiCtx.fillStyle = 'white';
+            this.guiCtx.fillText(this.getTimeString(), 10, 30);
+        }
     }
 
+    getTimeString() {
+        const hours = Math.floor(this.worldTime.hours);
+        const minutes = Math.floor(this.worldTime.minutes);
+        const period = hours >= 12 ? 'PM' : 'AM';
+        const displayHours = hours % 12 || 12;
+        return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
+    }
+    
     createTestSphere() {
         if (this.sphere) {
             this.physicsWorld.removeObject(this.sphere);
@@ -239,6 +288,13 @@ class WorldMode {
     }
 
     cleanup() {
+        // Save world time before cleanup
+        if (this.gameModeManager?.gameMaster) {
+            this.gameModeManager.gameMaster.setWorldTime(
+                this.worldTime.hours,
+                this.worldTime.minutes
+            );
+        }
         // Clean up physics
         if (this.physicsWorld) {
             this.physicsWorld.reset();
