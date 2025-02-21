@@ -38,6 +38,12 @@ class WorldMode {
         // Time progression speed (minutes per real second)
         this.timeProgressionRate = 1; // Adjust this to change how fast time moves
     
+        // Add a flag to track if rain is active
+        this.rainCycleActive = false;
+
+        // Time tracking for weather cycles
+        this.lastWeatherCheck = 0;    
+            
         }
         
     }
@@ -172,23 +178,51 @@ class WorldMode {
     }
 
     updateWorldTime(deltaTime) {
-        // Calculate minutes to add based on delta time and progression rate
-        const minutesToAdd = deltaTime * this.timeProgressionRate;
+    // Calculate minutes to add based on delta time and progression rate
+    const minutesToAdd = deltaTime * this.timeProgressionRate;
+    
+    // Store previous minutes for comparison
+    const previousMinutes = Math.floor(this.worldTime.minutes);
+    
+    // Add minutes
+    this.worldTime.minutes += minutesToAdd;
+    
+    // Handle minute overflow
+    while (this.worldTime.minutes >= 60) {
+        this.worldTime.minutes -= 60;
+        this.worldTime.hours += 1;
         
-        // Add minutes
-        this.worldTime.minutes += minutesToAdd;
+        // Handle hour overflow
+        if (this.worldTime.hours >= 24) {
+            this.worldTime.hours = 0;
+        }
+    }
+    
+    // Check if we should toggle rain based on 30-minute intervals
+    const currentMinutes = Math.floor(this.worldTime.minutes);
+    const totalMinutes = (this.worldTime.hours * 60) + currentMinutes;
+    
+    // Check if we've crossed a 30-minute boundary
+    if (Math.floor(totalMinutes / 30) !== Math.floor(this.lastWeatherCheck / 30)) {
+        this.lastWeatherCheck = totalMinutes;
         
-        // Handle minute overflow
-        while (this.worldTime.minutes >= 60) {
-            this.worldTime.minutes -= 60;
-            this.worldTime.hours += 1;
-            
-            // Handle hour overflow
-            if (this.worldTime.hours >= 24) {
-                this.worldTime.hours = 0;
+        if (!this.rainCycleActive) {
+            // Start rain
+            if (this.weatherSystem) {
+                this.weatherSystem.current = "rain";
+                this.rainCycleActive = true;
+                console.log("[WorldMode] Starting rain cycle");
+            }
+        } else {
+            // Stop rain
+            if (this.weatherSystem) {
+                this.weatherSystem.current = "stopWeather";
+                this.rainCycleActive = false;
+                console.log("[WorldMode] Stopping rain cycle");
             }
         }
     }
+}
     
     handleInput() {
         if (this.character) {
