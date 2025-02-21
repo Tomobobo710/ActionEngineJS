@@ -175,6 +175,30 @@ class Character {
         this.status[status] = Math.max(this.status[status], duration);
     }
 
+    // Add these methods to the Character class
+
+    removeAllStatus() {
+        Object.keys(this.status).forEach(statusEffect => {
+            this.status[statusEffect] = 0;
+        });
+        return true;
+    }
+
+    removeStatus(statusName) {
+        if (this.status[statusName]) {
+            this.status[statusName] = 0;
+            return true;
+        }
+        return false;
+    }
+
+    revive(percentHp) {
+        if (!this.isDead) return false;
+        this.isDead = false;
+        this.hp = Math.floor(this.maxHp * (percentHp / 100));
+        return true;
+    }
+    
     updateStatus() {
         Object.keys(this.status).forEach((status) => {
             if (this.status[status] > 0) {
