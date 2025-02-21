@@ -4,7 +4,7 @@ class ThirdPersonActionCharacter extends ActionCharacter {
         this.game = game;
         
         // Add these new properties
-        this.stepCounter = 0;
+        this.movementTimer = 0;
         this.battleThreshold = this.generateNewBattleThreshold();
         this.isMoving = false;
         
@@ -82,8 +82,8 @@ class ThirdPersonActionCharacter extends ActionCharacter {
     }
 
     generateNewBattleThreshold() {
-        //return Math.floor(Math.random() * (1000)) + 1000;
-        return 500;
+    // Generate threshold between 20-30 seconds of movement
+        return Math.random() * 20 + 2;
     }
     
     applyInput(input, deltaTime) {
@@ -198,17 +198,17 @@ class ThirdPersonActionCharacter extends ActionCharacter {
             isMovingThisFrame = true;
         }
 
-        // Check if we should increment the step counter
+        // Increment timer based on movement and grounded state
         if (isMovingThisFrame && this.debugInfo?.state?.current === "grounded") {
-            this.stepCounter += 1;
+            this.movementTimer += deltaTime;
 
-            // Check if we've hit the battle threshold
-            if (this.stepCounter >= this.battleThreshold) {
-                // Reset counter and generate new threshold
-                this.stepCounter = 0;
+            // Check if we've hit the time threshold
+            if (this.movementTimer >= this.battleThreshold) {
+                // Reset timer and generate new threshold
+                this.movementTimer = 0;
                 this.battleThreshold = this.generateNewBattleThreshold();
 
-                // Instead of switching directly, set the pending flag
+                // Set pending battle transition
                 this.game.pendingBattleTransition = true;
             }
         }
@@ -348,9 +348,9 @@ class ThirdPersonActionCharacter extends ActionCharacter {
     
     getBattleSystemDebugInfo() {
         return {
-            stepCounter: this.stepCounter,
-            battleThreshold: this.battleThreshold,
-            stepsRemaining: this.battleThreshold - this.stepCounter,
+            movementTimer: this.movementTimer.toFixed(2),
+            battleThreshold: this.battleThreshold.toFixed(2),
+            timeRemaining: (this.battleThreshold - this.movementTimer).toFixed(2),
             isGrounded: this.debugInfo?.state?.current === "grounded"
         };
     }
