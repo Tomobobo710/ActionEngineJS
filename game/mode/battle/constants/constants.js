@@ -95,6 +95,26 @@ const ENEMY_TEMPLATES = {
         resistances: ["poison", "ice"],
         weaknesses: ["holy", "fire"],
     },
+    wolf: {
+        type: "wolf",
+        maxHp: 120,
+        maxMp: 0,
+        strength: 22,
+        magic: 0,
+        speed: 18,    // Very fast
+        spells: [],   // Pure physical attacker
+        // Special ability could be implemented: "Howl" to boost attack power
+    },
+    redSlime: {
+        type: "redSlime",
+        maxHp: 20,
+        maxMp: 10,
+        strength: 12,  // Stronger than regular slimes
+        magic: 4,
+        speed: 14,     // Faster than regular slimes
+        spells: ["fire"], // They can cast fire spells
+        resistances: ["fire"], // Resistant to fire
+    },
     rat: {
         type: "rat",
         maxHp: 25,

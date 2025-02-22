@@ -39,9 +39,9 @@ class BattleMode {
             this.sprites[type] = Sprite.genHeroSprite(type);
         });
 
-        ["slime", "bat", "goblin", "skeleton", "zombie", "ghoul", "rat"].forEach((type) => {
-            this.sprites[type] = Sprite.genEnemySprite(type);
-        });
+        ["slime", "bat", "goblin", "skeleton", "zombie", "ghoul", "rat", "redSlime", "wolf"].forEach((type) => {
+        this.sprites[type] = Sprite.genEnemySprite(type);
+    });
 
         // Load backgrounds
         ["cave"].forEach((type) => {

@@ -59,30 +59,103 @@ class Sprite {
                 break;
 
             case "thief":
-                // Body
-                ctx.fillStyle = "#448844";
-                ctx.fillRect(8, 4, 16, 24);
-
-                // Head
-                ctx.fillStyle = "#ffcc99";
-                ctx.fillRect(10, 0, 12, 8);
-
-                // Hood
-                ctx.fillStyle = "#226622";
-                ctx.fillRect(8, 0, 16, 4);
-                ctx.fillRect(6, 4, 4, 8);
-                ctx.fillRect(22, 4, 4, 8);
-
-                // Cape
-                ctx.fillStyle = "#226622";
-                ctx.fillRect(6, 12, 20, 8);
-
-                // Daggers
-                ctx.fillStyle = "#cccccc";
-                ctx.fillRect(4, 16, 8, 4);
-                ctx.fillRect(20, 16, 8, 4);
-
-                break;
+    // Ornate Steel Helmet with Gold Trim
+    ctx.fillStyle = "#a8a8a8";  // Bright steel
+    ctx.fillRect(10, 0, 12, 4);  // Helmet crown
+    ctx.fillStyle = "#949494";  // Mid steel
+    ctx.fillRect(8, 4, 16, 8);   // Helmet main body
+    ctx.fillStyle = "#787878";  // Dark steel
+    ctx.fillRect(10, 6, 12, 2);  // Visor slit
+    ctx.fillStyle = "#ffd700";  // Gold trim
+    ctx.fillRect(8, 2, 2, 2);    // Left ornament
+    ctx.fillRect(22, 2, 2, 2);   // Right ornament
+    
+    // Intricately Detailed Armor Body
+    ctx.fillStyle = "#b0b0b0";  // Main armor plate
+    ctx.fillRect(8, 12, 16, 16); // Torso
+    ctx.fillStyle = "#c8c8c8";  // Highlight plates
+    ctx.fillRect(10, 14, 12, 2); // Upper chest plate
+    ctx.fillRect(9, 18, 14, 2);  // Lower chest plate
+    
+    // Magnificent Flowing Cape with Dynamic Shading
+    ctx.fillStyle = "#cc0000";  // Rich red
+    ctx.fillRect(4, 8, 24, 4);   // Cape top
+    ctx.fillStyle = "#aa0000";  // Mid red
+    ctx.fillRect(4, 12, 4, 20);  // Left cape
+    ctx.fillRect(24, 12, 4, 20); // Right cape
+    ctx.fillStyle = "#880000";  // Dark red for depth
+    ctx.fillRect(6, 14, 2, 16);  // Left cape shadow
+    ctx.fillRect(24, 14, 2, 16); // Right cape shadow
+    
+    // Masterwork Sword with Ornate Details
+    ctx.fillStyle = "#ffd700";  // Gold handle
+    ctx.fillRect(2, 16, 8, 4);   // Handle
+    ctx.fillStyle = "#eeeeee";  // Bright steel blade
+    ctx.fillRect(0, 15, 2, 6);   // Blade
+    ctx.fillStyle = "#ffd700";  // Gold guard
+    ctx.fillRect(3, 14, 6, 2);   // Crossguard
+    
+    // Advanced Armor Plating with Shadow Detail
+    ctx.fillStyle = "#a0a0a0";  // Steel
+    ctx.fillRect(6, 12, 4, 6);   // Left pauldron
+    ctx.fillRect(22, 12, 4, 6);  // Right pauldron
+    
+    // Articulated Leg Armor with Intricate Joints
+    ctx.fillStyle = "#b0b0b0";  // Main leg plates
+    ctx.fillRect(10, 28, 6, 12); // Left leg
+    ctx.fillRect(16, 28, 6, 12); // Right leg
+    ctx.fillStyle = "#c8c8c8";  // Highlight
+    ctx.fillRect(11, 30, 4, 2);  // Left knee plate
+    ctx.fillRect(17, 30, 4, 2);  // Right knee plate
+    
+    // Elaborate Gold Trim and Decorative Elements
+    ctx.fillStyle = "#ffd700";  // Gold
+    ctx.fillRect(12, 20, 8, 2);  // Belt
+    ctx.fillRect(8, 16, 2, 2);   // Left shoulder ornament
+    ctx.fillRect(22, 16, 2, 2);  // Right shoulder ornament
+    
+    // Additional Armor Details and Weathering
+    ctx.fillStyle = "#d0d0d0";  // Brightest steel
+    ctx.fillRect(9, 15, 1, 4);   // Left edge highlight
+    ctx.fillRect(22, 15, 1, 4);  // Right edge highlight
+    
+    // Leather Straps and Buckles
+    ctx.fillStyle = "#8b4513";  // Leather color
+    ctx.fillRect(7, 14, 2, 8);   // Left strap
+    ctx.fillRect(23, 14, 2, 8);  // Right strap
+    ctx.fillStyle = "#daa520";  // Bronze buckles
+    ctx.fillRect(7, 18, 2, 2);   // Left buckle
+    ctx.fillRect(23, 18, 2, 2);  // Right buckle
+    
+    // Hidden Daggers and Tools
+    ctx.fillStyle = "#silver";  // Steel
+    ctx.fillRect(6, 24, 2, 6);   // Left dagger
+    ctx.fillRect(24, 24, 2, 6);  // Right dagger
+    
+    // Chainmail Underlayer Showing Through
+    ctx.fillStyle = "#808080";  // Chain detail
+    for(let y = 14; y < 28; y += 2) {
+        for(let x = 10; x < 22; x += 2) {
+            if(Math.random() > 0.7) {
+                ctx.fillRect(x, y, 1, 1);
+            }
+        }
+    }
+    
+    // Battle Damage and Wear
+    ctx.fillStyle = "#696969";  // Scratches
+    for(let i = 0; i < 10; i++) {
+        const x = 8 + Math.floor(Math.random() * 16);
+        const y = 12 + Math.floor(Math.random() * 20);
+        ctx.fillRect(x, y, 2, 1);
+    }
+    
+    // Advanced Shadow Effects
+    ctx.fillStyle = "rgba(0,0,0,0.2)";
+    ctx.fillRect(8, 26, 16, 4);  // Body shadow
+    ctx.fillRect(4, 30, 24, 2);  // Ground shadow
+    
+    break;
         }
 
         // Add pixel art shading
@@ -550,6 +623,224 @@ class Sprite {
         const x = 16 + Math.floor(Math.random() * 16);
         const y = 8 + Math.floor(Math.random() * 48);
         ctx.fillRect(x, y, 1, 1);
+    }
+    
+    break;
+               
+    case "wolf":
+    // Larger, longer body structure
+    ctx.fillStyle = "#404050";       // Dark grey base
+    ctx.fillRect(8, 20, 32, 16);     // Elongated main body
+    
+    // Muscular definition and fur texture
+    ctx.fillStyle = "#303040";       // Darker shade for depth
+    ctx.fillRect(10, 22, 28, 4);     // Upper body muscles
+    ctx.fillRect(12, 26, 24, 4);     // Lower body definition
+    
+    // Larger, more aggressive head
+    ctx.fillStyle = "#404050";
+    ctx.fillRect(36, 16, 16, 14);    // Bigger head
+    
+    // Extended snout structure
+    ctx.fillStyle = "#404050";
+    ctx.fillRect(44, 18, 12, 12);    // Base of snout
+    
+    // Snout detail and nose
+    ctx.fillStyle = "#303040";
+    ctx.fillRect(44, 20, 14, 8);     // Extended snout
+    ctx.fillStyle = "#202030";
+    ctx.fillRect(56, 22, 4, 4);      // Nose tip
+    
+    // Menacing teeth along extended jaw
+    ctx.fillStyle = "#ffffff";
+    // Upper jaw
+    ctx.fillRect(48, 26, 2, 3);      // Front fangs
+    ctx.fillRect(52, 26, 2, 3);
+    ctx.fillRect(45, 26, 2, 2);
+    ctx.fillRect(55, 26, 2, 2);
+    // Lower jaw
+    ctx.fillRect(47, 28, 2, 2);
+    ctx.fillRect(51, 28, 2, 2);
+    ctx.fillRect(44, 28, 2, 2);
+    ctx.fillRect(54, 28, 2, 2);
+    
+    // Taller pointed ears 
+    ctx.fillStyle = "#404050";
+    // Left ear - tall triangular shape
+    ctx.beginPath();
+    ctx.moveTo(38, 16);      // Base left
+    ctx.lineTo(41, 2);       // Point (moved up for height)
+    ctx.lineTo(44, 16);      // Base right
+    ctx.fill();
+    
+    // Right ear - tall triangular shape
+    ctx.beginPath();
+    ctx.moveTo(46, 16);      // Base left
+    ctx.lineTo(49, 2);       // Point (moved up for height)
+    ctx.lineTo(52, 16);      // Base right
+    ctx.fill();
+    
+    // Inner ear detail - taller
+    ctx.fillStyle = "#303040";
+    // Left inner ear
+    ctx.beginPath();
+    ctx.moveTo(39, 15);
+    ctx.lineTo(41, 4);       // Moved up
+    ctx.lineTo(43, 15);
+    ctx.fill();
+    
+    // Right inner ear
+    ctx.beginPath();
+    ctx.moveTo(47, 15);
+    ctx.lineTo(49, 4);       // Moved up
+    ctx.lineTo(51, 15);
+    ctx.fill();
+    
+    // Fierce glowing eyes
+    ctx.fillStyle = "#000000";       // Eye sockets
+    ctx.fillRect(40, 18, 4, 4);      // Left socket
+    ctx.fillRect(46, 18, 4, 4);      // Right socket
+    
+    ctx.fillStyle = "#ff0000";       // Glowing red
+    ctx.fillRect(41, 19, 3, 3);      // Left eye
+    ctx.fillRect(47, 19, 3, 3);      // Right eye
+    
+    ctx.fillStyle = "#ff6666";       // Intense center glow
+    ctx.fillRect(42, 20, 1, 1);      // Left eye highlight
+    ctx.fillRect(48, 20, 1, 1);      // Right eye highlight
+    
+    // Powerful legs
+    ctx.fillStyle = "#404050";
+    ctx.fillRect(10, 34, 8, 12);     // Back leg
+    ctx.fillRect(28, 34, 8, 12);     // Front leg
+    
+    // Leg muscle definition
+    ctx.fillStyle = "#303040";
+    ctx.fillRect(11, 36, 6, 8);      // Back leg muscles
+    ctx.fillRect(29, 36, 6, 8);      // Front leg muscles
+    
+    // Large paws with claws
+    ctx.fillStyle = "#303040";
+    ctx.fillRect(9, 44, 10, 4);      // Back paw
+    ctx.fillRect(27, 44, 10, 4);     // Front paw
+    
+    // Sharp claws
+    ctx.fillStyle = "#202030";
+    for(let i = 0; i < 3; i++) {
+        ctx.fillRect(8 + (i*4), 46, 3, 2);  // Back paw claws
+        ctx.fillRect(26 + (i*4), 46, 3, 2); // Front paw claws
+    }
+    
+    // Longer pointed tail
+    ctx.fillStyle = "#404050";
+    // Main tail shape
+    ctx.beginPath();
+    ctx.moveTo(8, 24);       // Base
+    ctx.lineTo(-4, 25);      // Extended point
+    ctx.lineTo(8, 26);       // Base bottom
+    ctx.fill();
+    
+    // Tail detail extending along length
+    ctx.fillStyle = "#303040";
+    ctx.beginPath();
+    ctx.moveTo(7, 24.5);
+    ctx.lineTo(-2, 25);      // Extended point
+    ctx.lineTo(7, 25.5);
+    ctx.fill();
+    
+    // Additional tail fur details
+    ctx.fillStyle = "#505060";
+    for(let i = 0; i < 6; i++) {
+        const x = -2 + (i * 2);
+        const y = 24 + Math.random() * 2;
+        ctx.fillRect(x, y, 2, 1);    // Fur along tail
+    }
+    
+    // Fur texture and details
+    ctx.fillStyle = "#505060";
+    for(let i = 0; i < 20; i++) {
+        const x = 8 + Math.floor(Math.random() * 32);
+        const y = 20 + Math.floor(Math.random() * 16);
+        ctx.fillRect(x, y, 2, 1);    // Random fur detail
+    }
+    
+    break;          
+                
+    case "redSlime":
+    // Define three aggressive slime positions
+    const slimePositions = [
+        {x: 8, y: 8},    // Top left slime
+        {x: 24, y: 24},  // Center slime
+        {x: 32, y: 12}   // Top right slime
+    ];
+
+    // Draw each detailed slime
+    slimePositions.forEach(pos => {
+        // Main body layers with enhanced shading
+        ctx.fillStyle = "#aa2222";  // Deep angry red base
+        // Bottom layer (widest)
+        ctx.fillRect(pos.x, pos.y + 8, 12, 6);
+        // Middle layer with organic shape
+        ctx.fillRect(pos.x - 1, pos.y + 6, 14, 4);
+        // Upper layer for bounce animation suggestion
+        ctx.fillRect(pos.x + 2, pos.y + 4, 8, 4);
+        
+        // Inner body with translucent effect
+        ctx.fillStyle = "#cc3333";  // Lighter red for inner mass
+        ctx.fillRect(pos.x + 1, pos.y + 5, 10, 7);
+        
+        // Aggressive eyes with detail
+        ctx.fillStyle = "#000000";  // Dark eye base
+        // Angled angry eyes
+        ctx.fillRect(pos.x + 3, pos.y + 6, 3, 1);    // Left eye
+        ctx.fillRect(pos.x + 7, pos.y + 6, 3, 1);    // Right eye
+        ctx.fillRect(pos.x + 4, pos.y + 5, 2, 1);    // Left eye angle
+        ctx.fillRect(pos.x + 8, pos.y + 5, 2, 1);    // Right eye angle
+        
+        // Rage highlights in eyes
+        ctx.fillStyle = "#ff0000";  // Bright red glow
+        ctx.fillRect(pos.x + 4, pos.y + 5, 1, 1);    // Left eye glow
+        ctx.fillRect(pos.x + 8, pos.y + 5, 1, 1);    // Right eye glow
+        
+        // Snarling mouth detail
+        ctx.fillStyle = "#800000";  // Dark red for mouth
+        ctx.fillRect(pos.x + 3, pos.y + 8, 7, 2);    // Angry mouth shape
+        
+        // Surface tension highlights
+        ctx.fillStyle = "#ff4444";  // Bright highlight
+        ctx.fillRect(pos.x + 2, pos.y + 4, 2, 1);    // Left highlight
+        ctx.fillRect(pos.x + 9, pos.y + 4, 2, 1);    // Right highlight
+        
+        // Bubble effects inside body
+        ctx.fillStyle = "#dd4444";  // Medium red for bubbles
+        for(let i = 0; i < 3; i++) {
+            const bubbleX = pos.x + 3 + Math.floor(Math.random() * 6);
+            const bubbleY = pos.y + 7 + Math.floor(Math.random() * 4);
+            ctx.fillRect(bubbleX, bubbleY, 2, 2);
+        }
+        
+        // Splatter/drip effects
+        ctx.fillStyle = "#991111";  // Dark red drips
+        for(let i = 0; i < 4; i++) {
+            const dropX = pos.x + 2 + Math.floor(Math.random() * 8);
+            ctx.fillRect(dropX, pos.y + 12, 1, 2);
+        }
+        
+        // Acidic effect around edges
+        ctx.fillStyle = "rgba(255,0,0,0.3)";
+        for(let i = 0; i < 6; i++) {
+            const effectX = pos.x - 2 + Math.floor(Math.random() * 16);
+            const effectY = pos.y + 10 + Math.floor(Math.random() * 4);
+            ctx.fillRect(effectX, effectY, 1, 1);
+        }
+    });
+    
+    // Global atmospheric effects
+    ctx.fillStyle = "rgba(255,0,0,0.1)";
+    for(let i = 0; i < 20; i++) {
+        const x = Math.floor(Math.random() * 48);
+        const y = Math.floor(Math.random() * 48);
+        ctx.fillRect(x, y, 2, 2);    // Ambient red glow
     }
     
     break;
