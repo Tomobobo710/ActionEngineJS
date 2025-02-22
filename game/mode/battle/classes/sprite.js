@@ -105,66 +105,688 @@ class Sprite {
 
         switch (type) {
             case "slime":
-                // Body
+                // Main body - larger dome shape with pixels
                 ctx.fillStyle = "#44aa44";
-                ctx.beginPath();
-                ctx.ellipse(24, 32, 20, 12, 0, 0, Math.PI * 2);
-                ctx.fill();
+                // Bottom layer (widest)
+                ctx.fillRect(8, 36, 32, 12);
+                // Lower middle layer
+                ctx.fillRect(4, 32, 40, 8);
+                // Upper middle layer
+                ctx.fillRect(6, 26, 36, 8);
+                // Upper layer
+                ctx.fillRect(8, 20, 32, 8);
+                // Top layer
+                ctx.fillRect(12, 16, 24, 8);
 
-                // Eyes
+                // Eyes (larger squares)
                 ctx.fillStyle = "#000000";
-                ctx.beginPath();
-                ctx.arc(16, 28, 4, 0, Math.PI * 2);
-                ctx.arc(32, 28, 4, 0, Math.PI * 2);
-                ctx.fill();
+                ctx.fillRect(14, 24, 8, 8); // Left eye
+                ctx.fillRect(26, 24, 8, 8); // Right eye
+
+                // Shine/highlight pixels
+                ctx.fillStyle = "#55cc55";
+                ctx.fillRect(16, 20, 6, 6); // Left highlight
+                ctx.fillRect(26, 20, 6, 6); // Right highlight
+
+                // Bottom shading details
+                ctx.fillStyle = "#338833";
+                ctx.fillRect(10, 40, 28, 6); // Bottom shade
+                ctx.fillRect(6, 36, 4, 4); // Left edge shade
+                ctx.fillRect(38, 36, 4, 4); // Right edge shade
 
                 break;
+                
+                case "ghoul":
+    // Main body structure with more defined anatomy
+    ctx.fillStyle = "#a0a090";  // Base corpse color
+    ctx.fillRect(16, 12, 16, 28);    // Torso
+    
+    // Enhanced skeletal details
+    ctx.fillStyle = "#908070";  // Darker tone for bone protrusions
+    ctx.fillRect(18, 16, 2, 24);     // Visible ribcage left
+    ctx.fillRect(28, 16, 2, 24);     // Visible ribcage right
+    ctx.fillRect(22, 20, 4, 16);     // Spine detail
+    
+    // Decaying flesh patches
+    ctx.fillStyle = "#7a756a";  // Rotting flesh tone
+    ctx.fillRect(17, 18, 3, 5);      // Left torso decay
+    ctx.fillRect(28, 22, 4, 6);      // Right torso decay
+    ctx.fillRect(20, 30, 8, 4);      // Center decay patch
+    
+    // Enhanced head with more horror elements
+    ctx.fillStyle = "#a0a090";
+    ctx.fillRect(14, 2, 20, 14);     // Wider, more grotesque head
+    
+    // Sunken face details
+    ctx.fillStyle = "#807060";  // Shadowed areas
+    ctx.fillRect(16, 4, 16, 6);      // Sunken cheeks
+    
+    // Glowing eyes with more detail
+    ctx.fillStyle = "#000000";  // Eye sockets
+    ctx.fillRect(18, 5, 5, 5);       // Left socket
+    ctx.fillRect(25, 5, 5, 5);       // Right socket
+    ctx.fillStyle = "#ffff00";  // Glowing effect
+    ctx.fillRect(19, 6, 3, 3);       // Left eye
+    ctx.fillRect(26, 6, 3, 3);       // Right eye
+    ctx.fillStyle = "#ffffff";  // Intense center glow
+    ctx.fillRect(20, 7, 1, 1);       // Left eye highlight
+    ctx.fillRect(27, 7, 1, 1);       // Right eye highlight
+    
+    // Jagged mouth with exposed teeth
+    ctx.fillStyle = "#000000";  // Mouth cavity
+    ctx.fillRect(20, 12, 8, 3);      // Open maw
+    ctx.fillStyle = "#ddd8d0";  // Teeth
+    ctx.fillRect(21, 12, 1, 2);      // Individual teeth
+    ctx.fillRect(23, 12, 1, 2);
+    ctx.fillRect(25, 12, 1, 2);
+    
+    // Enhanced claws and arms
+    ctx.fillStyle = "#807060";  // Arm base color
+    ctx.fillRect(10, 20, 6, 14);     // Left arm
+    ctx.fillRect(32, 20, 6, 14);     // Right arm
+    
+    // Detailed claws
+    ctx.fillStyle = "#605040";  // Claw color
+    // Left hand claws
+    ctx.fillRect(8, 30, 2, 4);       // Thumb
+    ctx.fillRect(10, 32, 2, 5);      // Index
+    ctx.fillRect(12, 32, 2, 6);      // Middle
+    ctx.fillRect(14, 32, 2, 5);      // Ring
+    // Right hand claws
+    ctx.fillRect(32, 32, 2, 5);      // Index
+    ctx.fillRect(34, 32, 2, 6);      // Middle
+    ctx.fillRect(36, 32, 2, 5);      // Ring
+    ctx.fillRect(38, 30, 2, 4);      // Thumb
+    
+    // Tattered robe with more detail
+    ctx.fillStyle = "#404040";  // Base robe color
+    ctx.fillRect(14, 16, 20, 24);    // Main robe
+    ctx.fillStyle = "#303030";  // Darker robe details
+    // Torn edges and folds
+    for(let i = 0; i < 6; i++) {
+        const x = 14 + (i * 4);
+        const h = Math.floor(Math.random() * 6) + 2;
+        ctx.fillRect(x, 36, 2, h);    // Bottom tears
+    }
+    
+    // Add gore and viscera details
+    ctx.fillStyle = "#8b0000";  // Dark blood color
+    for(let i = 0; i < 8; i++) {
+        const x = 14 + Math.floor(Math.random() * 20);
+        const y = 16 + Math.floor(Math.random() * 20);
+        ctx.fillRect(x, y, 2, 2);     // Blood spots
+    }
+    
+    // Atmospheric effects
+    ctx.fillStyle = "rgba(0,0,0,0.3)";
+    for(let i = 0; i < 20; i++) {
+        const x = 10 + Math.floor(Math.random() * 28);
+        const y = 4 + Math.floor(Math.random() * 40);
+        ctx.fillRect(x, y, 1, 1);     // Dark spots for depth
+    }
+    
+    break;
 
-            case "bat":
-                // Wings
-                ctx.fillStyle = "#442244";
-                ctx.beginPath();
-                ctx.moveTo(24, 24);
-                ctx.lineTo(8, 16);
-                ctx.lineTo(16, 32);
-                ctx.lineTo(24, 24);
-                ctx.moveTo(24, 24);
-                ctx.lineTo(40, 16);
-                ctx.lineTo(32, 32);
-                ctx.lineTo(24, 24);
-                ctx.fill();
+            case "zombie":
+    // Legs
+    ctx.fillStyle = "#4d645c";  // Base pants color
+    ctx.fillRect(16, 32, 16, 16);    // Legs
+    // Torn pants details
+    ctx.fillStyle = "#3a4d45";       // Darker shade
+    ctx.fillRect(16, 36, 4, 8);      // Left tear
+    ctx.fillRect(24, 34, 6, 6);      // Right tear
+    ctx.fillRect(18, 42, 12, 4);     // Bottom fraying
+    
+    // Torso
+    ctx.fillStyle = "#608060";       // Base zombie color
+    ctx.fillRect(16, 16, 16, 16);    // Main torso
+    
+    // Tattered Shirt
+    ctx.fillStyle = "#45584d";       // Dirty shirt color
+    ctx.fillRect(16, 16, 16, 12);    // Shirt body
+    ctx.fillStyle = "#3a4d45";       // Darker shirt details
+    ctx.fillRect(16, 20, 4, 6);      // Left tear
+    ctx.fillRect(26, 18, 4, 8);      // Right tear
+    ctx.fillRect(20, 24, 8, 4);      // Bottom shirt fraying
+    
+    // Arms Base
+    ctx.fillStyle = "#608060";       // Zombie flesh
+    ctx.fillRect(4, 22, 40, 4);      // Basic arm structure
+    
+    // Detailed Arms
+    ctx.fillStyle = "#4d645c";       // Shading
+    ctx.fillRect(8, 22, 4, 2);       // Left arm detail
+    ctx.fillRect(36, 22, 4, 2);      // Right arm detail
+    // Muscle definition
+    ctx.fillStyle = "#6a8c6a";       // Lighter highlights
+    ctx.fillRect(12, 21, 4, 1);      // Left bicep
+    ctx.fillRect(32, 21, 4, 1);      // Right bicep
+    
+    // Head
+    ctx.fillStyle = "#608060";       // Base head color
+    ctx.fillRect(16, 8, 16, 8);      // Basic head shape
+    // Face details
+    ctx.fillStyle = "#6a8c6a";       // Lighter green for highlights
+    ctx.fillRect(18, 9, 12, 6);      // Face structure
+    
+    // Eyes
+    ctx.fillStyle = "#000000";       // Eye sockets
+    ctx.fillRect(19, 10, 4, 4);      // Left socket
+    ctx.fillRect(25, 10, 4, 4);      // Right socket
+    ctx.fillStyle = "#ff0000";       // Glowing red
+    ctx.fillRect(20, 11, 2, 2);      // Left eye
+    ctx.fillRect(26, 11, 2, 2);      // Right eye
+    
+    // Decaying flesh details
+    ctx.fillStyle = "#4d645c";       // Darker rot spots
+    ctx.fillRect(17, 12, 2, 2);      // Face decay
+    ctx.fillRect(29, 10, 2, 3);      // Head wound
+    ctx.fillRect(22, 14, 3, 2);      // Jaw decay
+    
+    // Bone showing through
+    ctx.fillStyle = "#e8e8e8";       // Bone color
+    ctx.fillRect(6, 23, 2, 2);       // Left arm bone
+    ctx.fillRect(40, 23, 2, 2);      // Right arm bone
+    
+    // Gore/blood details
+    ctx.fillStyle = "#8b0000";       // Dark blood
+    ctx.fillRect(16, 26, 2, 4);      // Torso blood
+    ctx.fillRect(28, 30, 3, 6);      // Leg blood
+    
+    // Additional shading/highlights
+    ctx.fillStyle = "rgba(0,0,0,0.2)";
+    ctx.fillRect(16, 28, 16, 4);     // Torso shadow
+    ctx.fillStyle = "rgba(255,255,255,0.1)";
+    ctx.fillRect(18, 18, 12, 2);     // Upper torso highlight
+    
+    break;
 
-                // Body
-                ctx.fillStyle = "#884488";
-                ctx.beginPath();
-                ctx.ellipse(24, 24, 8, 12, 0, 0, Math.PI * 2);
-                ctx.fill();
+           case "bat":
+    // Enhanced wing structure - Left side
+    ctx.fillStyle = "#442244";
+    // Main wing membrane with detail
+    ctx.fillRect(4, 12, 16, 4);      // Upper wing segment
+    ctx.fillRect(8, 16, 12, 4);      // Middle wing segment
+    ctx.fillRect(12, 20, 8, 4);      // Lower wing segment
+    
+    // Wing bone structure
+    ctx.fillStyle = "#331133";       // Darker shade for bones
+    ctx.fillRect(6, 13, 12, 1);      // Upper wing bone
+    ctx.fillRect(10, 17, 8, 1);      // Middle wing bone
+    ctx.fillRect(14, 21, 4, 1);      // Lower wing bone
+    
+    // Wing membrane details
+    ctx.fillStyle = "#553355";       // Lighter shade for veins
+    for(let i = 0; i < 3; i++) {     // Wing membrane veins
+        ctx.fillRect(8 + (i*4), 14, 1, 6);
+    }
+    
+    // Enhanced wing structure - Right side
+    ctx.fillStyle = "#442244";
+    ctx.fillRect(28, 12, 16, 4);     // Upper wing segment
+    ctx.fillRect(28, 16, 12, 4);     // Middle wing segment
+    ctx.fillRect(28, 20, 8, 4);      // Lower wing segment
+    
+    // Right wing bone structure
+    ctx.fillStyle = "#331133";
+    ctx.fillRect(30, 13, 12, 1);     // Upper wing bone
+    ctx.fillRect(30, 17, 8, 1);      // Middle wing bone
+    ctx.fillRect(30, 21, 4, 1);      // Lower wing bone
+    
+    // Right wing membrane details
+    ctx.fillStyle = "#553355";
+    for(let i = 0; i < 3; i++) {     // Wing membrane veins
+        ctx.fillRect(32 + (i*4), 14, 1, 6);
+    }
+    
+    // Enhanced body with fur texture
+    ctx.fillStyle = "#884488";       // Main body color
+    ctx.fillRect(18, 16, 12, 16);    // Center body
+    ctx.fillRect(16, 20, 16, 8);     // Wider middle section
+    
+    // Fur detail
+    ctx.fillStyle = "#773377";       // Darker fur patches
+    for(let i = 0; i < 8; i++) {
+        const x = 18 + Math.floor(Math.random() * 10);
+        const y = 18 + Math.floor(Math.random() * 12);
+        ctx.fillRect(x, y, 2, 2);    // Random fur tufts
+    }
+    
+    // Enhanced head with more detail
+    ctx.fillStyle = "#884488";
+    ctx.fillRect(20, 12, 8, 8);      // Head base
+    
+    // Detailed face features
+    ctx.fillStyle = "#773377";       // Darker shade
+    ctx.fillRect(21, 16, 6, 2);      // Mouth area
+    
+    // Enhanced eyes with glow effect
+    ctx.fillStyle = "#000000";       // Eye sockets
+    ctx.fillRect(21, 13, 3, 3);      // Left eye socket
+    ctx.fillRect(25, 13, 3, 3);      // Right eye socket
+    
+    ctx.fillStyle = "#ff0000";       // Main eye color
+    ctx.fillRect(22, 14, 2, 2);      // Left eye
+    ctx.fillRect(26, 14, 2, 2);      // Right eye
+    
+    ctx.fillStyle = "#ff6666";       // Eye shine
+    ctx.fillRect(22, 14, 1, 1);      // Left eye highlight
+    ctx.fillRect(26, 14, 1, 1);      // Right eye highlight
+    
+    // Enhanced ears with more detail
+    ctx.fillStyle = "#442244";       // Base ear color
+    ctx.fillRect(20, 8, 3, 4);       // Left ear
+    ctx.fillRect(25, 8, 3, 4);       // Right ear
+    
+    // Inner ear detail
+    ctx.fillStyle = "#663366";
+    ctx.fillRect(21, 9, 1, 2);       // Left inner ear
+    ctx.fillRect(26, 9, 1, 2);       // Right inner ear
+    
+    // Fangs
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(22, 17, 1, 2);      // Left fang
+    ctx.fillRect(25, 17, 1, 2);      // Right fang
+    
+    // Body shading and texture
+    ctx.fillStyle = "#663366";
+    ctx.fillRect(20, 24, 8, 4);      // Lower body shading
+    
+    // Wing joint details
+    ctx.fillStyle = "#331133";
+    ctx.fillRect(8, 14, 4, 2);       // Left wing joint
+    ctx.fillRect(36, 14, 4, 2);      // Right wing joint
+    
+    // Additional atmospheric details
+    ctx.fillStyle = "rgba(0,0,0,0.2)";
+    for(let i = 0; i < 10; i++) {
+        const x = 16 + Math.floor(Math.random() * 16);
+        const y = 12 + Math.floor(Math.random() * 16);
+        ctx.fillRect(x, y, 1, 1);    // Shadow spots
+    }
+    
+    // Claw details on wing joints
+    ctx.fillStyle = "#331133";
+    ctx.fillRect(6, 15, 2, 2);       // Left wing claw
+    ctx.fillRect(40, 15, 2, 2);      // Right wing claw
+    
+    break;
 
-                break;
+            case "skeleton":
+    // Enhanced skull with detailed structure
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(16, 4, 16, 16);     // Main skull shape
+    
+    // Skull detail and structure
+    ctx.fillStyle = "#e0e0e0";       // Shading for bone depth
+    ctx.fillRect(17, 6, 14, 2);      // Brow ridge
+    ctx.fillRect(18, 14, 12, 2);     // Cheekbones
+    ctx.fillRect(19, 16, 10, 2);     // Jaw structure
+    
+    // Enhanced eye sockets with depth
+    ctx.fillStyle = "#000000";       // Deep shadow
+    ctx.fillRect(20, 8, 4, 6);       // Left eye socket
+    ctx.fillRect(26, 8, 4, 6);       // Right eye socket
+    
+    // Glowing eye effect
+    ctx.fillStyle = "#0000ff";       // Deep blue glow
+    ctx.fillRect(21, 9, 2, 2);       // Left eye
+    ctx.fillRect(27, 9, 2, 2);       // Right eye
+    ctx.fillStyle = "#4444ff";       // Lighter blue
+    ctx.fillRect(21, 9, 1, 1);       // Left eye highlight
+    ctx.fillRect(27, 9, 1, 1);       // Right eye highlight
+    
+    // Detailed jaw and teeth
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(18, 16, 12, 4);     // Jaw base
+    ctx.fillStyle = "#e0e0e0";       // Tooth detail
+    for(let i = 0; i < 5; i++) {     // Individual teeth
+        ctx.fillRect(19 + (i*2), 18, 1, 2);
+    }
+    
+    // Enhanced ribcage with depth
+    ctx.fillStyle = "#ffffff";       // Main bone color
+    ctx.fillRect(18, 24, 12, 16);    // Spine
+    
+    // Detailed ribs with shading
+    for(let i = 0; i < 3; i++) {     // Each rib pair
+        const y = 26 + (i * 6);
+        // Left ribs
+        ctx.fillRect(14, y, 20, 4);      // Base rib
+        ctx.fillStyle = "#e0e0e0";       // Shading
+        ctx.fillRect(14, y + 1, 19, 2);  // Rib detail
+        ctx.fillStyle = "#ffffff";
+        
+        // Rib curve details
+        ctx.fillRect(12, y + 1, 2, 2);   // Left curve
+        ctx.fillRect(32, y + 1, 2, 2);   // Right curve
+    }
+    
+    // Enhanced arm structure
+    ctx.fillStyle = "#ffffff";
+    // Upper arms with joint detail
+    ctx.fillRect(12, 24, 4, 16);     // Left upper arm
+    ctx.fillRect(32, 24, 4, 16);     // Right upper arm
+    
+    // Elbow joints
+    ctx.fillStyle = "#e0e0e0";
+    ctx.fillRect(11, 36, 6, 4);      // Left elbow
+    ctx.fillRect(31, 36, 6, 4);      // Right elbow
+    
+    // Forearms with bone detail
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(10, 36, 4, 12);     // Left forearm
+    ctx.fillRect(34, 36, 4, 12);     // Right forearm
+    
+    // Detailed hands with individual bones
+    ctx.fillStyle = "#ffffff";
+    // Left hand
+    for(let i = 0; i < 4; i++) {     // Finger bones
+        ctx.fillRect(8 + (i*2), 44, 2, 4);
+    }
+    // Right hand
+    for(let i = 0; i < 4; i++) {
+        ctx.fillRect(32 + (i*2), 44, 2, 4);
+    }
+    
+    // Enhanced leg structure
+    ctx.fillStyle = "#ffffff";
+    // Thigh bones with detail
+    ctx.fillRect(20, 44, 4, 16);     // Left leg
+    ctx.fillRect(26, 44, 4, 16);     // Right leg
+    
+    // Knee joints
+    ctx.fillStyle = "#e0e0e0";
+    ctx.fillRect(19, 56, 6, 4);      // Left knee
+    ctx.fillRect(25, 56, 6, 4);      // Right knee
+    
+    // Detailed feet with individual bones
+    ctx.fillStyle = "#ffffff";
+    // Left foot
+    for(let i = 0; i < 3; i++) {     // Toe bones
+        ctx.fillRect(18 + (i*2), 56, 2, 4);
+    }
+    // Right foot
+    for(let i = 0; i < 3; i++) {
+        ctx.fillRect(26 + (i*2), 56, 2, 4);
+    }
+    
+    // Enhanced sword with medieval detail
+    // Blade
+    ctx.fillStyle = "#cccccc";       // Base blade
+    ctx.fillRect(38, 24, 4, 20);     // Main blade
+    ctx.fillStyle = "#ffffff";       // Blade shine
+    ctx.fillRect(39, 24, 2, 20);     // Center fuller
+    
+    // Detailed crossguard
+    ctx.fillStyle = "#885500";       // Bronze guard
+    ctx.fillRect(36, 40, 8, 4);      // Main guard
+    ctx.fillStyle = "#663300";       // Guard detail
+    ctx.fillRect(35, 41, 10, 2);     // Decorative pattern
+    
+    // Ornate handle
+    ctx.fillStyle = "#885500";       // Handle wrap
+    ctx.fillRect(38, 44, 4, 8);      // Handle
+    ctx.fillStyle = "#663300";       // Wrap detail
+    for(let i = 0; i < 4; i++) {     // Handle wrapping
+        ctx.fillRect(38, 44 + (i*2), 4, 1);
+    }
+    
+    // Pommel detail
+    ctx.fillStyle = "#885500";
+    ctx.fillRect(37, 52, 6, 3);      // Pommel base
+    ctx.fillStyle = "#ffcc00";       // Gold detail
+    ctx.fillRect(38, 52, 4, 2);      // Pommel decoration
+    
+    // Ancient rune effects
+    ctx.fillStyle = "#4444ff";       // Magical blue
+    for(let i = 0; i < 3; i++) {     // Glowing runes
+        ctx.fillRect(39, 26 + (i*6), 2, 2);
+    }
+    
+    // Additional aging effects
+    ctx.fillStyle = "rgba(0,0,0,0.1)";
+    for(let i = 0; i < 20; i++) {    // Weathered bone effect
+        const x = 16 + Math.floor(Math.random() * 16);
+        const y = 8 + Math.floor(Math.random() * 48);
+        ctx.fillRect(x, y, 1, 1);
+    }
+    
+    break;
 
+    case "rat":
+    // Muscular body structure with battle scars
+    ctx.fillStyle = "#806060";       // Base fur color
+    ctx.fillRect(14, 24, 20, 12);    // Main body
+    
+    // Battle-scarred fur texture
+    ctx.fillStyle = "#705050";       // Darker fur patches
+    for(let i = 0; i < 15; i++) {
+        const x = 14 + Math.floor(Math.random() * 18);
+        const y = 24 + Math.floor(Math.random() * 10);
+        ctx.fillRect(x, y, 3, 1);    // Scar tissue
+    }
+    
+    // Blood stains and matted fur
+    ctx.fillStyle = "#8b0000";       // Dark blood
+    for(let i = 0; i < 8; i++) {
+        const x = 16 + Math.floor(Math.random() * 16);
+        const y = 26 + Math.floor(Math.random() * 8);
+        ctx.fillRect(x, y, 2, 2);    // Blood patches
+    }
+    
+    // Enhanced aggressive head structure
+    ctx.fillStyle = "#806060";
+    ctx.fillRect(28, 20, 14, 10);    // Larger, more threatening head
+    
+    // Torn and mangled ears
+    ctx.fillStyle = "#705050";
+    // Left ear - torn
+    ctx.fillRect(32, 16, 4, 3);      // Partial left ear
+    ctx.fillRect(33, 15, 2, 4);      // Torn edges
+    // Right ear - scarred
+    ctx.fillRect(36, 16, 4, 4);      // Right ear
+    ctx.fillStyle = "#8b0000";       // Blood on ears
+    ctx.fillRect(32, 17, 2, 2);      // Ear wound
+    
+    // Rabid, aggressive eyes
+    ctx.fillStyle = "#300000";       // Dark red base
+    ctx.fillRect(32, 22, 3, 3);      // Left eye socket
+    ctx.fillRect(36, 22, 3, 3);      // Right eye socket
+    ctx.fillStyle = "#ff0000";       // Glowing red
+    ctx.fillRect(33, 22, 2, 2);      // Left eye
+    ctx.fillRect(37, 22, 2, 2);      // Right eye
+    ctx.fillStyle = "#ff6666";       // Intense glow
+    ctx.fillRect(33, 22, 1, 1);      // Eye rage highlight
+    ctx.fillRect(37, 22, 1, 1);
+    
+    // Blood-stained snout and mouth
+    ctx.fillStyle = "#8b0000";       // Blood color
+    ctx.fillRect(38, 24, 3, 2);      // Bloody nose
+    ctx.fillRect(36, 25, 4, 1);      // Blood drips
+    
+    // Enhanced teeth and snarling mouth
+    ctx.fillStyle = "#ffffff";       // Teeth
+    ctx.fillRect(37, 25, 2, 1);      // Upper fangs
+    ctx.fillRect(39, 25, 2, 1);
+    ctx.fillRect(36, 26, 2, 1);      // Lower fangs
+    ctx.fillRect(40, 26, 2, 1);
+    
+    // Mangled, scarred tail
+    ctx.fillStyle = "#806060";
+    ctx.fillRect(8, 28, 6, 2);       // Base tail
+    ctx.fillStyle = "#8b0000";       // Wounded areas
+    for(let i = 0; i < 3; i++) {
+        ctx.fillRect(9 + (i*2), 28, 1, 2); // Tail wounds
+    }
+    
+    // Clawed paws with blood
+    ctx.fillStyle = "#705050";
+    // Back paws
+    ctx.fillRect(16, 34, 5, 2);      // Left back paw
+    ctx.fillRect(28, 34, 5, 2);      // Right back paw
+    
+    // Sharp claws
+    ctx.fillStyle = "#400000";       // Dark claw color
+    for(let i = 0; i < 3; i++) {
+        // Left paw claws
+        ctx.fillRect(16 + (i*2), 35, 2, 2);
+        // Right paw claws
+        ctx.fillRect(28 + (i*2), 35, 2, 2);
+    }
+    
+    // Blood on claws
+    ctx.fillStyle = "#8b0000";
+    for(let i = 0; i < 3; i++) {
+        ctx.fillRect(16 + (i*2), 36, 1, 1);
+        ctx.fillRect(28 + (i*2), 36, 1, 1);
+    }
+    
+    // Matted, dirty whiskers
+    ctx.fillStyle = "#808080";       // Darker, dirty whiskers
+    ctx.fillRect(38, 22, 5, 1);      // Upper whiskers
+    ctx.fillRect(38, 24, 5, 1);      // Lower whiskers
+    
+    // Gore and viscera details
+    ctx.fillStyle = "#aa0000";       // Fresh blood
+    for(let i = 0; i < 6; i++) {
+        const x = 14 + Math.floor(Math.random() * 20);
+        const y = 24 + Math.floor(Math.random() * 12);
+        ctx.fillRect(x, y, 1, 1);    // Blood spatter
+    }
+    
+    // Atmospheric shadow effects
+    ctx.fillStyle = "rgba(100,0,0,0.2)";
+    ctx.fillRect(14, 32, 20, 4);     // Bloody shadow
+    
+    break;            
+                
             case "goblin":
-                // Body
-                ctx.fillStyle = "#88aa44";
-                ctx.fillRect(16, 8, 16, 32);
+    // Enhanced muscular legs with detail
+    ctx.fillStyle = "#88aa44";  // Base goblin skin
+    ctx.fillRect(16, 36, 6, 12);     // Left leg muscle
+    ctx.fillRect(26, 36, 6, 12);     // Right leg muscle
+    ctx.fillStyle = "#779933";       // Muscle definition
+    ctx.fillRect(17, 38, 4, 4);      // Left leg detail
+    ctx.fillRect(27, 38, 4, 4);      // Right leg detail
+    
+    // Detailed feet with claws
+    ctx.fillStyle = "#88aa44";
+    ctx.fillRect(14, 44, 8, 4);      // Left foot
+    ctx.fillRect(24, 44, 8, 4);      // Right foot
+    ctx.fillStyle = "#556622";       // Claws
+    ctx.fillRect(13, 46, 2, 2);      // Left toe claws
+    ctx.fillRect(16, 46, 2, 2);
+    ctx.fillRect(19, 46, 2, 2);
+    ctx.fillRect(23, 46, 2, 2);      // Right toe claws
+    ctx.fillRect(26, 46, 2, 2);
+    ctx.fillRect(29, 46, 2, 2);
 
-                // Head
-                ctx.fillStyle = "#aacc66";
-                ctx.beginPath();
-                ctx.ellipse(24, 12, 10, 8, 0, 0, Math.PI * 2);
-                ctx.fill();
+    // Enhanced muscular body
+    ctx.fillStyle = "#88aa44";
+    ctx.fillRect(16, 16, 16, 24);    // Main torso
+    ctx.fillStyle = "#779933";       // Muscle definition
+    ctx.fillRect(18, 20, 12, 2);     // Upper abs
+    ctx.fillRect(18, 24, 12, 2);     // Lower abs
+    ctx.fillRect(18, 28, 12, 2);     // Bottom abs
+    
+    // Detailed leather waistcloth
+    ctx.fillStyle = "#885500";       // Base leather color
+    ctx.fillRect(14, 32, 20, 8);     // Main waist wrap
+    ctx.fillStyle = "#664400";       // Leather detail
+    ctx.fillRect(16, 33, 16, 2);     // Upper strap
+    ctx.fillRect(12, 36, 4, 6);      // Left dangling cloth
+    ctx.fillRect(32, 36, 4, 6);      // Right dangling cloth
+    // Wear and tear details
+    ctx.fillStyle = "#443300";
+    ctx.fillRect(15, 35, 2, 4);      // Leather scratches
+    ctx.fillRect(31, 35, 2, 4);
+    
+    // Enhanced arms with muscle definition
+    ctx.fillStyle = "#88aa44";
+    ctx.fillRect(12, 18, 6, 12);     // Left arm
+    ctx.fillRect(30, 18, 6, 12);     // Right arm
+    ctx.fillStyle = "#779933";       // Muscle tone
+    ctx.fillRect(13, 20, 4, 3);      // Left bicep
+    ctx.fillRect(31, 20, 4, 3);      // Right bicep
+    
+    // Detailed hands with claws
+    ctx.fillStyle = "#88aa44";
+    ctx.fillRect(10, 26, 8, 6);      // Left hand
+    ctx.fillRect(28, 26, 8, 6);      // Right hand
+    ctx.fillStyle = "#556622";       // Claws
+    ctx.fillRect(9, 27, 2, 2);       // Individual fingers
+    ctx.fillRect(11, 28, 2, 2);
+    ctx.fillRect(13, 29, 2, 2);
+    ctx.fillRect(27, 27, 2, 2);
+    ctx.fillRect(29, 28, 2, 2);
+    ctx.fillRect(31, 29, 2, 2);
 
-                // Eyes
-                ctx.fillStyle = "#ff0000";
-                ctx.beginPath();
-                ctx.arc(20, 10, 3, 0, Math.PI * 2);
-                ctx.arc(28, 10, 3, 0, Math.PI * 2);
-                ctx.fill();
-
-                // Club
-                ctx.fillStyle = "#885500";
-                ctx.fillRect(32, 4, 8, 20);
-
-                break;
+    // Enhanced head with more character
+    ctx.fillStyle = "#aacc66";
+    ctx.fillRect(14, 4, 20, 12);     // Base head
+    ctx.fillRect(12, 6, 24, 8);      // Wider section
+    
+    // Detailed face features
+    ctx.fillStyle = "#88aa44";       // Darker skin tone
+    ctx.fillRect(16, 8, 8, 2);       // Brow ridge left
+    ctx.fillRect(24, 8, 8, 2);       // Brow ridge right
+    
+    // Enhanced pointy ears with detail
+    ctx.fillStyle = "#aacc66";
+    ctx.fillRect(8, 8, 4, 8);        // Left ear base
+    ctx.fillRect(36, 8, 4, 8);       // Right ear base
+    ctx.fillRect(4, 10, 4, 4);       // Left point
+    ctx.fillRect(40, 10, 4, 4);      // Right point
+    ctx.fillStyle = "#88aa44";       // Inner ear detail
+    ctx.fillRect(9, 9, 2, 6);        // Left ear detail
+    ctx.fillRect(37, 9, 2, 6);       // Right ear detail
+    
+    // Menacing eyes with glow
+    ctx.fillStyle = "#000000";       // Eye sockets
+    ctx.fillRect(18, 8, 4, 4);       // Left socket
+    ctx.fillRect(26, 8, 4, 4);       // Right socket
+    ctx.fillStyle = "#ff0000";       // Glowing red
+    ctx.fillRect(19, 9, 2, 2);       // Left eye
+    ctx.fillRect(27, 9, 2, 2);       // Right eye
+    ctx.fillStyle = "#ff6600";       // Eye highlight
+    ctx.fillRect(19, 9, 1, 1);       // Left highlight
+    ctx.fillRect(27, 9, 1, 1);       // Right highlight
+    
+    // Detailed mouth with fangs
+    ctx.fillStyle = "#664422";
+    ctx.fillRect(20, 13, 8, 2);      // Mouth
+    ctx.fillStyle = "#ffffff";       // Fangs
+    ctx.fillRect(20, 12, 2, 2);      // Left fang
+    ctx.fillRect(26, 12, 2, 2);      // Right fang
+    
+    // Enhanced club with details
+    ctx.fillStyle = "#885500";       // Base wood color
+    ctx.fillRect(34, 4, 8, 20);      // Handle
+    ctx.fillStyle = "#664400";       // Wood grain
+    ctx.fillRect(35, 6, 2, 16);      // Grain lines
+    ctx.fillRect(39, 6, 2, 16);
+    
+    // Club head with spikes
+    ctx.fillStyle = "#885500";
+    ctx.fillRect(32, 2, 12, 8);      // Main club head
+    ctx.fillStyle = "#443300";       // Darker wood
+    ctx.fillRect(33, 3, 10, 6);      // Club detail
+    // Metal spikes
+    ctx.fillStyle = "#aaaaaa";
+    ctx.fillRect(31, 3, 2, 2);       // Left spike
+    ctx.fillRect(43, 3, 2, 2);       // Right spike
+    ctx.fillRect(37, 1, 2, 2);       // Top spike
+    
+    // Battle scars and details
+    ctx.fillStyle = "#779933";
+    for(let i = 0; i < 5; i++) {
+        const x = 16 + Math.floor(Math.random() * 16);
+        const y = 20 + Math.floor(Math.random() * 16);
+        ctx.fillRect(x, y, 2, 1);    // Random scars
+    }
+    
+    break;
         }
 
         return c;

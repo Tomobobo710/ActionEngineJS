@@ -72,6 +72,46 @@ const ENEMY_TEMPLATES = {
         magic: 6,
         speed: 16,
         spells: ["fire"]
+    },
+    zombie: {
+        type: "zombie",
+        maxHp: 70,
+        maxMp: 20,
+        strength: 15,
+        magic: 5,
+        speed: 8,  // Zombies are slow
+        spells: ["poison"],  // Can cast poison
+        resistances: ["poison"], // Resistant to poison
+        weaknesses: ["holy", "fire"], // Weak to holy and fire
+    },
+    ghoul: {
+        type: "ghoul",
+        maxHp: 95,
+        maxMp: 40,
+        strength: 18,
+        magic: 12,
+        speed: 13,
+        spells: ["poison", "ice"], // Can cast both poison and ice spells
+        resistances: ["poison", "ice"],
+        weaknesses: ["holy", "fire"],
+    },
+    rat: {
+        type: "rat",
+        maxHp: 25,
+        maxMp: 0,
+        strength: 6,
+        magic: 0,
+        speed: 15,  // Rats are very quick
+        spells: [], // No spells - just physical attacks
+    },
+    skeleton: {
+        type: "skeleton",
+        maxHp: 80,
+        maxMp: 30,
+        strength: 16,
+        magic: 7,
+        speed: 11,
+        spells: ["ice"], // You can adjust which spells it knows
     }
 };
 

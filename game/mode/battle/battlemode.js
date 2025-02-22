@@ -39,8 +39,7 @@ class BattleMode {
             this.sprites[type] = Sprite.genHeroSprite(type);
         });
 
-        // Load enemy sprites
-        ["slime", "bat", "goblin"].forEach((type) => {
+        ["slime", "bat", "goblin", "skeleton", "zombie", "ghoul", "rat"].forEach((type) => {
             this.sprites[type] = Sprite.genEnemySprite(type);
         });
 
