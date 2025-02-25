@@ -27,7 +27,7 @@ class RPGMenuMode {
         };
 
         // Define menu options with new spacing calculation
-        this.menuOptions = ["Item", "Magic", "Equipment", "Status", "Formation", "Configure", "Quest Log", "Save"].map(
+        this.menuOptions = ["Item", "Magic", "Equipment", "Status", "Formation", "Configure", "Shop", "Save"].map(
             (text, index) => ({
                 text,
                 x: Game.WIDTH - this.menuLayout.position.right,
@@ -156,7 +156,9 @@ class RPGMenuMode {
             case "Save":
                 this.gameMaster.modeManager.switchMode("start");
                 break;
-            case "Status":
+            case "Shop":
+                this.activeSubmenu = new ShopMenu(this.ctx, this.input, this.gameMaster);
+                this.deactivateMainMenu();
                 break;
             case "Configure":
                 this.activeSubmenu = new ConfigMenu(this.ctx, this.input, this.gameMaster);
