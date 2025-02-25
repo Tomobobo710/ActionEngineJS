@@ -9,9 +9,15 @@ class GameMaster {
 
         // Persistent game state
         this.playerState = {
-            position: new Vector3(0, 500, 0),
-            rotation: 0
-        };
+        position: new Vector3(0, 500, 0),
+        rotation: 0,
+        linear_velocity: new Vector3(0, 0, 0),
+        angular_velocity: new Vector3(0, 0, 0),
+        physics_properties: {
+            friction: 0.5,
+            restitution: 0.1
+        }
+    };
 
         // Add party and inventory creation here
         this.partyInventory = new Inventory();
@@ -96,9 +102,15 @@ class GameMaster {
         this.modeManager.resume();
     }
 
-    savePlayerState(position, rotation) {
+    savePlayerState(position, rotation, linear_vel, angular_vel, physics_props = null) {
         this.playerState.position = position;
         this.playerState.rotation = rotation;
+        this.playerState.linear_velocity = linear_vel;
+        this.playerState.angular_velocity = angular_vel;
+
+        if (physics_props) {
+            this.playerState.physics_properties = physics_props;
+        }
     }
 
     getPlayerState() {

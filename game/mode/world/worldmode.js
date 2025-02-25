@@ -16,18 +16,42 @@ class WorldMode {
             this.character = new ThirdPersonActionCharacter(this.terrain, this.camera, this);
 
             // Get saved state
-            const savedState = gameModeManager.gameMaster.getPlayerState();
-            if (savedState && savedState.position) {
-                // Set the character's initial position and rotation from saved state
-                this.character.body.position.set(
-                    savedState.position.x,
-                    savedState.position.y,
-                    savedState.position.z
-                );
-                this.character.rotation = savedState.rotation;
-
-                console.log("Restoring position:", savedState.position, "rotation:", savedState.rotation);
-            }
+const savedState = gameModeManager.gameMaster.getPlayerState();
+if (savedState && savedState.position) {
+    // Position and rotation
+    this.character.body.position.set(
+        savedState.position.x,
+        savedState.position.y,
+        savedState.position.z
+    );
+    this.character.rotation = savedState.rotation;
+    
+    // Velocities
+    if (savedState.linear_velocity) {
+        this.character.body.linear_velocity.set(
+            savedState.linear_velocity.x,
+            savedState.linear_velocity.y,
+            savedState.linear_velocity.z
+        );
+    }
+    
+    if (savedState.angular_velocity) {
+        this.character.body.angular_velocity.set(
+            savedState.angular_velocity.x,
+            savedState.angular_velocity.y,
+            savedState.angular_velocity.z
+        );
+    }
+    
+    // Other physics properties
+    if (savedState.physics_properties) {
+        this.character.body.friction = savedState.physics_properties.friction;
+        this.character.body.restitution = savedState.physics_properties.restitution;
+        // Any other properties...
+    }
+    
+    console.log("Restored complete physics state");
+}
 
             this.shaderManager.updateCharacterBuffers(this.character);
         
