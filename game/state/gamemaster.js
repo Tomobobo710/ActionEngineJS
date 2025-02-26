@@ -28,6 +28,7 @@ class GameMaster {
                     sprite: null // Sprites will be handled by BattleMode
                 })
         );
+        this.persistentParty.gold = 500;
         
         // Add colors as a deep copy of the defaults
         this.persistentParty.colors = JSON.parse(JSON.stringify(DEFAULT_COLORS));
