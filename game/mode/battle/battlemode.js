@@ -130,28 +130,35 @@ class BattleMode {
             itemNames: menuItems // Pass the menu item names
         });
 
-        // Rest of the registration remains the same since they use numeric indices
         const maxMenuItems = Math.floor(140 / 35);
-        registerBoundsGroup({
-            count: maxMenuItems,
-            startX: 120,
-            startY: Game.HEIGHT - 140,
-            width: 150,
-            height: 30,
-            spacing: 35,
-            prefix: "submenu_slot_"
-        });
 
-        registerBoundsGroup({
-            count: maxMenuItems,
-            startX: 280,
-            startY: Game.HEIGHT - 140,
+// First column of submenu slots
+for (let i = 0; i < maxMenuItems; i++) {
+    const boundsFn = function() {
+        return {
+            x: 120,
+            y: Game.HEIGHT - 140 + i * 35,
             width: 150,
-            height: 30,
-            spacing: 35,
-            prefix: `submenu_slot_${maxMenuItems}`
-        });
+            height: 30
+        };
+    };
+    this.input.registerElement(`submenu_slot_${i}`, { bounds: boundsFn });
+    this.uiElements.set(`submenu_slot_${i}`, boundsFn);
+}
 
+// Second column of submenu slots
+for (let i = 0; i < maxMenuItems; i++) {
+    const boundsFn = function() {
+        return {
+            x: 280,
+            y: Game.HEIGHT - 140 + i * 35,
+            width: 150,
+            height: 30
+        };
+    };
+    this.input.registerElement(`submenu_slot_${i + maxMenuItems}`, { bounds: boundsFn });
+    this.uiElements.set(`submenu_slot_${i + maxMenuItems}`, boundsFn);
+}
         registerBoundsGroup({
             count: 4,
             startX: 176,
