@@ -40,8 +40,8 @@ class BattleMode {
         });
 
         ["slime", "bat", "goblin", "skeleton", "zombie", "ghoul", "rat", "redSlime", "wolf"].forEach((type) => {
-        this.sprites[type] = Sprite.genEnemySprite(type);
-    });
+            this.sprites[type] = Sprite.genEnemySprite(type);
+        });
 
         // Load backgrounds
         ["cave"].forEach((type) => {
@@ -132,33 +132,33 @@ class BattleMode {
 
         const maxMenuItems = Math.floor(140 / 35);
 
-// First column of submenu slots
-for (let i = 0; i < maxMenuItems; i++) {
-    const boundsFn = function() {
-        return {
-            x: 120,
-            y: Game.HEIGHT - 140 + i * 35,
-            width: 150,
-            height: 30
-        };
-    };
-    this.input.registerElement(`submenu_slot_${i}`, { bounds: boundsFn });
-    this.uiElements.set(`submenu_slot_${i}`, boundsFn);
-}
+        // First column of submenu slots
+        for (let i = 0; i < maxMenuItems; i++) {
+            const boundsFn = function () {
+                return {
+                    x: 120,
+                    y: Game.HEIGHT - 140 + i * 35,
+                    width: 150,
+                    height: 30
+                };
+            };
+            this.input.registerElement(`submenu_slot_${i}`, { bounds: boundsFn });
+            this.uiElements.set(`submenu_slot_${i}`, boundsFn);
+        }
 
-// Second column of submenu slots
-for (let i = 0; i < maxMenuItems; i++) {
-    const boundsFn = function() {
-        return {
-            x: 280,
-            y: Game.HEIGHT - 140 + i * 35,
-            width: 150,
-            height: 30
-        };
-    };
-    this.input.registerElement(`submenu_slot_${i + maxMenuItems}`, { bounds: boundsFn });
-    this.uiElements.set(`submenu_slot_${i + maxMenuItems}`, boundsFn);
-}
+        // Second column of submenu slots
+        for (let i = 0; i < maxMenuItems; i++) {
+            const boundsFn = function () {
+                return {
+                    x: 280,
+                    y: Game.HEIGHT - 140 + i * 35,
+                    width: 150,
+                    height: 30
+                };
+            };
+            this.input.registerElement(`submenu_slot_${i + maxMenuItems}`, { bounds: boundsFn });
+            this.uiElements.set(`submenu_slot_${i + maxMenuItems}`, boundsFn);
+        }
         registerBoundsGroup({
             count: 4,
             startX: 176,
@@ -323,41 +323,41 @@ for (let i = 0; i < maxMenuItems; i++) {
     }
 
     cleanup() {
-    // Clear battle system
-    if (this.battle) {
-        if (this.battle.state === "victory") {
-            // Reset ATB values before saving
-            this.battle.party.forEach(char => {
-                if (char) {
-                    char.atbCurrent = 0;
-                    char.isReady = false;
-                }
-            });
-            this.persistentParty = this.battle.party;
+        // Clear battle system
+        if (this.battle) {
+            if (this.battle.state === "victory") {
+                // Reset ATB values before saving
+                this.battle.party.forEach((char) => {
+                    if (char) {
+                        char.atbCurrent = 0;
+                        char.isReady = false;
+                    }
+                });
+                this.persistentParty = this.battle.party;
+            }
+            this.battle = null;
         }
-        this.battle = null;
+
+        // Clear UI elements
+        this.uiElements.clear();
+
+        // Clear sprites and backgrounds
+        this.sprites = {};
+        this.backgrounds = {};
+
+        // Clear canvas
+        if (this.ctx) {
+            this.ctx.clearRect(0, 0, 800, 600);
+        }
+
+        this.input.clearAllElements();
+
+        // Clear references
+        this.canvas = null;
+        this.ctx = null;
+        this.input = null;
+        this.audio = null;
+        this.persistentParty = null;
+        this.partyInventory = null;
     }
-
-    // Clear UI elements
-    this.uiElements.clear();
-
-    // Clear sprites and backgrounds
-    this.sprites = {};
-    this.backgrounds = {};
-
-    // Clear canvas
-    if (this.ctx) {
-        this.ctx.clearRect(0, 0, 800, 600);
-    }
-
-    this.input.clearAllElements();
-
-    // Clear references
-    this.canvas = null;
-    this.ctx = null;
-    this.input = null;
-    this.audio = null;
-    this.persistentParty = null;
-    this.partyInventory = null;
-}
 }

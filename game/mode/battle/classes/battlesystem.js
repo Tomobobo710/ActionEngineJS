@@ -546,18 +546,23 @@ class BattleSystem {
             }
             // Otherwise, if we have ready characters and no active character
             else if (!this.activeChar && this.readyOrder.length > 0) {
-                const nextCharacter = this.readyOrder[0];
+    const nextCharacter = this.readyOrder[0];
 
-                if (nextCharacter.isEnemy) {
-                    // Only handle enemy input if no actions are queued at all
-                    if (this.actionQueue.length === 0) {
-                        this.handleEnemyInput(nextCharacter);
-                        this.readyOrder.shift();
-                    }
-                } else {
-                    this.activeChar = nextCharacter;
-                }
-            }
+    if (nextCharacter.isEnemy) {
+        // Only handle enemy input if no actions are queued at all
+        if (this.actionQueue.length === 0) {
+            this.handleEnemyInput(nextCharacter);
+            this.readyOrder.shift();
+        }
+    } else {
+        // Reset pagination whenever a new character becomes active
+        this.spellScrollOffset = 0;
+        this.itemScrollOffset = 0;
+        this.subMenuPosition = 0;
+        
+        this.activeChar = nextCharacter;
+    }
+}
         }
     }
 
