@@ -194,8 +194,8 @@ class BattleMode {
         };
 
         const arrowConfigs = [
-            { id: "spell_scroll_up", y: Game.HEIGHT - 130 },
-            { id: "spell_scroll_down", y: Game.HEIGHT - 35 }
+            { id: "page_scroll_up", y: Game.HEIGHT - 130 },
+            { id: "page_scroll_down", y: Game.HEIGHT - 35 }
         ];
 
         arrowConfigs.forEach((config) => {

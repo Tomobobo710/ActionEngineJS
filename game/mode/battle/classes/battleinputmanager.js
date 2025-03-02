@@ -86,14 +86,14 @@ class BattleInputManager {
         const commands = ["fight", "magic", "item", "run"];
 
         commands.forEach((command, i) => {
-    const bounds = {
-        x: 10,  // Match the registration
-        y: 600 - 140 + i * 35,
-        width: 100,
-        height: 30
-    };
+            const bounds = {
+                x: 10, // Match the registration
+                y: 600 - 140 + i * 35,
+                width: 100,
+                height: 30
+            };
 
-    const isInBounds = this.input.isPointInBounds(mousePos.x, mousePos.y, bounds);
+            const isInBounds = this.input.isPointInBounds(mousePos.x, mousePos.y, bounds);
             if (isInBounds !== this.battle[`last${command}Bounds`]) {
                 if (isInBounds) {
                     this.battle.hoveredMenuOption = command;
@@ -260,11 +260,11 @@ class BattleInputManager {
             .filter((enemy) => !enemy.isDead)
             .forEach((enemy, i) => {
                 const isInBounds = this.input.isPointInBounds(mousePos.x, mousePos.y, {
-        x: 176,  // Match registration
-        y: 126 + i * 80,  // Match registration
-        width: 48,
-        height: 48
-    });
+                    x: 176, // Match registration
+                    y: 126 + i * 80, // Match registration
+                    width: 48,
+                    height: 48
+                });
 
                 if (isInBounds !== enemy.lastInBounds) {
                     if (isInBounds) {
@@ -282,11 +282,11 @@ class BattleInputManager {
             if (!ally || ally.isDead) return; // Skip empty slots or dead allies
 
             const isInBounds = this.input.isPointInBounds(mousePos.x, mousePos.y, {
-        x: 584,  // Match registration
-        y: 134 + i * 100,  // Match registration
-        width: 32,
-        height: 32
-    });
+                x: 584, // Match registration
+                y: 134 + i * 100, // Match registration
+                width: 32,
+                height: 32
+            });
 
             if (isInBounds !== ally.lastInBounds) {
                 if (isInBounds) {
@@ -518,10 +518,10 @@ class BattleInputManager {
         }
 
         // Handle arrow clicks
-        if (currentPage > 0 && this.input.isElementJustPressed("item_scroll_up")) {
+        if (currentPage > 0 && this.input.isElementJustPressed("page_scroll_up")) {
             this.scrollItems("up");
         }
-        if (currentPage < totalPages - 1 && this.input.isElementJustPressed("item_scroll_down")) {
+        if (currentPage < totalPages - 1 && this.input.isElementJustPressed("page_scroll_down")) {
             this.scrollItems("down");
         }
     }
@@ -550,11 +550,11 @@ class BattleInputManager {
             }
         }
 
-        // Existing click handling
-        if (currentPage > 0 && this.input.isElementJustPressed("spell_scroll_up")) {
+        // Pagination button click handling
+        if (currentPage > 0 && this.input.isElementJustPressed("page_scroll_up")) {
             this.scrollSpells("up");
         }
-        if (currentPage < totalPages - 1 && this.input.isElementJustPressed("spell_scroll_down")) {
+        if (currentPage < totalPages - 1 && this.input.isElementJustPressed("page_scroll_down")) {
             this.scrollSpells("down");
         }
     }
