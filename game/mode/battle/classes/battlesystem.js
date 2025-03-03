@@ -1,12 +1,13 @@
 // game/mode/battle/classes/battlesystem.js
 class BattleSystem {
-    constructor(party, enemyParty, audio, input, inventory) {
+    constructor(party, enemyParty, audio, input, inventory, gameMaster) {
         this.party = party;
         this.enemies = enemyParty.map((data) => new Character(data));
         this.partyInventory = inventory;
         this.enemyInventory = new Inventory();
         this.audio = audio;
         this.input = input;
+        this.gameMaster = gameMaster;
         this.state = "init";
         this.battleLog = new BattleLog();
 
@@ -17,7 +18,7 @@ class BattleSystem {
         // Create enemy inventory with random items
         this.enemyInventory = new Inventory();
         this.initializeEnemyInventory();
-
+        this.resultsMenu = null;
         // Create the renderer
         this.renderer = new BattleRenderer(this);
     }
@@ -638,6 +639,34 @@ class BattleSystem {
     update() {
         if (this.isPaused) return;
 
+        if (this.state === "post_results") {
+            this.updateTransitions();
+            return;
+        }
+
+        if (this.state === "results") {
+            // Update the results menu
+            if (this.resultsMenu) {
+                const result = this.resultsMenu.update();
+
+                if (result === "exit") {
+                    console.log("Exit returned from menu..");
+                    // Clean up
+                    this.resultsMenu.cleanup();
+                    this.resultsMenu = null;
+
+                    // Set state back to victory and make sure readyForWorldTransition is true
+                    this.state = "victory";
+                    this.readyForWorldTransition = true;
+
+                    // Reset transition progress to ensure animation plays
+                    this.transitionProgress = 1;
+                    return;
+                }
+            }
+            return; // Skip the rest of the update method
+        }
+
         // Handle victory and game over states
         if (this.state === "victory" || this.state === "gameover") {
             if (!this.stateStartTime) {
@@ -651,8 +680,13 @@ class BattleSystem {
             // Stay in this state for 3 seconds before allowing transition
             const stateDuration = 3000; // 3 seconds
             if (Date.now() - this.stateStartTime > stateDuration) {
-                // Set a flag to indicate we're ready to return to world mode
-                this.readyForWorldTransition = true;
+                if (this.state === "victory") {
+                    // After victory screen, show results
+                    this.showResultsScreen();
+                } else {
+                    // Game over goes straight to world
+                    this.readyForWorldTransition = true;
+                }
             }
 
             // Only update transition after the delay
@@ -904,6 +938,7 @@ class BattleSystem {
 
             case "victory":
             case "gameover":
+            case "post_results": // Add this case
                 if (this.transitionProgress < 1) {
                     this.transitionProgress += 0.01;
                 }
@@ -919,8 +954,29 @@ class BattleSystem {
         };
     }
 
+    showResultsScreen() {
+        // Create battle results data
+        const battleResults = {
+            defeatedEnemies: this.enemies.filter((enemy) => enemy.isDead),
+            enemyInventory: this.enemyInventory
+        };
+
+        // Create the results menu
+        this.resultsMenu = new BattleResultsMenu(this.ctx, this.input, this.gameMaster, battleResults);
+
+        // Change state
+        this.state = "results";
+        this.stateStartTime = null;
+    }
+
     render(ctx) {
-        // Use the renderer to handle all rendering
+        // If showing results menu, only render that
+        if (this.state === "results" && this.resultsMenu) {
+            this.resultsMenu.draw();
+            return;
+        }
+
+        // Otherwise use the renderer for normal battle rendering
         this.renderer.render(ctx);
     }
 }
