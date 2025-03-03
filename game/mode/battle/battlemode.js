@@ -50,44 +50,44 @@ class BattleMode {
     }
 
     generateEnemyParty() {
-    // Calculate average level of the party members
-    const partyMembers = this.persistentParty.filter(char => char);
-    const avgPartyLevel = partyMembers.reduce((sum, char) => sum + char.level, 0) / partyMembers.length;
-    
-    // Determine number of enemies (1-4)
-    const count = Math.floor(Math.random() * 4) + 1;
-    const enemies = [];
-    const types = Object.keys(this.enemyTemplates);
+        // Calculate average level of the party members
+        const partyMembers = this.persistentParty.filter((char) => char);
+        const avgPartyLevel = partyMembers.reduce((sum, char) => sum + char.level, 0) / partyMembers.length;
 
-    for (let i = 0; i < count; i++) {
-        const type = types[Math.floor(Math.random() * types.length)];
-        const template = this.enemyTemplates[type];
-        
-        // Add level with slight variation from party average
-        // Random variation between -2 and +2 levels
-        const levelVariation = Math.floor(Math.random() * 5) - 2;
-        const enemyLevel = Math.max(1, Math.floor(avgPartyLevel + levelVariation));
-        
-        // Scale stats based on level difference from the template
-        // Assuming templates are balanced for level 1
-        const levelMultiplier = 1 + (enemyLevel - 1) * 0.1; // 10% increase per level
-        
-        enemies.push({
-            name: type.charAt(0).toUpperCase() + type.slice(1),
-            level: enemyLevel,
-            ...template,
-            // Scale core stats based on level
-            maxHp: Math.floor(template.maxHp * levelMultiplier),
-            maxMp: Math.floor(template.maxMp * levelMultiplier),
-            strength: Math.floor(template.strength * levelMultiplier),
-            magic: Math.floor(template.magic * levelMultiplier),
-            speed: Math.floor(template.speed * levelMultiplier),
-            sprite: this.sprites[type]
-        });
+        // Determine number of enemies (1-4)
+        const count = Math.floor(Math.random() * 4) + 1;
+        const enemies = [];
+        const types = Object.keys(this.enemyTemplates);
+
+        for (let i = 0; i < count; i++) {
+            const type = types[Math.floor(Math.random() * types.length)];
+            const template = this.enemyTemplates[type];
+
+            // Add level with slight variation from party average
+            // Random variation between -2 and +2 levels
+            const levelVariation = Math.floor(Math.random() * 5) - 2;
+            const enemyLevel = Math.max(1, Math.floor(avgPartyLevel + levelVariation));
+
+            // Scale stats based on level difference from the template
+            // Assuming templates are balanced for level 1
+            const levelMultiplier = 1 + (enemyLevel - 1) * 0.1; // 10% increase per level
+
+            enemies.push({
+                name: type.charAt(0).toUpperCase() + type.slice(1),
+                level: enemyLevel,
+                ...template,
+                // Scale core stats based on level
+                maxHp: Math.floor(template.maxHp * levelMultiplier),
+                maxMp: Math.floor(template.maxMp * levelMultiplier),
+                strength: Math.floor(template.strength * levelMultiplier),
+                magic: Math.floor(template.magic * levelMultiplier),
+                speed: Math.floor(template.speed * levelMultiplier),
+                sprite: this.sprites[type]
+            });
+        }
+
+        return enemies;
     }
-
-    return enemies;
-}
 
     startNewBattle() {
         // Add sprites to party data
