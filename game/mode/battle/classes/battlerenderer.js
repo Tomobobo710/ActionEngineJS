@@ -201,71 +201,98 @@ class BattleRenderer {
     }
 
     renderEnemies(ctx) {
-        this.battle.enemies.forEach((enemy) => {
-            if (!enemy.isDead) {
-                ctx.drawImage(enemy.sprite, enemy.pos.x - 24, enemy.pos.y - 24);
+    this.battle.enemies.forEach((enemy) => {
+        if (!enemy.isDead) {
+            ctx.drawImage(enemy.sprite, enemy.pos.x - 24, enemy.pos.y - 24);
 
-                // Constants for bar dimensions
-                const barWidth = 48;
-                const barHeight = 4;
-                const barSpacing = 6;
+            // Constants for bar dimensions
+            const barWidth = 48;
+            const barHeight = 4;
+            const barSpacing = 6;
 
-                // HP bar
-                ctx.fillStyle = "#333";
-                ctx.fillRect(enemy.pos.x - barWidth / 2, enemy.pos.y + 30, barWidth, barHeight);
+            // HP bar with animation
+            ctx.fillStyle = "#333";
+            ctx.fillRect(enemy.pos.x - barWidth / 2, enemy.pos.y + 30, barWidth, barHeight);
 
-                ctx.fillStyle = "#f00";
-                const hpWidth = (enemy.hp / enemy.maxHp) * barWidth;
-                ctx.fillRect(enemy.pos.x - barWidth / 2, enemy.pos.y + 30, hpWidth, barHeight);
-
-                // ATB gauge
-                ctx.fillStyle = "#333";
-                ctx.fillRect(enemy.pos.x - barWidth / 2, enemy.pos.y + 30 + barSpacing, barWidth, barHeight);
-
-                ctx.fillStyle = enemy.isReady ? "#ff0" : "#fff";
-                const atbWidth = (enemy.atbCurrent / enemy.atbMax) * barWidth;
-                ctx.fillRect(enemy.pos.x - barWidth / 2, enemy.pos.y + 30 + barSpacing, atbWidth, barHeight);
+            let hpPercent;
+            if (enemy.animatingHP) {
+                const startPercent = enemy.hp / enemy.maxHp;
+                const endPercent = enemy.targetHP / enemy.maxHp;
+                hpPercent = startPercent + (endPercent - startPercent) * enemy.hpAnimProgress;
+            } else {
+                hpPercent = enemy.hp / enemy.maxHp;
             }
-        });
-    }
 
-    renderPartyMembers(ctx) {
-        this.battle.party.forEach((char) => {
-            if (!char) return; // Skip empty slots
-            if (!char.isDead) {
-                ctx.drawImage(char.sprite, char.pos.x - 16, char.pos.y - 16);
+            ctx.fillStyle = "#f00";
+            const hpWidth = hpPercent * barWidth;
+            ctx.fillRect(enemy.pos.x - barWidth / 2, enemy.pos.y + 30, hpWidth, barHeight);
 
-                // Draw character HP/MP bars
-                const barWidth = 64;
-                const barHeight = 4;
-                const barSpacing = 6;
+            // ATB gauge
+            ctx.fillStyle = "#333";
+            ctx.fillRect(enemy.pos.x - barWidth / 2, enemy.pos.y + 30 + barSpacing, barWidth, barHeight);
 
-                // HP bar
-                ctx.fillStyle = "#333";
-                ctx.fillRect(char.pos.x - barWidth / 2, char.pos.y + 30, barWidth, barHeight);
+            ctx.fillStyle = enemy.isReady ? "#ff0" : "#fff";
+            const atbWidth = (enemy.atbCurrent / enemy.atbMax) * barWidth;
+            ctx.fillRect(enemy.pos.x - barWidth / 2, enemy.pos.y + 30 + barSpacing, atbWidth, barHeight);
+        }
+    });
+}
 
-                ctx.fillStyle = "#0f0";
-                const hpWidth = (char.hp / char.maxHp) * barWidth;
-                ctx.fillRect(char.pos.x - barWidth / 2, char.pos.y + 30, hpWidth, barHeight);
+renderPartyMembers(ctx) {
+    this.battle.party.forEach((char) => {
+        if (!char) return; // Skip empty slots
+        if (!char.isDead) {
+            ctx.drawImage(char.sprite, char.pos.x - 16, char.pos.y - 16);
 
-                // MP bar
-                ctx.fillStyle = "#333";
-                ctx.fillRect(char.pos.x - barWidth / 2, char.pos.y + 30 + barSpacing, barWidth, barHeight);
+            // Draw character HP/MP bars
+            const barWidth = 64;
+            const barHeight = 4;
+            const barSpacing = 6;
 
-                ctx.fillStyle = "#00f";
-                const mpWidth = (char.mp / char.maxMp) * barWidth;
-                ctx.fillRect(char.pos.x - barWidth / 2, char.pos.y + 30 + barSpacing, mpWidth, barHeight);
+            // HP bar with animation
+            ctx.fillStyle = "#333";
+            ctx.fillRect(char.pos.x - barWidth / 2, char.pos.y + 30, barWidth, barHeight);
 
-                // ATB gauge
-                ctx.fillStyle = "#333";
-                ctx.fillRect(char.pos.x - barWidth / 2, char.pos.y + 30 + barSpacing * 2, barWidth, barHeight);
-
-                ctx.fillStyle = char.isReady ? "#ff0" : "#fff";
-                const atbWidth = (char.atbCurrent / char.atbMax) * barWidth;
-                ctx.fillRect(char.pos.x - barWidth / 2, char.pos.y + 30 + barSpacing * 2, atbWidth, barHeight);
+            let hpPercent;
+            if (char.animatingHP) {
+                const startPercent = char.hp / char.maxHp;
+                const endPercent = char.targetHP / char.maxHp;
+                hpPercent = startPercent + (endPercent - startPercent) * char.hpAnimProgress;
+            } else {
+                hpPercent = char.hp / char.maxHp;
             }
-        });
-    }
+
+            ctx.fillStyle = "#0f0";
+            const hpWidth = hpPercent * barWidth;
+            ctx.fillRect(char.pos.x - barWidth / 2, char.pos.y + 30, hpWidth, barHeight);
+
+            // MP bar with animation
+            ctx.fillStyle = "#333";
+            ctx.fillRect(char.pos.x - barWidth / 2, char.pos.y + 30 + barSpacing, barWidth, barHeight);
+
+            let mpPercent;
+            if (char.animatingMP) {
+                const startPercent = char.mp / char.maxMp;
+                const endPercent = char.targetMP / char.maxMp;
+                mpPercent = startPercent + (endPercent - startPercent) * char.mpAnimProgress;
+            } else {
+                mpPercent = char.mp / char.maxMp;
+            }
+
+            ctx.fillStyle = "#00f";
+            const mpWidth = mpPercent * barWidth;
+            ctx.fillRect(char.pos.x - barWidth / 2, char.pos.y + 30 + barSpacing, mpWidth, barHeight);
+
+            // ATB gauge
+            ctx.fillStyle = "#333";
+            ctx.fillRect(char.pos.x - barWidth / 2, char.pos.y + 30 + barSpacing * 2, barWidth, barHeight);
+
+            ctx.fillStyle = char.isReady ? "#ff0" : "#fff";
+            const atbWidth = (char.atbCurrent / char.atbMax) * barWidth;
+            ctx.fillRect(char.pos.x - barWidth / 2, char.pos.y + 30 + barSpacing * 2, atbWidth, barHeight);
+        }
+    });
+}
 
     drawBattleMenu(ctx) {
         // Draw cancel button if needed
@@ -317,54 +344,82 @@ class BattleRenderer {
     }
     
     renderPartyStatus(ctx) {
-        this.battle.party.forEach((char, i) => {
-            if (!char) return; // Skip empty slots
+    this.battle.party.forEach((char, i) => {
+        if (!char) return; // Skip empty slots
+        
+        const x = 475;
+        const y = Game.HEIGHT - 140 + i * 45;
+        const isActive = char === this.battle.activeChar;
+
+        // Draw highlight box for active character
+        if (isActive) {
+            ctx.fillStyle = "rgba(255, 255, 0, 0.2)";
+            ctx.fillRect(x, y, 300, 40);
+        }
+
+        // Character name
+        ctx.fillStyle = isActive ? "#ffff00" : "#fff";
+        ctx.font = "16px monospace";
+        ctx.textAlign = "left";
+        ctx.fillText(char.name, x + 10, y + 20);
+
+        // HP bar with animation
+        const hpBarWidth = 100;
+        let hpPercent;
+        if (char.animatingHP) {
+            const startPercent = char.hp / char.maxHp;
+            const endPercent = char.targetHP / char.maxHp;
+            hpPercent = startPercent + (endPercent - startPercent) * char.hpAnimProgress;
+        } else {
+            hpPercent = char.hp / char.maxHp;
+        }
+        
+        ctx.fillStyle = "#333";
+        ctx.fillRect(x + 100, y + 10, hpBarWidth, 8);
+        ctx.fillStyle = hpPercent < 0.2 ? "#ff0000" : hpPercent < 0.5 ? "#ffff00" : "#00ff00";
+        ctx.fillRect(x + 100, y + 10, hpBarWidth * hpPercent, 8);
+        
+        // Display the animated HP value
+        const displayHP = char.animatingHP ? 
+            Math.round(char.hp + (char.targetHP - char.hp) * char.hpAnimProgress) : 
+            char.hp;
             
-            const x = 475; // This puts it more towards the right side of the empty space
-            const y = Game.HEIGHT - 140 + i * 45;
-            const isActive = char === this.battle.activeChar;
+        ctx.fillStyle = "#fff";
+        ctx.fillText(`${displayHP}/${char.maxHp}`, x + 210, y + 20);
 
-            // Draw highlight box for active character
-            if (isActive) {
-                ctx.fillStyle = "rgba(255, 255, 0, 0.2)";
-                ctx.fillRect(x, y, 300, 40);
+        // MP bar with animation
+        const mpBarWidth = 100;
+        let mpPercent;
+        if (char.animatingMP) {
+            const startPercent = char.mp / char.maxMp;
+            const endPercent = char.targetMP / char.maxMp;
+            mpPercent = startPercent + (endPercent - startPercent) * char.mpAnimProgress;
+        } else {
+            mpPercent = char.mp / char.maxMp;
+        }
+        
+        ctx.fillStyle = "#333";
+        ctx.fillRect(x + 100, y + 25, mpBarWidth, 8);
+        ctx.fillStyle = "#4444ff";
+        ctx.fillRect(x + 100, y + 25, mpBarWidth * mpPercent, 8);
+        
+        // Display the animated MP value
+        const displayMP = char.animatingMP ? 
+            Math.round(char.mp + (char.targetMP - char.mp) * char.mpAnimProgress) : 
+            char.mp;
+            
+        ctx.fillStyle = "#fff";
+        ctx.fillText(`${displayMP}/${char.maxMp}`, x + 210, y + 35);
+
+        // Draw status effects
+        Object.entries(char.status).forEach(([status, duration], j) => {
+            if (duration > 0) {
+                ctx.fillStyle = "#ff0";
+                ctx.fillText(status.toUpperCase(), x + 300 + j * 70, y + 25);
             }
-
-            // Character name
-            ctx.fillStyle = isActive ? "#ffff00" : "#fff";
-            ctx.font = "16px monospace";
-            ctx.textAlign = "left";
-            ctx.fillText(char.name, x + 10, y + 20);
-
-            // HP bar
-            const hpBarWidth = 100;
-            const hpPercent = char.hp / char.maxHp;
-            ctx.fillStyle = "#333";
-            ctx.fillRect(x + 100, y + 10, hpBarWidth, 8);
-            ctx.fillStyle = hpPercent < 0.2 ? "#ff0000" : hpPercent < 0.5 ? "#ffff00" : "#00ff00";
-            ctx.fillRect(x + 100, y + 10, hpBarWidth * hpPercent, 8);
-            ctx.fillStyle = "#fff";
-            ctx.fillText(`${char.hp}/${char.maxHp}`, x + 210, y + 20);
-
-            // MP bar
-            const mpBarWidth = 100;
-            const mpPercent = char.mp / char.maxMp;
-            ctx.fillStyle = "#333";
-            ctx.fillRect(x + 100, y + 25, mpBarWidth, 8);
-            ctx.fillStyle = "#4444ff";
-            ctx.fillRect(x + 100, y + 25, mpBarWidth * mpPercent, 8);
-            ctx.fillStyle = "#fff";
-            ctx.fillText(`${char.mp}/${char.maxMp}`, x + 210, y + 35);
-
-            // Draw status effects
-            Object.entries(char.status).forEach(([status, duration], j) => {
-                if (duration > 0) {
-                    ctx.fillStyle = "#ff0";
-                    ctx.fillText(status.toUpperCase(), x + 300 + j * 70, y + 25);
-                }
-            });
         });
-    }
+    });
+}
     
     renderCommandMenu(ctx) {
         const commands = ["Fight", "Magic", "Item", "Run"];

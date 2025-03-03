@@ -18,6 +18,15 @@ class Character {
         this.atbCurrent = 0;
         this.isReady = false;
 
+        this.animatingHP = false;
+        this.animatingMP = false;
+        this.targetHP = this.hp;
+        this.targetMP = this.mp;
+        this.hpAnimStartTime = 0;
+        this.mpAnimStartTime = 0;
+        this.hpAnimProgress = 0;
+        this.mpAnimProgress = 0;
+        
         // Menu state tracking
         this.menuState = {
             lastAction: null, // 'fight', 'magic', 'item', etc

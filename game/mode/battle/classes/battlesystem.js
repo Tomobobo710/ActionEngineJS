@@ -183,6 +183,7 @@ class BattleSystem {
         this.audio.play("menu_select");
     }
 
+    // For attacks
     executeAttack(attack) {
         if (!attack || !attack.character || !attack.target) return;
 
@@ -194,7 +195,12 @@ class BattleSystem {
         // Store the pending effect to apply after animation completes
         this.pendingEffect = () => {
             const damage = Math.floor(attack.character.stats.attack * 1.5);
-            const actualDamage = attack.target.takeDamage(damage);
+            const actualDamage = Math.min(attack.target.hp, damage);
+
+            // Start the HP animation
+            attack.target.animatingHP = true;
+            attack.target.targetHP = Math.max(0, attack.target.hp - actualDamage);
+            attack.target.hpAnimStartTime = Date.now();
 
             const message = `${attack.character.name} attacks ${attack.target.name} for ${actualDamage} damage!`;
             this.battleLog.addMessage(message, "damage");
@@ -205,42 +211,66 @@ class BattleSystem {
         };
     }
 
+    // For spells
     executeSpell(action) {
         if (!action || !action.spell || !action.character || !action.target) return;
 
         this.isProcessingAction = true;
 
         // Add animations first
-        // Check if the caster is an enemy
         const isEnemy = this.enemies.includes(action.character);
 
         if (action.isGroupTarget) {
             const targets = Array.isArray(action.target) ? action.target : [action.target];
-            targets.forEach((enemy) => {
-                if (!enemy.isDead) {
-                    this.animations.push(new SpellAnimation(action.spell.animation, enemy.pos, action.character, isEnemy));
+            targets.forEach((target) => {
+                if (!target.isDead) {
+                    this.animations.push(
+                        new SpellAnimation(action.spell.animation, target.pos, action.character, isEnemy)
+                    );
                 }
             });
         } else {
-            this.animations.push(new SpellAnimation(action.spell.animation, action.target.pos, action.character, isEnemy));
+            this.animations.push(
+                new SpellAnimation(action.spell.animation, action.target.pos, action.character, isEnemy)
+            );
         }
 
         // Store the spell effect to apply after animations finish
         this.pendingEffect = () => {
+            // MP cost for caster (animate MP decrease)
+            action.character.animatingMP = true;
+            action.character.targetMP = Math.max(0, action.character.mp - action.spell.mpCost);
+            action.character.mpAnimStartTime = Date.now();
+
+            // Then handle effect on targets
             let totalDamage = 0;
             let targetMessage;
 
             if (action.isGroupTarget) {
                 const targets = Array.isArray(action.target) ? action.target : [action.target];
-                targets.forEach((enemy) => {
-                    if (!enemy.isDead) {
-                        const damage = action.character.castSpell(action.spell, enemy);
+                targets.forEach((target) => {
+                    if (!target.isDead) {
+                        // Calculate damage but don't apply it directly
+                        const damage = this.calculateSpellDamage(action.character, action.spell, target);
                         totalDamage += damage;
+
+                        // Start HP animation for each target
+                        target.animatingHP = true;
+                        target.targetHP = Math.max(0, target.hp - damage);
+                        target.hpAnimStartTime = Date.now();
                     }
                 });
                 targetMessage = "all enemies";
             } else {
-                totalDamage = action.character.castSpell(action.spell, action.target);
+                // Calculate damage but don't apply it directly
+                const damage = this.calculateSpellDamage(action.character, action.spell, action.target);
+                totalDamage = damage;
+
+                // Start HP animation for target
+                action.target.animatingHP = true;
+                action.target.targetHP = Math.max(0, action.target.hp - damage);
+                action.target.hpAnimStartTime = Date.now();
+
                 targetMessage = action.target.name;
             }
 
@@ -253,12 +283,13 @@ class BattleSystem {
         };
     }
 
+    // For items
     executeItem(action) {
         if (!action || !action.item || !action.character || !action.target) return;
 
         this.isProcessingAction = true;
 
-        // Add item use animation (you may need to create an ItemAnimation class)
+        // Add item use animation
         if (action.isGroupTarget) {
             const targets = Array.isArray(action.target) ? action.target : [action.target];
             targets.forEach((target) => {
@@ -274,30 +305,69 @@ class BattleSystem {
             let effectMessage = "";
             let totalHealing = 0;
 
+            // Handle item effects based on type
             if (action.isGroupTarget) {
-                action.target.forEach((t) => {
-                    const result = action.item.effect(t);
+                const targets = Array.isArray(action.target) ? action.target : [action.target];
+                targets.forEach((target) => {
+                    // Handle different item types
                     if (action.item.name.toLowerCase().includes("potion")) {
-                        totalHealing += result; // result will be healing amount
+                        const healAmount = this.calculateHealAmount(target, action.item);
+                        totalHealing += healAmount;
+
+                        // Animate HP increase
+                        target.animatingHP = true;
+                        target.targetHP = Math.min(target.maxHp, target.hp + healAmount);
+                        target.hpAnimStartTime = Date.now();
+                    } else if (action.item.name.toLowerCase().includes("ether")) {
+                        const mpRestored = this.calculateMPRestored(target, action.item);
+
+                        // Animate MP increase
+                        target.animatingMP = true;
+                        target.targetMP = Math.min(target.maxMp, target.mp + mpRestored);
+                        target.mpAnimStartTime = Date.now();
+                    } else if (action.item.name.toLowerCase().includes("bomb")) {
+                        const damage = this.calculateItemDamage(target, action.item);
+
+                        // Animate HP decrease
+                        target.animatingHP = true;
+                        target.targetHP = Math.max(0, target.hp - damage);
+                        target.hpAnimStartTime = Date.now();
                     }
                 });
                 targetMessage = "all allies";
             } else {
-                const result = action.item.effect(action.target);
+                // Similar logic for single target
                 if (action.item.name.toLowerCase().includes("potion")) {
-                    totalHealing = result; // result will be healing amount
+                    const healAmount = this.calculateHealAmount(action.target, action.item);
+                    totalHealing = healAmount;
+
+                    // Animate HP increase
+                    action.target.animatingHP = true;
+                    action.target.targetHP = Math.min(action.target.maxHp, action.target.hp + healAmount);
+                    action.target.hpAnimStartTime = Date.now();
+
+                    effectMessage = ` restoring ${totalHealing} HP`;
+                    this.audio.play("heal");
+                } else if (action.item.name.toLowerCase().includes("ether")) {
+                    const mpRestored = this.calculateMPRestored(action.target, action.item);
+
+                    // Animate MP increase
+                    action.target.animatingMP = true;
+                    action.target.targetMP = Math.min(action.target.maxMp, action.target.mp + mpRestored);
+                    action.target.mpAnimStartTime = Date.now();
+
+                    effectMessage = ` restoring ${mpRestored} MP`;
+                } else if (action.item.name.toLowerCase().includes("bomb")) {
+                    const damage = this.calculateItemDamage(action.target, action.item);
+
+                    // Animate HP decrease
+                    action.target.animatingHP = true;
+                    action.target.targetHP = Math.max(0, action.target.hp - damage);
+                    action.target.hpAnimStartTime = Date.now();
+
+                    effectMessage = ` dealing ${damage} damage`;
                 }
                 targetMessage = action.target.name;
-            }
-
-            // Add healing amount to message for potions
-            if (action.item.name.toLowerCase().includes("potion")) {
-                effectMessage = ` restoring ${totalHealing} HP`;
-                this.audio.play("heal");
-            } else if (action.item.name.toLowerCase().includes("poison")) {
-                effectMessage = " inflicting poison";
-            } else if (action.item.name.toLowerCase().includes("bomb")) {
-                effectMessage = " dealing damage";
             }
 
             const itemId = Object.keys(ITEMS).find((id) => ITEMS[id] === action.item);
@@ -563,58 +633,172 @@ class BattleSystem {
     }
 
     update() {
-        if (this.isPaused) return;
+    if (this.isPaused) return;
 
-        if (this.currentMenu === "magic" || this.currentMenu === "item" || this.targetingMode) {
-            this.showCancelButton = true;
-        } else {
-            this.showCancelButton = false;
-        }
+    if (this.currentMenu === "magic" || this.currentMenu === "item" || this.targetingMode) {
+        this.showCancelButton = true;
+    } else {
+        this.showCancelButton = false;
+    }
 
-        // First, handle animations and transitions
-        this.handleAnimations();
+    // First, handle animations and transitions
+    this.handleAnimations();
 
-        // Apply pending effects if animations are complete
-        if (this.pendingEffect && this.animations.length === 0) {
-            this.pendingEffect();
-            this.pendingEffect = null;
-        }
+    // Apply pending effects if animations are complete
+    if (this.pendingEffect && this.animations.length === 0) {
+        this.pendingEffect();
+        this.pendingEffect = null;
+    }
 
-        this.updateTransitions();
+    // Check if any character has ongoing HP/MP animations
+    const hasOngoingStatAnimations = [...this.party, ...this.enemies].some(char => {
+        return char && (char.animatingHP || char.animatingMP);
+    });
 
-        // Check victory/defeat conditions
-        if (this.checkBattleEnd()) return;
+    // Update HP/MP animations for all characters
+    [...this.party, ...this.enemies].forEach((char) => {
+        if (!char) return; // Skip empty slots
 
-        // Update ATB gauges and track who becomes ready
-        this.updateATBGauges();
+        // Handle HP animation
+        if (char.animatingHP) {
+            const elapsed = Date.now() - char.hpAnimStartTime;
+            const duration = 750;
 
-        // Only process actions if we're not already processing one
-        // and there are no active animations
-        if (!this.isProcessingAction && this.animations.length === 0) {
-            // If we have queued actions, process the next one
-            if (this.actionQueue.length > 0) {
-                this.processNextAction();
-            }
-            // Otherwise, if we have ready characters and no active character
-            else if (!this.activeChar && this.readyOrder.length > 0) {
-                const nextCharacter = this.readyOrder[0];
+            if (elapsed >= duration) {
+                // Animation complete, apply the actual change
+                char.hp = char.targetHP;
+                char.animatingHP = false;
 
-                if (nextCharacter.isEnemy) {
-                    // Only handle enemy input if no actions are queued at all
-                    if (this.actionQueue.length === 0) {
-                        this.handleEnemyInput(nextCharacter);
-                        this.readyOrder.shift();
-                    }
-                } else {
-                    // Reset pagination whenever a new character becomes active
-                    this.spellScrollOffset = 0;
-                    this.itemScrollOffset = 0;
-                    this.subMenuPosition = 0;
-
-                    this.activeChar = nextCharacter;
+                // Check if character died from this
+                if (char.hp <= 0) {
+                    char.isDead = true;
+                    this.battleLog.addMessage(`${char.name} was defeated!`, "system");
                 }
+            } else {
+                // Animation in progress
+                const progress = elapsed / duration;
+                char.hpAnimProgress = this.easeOutCubic(progress); // Smoother animation
             }
         }
+
+        // Handle MP animation
+        if (char.animatingMP) {
+            const elapsed = Date.now() - char.mpAnimStartTime;
+            const duration = 750;
+
+            if (elapsed >= duration) {
+                // Animation complete, apply the actual change
+                char.mp = char.targetMP;
+                char.animatingMP = false;
+            } else {
+                // Animation in progress
+                const progress = elapsed / duration;
+                char.mpAnimProgress = this.easeOutCubic(progress); // Smoother animation
+            }
+        }
+    });
+
+    this.updateTransitions();
+
+    // Check victory/defeat conditions
+    if (this.checkBattleEnd()) return;
+
+    // Update ATB gauges and track who becomes ready
+    this.updateATBGauges();
+
+    // Only process actions if we're not already processing one
+    // and there are no active animations AND no ongoing stat animations
+    if (!this.isProcessingAction && this.animations.length === 0 && !hasOngoingStatAnimations) {
+        // If we have queued actions, process the next one
+        if (this.actionQueue.length > 0) {
+            this.processNextAction();
+        }
+        // Otherwise, if we have ready characters and no active character
+        else if (!this.activeChar && this.readyOrder.length > 0) {
+            const nextCharacter = this.readyOrder[0];
+
+            if (nextCharacter.isEnemy) {
+                // Only handle enemy input if no actions are queued at all
+                if (this.actionQueue.length === 0) {
+                    this.handleEnemyInput(nextCharacter);
+                    this.readyOrder.shift();
+                }
+            } else {
+                // Reset pagination whenever a new character becomes active
+                this.spellScrollOffset = 0;
+                this.itemScrollOffset = 0;
+                this.subMenuPosition = 0;
+
+                this.activeChar = nextCharacter;
+            }
+        }
+    }
+}
+    easeOutCubic(x) {
+        return 1 - Math.pow(1 - x, 3);
+    }
+    calculateSpellDamage(caster, spell, target) {
+        // Basic spell damage calculation
+        const baseDamage = spell.power;
+        const magicStat = caster.stats.magic || 10;
+        const targetResist = target.stats.magicResist || 0;
+
+        // Calculate actual damage
+        let damage = baseDamage * (magicStat / 10);
+        damage = Math.max(1, damage - targetResist);
+
+        return Math.floor(damage);
+    }
+
+    calculateHealAmount(target, item) {
+        // Basic healing calculation
+        let healPower;
+
+        if (item.name.toLowerCase().includes("potion")) {
+            healPower = 50;
+        } else if (item.name.toLowerCase().includes("hi-potion")) {
+            healPower = 100;
+        } else if (item.name.toLowerCase().includes("mega-potion")) {
+            healPower = 200;
+        } else {
+            healPower = 30; // Default healing amount
+        }
+
+        return Math.floor(healPower);
+    }
+
+    calculateMPRestored(target, item) {
+        // Basic MP restoration calculation
+        let restorePower;
+
+        if (item.name.toLowerCase().includes("ether")) {
+            restorePower = 30;
+        } else if (item.name.toLowerCase().includes("hi-ether")) {
+            restorePower = 60;
+        } else if (item.name.toLowerCase().includes("mega-ether")) {
+            restorePower = 120;
+        } else {
+            restorePower = 15; // Default MP restoration
+        }
+
+        return Math.floor(restorePower);
+    }
+
+    calculateItemDamage(target, item) {
+        // Basic item damage calculation
+        let damagePower;
+
+        if (item.name.toLowerCase().includes("bomb")) {
+            damagePower = 50;
+        } else if (item.name.toLowerCase().includes("mega-bomb")) {
+            damagePower = 100;
+        } else if (item.name.toLowerCase().includes("poison")) {
+            damagePower = 25;
+        } else {
+            damagePower = 30; // Default damage
+        }
+
+        return Math.floor(damagePower);
     }
 
     processNextAction() {
