@@ -1,6 +1,6 @@
 // game/mode/battle/classes/spellanimation.js
 class SpellAnimation {
-    constructor(config, targetPos, attacker) {
+    constructor(config, targetPos, attacker, isEnemy) {
         this.config = config;
         this.targetPos = { ...targetPos };
         this.attacker = attacker;
@@ -14,7 +14,7 @@ class SpellAnimation {
             y: attacker.pos.y
         };
 
-        this.isEnemy = attacker.type === "slime" || attacker.type === "bat" || attacker.type === "goblin";
+        this.isEnemy = isEnemy;
         this.moveDistance = this.isEnemy ? 50 : -50;
 
         // Define animation phases

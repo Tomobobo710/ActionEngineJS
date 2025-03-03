@@ -1,18 +1,16 @@
 // game/mode/battle/classes/attackanimation.js
 class AttackAnimation {
-    constructor(attacker, target) {
+    constructor(attacker, target, isEnemy) {
         this.attacker = attacker;
         this.target = target;
         this.frame = 0;
         this.maxFrames = 60;
         this.finished = false;
-
         this.originalPos = {
             x: attacker.pos.x,
             y: attacker.pos.y
         };
-
-        this.isEnemy = attacker.type === "slime" || attacker.type === "bat" || attacker.type === "goblin";
+        this.isEnemy = isEnemy;
         this.moveDistance = this.isEnemy ? 100 : -100;
 
         // Slash effect properties
