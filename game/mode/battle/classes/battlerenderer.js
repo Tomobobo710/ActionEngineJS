@@ -10,7 +10,7 @@ class BattleRenderer {
     render(ctx) {
         // Draw enhanced targeting effects for enemies/allies
         this.renderTargetingEffects(ctx);
-        
+
         // Add active character indicator in battle area
         this.renderActiveCharacterIndicator(ctx);
 
@@ -21,7 +21,7 @@ class BattleRenderer {
 
         // Draw enemies
         this.renderEnemies(ctx);
-        
+
         // Draw party members
         this.renderPartyMembers(ctx);
 
@@ -201,98 +201,98 @@ class BattleRenderer {
     }
 
     renderEnemies(ctx) {
-    this.battle.enemies.forEach((enemy) => {
-        if (!enemy.isDead) {
-            ctx.drawImage(enemy.sprite, enemy.pos.x - 24, enemy.pos.y - 24);
+        this.battle.enemies.forEach((enemy) => {
+            if (!enemy.isDead) {
+                ctx.drawImage(enemy.sprite, enemy.pos.x - 24, enemy.pos.y - 24);
 
-            // Constants for bar dimensions
-            const barWidth = 48;
-            const barHeight = 4;
-            const barSpacing = 6;
+                // Constants for bar dimensions
+                const barWidth = 48;
+                const barHeight = 4;
+                const barSpacing = 6;
 
-            // HP bar with animation
-            ctx.fillStyle = "#333";
-            ctx.fillRect(enemy.pos.x - barWidth / 2, enemy.pos.y + 30, barWidth, barHeight);
+                // HP bar with animation
+                ctx.fillStyle = "#333";
+                ctx.fillRect(enemy.pos.x - barWidth / 2, enemy.pos.y + 30, barWidth, barHeight);
 
-            let hpPercent;
-            if (enemy.animatingHP) {
-                const startPercent = enemy.hp / enemy.maxHp;
-                const endPercent = enemy.targetHP / enemy.maxHp;
-                hpPercent = startPercent + (endPercent - startPercent) * enemy.hpAnimProgress;
-            } else {
-                hpPercent = enemy.hp / enemy.maxHp;
+                let hpPercent;
+                if (enemy.animatingHP) {
+                    const startPercent = enemy.hp / enemy.maxHp;
+                    const endPercent = enemy.targetHP / enemy.maxHp;
+                    hpPercent = startPercent + (endPercent - startPercent) * enemy.hpAnimProgress;
+                } else {
+                    hpPercent = enemy.hp / enemy.maxHp;
+                }
+
+                ctx.fillStyle = "#f00";
+                const hpWidth = hpPercent * barWidth;
+                ctx.fillRect(enemy.pos.x - barWidth / 2, enemy.pos.y + 30, hpWidth, barHeight);
+
+                // ATB gauge
+                ctx.fillStyle = "#333";
+                ctx.fillRect(enemy.pos.x - barWidth / 2, enemy.pos.y + 30 + barSpacing, barWidth, barHeight);
+
+                ctx.fillStyle = enemy.isReady ? "#ff0" : "#fff";
+                const atbWidth = (enemy.atbCurrent / enemy.atbMax) * barWidth;
+                ctx.fillRect(enemy.pos.x - barWidth / 2, enemy.pos.y + 30 + barSpacing, atbWidth, barHeight);
             }
+        });
+    }
 
-            ctx.fillStyle = "#f00";
-            const hpWidth = hpPercent * barWidth;
-            ctx.fillRect(enemy.pos.x - barWidth / 2, enemy.pos.y + 30, hpWidth, barHeight);
+    renderPartyMembers(ctx) {
+        this.battle.party.forEach((char) => {
+            if (!char) return; // Skip empty slots
+            if (!char.isDead) {
+                ctx.drawImage(char.sprite, char.pos.x - 16, char.pos.y - 16);
 
-            // ATB gauge
-            ctx.fillStyle = "#333";
-            ctx.fillRect(enemy.pos.x - barWidth / 2, enemy.pos.y + 30 + barSpacing, barWidth, barHeight);
+                // Draw character HP/MP bars
+                const barWidth = 64;
+                const barHeight = 4;
+                const barSpacing = 6;
 
-            ctx.fillStyle = enemy.isReady ? "#ff0" : "#fff";
-            const atbWidth = (enemy.atbCurrent / enemy.atbMax) * barWidth;
-            ctx.fillRect(enemy.pos.x - barWidth / 2, enemy.pos.y + 30 + barSpacing, atbWidth, barHeight);
-        }
-    });
-}
+                // HP bar with animation
+                ctx.fillStyle = "#333";
+                ctx.fillRect(char.pos.x - barWidth / 2, char.pos.y + 30, barWidth, barHeight);
 
-renderPartyMembers(ctx) {
-    this.battle.party.forEach((char) => {
-        if (!char) return; // Skip empty slots
-        if (!char.isDead) {
-            ctx.drawImage(char.sprite, char.pos.x - 16, char.pos.y - 16);
+                let hpPercent;
+                if (char.animatingHP) {
+                    const startPercent = char.hp / char.maxHp;
+                    const endPercent = char.targetHP / char.maxHp;
+                    hpPercent = startPercent + (endPercent - startPercent) * char.hpAnimProgress;
+                } else {
+                    hpPercent = char.hp / char.maxHp;
+                }
 
-            // Draw character HP/MP bars
-            const barWidth = 64;
-            const barHeight = 4;
-            const barSpacing = 6;
+                ctx.fillStyle = "#0f0";
+                const hpWidth = hpPercent * barWidth;
+                ctx.fillRect(char.pos.x - barWidth / 2, char.pos.y + 30, hpWidth, barHeight);
 
-            // HP bar with animation
-            ctx.fillStyle = "#333";
-            ctx.fillRect(char.pos.x - barWidth / 2, char.pos.y + 30, barWidth, barHeight);
+                // MP bar with animation
+                ctx.fillStyle = "#333";
+                ctx.fillRect(char.pos.x - barWidth / 2, char.pos.y + 30 + barSpacing, barWidth, barHeight);
 
-            let hpPercent;
-            if (char.animatingHP) {
-                const startPercent = char.hp / char.maxHp;
-                const endPercent = char.targetHP / char.maxHp;
-                hpPercent = startPercent + (endPercent - startPercent) * char.hpAnimProgress;
-            } else {
-                hpPercent = char.hp / char.maxHp;
+                let mpPercent;
+                if (char.animatingMP) {
+                    const startPercent = char.mp / char.maxMp;
+                    const endPercent = char.targetMP / char.maxMp;
+                    mpPercent = startPercent + (endPercent - startPercent) * char.mpAnimProgress;
+                } else {
+                    mpPercent = char.mp / char.maxMp;
+                }
+
+                ctx.fillStyle = "#00f";
+                const mpWidth = mpPercent * barWidth;
+                ctx.fillRect(char.pos.x - barWidth / 2, char.pos.y + 30 + barSpacing, mpWidth, barHeight);
+
+                // ATB gauge
+                ctx.fillStyle = "#333";
+                ctx.fillRect(char.pos.x - barWidth / 2, char.pos.y + 30 + barSpacing * 2, barWidth, barHeight);
+
+                ctx.fillStyle = char.isReady ? "#ff0" : "#fff";
+                const atbWidth = (char.atbCurrent / char.atbMax) * barWidth;
+                ctx.fillRect(char.pos.x - barWidth / 2, char.pos.y + 30 + barSpacing * 2, atbWidth, barHeight);
             }
-
-            ctx.fillStyle = "#0f0";
-            const hpWidth = hpPercent * barWidth;
-            ctx.fillRect(char.pos.x - barWidth / 2, char.pos.y + 30, hpWidth, barHeight);
-
-            // MP bar with animation
-            ctx.fillStyle = "#333";
-            ctx.fillRect(char.pos.x - barWidth / 2, char.pos.y + 30 + barSpacing, barWidth, barHeight);
-
-            let mpPercent;
-            if (char.animatingMP) {
-                const startPercent = char.mp / char.maxMp;
-                const endPercent = char.targetMP / char.maxMp;
-                mpPercent = startPercent + (endPercent - startPercent) * char.mpAnimProgress;
-            } else {
-                mpPercent = char.mp / char.maxMp;
-            }
-
-            ctx.fillStyle = "#00f";
-            const mpWidth = mpPercent * barWidth;
-            ctx.fillRect(char.pos.x - barWidth / 2, char.pos.y + 30 + barSpacing, mpWidth, barHeight);
-
-            // ATB gauge
-            ctx.fillStyle = "#333";
-            ctx.fillRect(char.pos.x - barWidth / 2, char.pos.y + 30 + barSpacing * 2, barWidth, barHeight);
-
-            ctx.fillStyle = char.isReady ? "#ff0" : "#fff";
-            const atbWidth = (char.atbCurrent / char.atbMax) * barWidth;
-            ctx.fillRect(char.pos.x - barWidth / 2, char.pos.y + 30 + barSpacing * 2, atbWidth, barHeight);
-        }
-    });
-}
+        });
+    }
 
     drawBattleMenu(ctx) {
         // Draw cancel button if needed
@@ -321,20 +321,20 @@ renderPartyMembers(ctx) {
 
             ctx.restore();
         }
-        
+
         // Draw menu background
         ctx.fillStyle = "rgba(0, 0, 102, 0.95)";
         ctx.fillRect(0, Game.HEIGHT - 150, Game.WIDTH, 150);
         ctx.strokeStyle = "#fff";
         ctx.lineWidth = 2;
         ctx.strokeRect(0, Game.HEIGHT - 150, Game.WIDTH, 150);
-        
+
         // Draw party status with improved layout
         this.renderPartyStatus(ctx);
-        
+
         // Draw command menu
         this.renderCommandMenu(ctx);
-        
+
         // Draw sub-menus
         if (this.battle.currentMenu === "magic") {
             this.renderMagicMenu(ctx);
@@ -342,85 +342,85 @@ renderPartyMembers(ctx) {
             this.drawItemMenu(ctx);
         }
     }
-    
+
     renderPartyStatus(ctx) {
-    this.battle.party.forEach((char, i) => {
-        if (!char) return; // Skip empty slots
-        
-        const x = 475;
-        const y = Game.HEIGHT - 140 + i * 45;
-        const isActive = char === this.battle.activeChar;
+        this.battle.party.forEach((char, i) => {
+            if (!char) return; // Skip empty slots
 
-        // Draw highlight box for active character
-        if (isActive) {
-            ctx.fillStyle = "rgba(255, 255, 0, 0.2)";
-            ctx.fillRect(x, y, 300, 40);
-        }
+            const x = 475;
+            const y = Game.HEIGHT - 140 + i * 45;
+            const isActive = char === this.battle.activeChar;
 
-        // Character name
-        ctx.fillStyle = isActive ? "#ffff00" : "#fff";
-        ctx.font = "16px monospace";
-        ctx.textAlign = "left";
-        ctx.fillText(char.name, x + 10, y + 20);
-
-        // HP bar with animation
-        const hpBarWidth = 100;
-        let hpPercent;
-        if (char.animatingHP) {
-            const startPercent = char.hp / char.maxHp;
-            const endPercent = char.targetHP / char.maxHp;
-            hpPercent = startPercent + (endPercent - startPercent) * char.hpAnimProgress;
-        } else {
-            hpPercent = char.hp / char.maxHp;
-        }
-        
-        ctx.fillStyle = "#333";
-        ctx.fillRect(x + 100, y + 10, hpBarWidth, 8);
-        ctx.fillStyle = hpPercent < 0.2 ? "#ff0000" : hpPercent < 0.5 ? "#ffff00" : "#00ff00";
-        ctx.fillRect(x + 100, y + 10, hpBarWidth * hpPercent, 8);
-        
-        // Display the animated HP value
-        const displayHP = char.animatingHP ? 
-            Math.round(char.hp + (char.targetHP - char.hp) * char.hpAnimProgress) : 
-            char.hp;
-            
-        ctx.fillStyle = "#fff";
-        ctx.fillText(`${displayHP}/${char.maxHp}`, x + 210, y + 20);
-
-        // MP bar with animation
-        const mpBarWidth = 100;
-        let mpPercent;
-        if (char.animatingMP) {
-            const startPercent = char.mp / char.maxMp;
-            const endPercent = char.targetMP / char.maxMp;
-            mpPercent = startPercent + (endPercent - startPercent) * char.mpAnimProgress;
-        } else {
-            mpPercent = char.mp / char.maxMp;
-        }
-        
-        ctx.fillStyle = "#333";
-        ctx.fillRect(x + 100, y + 25, mpBarWidth, 8);
-        ctx.fillStyle = "#4444ff";
-        ctx.fillRect(x + 100, y + 25, mpBarWidth * mpPercent, 8);
-        
-        // Display the animated MP value
-        const displayMP = char.animatingMP ? 
-            Math.round(char.mp + (char.targetMP - char.mp) * char.mpAnimProgress) : 
-            char.mp;
-            
-        ctx.fillStyle = "#fff";
-        ctx.fillText(`${displayMP}/${char.maxMp}`, x + 210, y + 35);
-
-        // Draw status effects
-        Object.entries(char.status).forEach(([status, duration], j) => {
-            if (duration > 0) {
-                ctx.fillStyle = "#ff0";
-                ctx.fillText(status.toUpperCase(), x + 300 + j * 70, y + 25);
+            // Draw highlight box for active character
+            if (isActive) {
+                ctx.fillStyle = "rgba(255, 255, 0, 0.2)";
+                ctx.fillRect(x, y, 300, 40);
             }
+
+            // Character name
+            ctx.fillStyle = isActive ? "#ffff00" : "#fff";
+            ctx.font = "16px monospace";
+            ctx.textAlign = "left";
+            ctx.fillText(char.name, x + 10, y + 20);
+
+            // HP bar with animation
+            const hpBarWidth = 100;
+            let hpPercent;
+            if (char.animatingHP) {
+                const startPercent = char.hp / char.maxHp;
+                const endPercent = char.targetHP / char.maxHp;
+                hpPercent = startPercent + (endPercent - startPercent) * char.hpAnimProgress;
+            } else {
+                hpPercent = char.hp / char.maxHp;
+            }
+
+            ctx.fillStyle = "#333";
+            ctx.fillRect(x + 100, y + 10, hpBarWidth, 8);
+            ctx.fillStyle = hpPercent < 0.2 ? "#ff0000" : hpPercent < 0.5 ? "#ffff00" : "#00ff00";
+            ctx.fillRect(x + 100, y + 10, hpBarWidth * hpPercent, 8);
+
+            // Display the animated HP value
+            const displayHP = char.animatingHP
+                ? Math.round(char.hp + (char.targetHP - char.hp) * char.hpAnimProgress)
+                : char.hp;
+
+            ctx.fillStyle = "#fff";
+            ctx.fillText(`${displayHP}/${char.maxHp}`, x + 210, y + 20);
+
+            // MP bar with animation
+            const mpBarWidth = 100;
+            let mpPercent;
+            if (char.animatingMP) {
+                const startPercent = char.mp / char.maxMp;
+                const endPercent = char.targetMP / char.maxMp;
+                mpPercent = startPercent + (endPercent - startPercent) * char.mpAnimProgress;
+            } else {
+                mpPercent = char.mp / char.maxMp;
+            }
+
+            ctx.fillStyle = "#333";
+            ctx.fillRect(x + 100, y + 25, mpBarWidth, 8);
+            ctx.fillStyle = "#4444ff";
+            ctx.fillRect(x + 100, y + 25, mpBarWidth * mpPercent, 8);
+
+            // Display the animated MP value
+            const displayMP = char.animatingMP
+                ? Math.round(char.mp + (char.targetMP - char.mp) * char.mpAnimProgress)
+                : char.mp;
+
+            ctx.fillStyle = "#fff";
+            ctx.fillText(`${displayMP}/${char.maxMp}`, x + 210, y + 35);
+
+            // Draw status effects
+            Object.entries(char.status).forEach(([status, duration], j) => {
+                if (duration > 0) {
+                    ctx.fillStyle = "#ff0";
+                    ctx.fillText(status.toUpperCase(), x + 300 + j * 70, y + 25);
+                }
+            });
         });
-    });
-}
-    
+    }
+
     renderCommandMenu(ctx) {
         const commands = ["Fight", "Magic", "Item", "Run"];
         commands.forEach((cmd, i) => {
@@ -473,7 +473,7 @@ renderPartyMembers(ctx) {
             if (isHovered) ctx.restore();
         });
     }
-    
+
     renderMagicMenu(ctx) {
         const spells = this.battle.activeChar.spells;
         const totalSpells = spells.length;
@@ -485,7 +485,7 @@ renderPartyMembers(ctx) {
         const gap = 10;
         const baseX = 120;
         const columnWidth = 150;
-        
+
         // Draw page navigation arrows
         if (totalSpells > this.battle.maxVisibleSpells) {
             this.renderPaginationArrows(ctx, currentPage, totalPages);
@@ -534,11 +534,7 @@ renderPartyMembers(ctx) {
             ctx.fillStyle = isHovered ? "#ffff88" : "#ffffff";
             ctx.font = isHovered ? "bold 16px monospace" : "16px monospace";
             ctx.textAlign = "left";
-            ctx.fillText(
-                `${spell.name} (${spell.mpCost} MP)`,
-                spellX + 10,
-                spellY + 20
-            );
+            ctx.fillText(`${spell.name} (${spell.mpCost} MP)`, spellX + 10, spellY + 20);
 
             if (isHovered) {
                 ctx.restore();
@@ -612,7 +608,7 @@ renderPartyMembers(ctx) {
             this.renderPaginationArrows(ctx, currentPage, totalPages);
         }
     }
-    
+
     renderPaginationArrows(ctx, currentPage, totalPages) {
         const arrowX = 455;
         const arrowSize = 15;
@@ -688,14 +684,43 @@ renderPartyMembers(ctx) {
     }
 
     drawTransition(ctx) {
-        ctx.fillStyle = `rgba(0,0,0,${this.battle.transitionProgress})`;
-        ctx.fillRect(0, 0, Game.WIDTH, Game.HEIGHT);
+        // Handle initial fade in/out
+        if (this.battle.state === "init") {
+            ctx.fillStyle = `rgba(0,0,0,${1 - this.battle.transitionProgress})`;
+            ctx.fillRect(0, 0, Game.WIDTH, Game.HEIGHT);
+        }
+        // Handle victory/gameover screens
+        else if (this.battle.state === "victory" || this.battle.state === "gameover") {
+            // Background fade
+            ctx.fillStyle = `rgba(0,0,0,${0.7})`;
+            ctx.fillRect(0, 0, Game.WIDTH, Game.HEIGHT);
 
-        if (this.battle.state === "victory" || this.battle.state === "gameover") {
-            ctx.fillStyle = "#fff";
-            ctx.font = "48px monospace";
+            // Add time-based effect
+            const time = Date.now() / 1000;
+            const scale = 1 + Math.sin(time * 2) * 0.05;
+
+            // Draw main text
+            ctx.save();
+            ctx.translate(Game.WIDTH / 2, Game.HEIGHT / 2 - 50);
+            ctx.scale(scale, scale);
+            ctx.fillStyle = this.battle.state === "victory" ? "#ffff00" : "#ff4444";
+            ctx.font = "bold 48px monospace";
             ctx.textAlign = "center";
-            ctx.fillText(this.battle.state.toUpperCase(), Game.WIDTH / 2, Game.HEIGHT / 2);
+            ctx.shadowColor = this.battle.state === "victory" ? "#ffaa00" : "#aa0000";
+            ctx.shadowBlur = 15;
+            ctx.fillText(this.battle.state.toUpperCase() + "!", 0, 0);
+            ctx.restore();
+
+            // Draw secondary message
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "20px monospace";
+            ctx.textAlign = "center";
+
+            if (this.battle.state === "victory") {
+                ctx.fillText("You defeated all enemies!", Game.WIDTH / 2, Game.HEIGHT / 2 + 20);
+            } else {
+                ctx.fillText("Your party was defeated...", Game.WIDTH / 2, Game.HEIGHT / 2 + 20);
+            }
         }
     }
 }

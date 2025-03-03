@@ -67,6 +67,9 @@ class BattleSystem {
         this.actionQueue = []; // Will hold {character, action, target} objects
         this.readyOrder = []; // track who filled their ATB in order
         this.isProcessingAction = false; // Flag to track if we're currently animating/processing an action
+        // Add these lines
+        this.stateStartTime = null;
+        this.readyForWorldTransition = false;
     }
 
     handleInput(input) {
@@ -633,107 +636,132 @@ class BattleSystem {
     }
 
     update() {
-    if (this.isPaused) return;
+        if (this.isPaused) return;
 
-    if (this.currentMenu === "magic" || this.currentMenu === "item" || this.targetingMode) {
-        this.showCancelButton = true;
-    } else {
-        this.showCancelButton = false;
-    }
-
-    // First, handle animations and transitions
-    this.handleAnimations();
-
-    // Apply pending effects if animations are complete
-    if (this.pendingEffect && this.animations.length === 0) {
-        this.pendingEffect();
-        this.pendingEffect = null;
-    }
-
-    // Check if any character has ongoing HP/MP animations
-    const hasOngoingStatAnimations = [...this.party, ...this.enemies].some(char => {
-        return char && (char.animatingHP || char.animatingMP);
-    });
-
-    // Update HP/MP animations for all characters
-    [...this.party, ...this.enemies].forEach((char) => {
-        if (!char) return; // Skip empty slots
-
-        // Handle HP animation
-        if (char.animatingHP) {
-            const elapsed = Date.now() - char.hpAnimStartTime;
-            const duration = 750;
-
-            if (elapsed >= duration) {
-                // Animation complete, apply the actual change
-                char.hp = char.targetHP;
-                char.animatingHP = false;
-
-                // Check if character died from this
-                if (char.hp <= 0) {
-                    char.isDead = true;
-                    this.battleLog.addMessage(`${char.name} was defeated!`, "system");
+        // Handle victory and game over states
+        if (this.state === "victory" || this.state === "gameover") {
+            if (!this.stateStartTime) {
+                this.stateStartTime = Date.now();
+                // Play the victory sound when entering this state
+                if (this.state === "victory") {
+                    this.audio.play("victory");
                 }
-            } else {
-                // Animation in progress
-                const progress = elapsed / duration;
-                char.hpAnimProgress = this.easeOutCubic(progress); // Smoother animation
             }
-        }
 
-        // Handle MP animation
-        if (char.animatingMP) {
-            const elapsed = Date.now() - char.mpAnimStartTime;
-            const duration = 750;
-
-            if (elapsed >= duration) {
-                // Animation complete, apply the actual change
-                char.mp = char.targetMP;
-                char.animatingMP = false;
-            } else {
-                // Animation in progress
-                const progress = elapsed / duration;
-                char.mpAnimProgress = this.easeOutCubic(progress); // Smoother animation
+            // Stay in this state for 3 seconds before allowing transition
+            const stateDuration = 3000; // 3 seconds
+            if (Date.now() - this.stateStartTime > stateDuration) {
+                // Set a flag to indicate we're ready to return to world mode
+                this.readyForWorldTransition = true;
             }
+
+            // Only update transition after the delay
+            if (this.readyForWorldTransition) {
+                this.updateTransitions();
+            }
+
+            return; // Skip the rest of the update method
         }
-    });
 
-    this.updateTransitions();
-
-    // Check victory/defeat conditions
-    if (this.checkBattleEnd()) return;
-
-    // Update ATB gauges and track who becomes ready
-    this.updateATBGauges();
-
-    // Only process actions if we're not already processing one
-    // and there are no active animations AND no ongoing stat animations
-    if (!this.isProcessingAction && this.animations.length === 0 && !hasOngoingStatAnimations) {
-        // If we have queued actions, process the next one
-        if (this.actionQueue.length > 0) {
-            this.processNextAction();
+        if (this.currentMenu === "magic" || this.currentMenu === "item" || this.targetingMode) {
+            this.showCancelButton = true;
+        } else {
+            this.showCancelButton = false;
         }
-        // Otherwise, if we have ready characters and no active character
-        else if (!this.activeChar && this.readyOrder.length > 0) {
-            const nextCharacter = this.readyOrder[0];
 
-            if (nextCharacter.isEnemy) {
-                // Only handle enemy input if no actions are queued at all
-                if (this.actionQueue.length === 0) {
-                    this.handleEnemyInput(nextCharacter);
-                    this.readyOrder.shift();
+        // First, handle animations and transitions
+        this.handleAnimations();
+
+        // Apply pending effects if animations are complete
+        if (this.pendingEffect && this.animations.length === 0) {
+            this.pendingEffect();
+            this.pendingEffect = null;
+        }
+
+        // Check if any character has ongoing HP/MP animations
+        const hasOngoingStatAnimations = [...this.party, ...this.enemies].some((char) => {
+            return char && (char.animatingHP || char.animatingMP);
+        });
+
+        // Update HP/MP animations for all characters
+        [...this.party, ...this.enemies].forEach((char) => {
+            if (!char) return; // Skip empty slots
+
+            // Handle HP animation
+            if (char.animatingHP) {
+                const elapsed = Date.now() - char.hpAnimStartTime;
+                const duration = 750;
+
+                if (elapsed >= duration) {
+                    // Animation complete, apply the actual change
+                    char.hp = char.targetHP;
+                    char.animatingHP = false;
+
+                    // Check if character died from this
+                    if (char.hp <= 0) {
+                        char.isDead = true;
+                        this.battleLog.addMessage(`${char.name} was defeated!`, "system");
+                    }
+                } else {
+                    // Animation in progress
+                    const progress = elapsed / duration;
+                    char.hpAnimProgress = this.easeOutCubic(progress); // Smoother animation
                 }
-            } else {
-                // Reset pagination whenever a new character becomes active
-                this.spellScrollOffset = 0;
-                this.itemScrollOffset = 0;
-                this.subMenuPosition = 0;
+            }
 
-                this.activeChar = nextCharacter;
+            // Handle MP animation
+            if (char.animatingMP) {
+                const elapsed = Date.now() - char.mpAnimStartTime;
+                const duration = 750;
+
+                if (elapsed >= duration) {
+                    // Animation complete, apply the actual change
+                    char.mp = char.targetMP;
+                    char.animatingMP = false;
+                } else {
+                    // Animation in progress
+                    const progress = elapsed / duration;
+                    char.mpAnimProgress = this.easeOutCubic(progress); // Smoother animation
+                }
+            }
+        });
+
+        this.updateTransitions();
+
+        // Check victory/defeat conditions
+        if (this.checkBattleEnd()) return;
+
+        // Update ATB gauges and track who becomes ready
+        this.updateATBGauges();
+
+        // Only process actions if we're not already processing one
+        // and there are no active animations AND no ongoing stat animations
+        if (!this.isProcessingAction && this.animations.length === 0 && !hasOngoingStatAnimations) {
+            // If we have queued actions, process the next one
+            if (this.actionQueue.length > 0) {
+                this.processNextAction();
+            }
+            // Otherwise, if we have ready characters and no active character
+            else if (!this.activeChar && this.readyOrder.length > 0) {
+                const nextCharacter = this.readyOrder[0];
+
+                if (nextCharacter.isEnemy) {
+                    // Only handle enemy input if no actions are queued at all
+                    if (this.actionQueue.length === 0) {
+                        this.handleEnemyInput(nextCharacter);
+                        this.readyOrder.shift();
+                    }
+                } else {
+                    // Reset pagination whenever a new character becomes active
+                    this.spellScrollOffset = 0;
+                    this.itemScrollOffset = 0;
+                    this.subMenuPosition = 0;
+
+                    this.activeChar = nextCharacter;
+                }
             }
         }
     }
-}
     easeOutCubic(x) {
         return 1 - Math.pow(1 - x, 3);
     }
@@ -851,10 +879,14 @@ class BattleSystem {
         if (this.party.every((char) => char.isDead)) {
             this.state = "gameover";
             this.battleLog.addMessage("Game Over!", "system");
+            this.transitionProgress = 0; // Reset transition progress
+            this.stateStartTime = null; // Reset state timing
             return true;
         } else if (this.enemies.every((enemy) => enemy.isDead)) {
             this.state = "victory";
             this.battleLog.addMessage("Victory!", "system");
+            this.transitionProgress = 0; // Reset transition progress
+            this.stateStartTime = null; // Reset state timing
             return true;
         }
         return false;
