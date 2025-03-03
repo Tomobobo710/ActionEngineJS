@@ -13,9 +13,8 @@ class BaseFullScreenMenu {
         this.backButtonRegistered = false;
         this.backButtonSize = 30;
 
-        this.createGradient = this.gameMaster.modeManager.activeMode.createGradient.bind(
-            this.gameMaster.modeManager.activeMode
-        );
+        this.ctx = this.gameMaster.modeManager.activeMode.ctx; // ?? Why we have to do this idk?
+
         this.colors = this.gameMaster.modeManager.activeMode.colors;
 
         // Create the main container by default
@@ -25,6 +24,13 @@ class BaseFullScreenMenu {
             width: Game.WIDTH,
             height: Game.HEIGHT
         });
+    }
+
+    createGradient(x, y, width, height, colorStart, colorEnd) {
+        const gradient = this.gameMaster.modeManager.activeMode.ctx.createLinearGradient(x, y, x + width, y + height);
+        gradient.addColorStop(0, colorStart);
+        gradient.addColorStop(1, colorEnd);
+        return gradient;
     }
 
     registerBackButton(bounds) {
@@ -96,7 +102,7 @@ class BaseFullScreenMenu {
                     // Calculate toggle button bounds (the actual switch area)
                     const toggleBounds = {
                         x: container.x + element.toggle.x,
-                        y: container.y + element.toggle.y - element.toggle.height/2,
+                        y: container.y + element.toggle.y - element.toggle.height / 2,
                         width: element.toggle.width,
                         height: element.toggle.height
                     };
@@ -154,7 +160,7 @@ class BaseFullScreenMenu {
                     if (element.colorPicker.brightnessSlider) {
                         const sliderBounds = {
                             x: element.colorPicker.brightnessSlider.x - 6,
-                            y: element.colorPicker.brightnessSlider.y - (element.colorPicker.brightnessSlider.height / 2),  // Added offset
+                            y: element.colorPicker.brightnessSlider.y - element.colorPicker.brightnessSlider.height / 2, // Added offset
                             width: 16,
                             height: element.colorPicker.brightnessSlider.height
                         };
@@ -388,7 +394,7 @@ class BaseFullScreenMenu {
                         })
                     });
                 }
-                
+
                 // Register hitbox to exactly match where we draw
                 this.input.registerElement(`menu_element_${element.name}`, {
                     bounds: () => ({
@@ -507,7 +513,7 @@ class BaseFullScreenMenu {
 
     draw() {
         // Fill the entire screen with the main background first
-        this.ctx.fillStyle = this.createGradient(
+        this.gameMaster.modeManager.activeMode.ctx.fillStyle = this.createGradient(
             0,
             0,
             Game.WIDTH,
@@ -767,7 +773,13 @@ class BaseFullScreenMenu {
         // Draw track
         this.ctx.fillStyle = this.colors.sliderTrack;
         this.ctx.beginPath();
-        this.ctx.roundRect(config.trackX, config.trackY - (config.trackHeight / 2), config.trackWidth, config.trackHeight, config.roundness);
+        this.ctx.roundRect(
+            config.trackX,
+            config.trackY - config.trackHeight / 2,
+            config.trackWidth,
+            config.trackHeight,
+            config.roundness
+        );
         this.ctx.fill();
 
         // Calculate knob position based on value
@@ -830,37 +842,37 @@ class BaseFullScreenMenu {
     }
 
     drawToggle(x, y, element) {
-    const config = element.toggle;
-    const toggleOffset = -(config.height / 2);  // Move up by half the toggle height
+        const config = element.toggle;
+        const toggleOffset = -(config.height / 2); // Move up by half the toggle height
 
-    // Draw shadow
-    this.ctx.save();
-    this.ctx.shadowColor = config.value ? this.colors.toggleShadowOn : this.colors.toggleShadowOff;
-    this.ctx.shadowBlur = config.glowRadius;
+        // Draw shadow
+        this.ctx.save();
+        this.ctx.shadowColor = config.value ? this.colors.toggleShadowOn : this.colors.toggleShadowOff;
+        this.ctx.shadowBlur = config.glowRadius;
 
-    // Draw toggle background
-    this.ctx.fillStyle = config.value ? this.colors.toggleBGOn : this.colors.toggleBGOff;
-    this.ctx.beginPath();
-    this.ctx.roundRect(config.x, config.y + toggleOffset, config.width, config.height, config.height / 2);
-    this.ctx.fill();
+        // Draw toggle background
+        this.ctx.fillStyle = config.value ? this.colors.toggleBGOn : this.colors.toggleBGOff;
+        this.ctx.beginPath();
+        this.ctx.roundRect(config.x, config.y + toggleOffset, config.width, config.height, config.height / 2);
+        this.ctx.fill();
 
-    // Calculate knob position based on value
-    const knobX = config.x + (config.value ? config.width - config.knobSize : 0);
+        // Calculate knob position based on value
+        const knobX = config.x + (config.value ? config.width - config.knobSize : 0);
 
-    // Draw knob
-    this.ctx.fillStyle = this.colors.toggleKnob;
-    this.ctx.beginPath();
-    this.ctx.arc(
-        knobX + config.knobSize / 2,
-        config.y + toggleOffset + config.height / 2,
-        config.knobSize / 2,
-        0,
-        Math.PI * 2
-    );
-    this.ctx.fill();
+        // Draw knob
+        this.ctx.fillStyle = this.colors.toggleKnob;
+        this.ctx.beginPath();
+        this.ctx.arc(
+            knobX + config.knobSize / 2,
+            config.y + toggleOffset + config.height / 2,
+            config.knobSize / 2,
+            0,
+            Math.PI * 2
+        );
+        this.ctx.fill();
 
-    this.ctx.restore();
-}
+        this.ctx.restore();
+    }
 
     drawColorPicker(x, y, element) {
         const config = element.colorPicker;
@@ -902,66 +914,66 @@ class BaseFullScreenMenu {
         }
 
         // Draw preview
-if (config.preview && config.value) {
-    const previewOffset = -(config.preview.size / 2);
-    
-    // Convert HSB to RGB same as onChange
-    const h = config.value.hue;
-    const s = config.value.saturation;
-    const v = config.value.brightness;
-    
-    const max = v * 255;
-    const delta = s * max;
-    const min = max - delta;
+        if (config.preview && config.value) {
+            const previewOffset = -(config.preview.size / 2);
 
-    let r, g, b;
-    
-    if (h < 60) {
-        r = max;
-        g = (h * delta / 60) + min;
-        b = min;
-    } else if (h < 120) {
-        r = ((120 - h) * delta / 60) + min;
-        g = max;
-        b = min;
-    } else if (h < 180) {
-        r = min;
-        g = max;
-        b = ((h - 120) * delta / 60) + min;
-    } else if (h < 240) {
-        r = min;
-        g = ((240 - h) * delta / 60) + min;
-        b = max;
-    } else if (h < 300) {
-        r = ((h - 240) * delta / 60) + min;
-        g = min;
-        b = max;
-    } else {
-        r = max;
-        g = min;
-        b = ((360 - h) * delta / 60) + min;
-    }
+            // Convert HSB to RGB same as onChange
+            const h = config.value.hue;
+            const s = config.value.saturation;
+            const v = config.value.brightness;
 
-    this.ctx.fillStyle = `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, 0.97)`;
-    this.ctx.fillRect(
-        config.preview.x, 
-        config.preview.y + previewOffset, 
-        config.preview.size, 
-        config.preview.size
-    );
-    this.ctx.strokeStyle = this.colors.colorPickerIndicator.stroke;
-    this.ctx.lineWidth = 1;
-    this.ctx.strokeRect(
-        config.preview.x, 
-        config.preview.y + previewOffset, 
-        config.preview.size, 
-        config.preview.size
-    );
-}
+            const max = v * 255;
+            const delta = s * max;
+            const min = max - delta;
+
+            let r, g, b;
+
+            if (h < 60) {
+                r = max;
+                g = (h * delta) / 60 + min;
+                b = min;
+            } else if (h < 120) {
+                r = ((120 - h) * delta) / 60 + min;
+                g = max;
+                b = min;
+            } else if (h < 180) {
+                r = min;
+                g = max;
+                b = ((h - 120) * delta) / 60 + min;
+            } else if (h < 240) {
+                r = min;
+                g = ((240 - h) * delta) / 60 + min;
+                b = max;
+            } else if (h < 300) {
+                r = ((h - 240) * delta) / 60 + min;
+                g = min;
+                b = max;
+            } else {
+                r = max;
+                g = min;
+                b = ((360 - h) * delta) / 60 + min;
+            }
+
+            this.ctx.fillStyle = `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, 0.97)`;
+            this.ctx.fillRect(
+                config.preview.x,
+                config.preview.y + previewOffset,
+                config.preview.size,
+                config.preview.size
+            );
+            this.ctx.strokeStyle = this.colors.colorPickerIndicator.stroke;
+            this.ctx.lineWidth = 1;
+            this.ctx.strokeRect(
+                config.preview.x,
+                config.preview.y + previewOffset,
+                config.preview.size,
+                config.preview.size
+            );
+        }
 
         // Draw brightness slider with conditional active state
         if (config.brightnessSlider) {
-            const sliderOffset = -(config.brightnessSlider.height / 2);  // Move up by half height
+            const sliderOffset = -(config.brightnessSlider.height / 2); // Move up by half height
 
             // Draw track
             this.ctx.fillStyle = "#333";
@@ -997,7 +1009,10 @@ if (config.preview && config.value) {
 
             this.ctx.fillRect(
                 config.brightnessSlider.x - 6,
-                config.brightnessSlider.y + sliderOffset + config.brightnessSlider.height * (1 - config.value.brightness) - 2,
+                config.brightnessSlider.y +
+                    sliderOffset +
+                    config.brightnessSlider.height * (1 - config.value.brightness) -
+                    2,
                 16,
                 4
             );
