@@ -10,7 +10,7 @@ const DEFAULT_PARTY = [
     {
         name: "Cecil",
         type: "warrior",
-        level: 10,
+        level: 1,
         maxHp: 150,
         maxMp: 30,
         strength: 15,
@@ -22,7 +22,7 @@ const DEFAULT_PARTY = [
     {
         name: "Rosa",
         type: "mage",
-        level: 10,
+        level: 1,
         maxHp: 90,
         maxMp: 80,
         strength: 6,
@@ -34,7 +34,7 @@ const DEFAULT_PARTY = [
     {
         name: "Edge",
         type: "thief",
-        level: 10,
+        level: 1,
         maxHp: 110,
         maxMp: 45,
         strength: 13,
