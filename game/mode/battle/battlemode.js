@@ -79,130 +79,103 @@ class BattleMode {
     }
 
     registerUIElements() {
-        // Helper function to register UI elements
-        const registerBoundsGroup = (config) => {
-            const { count, startX, startY, width, height, spacing, prefix, itemNames } = config;
-            const createBoundsFunction = function (index) {
-                return function () {
-                    return {
-                        x: startX,
-                        y: startY + index * spacing,
-                        width: width,
-                        height: height
-                    };
-                };
+        // Helper function that creates a bounds function with fixed parameters
+        const createBoundsFn = (x, y, width, height) => {
+            return function () {
+                return { x, y, width, height };
             };
-
-            for (let i = 0; i < count; i++) {
-                const boundsFn = createBoundsFunction(i);
-                // If itemNames is provided, use those for the IDs
-                const elementId = itemNames ? `${prefix}${itemNames[i].toLowerCase()}` : `${prefix}${i}`;
-                this.input.registerElement(elementId, { bounds: boundsFn });
-                this.uiElements.set(elementId, boundsFn);
-            }
         };
 
         // Register cancel button
-        const createCancelBounds = function () {
-            return function () {
-                return {
-                    x: 2,
-                    y: Game.HEIGHT - 185,
-                    width: 200,
-                    height: 30
-                };
-            };
-        };
-        const cancelBoundsFn = createCancelBounds();
+        const cancelBoundsFn = createBoundsFn(2, Game.HEIGHT - 185, 200, 30);
         this.input.registerElement("cancel_button", { bounds: cancelBoundsFn });
         this.uiElements.set("cancel_button", cancelBoundsFn);
 
         // Register main menu items
         const menuItems = ["Fight", "Magic", "Item", "Run"];
-        registerBoundsGroup({
-            count: menuItems.length,
-            startX: 10,
-            startY: Game.HEIGHT - 140,
-            width: 100,
-            height: 30,
-            spacing: 35,
-            prefix: "menu_",
-            itemNames: menuItems // Pass the menu item names
-        });
+        for (let i = 0; i < menuItems.length; i++) {
+            const x = 10;
+            const y = Game.HEIGHT - 140 + i * 35;
+            const width = 100;
+            const height = 30;
+
+            const boundsFn = createBoundsFn(x, y, width, height);
+            const elementId = `menu_${menuItems[i].toLowerCase()}`;
+
+            this.input.registerElement(elementId, { bounds: boundsFn });
+            this.uiElements.set(elementId, boundsFn);
+        }
 
         const maxMenuItems = Math.floor(140 / 35);
 
         // First column of submenu slots
         for (let i = 0; i < maxMenuItems; i++) {
-            const boundsFn = function () {
-                return {
-                    x: 120,
-                    y: Game.HEIGHT - 140 + i * 35,
-                    width: 150,
-                    height: 30
-                };
-            };
-            this.input.registerElement(`submenu_slot_${i}`, { bounds: boundsFn });
-            this.uiElements.set(`submenu_slot_${i}`, boundsFn);
+            const x = 120;
+            const y = Game.HEIGHT - 140 + i * 35;
+            const width = 150;
+            const height = 30;
+
+            const boundsFn = createBoundsFn(x, y, width, height);
+            const elementId = `submenu_slot_${i}`;
+
+            this.input.registerElement(elementId, { bounds: boundsFn });
+            this.uiElements.set(elementId, boundsFn);
         }
 
         // Second column of submenu slots
         for (let i = 0; i < maxMenuItems; i++) {
-            const boundsFn = function () {
-                return {
-                    x: 280,
-                    y: Game.HEIGHT - 140 + i * 35,
-                    width: 150,
-                    height: 30
-                };
-            };
-            this.input.registerElement(`submenu_slot_${i + maxMenuItems}`, { bounds: boundsFn });
-            this.uiElements.set(`submenu_slot_${i + maxMenuItems}`, boundsFn);
-        }
-        registerBoundsGroup({
-            count: 4,
-            startX: 176,
-            startY: 126,
-            width: 48,
-            height: 48,
-            spacing: 80,
-            prefix: "enemy_"
-        });
+            const slotIndex = i + maxMenuItems;
+            const x = 280;
+            const y = Game.HEIGHT - 140 + i * 35;
+            const width = 150;
+            const height = 30;
 
-        registerBoundsGroup({
-            count: 4,
-            startX: 584,
-            startY: 134,
-            width: 32,
-            height: 32,
-            spacing: 100,
-            prefix: "char_"
-        });
+            const boundsFn = createBoundsFn(x, y, width, height);
+            const elementId = `submenu_slot_${slotIndex}`;
+
+            this.input.registerElement(elementId, { bounds: boundsFn });
+            this.uiElements.set(elementId, boundsFn);
+        }
+
+        // Enemy slots
+        for (let i = 0; i < 4; i++) {
+            const x = 176;
+            const y = 126 + i * 80;
+            const width = 48;
+            const height = 48;
+
+            const boundsFn = createBoundsFn(x, y, width, height);
+            const elementId = `enemy_${i}`;
+
+            this.input.registerElement(elementId, { bounds: boundsFn });
+            this.uiElements.set(elementId, boundsFn);
+        }
+
+        // Character slots
+        for (let i = 0; i < 4; i++) {
+            const x = 584;
+            const y = 134 + i * 100;
+            const width = 32;
+            const height = 32;
+
+            const boundsFn = createBoundsFn(x, y, width, height);
+            const elementId = `char_${i}`;
+
+            this.input.registerElement(elementId, { bounds: boundsFn });
+            this.uiElements.set(elementId, boundsFn);
+        }
 
         // Register scroll arrows
         const arrowWidth = 30;
         const arrowHeight = 20;
-        const createArrowBounds = function (y) {
-            return function () {
-                return {
-                    x: 440,
-                    y: y,
-                    width: arrowWidth,
-                    height: arrowHeight
-                };
-            };
-        };
 
-        const arrowConfigs = [
-            { id: "page_scroll_up", y: Game.HEIGHT - 130 },
-            { id: "page_scroll_down", y: Game.HEIGHT - 35 }
-        ];
+        const upArrowBoundsFn = createBoundsFn(440, Game.HEIGHT - 130, arrowWidth, arrowHeight);
+        this.input.registerElement("page_scroll_up", { bounds: upArrowBoundsFn });
+        this.uiElements.set("page_scroll_up", upArrowBoundsFn);
 
-        arrowConfigs.forEach((config) => {
-            const arrowBoundsFn = createArrowBounds(config.y);
-            this.input.registerElement(config.id, { bounds: arrowBoundsFn });
-            this.uiElements.set(config.id, arrowBoundsFn);
-        });
+        const downArrowBoundsFn = createBoundsFn(440, Game.HEIGHT - 35, arrowWidth, arrowHeight);
+        this.input.registerElement("page_scroll_down", { bounds: downArrowBoundsFn });
+        this.uiElements.set("page_scroll_down", downArrowBoundsFn);
     }
     drawDebugHitboxes() {
         const ctx = this.ctx;
