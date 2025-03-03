@@ -31,6 +31,8 @@ class BattleMode {
         this.startNewBattle();
         // Register UI elements
         this.registerUIElements();
+
+        this.colors = gameMaster.persistentParty.colors; // prob want to move this out one day
     }
 
     loadSprites() {
@@ -97,7 +99,14 @@ class BattleMode {
         }));
 
         const enemies = this.generateEnemyParty();
-        this.battle = new BattleSystem(this.persistentParty, enemies, this.audio, this.input, this.partyInventory);
+        this.battle = new BattleSystem(
+            this.persistentParty,
+            enemies,
+            this.audio,
+            this.input,
+            this.partyInventory,
+            this.gameMaster
+        );
     }
 
     registerUIElements() {
@@ -199,6 +208,7 @@ class BattleMode {
         this.input.registerElement("page_scroll_down", { bounds: downArrowBoundsFn });
         this.uiElements.set("page_scroll_down", downArrowBoundsFn);
     }
+
     drawDebugHitboxes() {
         const ctx = this.ctx;
 
