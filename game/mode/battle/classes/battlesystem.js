@@ -17,7 +17,7 @@ class BattleSystem {
         // Create enemy inventory with random items
         this.enemyInventory = new Inventory();
         this.initializeEnemyInventory();
-        
+
         // Create the renderer
         this.renderer = new BattleRenderer(this);
     }
@@ -72,7 +72,7 @@ class BattleSystem {
     handleInput(input) {
         this.inputManager.handleInput(input);
     }
-    
+
     // Add methods to handle party management
     addPartyMember(character, slot) {
         if (slot >= 0 && slot < 4) {
@@ -90,7 +90,7 @@ class BattleSystem {
             this.party[slot] = null;
         }
     }
-    
+
     startTargeting(targetType) {
         this.targetingMode = true;
 
@@ -187,9 +187,12 @@ class BattleSystem {
         if (!attack || !attack.character || !attack.target) return;
 
         this.isProcessingAction = true;
-        this.animations.push(new AttackAnimation(attack.character, attack.target));
+        this.animations.push(
+            new AttackAnimation(attack.character, attack.target, this.enemies.includes(attack.character))
+        );
 
-        setTimeout(() => {
+        // Store the pending effect to apply after animation completes
+        this.pendingEffect = () => {
             const damage = Math.floor(attack.character.stats.attack * 1.5);
             const actualDamage = attack.target.takeDamage(damage);
 
@@ -199,77 +202,113 @@ class BattleSystem {
 
             this.audio.play("sword_hit");
             this.isProcessingAction = false;
-        }, 0);
+        };
     }
 
     executeSpell(action) {
         if (!action || !action.spell || !action.character || !action.target) return;
 
-        let totalDamage = 0;
-        let targetMessage;
+        this.isProcessingAction = true;
+
+        // Add animations first
+        // Check if the caster is an enemy
+        const isEnemy = this.enemies.includes(action.character);
 
         if (action.isGroupTarget) {
             const targets = Array.isArray(action.target) ? action.target : [action.target];
             targets.forEach((enemy) => {
                 if (!enemy.isDead) {
-                    const damage = action.character.castSpell(action.spell, enemy);
-                    totalDamage += damage;
-                    // Pass the caster to SpellAnimation
-                    this.animations.push(new SpellAnimation(action.spell.animation, enemy.pos, action.character));
+                    this.animations.push(new SpellAnimation(action.spell.animation, enemy.pos, action.character, isEnemy));
                 }
             });
-            targetMessage = "all enemies";
         } else {
-            totalDamage = action.character.castSpell(action.spell, action.target);
-            // Pass the caster to SpellAnimation
-            this.animations.push(new SpellAnimation(action.spell.animation, action.target.pos, action.character));
-            targetMessage = action.target.name;
+            this.animations.push(new SpellAnimation(action.spell.animation, action.target.pos, action.character, isEnemy));
         }
 
-        this.audio.play("magic_cast");
-        const message = `${action.character.name} casts ${action.spell.name} on ${targetMessage} for ${totalDamage} damage!`;
-        this.battleLog.addMessage(message, "damage");
-        this.showBattleMessage(message);
+        // Store the spell effect to apply after animations finish
+        this.pendingEffect = () => {
+            let totalDamage = 0;
+            let targetMessage;
+
+            if (action.isGroupTarget) {
+                const targets = Array.isArray(action.target) ? action.target : [action.target];
+                targets.forEach((enemy) => {
+                    if (!enemy.isDead) {
+                        const damage = action.character.castSpell(action.spell, enemy);
+                        totalDamage += damage;
+                    }
+                });
+                targetMessage = "all enemies";
+            } else {
+                totalDamage = action.character.castSpell(action.spell, action.target);
+                targetMessage = action.target.name;
+            }
+
+            this.audio.play("magic_cast");
+            const message = `${action.character.name} casts ${action.spell.name} on ${targetMessage} for ${totalDamage} damage!`;
+            this.battleLog.addMessage(message, "damage");
+            this.showBattleMessage(message);
+
+            this.isProcessingAction = false;
+        };
     }
 
     executeItem(action) {
         if (!action || !action.item || !action.character || !action.target) return;
 
-        let targetMessage;
-        let effectMessage = "";
-        let totalHealing = 0;
+        this.isProcessingAction = true;
 
+        // Add item use animation (you may need to create an ItemAnimation class)
         if (action.isGroupTarget) {
-            action.target.forEach((t) => {
-                const result = action.item.effect(t);
-                if (action.item.name.toLowerCase().includes("potion")) {
-                    totalHealing += result; // result will be healing amount
-                }
+            const targets = Array.isArray(action.target) ? action.target : [action.target];
+            targets.forEach((target) => {
+                this.animations.push(new ItemAnimation(action.item.animation, target.pos, action.character));
             });
-            targetMessage = "all allies";
         } else {
-            const result = action.item.effect(action.target);
-            if (action.item.name.toLowerCase().includes("potion")) {
-                totalHealing = result; // result will be healing amount
+            this.animations.push(new ItemAnimation(action.item.animation, action.target.pos, action.character));
+        }
+
+        // Store the item effect to apply after animation completes
+        this.pendingEffect = () => {
+            let targetMessage;
+            let effectMessage = "";
+            let totalHealing = 0;
+
+            if (action.isGroupTarget) {
+                action.target.forEach((t) => {
+                    const result = action.item.effect(t);
+                    if (action.item.name.toLowerCase().includes("potion")) {
+                        totalHealing += result; // result will be healing amount
+                    }
+                });
+                targetMessage = "all allies";
+            } else {
+                const result = action.item.effect(action.target);
+                if (action.item.name.toLowerCase().includes("potion")) {
+                    totalHealing = result; // result will be healing amount
+                }
+                targetMessage = action.target.name;
             }
-            targetMessage = action.target.name;
-        }
 
-        // Add healing amount to message for potions
-        if (action.item.name.toLowerCase().includes("potion")) {
-            effectMessage = ` restoring ${totalHealing} HP`;
-        } else if (action.item.name.toLowerCase().includes("poison")) {
-            effectMessage = " inflicting poison";
-        } else if (action.item.name.toLowerCase().includes("bomb")) {
-            effectMessage = " dealing damage";
-        }
+            // Add healing amount to message for potions
+            if (action.item.name.toLowerCase().includes("potion")) {
+                effectMessage = ` restoring ${totalHealing} HP`;
+                this.audio.play("heal");
+            } else if (action.item.name.toLowerCase().includes("poison")) {
+                effectMessage = " inflicting poison";
+            } else if (action.item.name.toLowerCase().includes("bomb")) {
+                effectMessage = " dealing damage";
+            }
 
-        const itemId = Object.keys(ITEMS).find((id) => ITEMS[id] === action.item);
-        this.partyInventory.removeItem(itemId);
+            const itemId = Object.keys(ITEMS).find((id) => ITEMS[id] === action.item);
+            this.partyInventory.removeItem(itemId);
 
-        const message = `${action.character.name} used ${action.item.name} on ${targetMessage}${effectMessage}!`;
-        this.battleLog.addMessage(message, action.item.name.toLowerCase().includes("potion") ? "heal" : "damage");
-        this.showBattleMessage(message);
+            const message = `${action.character.name} used ${action.item.name} on ${targetMessage}${effectMessage}!`;
+            this.battleLog.addMessage(message, action.item.name.toLowerCase().includes("potion") ? "heal" : "damage");
+            this.showBattleMessage(message);
+
+            this.isProcessingAction = false;
+        };
     }
 
     handleEnemyInput(enemy) {
@@ -534,6 +573,13 @@ class BattleSystem {
 
         // First, handle animations and transitions
         this.handleAnimations();
+
+        // Apply pending effects if animations are complete
+        if (this.pendingEffect && this.animations.length === 0) {
+            this.pendingEffect();
+            this.pendingEffect = null;
+        }
+
         this.updateTransitions();
 
         // Check victory/defeat conditions
@@ -592,19 +638,6 @@ class BattleSystem {
     }
 
     handleAnimations() {
-        // Handle character position animations
-        [...this.party, ...this.enemies].forEach((char) => {
-            if (char.animating) {
-                char.pos.x += (char.targetPos.x - char.pos.x) * 0.2;
-                char.pos.y += (char.targetPos.y - char.pos.y) * 0.2;
-
-                if (Math.abs(char.pos.x - char.targetPos.x) < 0.1 && Math.abs(char.pos.y - char.targetPos.y) < 0.1) {
-                    char.pos = { ...char.targetPos };
-                    char.animating = false;
-                }
-            }
-        });
-
         // Update and filter battle animations
         this.animations = this.animations.filter((anim) => {
             anim.update();
