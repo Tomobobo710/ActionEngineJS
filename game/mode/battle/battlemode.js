@@ -17,7 +17,6 @@ class BattleMode {
 
         this.defaultParty = DEFAULT_PARTY;
         this.enemyTemplates = ENEMY_TEMPLATES;
-        this.partyInventory = new Inventory();
 
         this.persistentParty = this.gameMaster.persistentParty;
         // Update the sprites for the party members
