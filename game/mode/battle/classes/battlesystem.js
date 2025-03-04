@@ -375,7 +375,15 @@ class BattleSystem {
             }
 
             const itemId = Object.keys(ITEMS).find((id) => ITEMS[id] === action.item);
-            this.partyInventory.removeItem(itemId);
+
+            // Check if action is from an enemy or player character
+            if (this.enemies.includes(action.character)) {
+                // Enemy used an item - we already removed it when queueing the action
+                // No need to remove from inventory again
+            } else {
+                // Player used an item
+                this.partyInventory.removeItem(itemId);
+            }
 
             const message = `${action.character.name} used ${action.item.name} on ${targetMessage}${effectMessage}!`;
             this.battleLog.addMessage(message, action.item.name.toLowerCase().includes("potion") ? "heal" : "damage");
