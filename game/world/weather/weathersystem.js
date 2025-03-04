@@ -117,7 +117,7 @@ class WeatherSystem {
             return;
         }
 
-        console.log("[WeatherSystem] Attempting emission with config:", config);
+        //console.log("[WeatherSystem] Attempting emission with config:", config);
 
         // Update weather-specific logic
         switch (this.current) {

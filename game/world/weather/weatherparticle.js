@@ -168,7 +168,7 @@ class WeatherParticleEmitter {
         }
 
         // Log initial particle count
-        console.log(`[WeatherParticle] Current particle count: ${this.particles.length}`);
+        //console.log(`[WeatherParticle] Current particle count: ${this.particles.length}`);
 
         // Emit new particles
         this.timeSinceLastEmission += deltaTime;
@@ -184,24 +184,28 @@ class WeatherParticleEmitter {
             particlesEmittedThisFrame++;
             this.timeSinceLastEmission -= emissionInterval;
         }
-
+        
+        /*
         if (particlesEmittedThisFrame > 0) {
             console.log(
                 `[WeatherParticle] Emitted ${particlesEmittedThisFrame} new particles. New total: ${this.particles.length}`
             );
         }
-
+        */
+        
         // Update existing particles
         const weatherForces = this.weatherSystem.windVector;
         const oldCount = this.particles.length;
         this.particles = this.particles.filter((particle) => particle.update(deltaTime, weatherForces, terrain));
 
         const removedCount = oldCount - this.particles.length;
+        /*
         if (removedCount > 0) {
             console.log(
                 `[WeatherParticle] Removed ${removedCount} dead particles. Current total: ${this.particles.length}`
             );
         }
+        */
     }
 
     getParticles() {
