@@ -6,13 +6,18 @@ class Inventory {
     }
 
     addItem(itemId, quantity = 1) {
+        console.log(`[Inventory] Attempting to add: ${itemId} (quantity: ${quantity})`);
+        console.log(`[Inventory] Item exists in ITEMS?: ${!!ITEMS[itemId]}`);
+
         if (!ITEMS[itemId]) {
-            console.warn(`Attempted to add invalid item: ${itemId}`);
+            console.warn(`[Inventory] REJECTED - Invalid item ID: "${itemId}" (type: ${typeof itemId})`);
+            console.log(`[Inventory] Valid IDs are:`, Object.keys(ITEMS));
             return false;
         }
 
         const currentQuantity = this.items.get(itemId) || 0;
         this.items.set(itemId, currentQuantity + quantity);
+        console.log(`[Inventory] SUCCESS - Added ${quantity} of ${itemId}, new total: ${currentQuantity + quantity}`);
         return true;
     }
 
