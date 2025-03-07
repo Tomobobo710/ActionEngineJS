@@ -12,6 +12,8 @@ class Character {
         this.magic = data.magic || 10;
         this.speed = data.speed || 10;
         this.sprite = data.sprite;
+        this.xp = data.xp || 0;
+        this.nextLevelXp = this.calculateNextLevelXp();
 
         // ATB (Active Time Battle) properties
         this.atbMax = 100;
@@ -26,7 +28,7 @@ class Character {
         this.mpAnimStartTime = 0;
         this.hpAnimProgress = 0;
         this.mpAnimProgress = 0;
-        
+
         // Menu state tracking
         this.menuState = {
             lastAction: null, // 'fight', 'magic', 'item', etc
@@ -77,6 +79,75 @@ class Character {
         };
 
         this.calculateStats();
+    }
+
+    calculateNextLevelXp() {
+        // Common RPG formula: base + (level * modifier)
+        const baseXp = 100;
+        const modifier = 50;
+        return baseXp + this.level * modifier;
+    }
+
+    gainXp(amount) {
+        if (this.isDead) return { gained: 0, leveledUp: false, oldXp: this.xp, newXp: this.xp };
+
+        const oldXp = this.xp;
+        this.xp += amount;
+
+        // Check for level up
+        let leveledUp = false;
+
+        // Only attempt to level up if we've reached the threshold
+        if (this.xp >= this.nextLevelXp) {
+            this.levelUp();
+            leveledUp = true;
+
+            // Log values for debugging
+            console.log(`${this.name} leveled up to ${this.level}, XP: ${this.xp}/${this.nextLevelXp}`);
+        }
+
+        return {
+            gained: amount,
+            leveledUp: leveledUp,
+            oldXp: oldXp,
+            newXp: this.xp
+        };
+    }
+
+    levelUp() {
+        this.level++;
+
+        // Increase stats (you can adjust these values)
+        this.maxHp += Math.floor(this.maxHp * 0.1) + 10;
+        this.maxMp += Math.floor(this.maxMp * 0.1) + 5;
+        this.strength += 2 + Math.floor(Math.random() * 2);
+        this.magic += 2 + Math.floor(Math.random() * 2);
+        this.speed += 1 + Math.floor(Math.random() * 2);
+
+        // Restore HP and MP on level up
+        this.hp = this.maxHp;
+        this.mp = this.maxMp;
+
+        // Calculate new XP threshold
+        this.nextLevelXp = this.calculateNextLevelXp();
+    }
+
+    getXpProgress() {
+        if (this.level === 1) {
+            // For level 1, start from 0
+            return this.xp / this.nextLevelXp;
+        } else {
+            // For higher levels, calculate from previous level threshold
+            const prevLevelXp = this.calculatePreviousLevelXp();
+            return (this.xp - prevLevelXp) / (this.nextLevelXp - prevLevelXp);
+        }
+    }
+
+    calculatePreviousLevelXp() {
+        if (this.level === 1) return 0;
+        const baseXp = 100;
+        const modifier = 50;
+        return baseXp + (this.level - 1) * modifier;
     }
 
     castSpell(spell, target) {
@@ -187,7 +258,7 @@ class Character {
     // Add these methods to the Character class
 
     removeAllStatus() {
-        Object.keys(this.status).forEach(statusEffect => {
+        Object.keys(this.status).forEach((statusEffect) => {
             this.status[statusEffect] = 0;
         });
         return true;
@@ -207,7 +278,7 @@ class Character {
         this.hp = Math.floor(this.maxHp * (percentHp / 100));
         return true;
     }
-    
+
     updateStatus() {
         Object.keys(this.status).forEach((status) => {
             if (this.status[status] > 0) {
