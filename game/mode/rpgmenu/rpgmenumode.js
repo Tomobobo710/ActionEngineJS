@@ -154,7 +154,8 @@ class RPGMenuMode {
                 this.activeSubmenu = new MagicMenu(this.ctx, this.input, this.gameMaster, this.characterPanel);
                 break;
             case "Save":
-                this.gameMaster.modeManager.switchMode("start");
+                this.activeSubmenu = new SaveGameMenu(this.ctx, this.input, this.gameMaster, "save");
+                this.deactivateMainMenu();
                 break;
             case "Shop":
                 this.activeSubmenu = new ShopMenu(this.ctx, this.input, this.gameMaster);
@@ -202,36 +203,36 @@ class RPGMenuMode {
     }
 
     draw() {
-    // Clear canvas
-    this.ctx.clearRect(0, 0, Game.WIDTH, Game.HEIGHT);
+        // Clear canvas
+        this.ctx.clearRect(0, 0, Game.WIDTH, Game.HEIGHT);
 
-    // If we have an active fullscreen submenu, only draw that
-    if (this.activeSubmenu instanceof BaseFullScreenMenu) {
-        this.activeSubmenu.draw();
-        return;
+        // If we have an active fullscreen submenu, only draw that
+        if (this.activeSubmenu instanceof BaseFullScreenMenu) {
+            this.activeSubmenu.draw();
+            return;
+        }
+
+        // Otherwise draw everything as normal
+        this.ctx.fillStyle = this.createGradient(
+            0,
+            0,
+            Game.WIDTH,
+            Game.HEIGHT,
+            this.colors.mainBackground.start,
+            this.colors.mainBackground.end
+        );
+        this.ctx.fillRect(0, 0, Game.WIDTH, Game.HEIGHT);
+
+        this.characterPanel.draw();
+
+        if (this.activeSubmenu) {
+            this.activeSubmenu.draw();
+        } else {
+            this.drawMenuOptions();
+        }
+
+        this.drawInfoPanel();
     }
-
-    // Otherwise draw everything as normal
-    this.ctx.fillStyle = this.createGradient(
-        0,
-        0,
-        Game.WIDTH,
-        Game.HEIGHT,
-        this.colors.mainBackground.start,
-        this.colors.mainBackground.end
-    );
-    this.ctx.fillRect(0, 0, Game.WIDTH, Game.HEIGHT);
-
-    this.characterPanel.draw();
-
-    if (this.activeSubmenu) {
-        this.activeSubmenu.draw();
-    } else {
-        this.drawMenuOptions();
-    }
-
-    this.drawInfoPanel();
-}
 
     drawMenuOptions() {
         const l = this.menuLayout;

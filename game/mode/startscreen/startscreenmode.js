@@ -6,6 +6,7 @@ class StartScreenMode {
         this.input = input;
         this.audio = audio;
         this.gameModeManager = gameModeManager;
+        this.activeMenu = null;
 
         // Regular menu options
         this.menuOptions = [
@@ -61,6 +62,7 @@ class StartScreenMode {
 
         this.selectedIndex = 0;
     }
+    
     pause() {
         // Add any pause logic here if needed
     }
@@ -68,7 +70,19 @@ class StartScreenMode {
     resume() {
         // Add any resume logic here if needed
     }
+    
     update() {
+        // If we have an active menu, update that instead
+        if (this.activeMenu) {
+            const result = this.activeMenu.update();
+            if (result === "exit") {
+                this.activeMenu.cleanup();
+                this.activeMenu = null;
+            }
+            return;
+        }
+
+        // Regular update logic
         this.menuOptions.forEach((option, index) => {
             const wasHovered = option.hovered;
             option.hovered = this.input.isElementHovered(`menu_option_${index}`) || this.selectedIndex === index;
@@ -100,7 +114,14 @@ class StartScreenMode {
                 if (i === 0) {
                     this.gameModeManager.switchMode("world");
                 } else if (i === 1) {
-                    this.gameModeManager.switchMode("battle");
+                    // CONTINUE button - always show the load menu regardless of saves
+                    this.activeMenu = new SaveGameMenu(
+                        this.ctx, 
+                        this.input, 
+                        this.gameModeManager.gameMaster, 
+                        "load"
+                    );
+                    this.activeMenu.registerElements();
                 } else if (this.debugMode) {
                     // Debug mode buttons - direct mode switching
                     this.gameModeManager.switchMode(this.gameModeManager.modes[i - 2]);
@@ -112,6 +133,12 @@ class StartScreenMode {
     draw() {
         // Clear canvas
         this.ctx.clearRect(0, 0, Game.WIDTH, Game.HEIGHT);
+        
+        // If we have an active menu, draw that instead
+        if (this.activeMenu) {
+            this.activeMenu.draw();
+            return;
+        }
 
         // Draw menu options with FF7R-style effects
         this.menuOptions.forEach((option, index) => {
@@ -156,12 +183,15 @@ class StartScreenMode {
     }
 
     cleanup() {
-        // Can either use removeElement for each one:
+        // Clean up any active menu
+        if (this.activeMenu) {
+            this.activeMenu.cleanup();
+            this.activeMenu = null;
+        }
+        
+        // Clean up menu options
         this.menuOptions.forEach((_, index) => {
             this.input.removeElement(`menu_option_${index}`);
         });
-
-        // Or just clear everything:
-        // this.input.clearAllElements();
     }
 }
