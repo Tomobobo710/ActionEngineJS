@@ -226,11 +226,17 @@ class BattleSystem {
 
         if (action.isGroupTarget) {
             const targets = Array.isArray(action.target) ? action.target : [action.target];
+            
+            // For group targets, only the first animation should show darkening
+            // so we'll mark all subsequent ones as group animations
+            let isFirstTarget = true;
+            
             targets.forEach((target) => {
                 if (!target.isDead) {
                     this.animations.push(
-                        new SpellAnimation(action.spell.animation, target.pos, action.character, isEnemy)
+                        new SpellAnimation(action.spell.animation, target.pos, action.character, isEnemy, !isFirstTarget)
                     );
+                    isFirstTarget = false;
                 }
             });
         } else {

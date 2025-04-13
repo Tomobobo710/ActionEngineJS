@@ -1,6 +1,6 @@
 // game/mode/battle/classes/spellanimation.js
 class SpellAnimation {
-    constructor(config, targetPos, attacker, isEnemy) {
+    constructor(config, targetPos, attacker, isEnemy, isGroupAnimation = false) {
         this.config = config;
         this.targetPos = { ...targetPos };
         this.attacker = attacker;
@@ -8,6 +8,11 @@ class SpellAnimation {
         this.maxFrames = 90;
         this.finished = false;
         this.particles = [];
+
+        // Track if this is part of a group animation (for multi-target spells)
+        this.isGroupAnimation = isGroupAnimation;
+        // If this is a group animation, it should not render the darkening effect
+        this.shouldRenderDarkening = !isGroupAnimation;
 
         this.originalPos = {
             x: attacker.pos.x,
@@ -152,10 +157,12 @@ class SpellAnimation {
                 ((this.phases.LIGHTEN.end - this.frame) / (this.phases.LIGHTEN.end - this.phases.LIGHTEN.start)) * 0.7;
         }
 
-        // Draw darkness overlay
-        if (darkness > 0) {
+        // Draw darkness overlay - only on the battle area, not the menu
+        // Only render darkening if this is not part of a group animation
+        if (darkness > 0 && this.shouldRenderDarkening) {
             ctx.fillStyle = `rgba(0, 0, 0, ${darkness})`;
-            ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+            // Don't darken the menu area (bottom 150px of the screen)
+            ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height - 150);
         }
 
         // Only draw spell effects during CAST_SPELL phase

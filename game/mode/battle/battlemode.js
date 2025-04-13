@@ -274,7 +274,7 @@ class BattleMode {
         // Draw pause overlay if paused
         if (this.battle.isPaused) {
             this.ctx.fillStyle = "rgba(0,0,0,0.5)";
-            this.ctx.fillRect(0, 0, 800, 600);
+            this.ctx.fillRect(0, 0, 800, 450); // Only darken the battle area (600-150 = 450)
 
             this.ctx.fillStyle = "#fff";
             this.ctx.font = "48px monospace";

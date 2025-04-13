@@ -687,13 +687,13 @@ class BattleRenderer {
         // Handle initial fade in/out
         if (this.battle.state === "init") {
             ctx.fillStyle = `rgba(0,0,0,${1 - this.battle.transitionProgress})`;
-            ctx.fillRect(0, 0, Game.WIDTH, Game.HEIGHT);
+            ctx.fillRect(0, 0, Game.WIDTH, Game.HEIGHT - 150); // Only darken the battle area
         }
         // Handle victory/gameover screens
         else if (this.battle.state === "victory" || this.battle.state === "gameover") {
             // Background fade
             ctx.fillStyle = `rgba(0,0,0,${0.7})`;
-            ctx.fillRect(0, 0, Game.WIDTH, Game.HEIGHT);
+            ctx.fillRect(0, 0, Game.WIDTH, Game.HEIGHT - 150); // Only darken the battle area
 
             // Add time-based effect
             const time = Date.now() / 1000;
