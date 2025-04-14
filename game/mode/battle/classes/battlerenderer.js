@@ -41,18 +41,30 @@ class BattleRenderer {
     }
 
     renderTargetingEffects(ctx) {
-        if (this.battle.hoveredTarget && !this.battle.hoveredTarget.isDead) {
+        if (this.battle.hoveredTarget) {
             const target = this.battle.hoveredTarget;
+            const isDeadTarget = target.isDead;
 
             // Animated target highlight
             ctx.save();
             const time = Date.now() / 1000;
             const pulseSize = Math.sin(time * 4) * 2;
 
-            // Outer glow
-            ctx.strokeStyle = target.type === "enemy" ? "#ff8888" : "#88ff88";
+            // Outer glow - adjust color based on if targeting a dead character with Phoenix
+            let isPhoenix = this.battle.pendingItem && this.battle.pendingItem.name === "Phoenix";
+            
+            // Use different colors for dead/alive targets
+            if (isDeadTarget && isPhoenix) {
+                // Golden/resurrection glow for Phoenix on dead targets
+                ctx.strokeStyle = "#ffdf00";
+                ctx.shadowColor = "#ffa500";
+            } else {
+                // Regular colors for normal targeting
+                ctx.strokeStyle = target.type === "enemy" ? "#ff8888" : "#88ff88";
+                ctx.shadowColor = target.type === "enemy" ? "#ff0000" : "#00ff00";
+            }
+            
             ctx.lineWidth = 2;
-            ctx.shadowColor = target.type === "enemy" ? "#ff0000" : "#00ff00";
             ctx.shadowBlur = 15;
 
             // Animated selection ring
@@ -115,6 +127,12 @@ class BattleRenderer {
                     statusY += 12;
                 }
             });
+            
+            // Show dead status if applicable
+            if (isDeadTarget) {
+                ctx.fillStyle = "#ff4444";
+                ctx.fillText("DEAD", hpX, statusY);
+            }
 
             ctx.restore();
         }
@@ -151,6 +169,9 @@ class BattleRenderer {
     }
 
     renderTargetingCursor(ctx) {
+        // Check if using a Phoenix item
+        const isUsingPhoenix = this.battle.pendingItem && this.battle.pendingItem.name === "Phoenix";
+        
         if (this.battle.isGroupTarget) {
             // Draw targeting cursor over entire group
             const targets = this.battle.targetList[0]; // Get the group array
@@ -158,7 +179,8 @@ class BattleRenderer {
 
             // Draw an arrow over each target
             targets.forEach((target) => {
-                ctx.fillStyle = "#ffff00";
+                // Use gold color for Phoenix targeting
+                ctx.fillStyle = isUsingPhoenix ? "#ffdf00" : "#ffff00";
                 ctx.beginPath();
                 ctx.moveTo(target.pos.x, target.pos.y - 30 + bounce);
                 ctx.lineTo(target.pos.x + 10, target.pos.y - 40 + bounce);
@@ -179,16 +201,17 @@ class BattleRenderer {
                 maxY = Math.max(maxY, target.pos.y + 30);
             });
 
-            ctx.strokeStyle = "#ffff00";
+            ctx.strokeStyle = isUsingPhoenix ? "#ffdf00" : "#ffff00";
             ctx.lineWidth = 2;
             ctx.strokeRect(minX - 10 + bounce / 2, minY - 10 + bounce / 2, maxX - minX + 20, maxY - minY + 20);
         } else {
             // Single target cursor
             const target = this.battle.targetList[this.battle.targetIndex];
-            if (target && !target.isDead) {
+            if (target) {
                 const bounce = Math.sin(Date.now() / 100) * 5;
 
-                ctx.fillStyle = "#ffff00";
+                // Adjust color for Phoenix targeting
+                ctx.fillStyle = isUsingPhoenix ? "#ffdf00" : "#ffff00";
                 ctx.beginPath();
                 // Keep the original Y position (-40) but arrange points to point downward
                 ctx.moveTo(target.pos.x, target.pos.y - 30 + bounce);
@@ -260,7 +283,47 @@ class BattleRenderer {
     renderPartyMembers(ctx) {
         this.battle.party.forEach((char) => {
             if (!char) return; // Skip empty slots
-            if (!char.isDead) {
+            
+            // Check for phoenix targeting mode
+            const isPhoenixMode = this.battle.pendingItem && this.battle.pendingItem.name === "Phoenix";
+            
+            if (char.isDead) {
+                // For dead party members, add a visual representation
+                ctx.globalAlpha = 0.5; // Make them semi-transparent
+                ctx.drawImage(char.sprite, char.pos.x - 16, char.pos.y - 16);
+                
+                // Draw a cross over dead party members
+                ctx.strokeStyle = "red";
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(char.pos.x - 12, char.pos.y - 12);
+                ctx.lineTo(char.pos.x + 12, char.pos.y + 12);
+                ctx.moveTo(char.pos.x + 12, char.pos.y - 12);
+                ctx.lineTo(char.pos.x - 12, char.pos.y + 12);
+                ctx.stroke();
+                
+                // Add "DEAD" text
+                ctx.fillStyle = "#ff4444";
+                ctx.font = "10px monospace";
+                ctx.textAlign = "center";
+                ctx.fillText("DEAD", char.pos.x, char.pos.y + 25);
+                
+                // If in phoenix targeting mode, add a special glow
+                if (isPhoenixMode) {
+                    const time = Date.now() / 1000;
+                    const pulseAlpha = 0.3 + Math.sin(time * 3) * 0.2;
+                    
+                    ctx.globalAlpha = pulseAlpha;
+                    ctx.fillStyle = "#ffdf00";
+                    ctx.beginPath();
+                    ctx.arc(char.pos.x, char.pos.y, 20, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                // Reset alpha
+                ctx.globalAlpha = 1.0;
+            } else {
+                // Regular rendering for living party members
                 ctx.drawImage(char.sprite, char.pos.x - 16, char.pos.y - 16);
 
                 // Draw character HP/MP bars
@@ -377,10 +440,17 @@ class BattleRenderer {
             }
 
             // Character name
-            ctx.fillStyle = isActive ? "#ffff00" : "#fff";
+            ctx.fillStyle = isActive ? "#ffff00" : char.isDead ? "#ff4444" : "#fff";
             ctx.font = "16px monospace";
             ctx.textAlign = "left";
-            ctx.fillText(char.name, x + 10, y + 20);
+            
+            // Add "DEAD" indicator for dead characters
+            let nameText = char.name;
+            if (char.isDead) {
+                nameText += " [DEAD]";
+            }
+            
+            ctx.fillText(nameText, x + 10, y + 20);
 
             // HP bar with animation
             const hpBarWidth = 100;

@@ -128,14 +128,25 @@ class BattleSystem {
     }
 
     updateTargetList() {
-        // Changed logic: Include all enemies/allies but create a separate list of living ones for targeting
+        // Get all targets in the current group (allies or enemies)
         const targetsAll = this.currentTargetGroup === "enemies" ? this.enemies : this.party;
         
-        // Filter for living targets (only used for targeting selection)
-        const targetsLiving = targetsAll.filter(target => target && !target.isDead);
+        // Check if we're using a Phoenix - special case for targeting dead characters
+        const isUsingPhoenix = this.pendingItem && this.pendingItem.name === "Phoenix";
         
-        // For targeting, we still only want to target living enemies/characters
-        this.targetList = this.isGroupTarget ? [targetsLiving] : targetsLiving;
+        // Filter based on whether we're using a Phoenix or not
+        let targetsFiltered;
+        
+        if (isUsingPhoenix) {
+            // For Phoenix, we specifically target DEAD characters
+            targetsFiltered = targetsAll.filter(target => target && target.isDead);
+        } else {
+            // Normal case - target only living characters
+            targetsFiltered = targetsAll.filter(target => target && !target.isDead);
+        }
+        
+        // For targeting, update the target list based on individual or group targeting
+        this.targetList = this.isGroupTarget ? [targetsFiltered] : targetsFiltered;
         this.targetIndex = 0;
     }
 
@@ -378,6 +389,15 @@ class BattleSystem {
                     action.target.hpAnimStartTime = Date.now();
 
                     effectMessage = ` dealing ${damage} damage`;
+                } else if (action.item.name.toLowerCase().includes("phoenix")) {
+                    // Special handling for phoenix
+                    const success = action.target.revive(50); // Revive with 50% HP
+                    if (success) {
+                        effectMessage = " bringing them back to life!";
+                        this.audio.play("heal");
+                    } else {
+                        effectMessage = " but it had no effect!";
+                    }
                 }
                 targetMessage = action.target.name;
             }

@@ -238,31 +238,49 @@ class BattleInputManager {
     }
 
     handleTargetHovers(mousePos, isTouching) {
+        // Determine if we're using Phoenix (special case for targeting dead characters)
+        const isUsingPhoenix = this.battle.pendingItem && this.battle.pendingItem.name === "Phoenix";
+        
         // Helper function to update the target hover state
         const updateHoverState = (target, index, group) => {
-            if (target.isDead) return; // Don't allow hovering dead targets
+            // For Phoenix, we specifically want to target dead characters
+            if (isUsingPhoenix) {
+                // Only allow targeting dead characters with Phoenix
+                if (!target.isDead) return;
+            } else {
+                // For normal targeting, only allow targeting living characters
+                if (target.isDead) return;
+            }
             
             this.battle.currentTargetGroup = group;
             
-            // Get all living targets in the current group for targeting
-            const livingTargets = group === "enemies" 
-                ? this.battle.enemies.filter(e => !e.isDead)
-                : this.battle.party.filter(c => c && !c.isDead);
+            // Get all targets in the current group based on Phoenix targeting
+            let targetList;
+            if (isUsingPhoenix) {
+                // Get dead targets for phoenix
+                targetList = group === "enemies" 
+                    ? this.battle.enemies.filter(e => e.isDead)
+                    : this.battle.party.filter(c => c && c.isDead);
+            } else {
+                // Get living targets for normal actions
+                targetList = group === "enemies" 
+                    ? this.battle.enemies.filter(e => !e.isDead)
+                    : this.battle.party.filter(c => c && !c.isDead);
+            }
                 
-            // Find this target in the living targets list
-            const livingIndex = livingTargets.indexOf(target);
-            if (livingIndex === -1) return; // Shouldn't happen, but just in case
+            // Find this target in the filtered target list
+            const targetIndex = targetList.indexOf(target);
+            if (targetIndex === -1) return; // Shouldn't happen, but just in case
             
             // Update the target selection state
-            this.battle.targetIndex = livingIndex;
-            this.battle.targetList = this.battle.isGroupTarget ? [livingTargets] : livingTargets;
+            this.battle.targetIndex = targetIndex;
+            this.battle.targetList = this.battle.isGroupTarget ? [targetList] : targetList;
             this.battle.hoveredTarget = target;
         };
 
-        // Check all enemies (not just living ones) - but only allow hovering on living ones
+        // Check all enemies (not just filtered ones)
         this.battle.enemies.forEach((enemy, originalIndex) => {
-            // Calculate the same position for all enemies regardless of dead/alive status
-            // This ensures hitboxes remain in the same fixed positions
+            // Calculate the same position for all enemies regardless of status
             const x = 176; // Fixed x position
             const y = 126 + originalIndex * 80; // Fixed y position based on original index
             
@@ -277,10 +295,21 @@ class BattleInputManager {
             
             // Use original index for tracking hover state to maintain consistency
             if (isInBounds !== enemy.lastInBounds) {
-                if (isInBounds && !enemy.isDead) {
-                    // Only highlight living enemies
-                    updateHoverState(enemy, originalIndex, "enemies");
-                    this.battle.audio.play("menu_move");
+                // Different handling based on whether we're using a Phoenix
+                if (isInBounds) {
+                    if (isUsingPhoenix) {
+                        // For Phoenix, only allow hovering over dead enemies
+                        if (enemy.isDead) {
+                            updateHoverState(enemy, originalIndex, "enemies");
+                            this.battle.audio.play("menu_move");
+                        }
+                    } else {
+                        // For normal items/actions, only allow hovering over living enemies
+                        if (!enemy.isDead) {
+                            updateHoverState(enemy, originalIndex, "enemies");
+                            this.battle.audio.play("menu_move");
+                        }
+                    }
                 } else if (this.battle.hoveredTarget === enemy && !isTouching) {
                     this.battle.hoveredTarget = null;
                 }
@@ -306,9 +335,20 @@ class BattleInputManager {
             const isInBounds = this.input.isPointInBounds(mousePos.x, mousePos.y, bounds);
             
             if (isInBounds !== ally.lastInBounds) {
-                if (isInBounds && !ally.isDead) {
-                    updateHoverState(ally, originalIndex, "allies");
-                    this.battle.audio.play("menu_move");
+                if (isInBounds) {
+                    if (isUsingPhoenix) {
+                        // For Phoenix, only allow hovering over dead allies
+                        if (ally.isDead) {
+                            updateHoverState(ally, originalIndex, "allies");
+                            this.battle.audio.play("menu_move");
+                        }
+                    } else {
+                        // For normal items/actions, only allow hovering over living allies
+                        if (!ally.isDead) {
+                            updateHoverState(ally, originalIndex, "allies");
+                            this.battle.audio.play("menu_move");
+                        }
+                    }
                 } else if (this.battle.hoveredTarget === ally && !isTouching) {
                     this.battle.hoveredTarget = null;
                 }
@@ -320,23 +360,48 @@ class BattleInputManager {
     updateTargetHover(target, index) {
         this.battle.currentTargetGroup = target.type === "enemy" ? "enemies" : "allies";
         this.battle.targetIndex = index;
-        const filteredTargets =
-            this.battle.currentTargetGroup === "enemies"
+        
+        // Check if we're using a Phoenix (special case for targeting dead characters)
+        const isUsingPhoenix = this.battle.pendingItem && this.battle.pendingItem.name === "Phoenix";
+        
+        let filteredTargets;
+        if (isUsingPhoenix) {
+            // For Phoenix, get dead targets
+            filteredTargets = this.battle.currentTargetGroup === "enemies"
+                ? this.battle.enemies.filter((e) => e.isDead)
+                : this.battle.party.filter((c) => c && c.isDead);
+        } else {
+            // For normal actions, get living targets
+            filteredTargets = this.battle.currentTargetGroup === "enemies"
                 ? this.battle.enemies.filter((e) => !e.isDead)
-                : this.battle.party.filter((c) => !c.isDead);
+                : this.battle.party.filter((c) => c && !c.isDead);
+        }
+        
         this.battle.targetList = this.battle.isGroupTarget ? [filteredTargets] : filteredTargets;
         this.battle.hoveredTarget = target;
     }
 
     handleTargetSelection() {
-        // Handle enemy clicks - iterate through ALL enemies, but only allow clicking on living ones
+        // Check if we're using a Phoenix (special case)
+        const isUsingPhoenix = this.battle.pendingItem && this.battle.pendingItem.name === "Phoenix";
+        
+        // Handle enemy clicks
         this.battle.enemies.forEach((enemy, index) => {
-            // Skip dead enemies for selection
-            if (enemy.isDead) return;
+            // Filter based on whether we're using Phoenix
+            if (isUsingPhoenix) {
+                // For Phoenix, only allow clicking on dead enemies
+                if (!enemy.isDead) return;
+            } else {
+                // For normal actions, only allow clicking on living enemies
+                if (enemy.isDead) return;
+            }
             
             if (this.input.isElementJustPressed(`enemy_${index}`)) {
                 if (this.battle.isGroupTarget && this.battle.currentTargetGroup === "enemies") {
-                    const targets = this.battle.enemies.filter((e) => !e.isDead);
+                    // Get appropriate targets based on Phoenix use
+                    const targets = isUsingPhoenix 
+                        ? this.battle.enemies.filter((e) => e.isDead)
+                        : this.battle.enemies.filter((e) => !e.isDead);
                     this.battle.executeTargetedAction(targets);
                 } else {
                     this.battle.executeTargetedAction(enemy);
@@ -344,14 +409,26 @@ class BattleInputManager {
             }
         });
 
-        // Handle ally clicks with same logic as enemies
+        // Handle ally clicks
         this.battle.party.forEach((ally, index) => {
-            // Skip empty slots or dead allies
-            if (!ally || ally.isDead) return;
+            // Skip empty slots
+            if (!ally) return;
+            
+            // Filter based on whether we're using Phoenix
+            if (isUsingPhoenix) {
+                // For Phoenix, only allow clicking on dead allies
+                if (!ally.isDead) return;
+            } else {
+                // For normal actions, only allow clicking on living allies
+                if (ally.isDead) return;
+            }
             
             if (this.input.isElementJustPressed(`char_${index}`)) {
                 if (this.battle.isGroupTarget && this.battle.currentTargetGroup === "allies") {
-                    const targets = this.battle.party.filter((c) => c && !c.isDead);
+                    // Get appropriate targets based on Phoenix use
+                    const targets = isUsingPhoenix
+                        ? this.battle.party.filter((c) => c && c.isDead)
+                        : this.battle.party.filter((c) => c && !c.isDead);
                     this.battle.executeTargetedAction(targets);
                 } else {
                     this.battle.executeTargetedAction(ally);
@@ -362,8 +439,14 @@ class BattleInputManager {
         // Keep existing keyboard handling
         if (this.input.isKeyJustPressed("Action1")) {
             const target = this.battle.targetList[this.battle.targetIndex];
-            if (target && !target.isDead) {
-                this.battle.executeTargetedAction(target);
+            if (target) {
+                // For Phoenix, we want to check if the target is dead
+                // For normal actions, we want to check if the target is alive
+                const isValidTarget = isUsingPhoenix ? target.isDead : !target.isDead;
+                
+                if (isValidTarget) {
+                    this.battle.executeTargetedAction(target);
+                }
             }
         }
     }
