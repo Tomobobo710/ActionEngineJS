@@ -144,7 +144,9 @@ class BattleInputManager {
     handleMagicMenu(mousePos, isTouching) {
         const spells = this.battle.stateManager.activeChar.spells;
         const totalPages = Math.ceil(spells.length / this.battle.stateManager.maxVisibleSpells);
-        const currentPage = Math.floor(this.battle.stateManager.spellScrollOffset / this.battle.stateManager.maxVisibleSpells);
+        const currentPage = Math.floor(
+            this.battle.stateManager.spellScrollOffset / this.battle.stateManager.maxVisibleSpells
+        );
         const spellsPerColumn = 4;
         const visibleSpells = spells.slice(
             currentPage * this.battle.stateManager.maxVisibleSpells,
@@ -199,12 +201,12 @@ class BattleInputManager {
 
     handleTargetGroupSelection() {
         const targetingManager = this.battle.targetingManager;
-        
+
         if (this.input.isKeyJustPressed("DirLeft") || this.input.isKeyJustPressed("DirRight")) {
             targetingManager.switchTargetGroup();
             this.battle.audio.play("menu_move");
         }
-        
+
         if (!targetingManager.isGroupTarget) {
             // Only allow individual target selection if not group targeting
             const pressedUp = this.input.isKeyJustPressed("DirUp");
@@ -212,7 +214,9 @@ class BattleInputManager {
 
             if (pressedUp || pressedDown) {
                 const dir = pressedUp ? -1 : 1;
-                const newIndex = (targetingManager.targetIndex + dir + targetingManager.targetList.length) % targetingManager.targetList.length;
+                const newIndex =
+                    (targetingManager.targetIndex + dir + targetingManager.targetList.length) %
+                    targetingManager.targetList.length;
                 targetingManager.setTargetIndex(newIndex);
                 this.battle.audio.play("menu_move");
             }
@@ -221,10 +225,11 @@ class BattleInputManager {
 
     handleTargetHovers(mousePos, isTouching) {
         const targetingManager = this.battle.targetingManager;
-        
+
         // Determine if we're using Phoenix (special case for targeting dead characters)
-        const isUsingPhoenix = this.battle.stateManager.pendingItem && this.battle.stateManager.pendingItem.name === "Phoenix";
-        
+        const isUsingPhoenix =
+            this.battle.stateManager.pendingItem && this.battle.stateManager.pendingItem.name === "Phoenix";
+
         // Helper function to update the target hover state
         const updateHoverState = (target, index, group) => {
             // For Phoenix, we specifically want to target dead characters
@@ -235,31 +240,33 @@ class BattleInputManager {
                 // For normal targeting, only allow targeting living characters
                 if (target.isDead) return;
             }
-            
+
             this.battle.stateManager.currentTargetGroup = group;
-            
+
             // Get all targets in the current group based on Phoenix targeting
             let targetList;
             if (isUsingPhoenix) {
                 // Get dead targets for phoenix
-                targetList = group === "enemies" 
-                    ? this.battle.enemies.filter(e => e.isDead)
-                    : this.battle.party.filter(c => c && c.isDead);
+                targetList =
+                    group === "enemies"
+                        ? this.battle.enemies.filter((e) => e.isDead)
+                        : this.battle.party.filter((c) => c && c.isDead);
             } else {
                 // Get living targets for normal actions
-                targetList = group === "enemies" 
-                    ? this.battle.enemies.filter(e => !e.isDead)
-                    : this.battle.party.filter(c => c && !c.isDead);
+                targetList =
+                    group === "enemies"
+                        ? this.battle.enemies.filter((e) => !e.isDead)
+                        : this.battle.party.filter((c) => c && !c.isDead);
             }
-                
+
             // Find this target in the filtered target list
             const targetIndex = targetList.indexOf(target);
             if (targetIndex === -1) return; // Shouldn't happen, but just in case
-            
+
             // Update the target selection state
             targetingManager.setTargetIndex(targetIndex);
             targetingManager.hoveredTarget = target;
-            
+
             // Update the target list in case the group changed
             targetingManager.updateTargetList();
         };
@@ -269,16 +276,16 @@ class BattleInputManager {
             // Calculate the same position for all enemies regardless of status
             const x = 176; // Fixed x position
             const y = 126 + originalIndex * 80; // Fixed y position based on original index
-            
+
             const bounds = {
                 x: x,
                 y: y,
                 width: 48,
                 height: 48
             };
-            
+
             const isInBounds = this.input.isPointInBounds(mousePos.x, mousePos.y, bounds);
-            
+
             // Use original index for tracking hover state to maintain consistency
             if (isInBounds !== enemy.lastInBounds) {
                 // Different handling based on whether we're using a Phoenix
@@ -306,20 +313,20 @@ class BattleInputManager {
         // Similar approach for party members
         this.battle.party.forEach((ally, originalIndex) => {
             if (!ally) return; // Skip empty slots
-            
+
             // Fixed positions for consistency
             const x = 584;
             const y = 134 + originalIndex * 100;
-            
+
             const bounds = {
                 x: x,
                 y: y,
                 width: 32,
                 height: 32
             };
-            
+
             const isInBounds = this.input.isPointInBounds(mousePos.x, mousePos.y, bounds);
-            
+
             if (isInBounds !== ally.lastInBounds) {
                 if (isInBounds) {
                     if (isUsingPhoenix) {
@@ -345,10 +352,11 @@ class BattleInputManager {
 
     handleTargetSelection() {
         const targetingManager = this.battle.targetingManager;
-        
+
         // Check if we're using a Phoenix (special case)
-        const isUsingPhoenix = this.battle.stateManager.pendingItem && this.battle.stateManager.pendingItem.name === "Phoenix";
-        
+        const isUsingPhoenix =
+            this.battle.stateManager.pendingItem && this.battle.stateManager.pendingItem.name === "Phoenix";
+
         // Handle enemy clicks
         this.battle.enemies.forEach((enemy, index) => {
             // Filter based on whether we're using Phoenix
@@ -359,11 +367,11 @@ class BattleInputManager {
                 // For normal actions, only allow clicking on living enemies
                 if (enemy.isDead) return;
             }
-            
+
             if (this.input.isElementJustPressed(`enemy_${index}`)) {
                 if (targetingManager.isGroupTarget && this.battle.stateManager.currentTargetGroup === "enemies") {
                     // Get appropriate targets based on Phoenix use
-                    const targets = isUsingPhoenix 
+                    const targets = isUsingPhoenix
                         ? this.battle.enemies.filter((e) => e.isDead)
                         : this.battle.enemies.filter((e) => !e.isDead);
                     targetingManager.executeTargetedAction(targets);
@@ -377,7 +385,7 @@ class BattleInputManager {
         this.battle.party.forEach((ally, index) => {
             // Skip empty slots
             if (!ally) return;
-            
+
             // Filter based on whether we're using Phoenix
             if (isUsingPhoenix) {
                 // For Phoenix, only allow clicking on dead allies
@@ -386,7 +394,7 @@ class BattleInputManager {
                 // For normal actions, only allow clicking on living allies
                 if (ally.isDead) return;
             }
-            
+
             if (this.input.isElementJustPressed(`char_${index}`)) {
                 if (targetingManager.isGroupTarget && this.battle.stateManager.currentTargetGroup === "allies") {
                     // Get appropriate targets based on Phoenix use
@@ -407,7 +415,7 @@ class BattleInputManager {
                 // For Phoenix, we want to check if the target is dead
                 // For normal actions, we want to check if the target is alive
                 const isValidTarget = isUsingPhoenix ? target.isDead : !target.isDead;
-                
+
                 if (isValidTarget) {
                     targetingManager.executeTargetedAction(target);
                 }
@@ -444,7 +452,9 @@ class BattleInputManager {
         const availableItems = this.battle.partyInventory.getAvailableItems();
         const totalItems = availableItems.length;
         const totalPages = Math.ceil(totalItems / this.battle.stateManager.maxVisibleItems);
-        const currentPage = Math.floor(this.battle.stateManager.itemScrollOffset / this.battle.stateManager.maxVisibleItems);
+        const currentPage = Math.floor(
+            this.battle.stateManager.itemScrollOffset / this.battle.stateManager.maxVisibleItems
+        );
         const itemsPerColumn = 4;
         const visibleItems = availableItems.slice(
             currentPage * this.battle.stateManager.maxVisibleItems,
@@ -490,7 +500,8 @@ class BattleInputManager {
     }
 
     scrollItems(direction) {
-        const change = direction === "up" ? -this.battle.stateManager.maxVisibleItems : this.battle.stateManager.maxVisibleItems;
+        const change =
+            direction === "up" ? -this.battle.stateManager.maxVisibleItems : this.battle.stateManager.maxVisibleItems;
         this.battle.stateManager.itemScrollOffset += change;
         this.battle.stateManager.subMenuPosition = this.battle.stateManager.itemScrollOffset;
         this.battle.audio.play("menu_move");
@@ -551,7 +562,10 @@ class BattleInputManager {
             } else if (currentPage < totalPages - 1) {
                 this.scrollItems("down");
                 const newPageStart = (currentPage + 1) * itemsPerPage;
-                this.battle.stateManager.subMenuPosition = Math.min(items.length - 1, newPageStart + currentColumn * itemsPerColumn);
+                this.battle.stateManager.subMenuPosition = Math.min(
+                    items.length - 1,
+                    newPageStart + currentColumn * itemsPerColumn
+                );
                 this.battle.stateManager.hoveredItem = items[this.battle.stateManager.subMenuPosition];
             }
         }
@@ -563,7 +577,7 @@ class BattleInputManager {
             }
         }
     }
-    
+
     handleItemScrollArrows(mousePos, currentPage, totalPages) {
         const arrowBounds = {
             up: { x: 440, y: 600 - 130, width: 30, height: 20 },
@@ -631,7 +645,8 @@ class BattleInputManager {
     }
 
     scrollSpells(direction) {
-        const change = direction === "up" ? -this.battle.stateManager.maxVisibleSpells : this.battle.stateManager.maxVisibleSpells;
+        const change =
+            direction === "up" ? -this.battle.stateManager.maxVisibleSpells : this.battle.stateManager.maxVisibleSpells;
         this.battle.stateManager.spellScrollOffset += change;
         this.battle.stateManager.subMenuPosition = this.battle.stateManager.spellScrollOffset;
         this.battle.audio.play("menu_move");

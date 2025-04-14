@@ -2,7 +2,7 @@
 class BattleTargetingManager {
     constructor(battleSystem) {
         this.battle = battleSystem;
-        
+
         // Targeting state
         this.targetingMode = false;
         this.targetList = [];
@@ -43,29 +43,31 @@ class BattleTargetingManager {
         // Initialize to default group but allow switching
         this.battle.stateManager.currentTargetGroup = this.defaultTargetGroup;
         this.updateTargetList();
-        
+
         // Let the battle system know we're in targeting mode for UI updates
         this.battle.stateManager.showCancelButton = true;
     }
 
     updateTargetList() {
         // Get all targets in the current group (allies or enemies)
-        const targetsAll = this.battle.stateManager.currentTargetGroup === "enemies" ? this.battle.enemies : this.battle.party;
-        
+        const targetsAll =
+            this.battle.stateManager.currentTargetGroup === "enemies" ? this.battle.enemies : this.battle.party;
+
         // Check if we're using a Phoenix - special case for targeting dead characters
-        const isUsingPhoenix = this.battle.stateManager.pendingItem && this.battle.stateManager.pendingItem.name === "Phoenix";
-        
+        const isUsingPhoenix =
+            this.battle.stateManager.pendingItem && this.battle.stateManager.pendingItem.name === "Phoenix";
+
         // Filter based on whether we're using a Phoenix or not
         let targetsFiltered;
-        
+
         if (isUsingPhoenix) {
             // For Phoenix, we specifically target DEAD characters
-            targetsFiltered = targetsAll.filter(target => target && target.isDead);
+            targetsFiltered = targetsAll.filter((target) => target && target.isDead);
         } else {
             // Normal case - target only living characters
-            targetsFiltered = targetsAll.filter(target => target && !target.isDead);
+            targetsFiltered = targetsAll.filter((target) => target && !target.isDead);
         }
-        
+
         // For targeting, update the target list based on individual or group targeting
         this.targetList = this.isGroupTarget ? [targetsFiltered] : targetsFiltered;
         this.targetIndex = 0;
@@ -75,7 +77,9 @@ class BattleTargetingManager {
         this.hoveredTarget = null;
 
         // First check if this character already has a queued action
-        const existingAction = this.battle.stateManager.actionQueue.find((action) => action.character === this.battle.stateManager.activeChar);
+        const existingAction = this.battle.stateManager.actionQueue.find(
+            (action) => action.character === this.battle.stateManager.activeChar
+        );
 
         if (existingAction) {
             const message = `${this.battle.stateManager.activeChar.name} already has an action queued!`;
@@ -105,7 +109,9 @@ class BattleTargetingManager {
         this.battle.stateManager.actionQueue.push(actionObject);
 
         // After queueing the action, remove the character from readyOrder
-        this.battle.stateManager.readyOrder = this.battle.stateManager.readyOrder.filter((char) => char !== this.battle.stateManager.activeChar);
+        this.battle.stateManager.readyOrder = this.battle.stateManager.readyOrder.filter(
+            (char) => char !== this.battle.stateManager.activeChar
+        );
 
         // Reset character state after queueing
         this.battle.stateManager.activeChar.isReady = false;
@@ -130,7 +136,8 @@ class BattleTargetingManager {
     }
 
     switchTargetGroup() {
-        this.battle.stateManager.currentTargetGroup = this.battle.stateManager.currentTargetGroup === "enemies" ? "allies" : "enemies";
+        this.battle.stateManager.currentTargetGroup =
+            this.battle.stateManager.currentTargetGroup === "enemies" ? "allies" : "enemies";
         this.updateTargetList();
     }
 

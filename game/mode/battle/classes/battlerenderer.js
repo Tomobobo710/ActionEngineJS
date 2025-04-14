@@ -33,9 +33,11 @@ class BattleRenderer {
         this.drawMessages(ctx);
 
         // Draw transition effects
-        if (this.battle.stateManager.state === "init" || 
-            this.battle.stateManager.state === "victory" || 
-            this.battle.stateManager.state === "gameover") {
+        if (
+            this.battle.stateManager.state === "init" ||
+            this.battle.stateManager.state === "victory" ||
+            this.battle.stateManager.state === "gameover"
+        ) {
             this.drawTransition(ctx);
         }
     }
@@ -52,8 +54,9 @@ class BattleRenderer {
             const pulseSize = Math.sin(time * 4) * 2;
 
             // Outer glow - adjust color based on if targeting a dead character with Phoenix
-            let isPhoenix = this.battle.stateManager.pendingItem && this.battle.stateManager.pendingItem.name === "Phoenix";
-            
+            let isPhoenix =
+                this.battle.stateManager.pendingItem && this.battle.stateManager.pendingItem.name === "Phoenix";
+
             // Use different colors for dead/alive targets
             if (isDeadTarget && isPhoenix) {
                 // Golden/resurrection glow for Phoenix on dead targets
@@ -64,7 +67,7 @@ class BattleRenderer {
                 ctx.strokeStyle = target.type === "enemy" ? "#ff8888" : "#88ff88";
                 ctx.shadowColor = target.type === "enemy" ? "#ff0000" : "#00ff00";
             }
-            
+
             ctx.lineWidth = 2;
             ctx.shadowBlur = 15;
 
@@ -128,7 +131,7 @@ class BattleRenderer {
                     statusY += 12;
                 }
             });
-            
+
             // Show dead status if applicable
             if (isDeadTarget) {
                 ctx.fillStyle = "#ff4444";
@@ -154,16 +157,31 @@ class BattleRenderer {
             gradient.addColorStop(1, "rgba(255, 255, 0, 0)");
             ctx.fillStyle = gradient;
             ctx.beginPath();
-            ctx.arc(this.battle.stateManager.activeChar.pos.x, this.battle.stateManager.activeChar.pos.y, 30, 0, Math.PI * 2);
+            ctx.arc(
+                this.battle.stateManager.activeChar.pos.x,
+                this.battle.stateManager.activeChar.pos.y,
+                30,
+                0,
+                Math.PI * 2
+            );
             ctx.fill();
 
             // Add a bouncing white arrow to the left
             const bounce = Math.sin(Date.now() / 100) * 5;
             ctx.fillStyle = "#ffffff";
             ctx.beginPath();
-            ctx.moveTo(this.battle.stateManager.activeChar.pos.x - 50 + bounce, this.battle.stateManager.activeChar.pos.y);
-            ctx.lineTo(this.battle.stateManager.activeChar.pos.x - 35 + bounce, this.battle.stateManager.activeChar.pos.y - 10);
-            ctx.lineTo(this.battle.stateManager.activeChar.pos.x - 35 + bounce, this.battle.stateManager.activeChar.pos.y + 10);
+            ctx.moveTo(
+                this.battle.stateManager.activeChar.pos.x - 50 + bounce,
+                this.battle.stateManager.activeChar.pos.y
+            );
+            ctx.lineTo(
+                this.battle.stateManager.activeChar.pos.x - 35 + bounce,
+                this.battle.stateManager.activeChar.pos.y - 10
+            );
+            ctx.lineTo(
+                this.battle.stateManager.activeChar.pos.x - 35 + bounce,
+                this.battle.stateManager.activeChar.pos.y + 10
+            );
             ctx.closePath();
             ctx.fill();
         }
@@ -171,10 +189,11 @@ class BattleRenderer {
 
     renderTargetingCursor(ctx) {
         const targetingManager = this.battle.targetingManager;
-        
+
         // Check if using a Phoenix item
-        const isUsingPhoenix = this.battle.stateManager.pendingItem && this.battle.stateManager.pendingItem.name === "Phoenix";
-        
+        const isUsingPhoenix =
+            this.battle.stateManager.pendingItem && this.battle.stateManager.pendingItem.name === "Phoenix";
+
         if (targetingManager.isGroupTarget) {
             // Draw targeting cursor over entire group
             const targets = targetingManager.targetList[0]; // Get the group array
@@ -233,7 +252,7 @@ class BattleRenderer {
                 // For dead enemies, draw them with transparency and a visual indicator
                 ctx.globalAlpha = 0.5; // Make them semi-transparent
                 ctx.drawImage(enemy.sprite, enemy.pos.x - 24, enemy.pos.y - 24);
-                
+
                 // Draw an "X" over dead enemies
                 ctx.strokeStyle = "red";
                 ctx.lineWidth = 3;
@@ -243,7 +262,7 @@ class BattleRenderer {
                 ctx.moveTo(enemy.pos.x + 20, enemy.pos.y - 20);
                 ctx.lineTo(enemy.pos.x - 20, enemy.pos.y + 20);
                 ctx.stroke();
-                
+
                 // Reset alpha for other elements
                 ctx.globalAlpha = 1.0;
             } else {
@@ -286,15 +305,16 @@ class BattleRenderer {
     renderPartyMembers(ctx) {
         this.battle.party.forEach((char) => {
             if (!char) return; // Skip empty slots
-            
+
             // Check for phoenix targeting mode
-            const isPhoenixMode = this.battle.stateManager.pendingItem && this.battle.stateManager.pendingItem.name === "Phoenix";
-            
+            const isPhoenixMode =
+                this.battle.stateManager.pendingItem && this.battle.stateManager.pendingItem.name === "Phoenix";
+
             if (char.isDead) {
                 // For dead party members, add a visual representation
                 ctx.globalAlpha = 0.5; // Make them semi-transparent
                 ctx.drawImage(char.sprite, char.pos.x - 16, char.pos.y - 16);
-                
+
                 // Draw a cross over dead party members
                 ctx.strokeStyle = "red";
                 ctx.lineWidth = 3;
@@ -304,25 +324,25 @@ class BattleRenderer {
                 ctx.moveTo(char.pos.x + 12, char.pos.y - 12);
                 ctx.lineTo(char.pos.x - 12, char.pos.y + 12);
                 ctx.stroke();
-                
+
                 // Add "DEAD" text
                 ctx.fillStyle = "#ff4444";
                 ctx.font = "10px monospace";
                 ctx.textAlign = "center";
                 ctx.fillText("DEAD", char.pos.x, char.pos.y + 25);
-                
+
                 // If in phoenix targeting mode, add a special glow
                 if (isPhoenixMode) {
                     const time = Date.now() / 1000;
                     const pulseAlpha = 0.3 + Math.sin(time * 3) * 0.2;
-                    
+
                     ctx.globalAlpha = pulseAlpha;
                     ctx.fillStyle = "#ffdf00";
                     ctx.beginPath();
                     ctx.arc(char.pos.x, char.pos.y, 20, 0, Math.PI * 2);
                     ctx.fill();
                 }
-                
+
                 // Reset alpha
                 ctx.globalAlpha = 1.0;
             } else {
@@ -446,13 +466,13 @@ class BattleRenderer {
             ctx.fillStyle = isActive ? "#ffff00" : char.isDead ? "#ff4444" : "#fff";
             ctx.font = "16px monospace";
             ctx.textAlign = "left";
-            
+
             // Add "DEAD" indicator for dead characters
             let nameText = char.name;
             if (char.isDead) {
                 nameText += " [DEAD]";
             }
-            
+
             ctx.fillText(nameText, x + 10, y + 20);
 
             // HP bar with animation
@@ -570,7 +590,9 @@ class BattleRenderer {
         const spells = this.battle.stateManager.activeChar.spells;
         const totalSpells = spells.length;
         const totalPages = Math.ceil(totalSpells / this.battle.stateManager.maxVisibleSpells);
-        const currentPage = Math.floor(this.battle.stateManager.spellScrollOffset / this.battle.stateManager.maxVisibleSpells);
+        const currentPage = Math.floor(
+            this.battle.stateManager.spellScrollOffset / this.battle.stateManager.maxVisibleSpells
+        );
         const visibleSpells = Math.min(this.battle.stateManager.maxVisibleSpells, totalSpells);
 
         // Define layout constants
@@ -638,7 +660,9 @@ class BattleRenderer {
         const availableItems = this.battle.partyInventory.getAvailableItems();
         const totalItems = availableItems.length;
         const totalPages = Math.ceil(totalItems / this.battle.stateManager.maxVisibleItems);
-        const currentPage = Math.floor(this.battle.stateManager.itemScrollOffset / this.battle.stateManager.maxVisibleItems);
+        const currentPage = Math.floor(
+            this.battle.stateManager.itemScrollOffset / this.battle.stateManager.maxVisibleItems
+        );
         const visibleItems = Math.min(this.battle.stateManager.maxVisibleItems, totalItems);
 
         // Define layout constants

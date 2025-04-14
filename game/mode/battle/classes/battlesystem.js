@@ -19,7 +19,7 @@ class BattleSystem {
         this.setupInitialPositions();
         this.initializeEnemyInventory();
         this.resultsMenu = null;
-        
+
         // Create the input manager and renderer
         this.inputManager = new BattleInputManager(this, this.input);
         this.renderer = new BattleRenderer(this);
@@ -78,7 +78,7 @@ class BattleSystem {
             this.showBattleMessage("Couldn't escape!");
         }
     }
-    
+
     setupInitialPositions() {
         this.party.forEach((char, i) => {
             if (!char) return;
@@ -108,19 +108,19 @@ class BattleSystem {
                 const result = this.resultsMenu.update();
 
                 if (result === "exit") {
-    console.log("Exit returned from menu..");
-    // Clean up
-    this.resultsMenu.cleanup();
-    this.resultsMenu = null;
+                    console.log("Exit returned from menu..");
+                    // Clean up
+                    this.resultsMenu.cleanup();
+                    this.resultsMenu = null;
 
-    // Instead of going back to victory state, go to a new post_results state
-    this.stateManager.state = "post_results";
-    this.stateManager.readyForWorldTransition = true;
+                    // Instead of going back to victory state, go to a new post_results state
+                    this.stateManager.state = "post_results";
+                    this.stateManager.readyForWorldTransition = true;
 
-    // Reset transition progress to ensure animation plays
-    this.stateManager.transitionProgress = 0;
-    return;
-}
+                    // Reset transition progress to ensure animation plays
+                    this.stateManager.transitionProgress = 0;
+                    return;
+                }
             }
             return; // Skip the rest of the update method
         }
@@ -156,9 +156,11 @@ class BattleSystem {
         }
 
         // Set showCancelButton based on menu context
-        if (this.stateManager.currentMenu === "magic" || 
-            this.stateManager.currentMenu === "item" || 
-            this.targetingManager.targetingMode) {
+        if (
+            this.stateManager.currentMenu === "magic" ||
+            this.stateManager.currentMenu === "item" ||
+            this.targetingManager.targetingMode
+        ) {
             this.stateManager.showCancelButton = true;
         } else {
             this.stateManager.showCancelButton = false;
@@ -198,8 +200,8 @@ class BattleSystem {
                         // If character died, immediately reset ATB and remove from ready order
                         char.isReady = false;
                         char.atbCurrent = 0;
-                        this.stateManager.readyOrder = this.stateManager.readyOrder.filter(c => c !== char);
-                        
+                        this.stateManager.readyOrder = this.stateManager.readyOrder.filter((c) => c !== char);
+
                         // If the active character died, clear it
                         if (this.stateManager.activeChar === char) {
                             this.stateManager.activeChar = null;
@@ -209,10 +211,12 @@ class BattleSystem {
                                 this.targetingManager.endTargeting();
                             }
                         }
-                        
+
                         // Remove any queued actions for this character
-                        this.stateManager.actionQueue = this.stateManager.actionQueue.filter(action => action.character !== char);
-                        
+                        this.stateManager.actionQueue = this.stateManager.actionQueue.filter(
+                            (action) => action.character !== char
+                        );
+
                         this.battleLog.addMessage(`${char.name} was defeated!`, "system");
                     }
                 } else {
@@ -249,10 +253,11 @@ class BattleSystem {
 
         // Only process actions if we're not already processing one
         // and there are no active animations AND no ongoing stat animations
-        if (!this.stateManager.isProcessingAction && 
-            this.stateManager.animations.length === 0 && 
-            !hasOngoingStatAnimations) {
-            
+        if (
+            !this.stateManager.isProcessingAction &&
+            this.stateManager.animations.length === 0 &&
+            !hasOngoingStatAnimations
+        ) {
             // If we have queued actions, process the next one
             if (this.stateManager.actionQueue.length > 0) {
                 this.actionExecutor.processNextAction();
@@ -294,7 +299,7 @@ class BattleSystem {
         [...this.party, ...this.enemies].forEach((char) => {
             // Skip dead characters completely
             if (!char || char.isDead) return;
-            
+
             const wasReady = char.isReady;
             char.updateATB();
             char.updateStatus();
