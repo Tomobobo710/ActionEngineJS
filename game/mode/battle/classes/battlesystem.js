@@ -266,41 +266,79 @@ class BattleSystem {
             action.character.mpAnimStartTime = Date.now();
 
             // Then handle effect on targets
-            let totalDamage = 0;
+            let totalAmount = 0;
             let targetMessage;
+            let effectType;
 
+            // Check if this is a healing spell or damage spell
+            const isHealingSpell = action.spell.effect === "heal";
+            
             if (action.isGroupTarget) {
                 const targets = Array.isArray(action.target) ? action.target : [action.target];
                 targets.forEach((target) => {
                     if (!target.isDead) {
-                        // Calculate damage but don't apply it directly
-                        const damage = this.calculateSpellDamage(action.character, action.spell, target);
-                        totalDamage += damage;
+                        // Process differently based on spell effect type
+                        if (isHealingSpell) {
+                            // For healing spells
+                            const healAmount = this.calculateSpellDamage(action.character, action.spell, target);
+                            totalAmount += healAmount;
 
-                        // Start HP animation for each target
-                        target.animatingHP = true;
-                        target.targetHP = Math.max(0, target.hp - damage);
-                        target.hpAnimStartTime = Date.now();
+                            // Start HP animation for healing
+                            target.animatingHP = true;
+                            target.targetHP = Math.min(target.maxHp, target.hp + healAmount);
+                            target.hpAnimStartTime = Date.now();
+                        } else {
+                            // For damage spells (original behavior)
+                            const damage = this.calculateSpellDamage(action.character, action.spell, target);
+                            totalAmount += damage;
+
+                            // Start HP animation for damage
+                            target.animatingHP = true;
+                            target.targetHP = Math.max(0, target.hp - damage);
+                            target.hpAnimStartTime = Date.now();
+                        }
                     }
                 });
-                targetMessage = "all enemies";
+                
+                // Target message based on who's being targeted
+                targetMessage = this.currentTargetGroup === "allies" ? "all allies" : "all enemies";
             } else {
-                // Calculate damage but don't apply it directly
-                const damage = this.calculateSpellDamage(action.character, action.spell, action.target);
-                totalDamage = damage;
+                // Handle single target
+                if (isHealingSpell) {
+                    // For healing spells
+                    const healAmount = this.calculateSpellDamage(action.character, action.spell, action.target);
+                    totalAmount = healAmount;
 
-                // Start HP animation for target
-                action.target.animatingHP = true;
-                action.target.targetHP = Math.max(0, action.target.hp - damage);
-                action.target.hpAnimStartTime = Date.now();
+                    // Start HP animation for healing
+                    action.target.animatingHP = true;
+                    action.target.targetHP = Math.min(action.target.maxHp, action.target.hp + healAmount);
+                    action.target.hpAnimStartTime = Date.now();
+                } else {
+                    // For damage spells (original behavior)
+                    const damage = this.calculateSpellDamage(action.character, action.spell, action.target);
+                    totalAmount = damage;
+
+                    // Start HP animation for damage
+                    action.target.animatingHP = true;
+                    action.target.targetHP = Math.max(0, action.target.hp - damage);
+                    action.target.hpAnimStartTime = Date.now();
+                }
 
                 targetMessage = action.target.name;
             }
 
-            this.audio.play("magic_cast");
-            const message = `${action.character.name} casts ${action.spell.name} on ${targetMessage} for ${totalDamage} damage!`;
-            this.battleLog.addMessage(message, "damage");
-            this.showBattleMessage(message);
+            // Play appropriate sound and create message
+            if (isHealingSpell) {
+                this.audio.play("heal");
+                const message = `${action.character.name} casts ${action.spell.name} on ${targetMessage}, restoring ${totalAmount} HP!`;
+                this.battleLog.addMessage(message, "heal");
+                this.showBattleMessage(message);
+            } else {
+                this.audio.play("magic_cast");
+                const message = `${action.character.name} casts ${action.spell.name} on ${targetMessage} for ${totalAmount} damage!`;
+                this.battleLog.addMessage(message, "damage");
+                this.showBattleMessage(message);
+            }
 
             this.isProcessingAction = false;
         };
