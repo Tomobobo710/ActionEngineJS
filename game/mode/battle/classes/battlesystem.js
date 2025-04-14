@@ -816,6 +816,21 @@ class BattleSystem {
                     // Check if character died from this
                     if (char.hp <= 0) {
                         char.isDead = true;
+                        // NEW FIX: If character died, immediately reset ATB and remove from ready order
+                        char.isReady = false;
+                        char.atbCurrent = 0;
+                        this.readyOrder = this.readyOrder.filter(c => c !== char);
+                        
+                        // NEW FIX: If the active character died, clear it
+                        if (this.activeChar === char) {
+                            this.activeChar = null;
+                            this.currentMenu = "main";
+                            this.endTargeting();
+                        }
+                        
+                        // NEW FIX: Remove any queued actions for this character
+                        this.actionQueue = this.actionQueue.filter(action => action.character !== char);
+                        
                         this.battleLog.addMessage(`${char.name} was defeated!`, "system");
                     }
                 } else {
@@ -860,6 +875,13 @@ class BattleSystem {
             // Otherwise, if we have ready characters and no active character
             else if (!this.activeChar && this.readyOrder.length > 0) {
                 const nextCharacter = this.readyOrder[0];
+
+                // NEW FIX: Double check that the character is still alive before processing
+                if (nextCharacter.isDead) {
+                    // Remove dead character from ready order
+                    this.readyOrder.shift();
+                    return;
+                }
 
                 if (nextCharacter.isEnemy) {
                     // Only handle enemy input if no actions are queued at all
@@ -949,6 +971,27 @@ class BattleSystem {
         const nextAction = this.actionQueue[0];
         this.isProcessingAction = true;
 
+        // NEW FIX: Verify the character and target are still valid before executing action
+        if (nextAction.character.isDead) {
+            // Skip actions for dead characters
+            this.actionQueue.shift();
+            this.isProcessingAction = false;
+            return;
+        }
+
+        // For single target actions, check if the target is dead (unless using Phoenix)
+        if (!nextAction.isGroupTarget && 
+            nextAction.target.isDead && 
+            !(nextAction.type === "item" && nextAction.item && nextAction.item.name === "Phoenix")) {
+            // Skip actions with dead targets (except for Phoenix item)
+            const message = `${nextAction.character.name}'s action failed - target is no longer valid!`;
+            this.battleLog.addMessage(message, "system");
+            this.showBattleMessage(message);
+            this.actionQueue.shift();
+            this.isProcessingAction = false;
+            return;
+        }
+
         switch (nextAction.type) {
             case "attack":
                 this.executeAttack(nextAction);
@@ -975,6 +1018,9 @@ class BattleSystem {
 
     updateATBGauges() {
         [...this.party, ...this.enemies].forEach((char) => {
+            // NEW FIX: Skip dead characters completely
+            if (!char || char.isDead) return;
+            
             const wasReady = char.isReady;
             char.updateATB();
             char.updateStatus();
