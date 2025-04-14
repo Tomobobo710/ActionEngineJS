@@ -128,12 +128,14 @@ class BattleSystem {
     }
 
     updateTargetList() {
-        const targets =
-            this.currentTargetGroup === "enemies"
-                ? this.enemies.filter((e) => e && !e.isDead)
-                : this.party.filter((c) => c && !c.isDead);
-
-        this.targetList = this.isGroupTarget ? [targets] : targets;
+        // Changed logic: Include all enemies/allies but create a separate list of living ones for targeting
+        const targetsAll = this.currentTargetGroup === "enemies" ? this.enemies : this.party;
+        
+        // Filter for living targets (only used for targeting selection)
+        const targetsLiving = targetsAll.filter(target => target && !target.isDead);
+        
+        // For targeting, we still only want to target living enemies/characters
+        this.targetList = this.isGroupTarget ? [targetsLiving] : targetsLiving;
         this.targetIndex = 0;
     }
 
@@ -400,6 +402,14 @@ class BattleSystem {
     }
 
     handleEnemyInput(enemy) {
+        // Add check to make sure the enemy isn't dead
+        if (enemy.isDead) {
+            console.log(`${enemy.name} is dead and cannot take action`);
+            enemy.isReady = false;
+            enemy.atbCurrent = 0;
+            return;
+        }
+
         const livingPartyMembers = this.party.filter((member) => !member.isDead);
         const livingEnemies = this.enemies.filter((e) => !e.isDead);
 

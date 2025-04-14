@@ -238,59 +238,76 @@ class BattleInputManager {
     }
 
     handleTargetHovers(mousePos, isTouching) {
+        // Helper function to update the target hover state
         const updateHoverState = (target, index, group) => {
-            if (target.isDead) return; // Safety check
-
+            if (target.isDead) return; // Don't allow hovering dead targets
+            
             this.battle.currentTargetGroup = group;
-            const livingTargets =
-                group === "enemies"
-                    ? this.battle.enemies.filter((e) => !e.isDead)
-                    : this.battle.party.filter((c) => !c.isDead);
-
+            
+            // Get all living targets in the current group for targeting
+            const livingTargets = group === "enemies" 
+                ? this.battle.enemies.filter(e => !e.isDead)
+                : this.battle.party.filter(c => c && !c.isDead);
+                
+            // Find this target in the living targets list
             const livingIndex = livingTargets.indexOf(target);
-            if (livingIndex === -1) return;
-
+            if (livingIndex === -1) return; // Shouldn't happen, but just in case
+            
+            // Update the target selection state
             this.battle.targetIndex = livingIndex;
             this.battle.targetList = this.battle.isGroupTarget ? [livingTargets] : livingTargets;
             this.battle.hoveredTarget = target;
         };
 
-        // Check living enemies
-        this.battle.enemies
-            .filter((enemy) => !enemy.isDead)
-            .forEach((enemy, i) => {
-                const isInBounds = this.input.isPointInBounds(mousePos.x, mousePos.y, {
-                    x: 176, // Match registration
-                    y: 126 + i * 80, // Match registration
-                    width: 48,
-                    height: 48
-                });
-
-                if (isInBounds !== enemy.lastInBounds) {
-                    if (isInBounds) {
-                        updateHoverState(enemy, i, "enemies");
-                        this.battle.audio.play("menu_move");
-                    } else if (this.battle.hoveredTarget === enemy && !isTouching) {
-                        this.battle.hoveredTarget = null;
-                    }
-                    enemy.lastInBounds = isInBounds;
+        // Check all enemies (not just living ones) - but only allow hovering on living ones
+        this.battle.enemies.forEach((enemy, originalIndex) => {
+            // Calculate the same position for all enemies regardless of dead/alive status
+            // This ensures hitboxes remain in the same fixed positions
+            const x = 176; // Fixed x position
+            const y = 126 + originalIndex * 80; // Fixed y position based on original index
+            
+            const bounds = {
+                x: x,
+                y: y,
+                width: 48,
+                height: 48
+            };
+            
+            const isInBounds = this.input.isPointInBounds(mousePos.x, mousePos.y, bounds);
+            
+            // Use original index for tracking hover state to maintain consistency
+            if (isInBounds !== enemy.lastInBounds) {
+                if (isInBounds && !enemy.isDead) {
+                    // Only highlight living enemies
+                    updateHoverState(enemy, originalIndex, "enemies");
+                    this.battle.audio.play("menu_move");
+                } else if (this.battle.hoveredTarget === enemy && !isTouching) {
+                    this.battle.hoveredTarget = null;
                 }
-            });
+                enemy.lastInBounds = isInBounds;
+            }
+        });
 
-        // Check living party members
-        this.battle.party.forEach((ally, i) => {
-            if (!ally || ally.isDead) return; // Skip empty slots or dead allies
-
-            const isInBounds = this.input.isPointInBounds(mousePos.x, mousePos.y, {
-                x: 584, // Match registration
-                y: 134 + i * 100, // Match registration
+        // Similar approach for party members
+        this.battle.party.forEach((ally, originalIndex) => {
+            if (!ally) return; // Skip empty slots
+            
+            // Fixed positions for consistency
+            const x = 584;
+            const y = 134 + originalIndex * 100;
+            
+            const bounds = {
+                x: x,
+                y: y,
                 width: 32,
                 height: 32
-            });
-
+            };
+            
+            const isInBounds = this.input.isPointInBounds(mousePos.x, mousePos.y, bounds);
+            
             if (isInBounds !== ally.lastInBounds) {
-                if (isInBounds) {
-                    updateHoverState(ally, i, "allies");
+                if (isInBounds && !ally.isDead) {
+                    updateHoverState(ally, originalIndex, "allies");
                     this.battle.audio.play("menu_move");
                 } else if (this.battle.hoveredTarget === ally && !isTouching) {
                     this.battle.hoveredTarget = null;
@@ -312,8 +329,11 @@ class BattleInputManager {
     }
 
     handleTargetSelection() {
-        // Handle enemy clicks
+        // Handle enemy clicks - iterate through ALL enemies, but only allow clicking on living ones
         this.battle.enemies.forEach((enemy, index) => {
+            // Skip dead enemies for selection
+            if (enemy.isDead) return;
+            
             if (this.input.isElementJustPressed(`enemy_${index}`)) {
                 if (this.battle.isGroupTarget && this.battle.currentTargetGroup === "enemies") {
                     const targets = this.battle.enemies.filter((e) => !e.isDead);
@@ -326,9 +346,12 @@ class BattleInputManager {
 
         // Handle ally clicks with same logic as enemies
         this.battle.party.forEach((ally, index) => {
+            // Skip empty slots or dead allies
+            if (!ally || ally.isDead) return;
+            
             if (this.input.isElementJustPressed(`char_${index}`)) {
                 if (this.battle.isGroupTarget && this.battle.currentTargetGroup === "allies") {
-                    const targets = this.battle.party.filter((c) => !c.isDead);
+                    const targets = this.battle.party.filter((c) => c && !c.isDead);
                     this.battle.executeTargetedAction(targets);
                 } else {
                     this.battle.executeTargetedAction(ally);

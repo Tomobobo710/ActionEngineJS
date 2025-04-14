@@ -201,8 +201,27 @@ class BattleRenderer {
     }
 
     renderEnemies(ctx) {
-        this.battle.enemies.forEach((enemy) => {
-            if (!enemy.isDead) {
+        this.battle.enemies.forEach((enemy, index) => {
+            // Render all enemies, but apply specific styling for dead ones
+            if (enemy.isDead) {
+                // For dead enemies, draw them with transparency and a visual indicator
+                ctx.globalAlpha = 0.5; // Make them semi-transparent
+                ctx.drawImage(enemy.sprite, enemy.pos.x - 24, enemy.pos.y - 24);
+                
+                // Draw an "X" over dead enemies
+                ctx.strokeStyle = "red";
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(enemy.pos.x - 20, enemy.pos.y - 20);
+                ctx.lineTo(enemy.pos.x + 20, enemy.pos.y + 20);
+                ctx.moveTo(enemy.pos.x + 20, enemy.pos.y - 20);
+                ctx.lineTo(enemy.pos.x - 20, enemy.pos.y + 20);
+                ctx.stroke();
+                
+                // Reset alpha for other elements
+                ctx.globalAlpha = 1.0;
+            } else {
+                // Regular rendering for living enemies
                 ctx.drawImage(enemy.sprite, enemy.pos.x - 24, enemy.pos.y - 24);
 
                 // Constants for bar dimensions
