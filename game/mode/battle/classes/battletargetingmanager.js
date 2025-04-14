@@ -7,7 +7,6 @@ class BattleTargetingManager {
         this.targetingMode = false;
         this.targetList = [];
         this.targetIndex = 0;
-        this.currentTargetGroup = "enemies";
         this.defaultTargetGroup = "enemies";
         this.isSingleTarget = true;
         this.isGroupTarget = false;
@@ -42,19 +41,19 @@ class BattleTargetingManager {
         }
 
         // Initialize to default group but allow switching
-        this.currentTargetGroup = this.defaultTargetGroup;
+        this.battle.stateManager.currentTargetGroup = this.defaultTargetGroup;
         this.updateTargetList();
         
         // Let the battle system know we're in targeting mode for UI updates
-        this.battle.showCancelButton = true;
+        this.battle.stateManager.showCancelButton = true;
     }
 
     updateTargetList() {
         // Get all targets in the current group (allies or enemies)
-        const targetsAll = this.currentTargetGroup === "enemies" ? this.battle.enemies : this.battle.party;
+        const targetsAll = this.battle.stateManager.currentTargetGroup === "enemies" ? this.battle.enemies : this.battle.party;
         
         // Check if we're using a Phoenix - special case for targeting dead characters
-        const isUsingPhoenix = this.battle.pendingItem && this.battle.pendingItem.name === "Phoenix";
+        const isUsingPhoenix = this.battle.stateManager.pendingItem && this.battle.stateManager.pendingItem.name === "Phoenix";
         
         // Filter based on whether we're using a Phoenix or not
         let targetsFiltered;
@@ -76,10 +75,10 @@ class BattleTargetingManager {
         this.hoveredTarget = null;
 
         // First check if this character already has a queued action
-        const existingAction = this.battle.actionQueue.find((action) => action.character === this.battle.activeChar);
+        const existingAction = this.battle.stateManager.actionQueue.find((action) => action.character === this.battle.stateManager.activeChar);
 
         if (existingAction) {
-            const message = `${this.battle.activeChar.name} already has an action queued!`;
+            const message = `${this.battle.stateManager.activeChar.name} already has an action queued!`;
             this.battle.battleLog.addMessage(message, "damage");
             this.battle.showBattleMessage(message);
             this.battle.audio.play("menu_error");
@@ -87,38 +86,38 @@ class BattleTargetingManager {
         }
 
         let actionObject = {
-            character: this.battle.activeChar,
+            character: this.battle.stateManager.activeChar,
             target: target,
             isGroupTarget: this.isGroupTarget
         };
 
-        if (this.battle.selectedAction === "fight") {
+        if (this.battle.stateManager.selectedAction === "fight") {
             actionObject.type = "attack";
-        } else if (this.battle.pendingSpell) {
+        } else if (this.battle.stateManager.pendingSpell) {
             actionObject.type = "spell";
-            actionObject.spell = this.battle.pendingSpell;
-        } else if (this.battle.selectedAction === "item" && this.battle.pendingItem) {
+            actionObject.spell = this.battle.stateManager.pendingSpell;
+        } else if (this.battle.stateManager.selectedAction === "item" && this.battle.stateManager.pendingItem) {
             actionObject.type = "item";
-            actionObject.item = this.battle.pendingItem;
+            actionObject.item = this.battle.stateManager.pendingItem;
         }
 
         // Queue the action
-        this.battle.actionQueue.push(actionObject);
+        this.battle.stateManager.actionQueue.push(actionObject);
 
         // After queueing the action, remove the character from readyOrder
-        this.battle.readyOrder = this.battle.readyOrder.filter((char) => char !== this.battle.activeChar);
+        this.battle.stateManager.readyOrder = this.battle.stateManager.readyOrder.filter((char) => char !== this.battle.stateManager.activeChar);
 
         // Reset character state after queueing
-        this.battle.activeChar.isReady = false;
-        this.battle.activeChar.atbCurrent = 0;
+        this.battle.stateManager.activeChar.isReady = false;
+        this.battle.stateManager.activeChar.atbCurrent = 0;
 
         // Reset UI state
         this.endTargeting();
-        this.battle.currentMenu = "main";
-        this.battle.selectedAction = null;
-        this.battle.pendingItem = null;
-        this.battle.pendingSpell = null;
-        this.battle.activeChar = null;
+        this.battle.stateManager.currentMenu = "main";
+        this.battle.stateManager.selectedAction = null;
+        this.battle.stateManager.pendingItem = null;
+        this.battle.stateManager.pendingSpell = null;
+        this.battle.stateManager.activeChar = null;
         this.battle.audio.play("menu_select");
     }
 
@@ -127,11 +126,11 @@ class BattleTargetingManager {
         this.targetList = [];
         this.targetIndex = 0;
         this.hoveredTarget = null;
-        this.battle.showCancelButton = false;
+        this.battle.stateManager.showCancelButton = false;
     }
 
     switchTargetGroup() {
-        this.currentTargetGroup = this.currentTargetGroup === "enemies" ? "allies" : "enemies";
+        this.battle.stateManager.currentTargetGroup = this.battle.stateManager.currentTargetGroup === "enemies" ? "allies" : "enemies";
         this.updateTargetList();
     }
 

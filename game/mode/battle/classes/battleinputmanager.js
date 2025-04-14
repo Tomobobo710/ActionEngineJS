@@ -7,14 +7,14 @@ class BattleInputManager {
     }
 
     handleInput() {
-        if (this.battle.state !== "battle" || !this.battle.activeChar) return;
+        if (this.battle.stateManager.state !== "battle" || !this.battle.stateManager.activeChar) return;
 
         const mousePos = this.input.getPointerPosition();
         const isTouching = this.input.isPointerDown();
         const justTouched = this.input.isPointerJustDown();
 
         // Cancel button hover check
-        if (this.battle.showCancelButton) {
+        if (this.battle.stateManager.showCancelButton) {
             const bounds = {
                 x: 2,
                 y: 600 - 185,
@@ -25,9 +25,9 @@ class BattleInputManager {
             const isInBounds = this.input.isPointInBounds(mousePos.x, mousePos.y, bounds);
             if (isInBounds !== this.battle.lastCancelBounds) {
                 if (isInBounds) {
-                    this.battle.hoveredCancel = true;
+                    this.battle.stateManager.hoveredCancel = true;
                 } else if (!isTouching) {
-                    this.battle.hoveredCancel = false;
+                    this.battle.stateManager.hoveredCancel = false;
                 }
                 this.battle.lastCancelBounds = isInBounds;
             }
@@ -37,7 +37,7 @@ class BattleInputManager {
                 if (this.battle.targetingManager.targetingMode) {
                     this.battle.targetingManager.endTargeting();
                 }
-                this.battle.currentMenu = "main";
+                this.battle.stateManager.currentMenu = "main";
                 this.battle.audio.play("menu_cancel");
             }
         }
@@ -48,13 +48,13 @@ class BattleInputManager {
             return;
         }
 
-        if (this.battle.currentMenu === "magic") {
+        if (this.battle.stateManager.currentMenu === "magic") {
             this.handleMagicMenu(mousePos, isTouching);
             return;
         }
 
         // Add proper item menu handling
-        if (this.battle.currentMenu === "item") {
+        if (this.battle.stateManager.currentMenu === "item") {
             this.handleItemMenu(mousePos, isTouching);
             return;
         }
@@ -76,11 +76,11 @@ class BattleInputManager {
             const isInBounds = this.input.isPointInBounds(mousePos.x, mousePos.y, bounds);
             if (isInBounds !== this.battle[`last${command}Bounds`]) {
                 if (isInBounds) {
-                    this.battle.hoveredMenuOption = command;
-                    this.battle.menuPosition = i;
+                    this.battle.stateManager.hoveredMenuOption = command;
+                    this.battle.stateManager.menuPosition = i;
                     this.battle.audio.play("menu_move");
-                } else if (this.battle.hoveredMenuOption === command && !isTouching) {
-                    this.battle.hoveredMenuOption = null;
+                } else if (this.battle.stateManager.hoveredMenuOption === command && !isTouching) {
+                    this.battle.stateManager.hoveredMenuOption = null;
                 }
                 this.battle[`last${command}Bounds`] = isInBounds;
             }
@@ -92,33 +92,33 @@ class BattleInputManager {
 
         // Handle keyboard navigation
         if (this.input.isKeyJustPressed("DirUp")) {
-            this.battle.menuPosition = (this.battle.menuPosition - 1 + 4) % 4;
-            this.battle.hoveredMenuOption = commands[this.battle.menuPosition];
+            this.battle.stateManager.menuPosition = (this.battle.stateManager.menuPosition - 1 + 4) % 4;
+            this.battle.stateManager.hoveredMenuOption = commands[this.battle.stateManager.menuPosition];
             this.battle.audio.play("menu_move");
         }
         if (this.input.isKeyJustPressed("DirDown")) {
-            this.battle.menuPosition = (this.battle.menuPosition + 1) % 4;
-            this.battle.hoveredMenuOption = commands[this.battle.menuPosition];
+            this.battle.stateManager.menuPosition = (this.battle.stateManager.menuPosition + 1) % 4;
+            this.battle.stateManager.hoveredMenuOption = commands[this.battle.stateManager.menuPosition];
             this.battle.audio.play("menu_move");
         }
         if (this.input.isKeyJustPressed("Action1")) {
-            const command = commands[this.battle.menuPosition];
-            this.executeMainMenuAction(command, this.battle.menuPosition);
+            const command = commands[this.battle.stateManager.menuPosition];
+            this.executeMainMenuAction(command, this.battle.stateManager.menuPosition);
         }
     }
 
     executeMainMenuAction(command, index) {
-        this.battle.menuPosition = index;
+        this.battle.stateManager.menuPosition = index;
         switch (command) {
             case "fight":
-                this.battle.selectedAction = "fight";
+                this.battle.stateManager.selectedAction = "fight";
                 this.battle.targetingManager.startTargeting(TARGET_TYPES.SINGLE_ENEMY);
                 this.battle.audio.play("menu_select");
                 break;
             case "magic":
-                if (this.battle.activeChar.spells.length > 0) {
-                    this.battle.currentMenu = "magic";
-                    this.battle.subMenuPosition = 0;
+                if (this.battle.stateManager.activeChar.spells.length > 0) {
+                    this.battle.stateManager.currentMenu = "magic";
+                    this.battle.stateManager.subMenuPosition = 0;
                     this.battle.audio.play("menu_select");
                 } else {
                     this.battle.showBattleMessage("No spells known!");
@@ -127,9 +127,9 @@ class BattleInputManager {
             case "item":
                 const availableItems = this.battle.partyInventory.getAvailableItems();
                 if (availableItems.length > 0) {
-                    this.battle.currentMenu = "item";
-                    this.battle.subMenuPosition = 0;
-                    this.battle.selectedAction = "item";
+                    this.battle.stateManager.currentMenu = "item";
+                    this.battle.stateManager.subMenuPosition = 0;
+                    this.battle.stateManager.selectedAction = "item";
                     this.battle.audio.play("menu_select");
                 } else {
                     this.battle.showBattleMessage("No items available!");
@@ -142,18 +142,18 @@ class BattleInputManager {
     }
 
     handleMagicMenu(mousePos, isTouching) {
-        const spells = this.battle.activeChar.spells;
-        const totalPages = Math.ceil(spells.length / this.battle.maxVisibleSpells);
-        const currentPage = Math.floor(this.battle.spellScrollOffset / this.battle.maxVisibleSpells);
+        const spells = this.battle.stateManager.activeChar.spells;
+        const totalPages = Math.ceil(spells.length / this.battle.stateManager.maxVisibleSpells);
+        const currentPage = Math.floor(this.battle.stateManager.spellScrollOffset / this.battle.stateManager.maxVisibleSpells);
         const spellsPerColumn = 4;
         const visibleSpells = spells.slice(
-            currentPage * this.battle.maxVisibleSpells,
-            (currentPage + 1) * this.battle.maxVisibleSpells
+            currentPage * this.battle.stateManager.maxVisibleSpells,
+            (currentPage + 1) * this.battle.stateManager.maxVisibleSpells
         );
 
         // Handle spell hovers for both columns, but only for actual spells
         visibleSpells.forEach((spellId, visibleIndex) => {
-            const actualIndex = visibleIndex + currentPage * this.battle.maxVisibleSpells;
+            const actualIndex = visibleIndex + currentPage * this.battle.stateManager.maxVisibleSpells;
             const isSecondColumn = visibleIndex >= spellsPerColumn;
             const bounds = {
                 x: isSecondColumn ? 280 : 120, // Match registration
@@ -165,11 +165,11 @@ class BattleInputManager {
             const isInBounds = this.input.isPointInBounds(mousePos.x, mousePos.y, bounds);
             if (isInBounds !== this.battle[`lastSpell${actualIndex}Bounds`]) {
                 if (isInBounds) {
-                    this.battle.hoveredSpell = SPELLS[spellId];
-                    this.battle.subMenuPosition = actualIndex;
+                    this.battle.stateManager.hoveredSpell = SPELLS[spellId];
+                    this.battle.stateManager.subMenuPosition = actualIndex;
                     this.battle.audio.play("menu_move");
-                } else if (this.battle.hoveredSpell === SPELLS[spellId] && !isTouching) {
-                    this.battle.hoveredSpell = null;
+                } else if (this.battle.stateManager.hoveredSpell === SPELLS[spellId] && !isTouching) {
+                    this.battle.stateManager.hoveredSpell = null;
                 }
                 this.battle[`lastSpell${actualIndex}Bounds`] = isInBounds;
             }
@@ -184,8 +184,8 @@ class BattleInputManager {
         this.handleSpellKeyboardNav(spells, currentPage, totalPages);
 
         if (this.input.isKeyJustPressed("Action2")) {
-            this.battle.currentMenu = "main";
-            this.battle.spellScrollOffset = 0;
+            this.battle.stateManager.currentMenu = "main";
+            this.battle.stateManager.spellScrollOffset = 0;
             this.battle.audio.play("menu_cancel");
         }
     }
@@ -223,7 +223,7 @@ class BattleInputManager {
         const targetingManager = this.battle.targetingManager;
         
         // Determine if we're using Phoenix (special case for targeting dead characters)
-        const isUsingPhoenix = this.battle.pendingItem && this.battle.pendingItem.name === "Phoenix";
+        const isUsingPhoenix = this.battle.stateManager.pendingItem && this.battle.stateManager.pendingItem.name === "Phoenix";
         
         // Helper function to update the target hover state
         const updateHoverState = (target, index, group) => {
@@ -236,7 +236,7 @@ class BattleInputManager {
                 if (target.isDead) return;
             }
             
-            targetingManager.currentTargetGroup = group;
+            this.battle.stateManager.currentTargetGroup = group;
             
             // Get all targets in the current group based on Phoenix targeting
             let targetList;
@@ -347,7 +347,7 @@ class BattleInputManager {
         const targetingManager = this.battle.targetingManager;
         
         // Check if we're using a Phoenix (special case)
-        const isUsingPhoenix = this.battle.pendingItem && this.battle.pendingItem.name === "Phoenix";
+        const isUsingPhoenix = this.battle.stateManager.pendingItem && this.battle.stateManager.pendingItem.name === "Phoenix";
         
         // Handle enemy clicks
         this.battle.enemies.forEach((enemy, index) => {
@@ -361,7 +361,7 @@ class BattleInputManager {
             }
             
             if (this.input.isElementJustPressed(`enemy_${index}`)) {
-                if (targetingManager.isGroupTarget && targetingManager.currentTargetGroup === "enemies") {
+                if (targetingManager.isGroupTarget && this.battle.stateManager.currentTargetGroup === "enemies") {
                     // Get appropriate targets based on Phoenix use
                     const targets = isUsingPhoenix 
                         ? this.battle.enemies.filter((e) => e.isDead)
@@ -388,7 +388,7 @@ class BattleInputManager {
             }
             
             if (this.input.isElementJustPressed(`char_${index}`)) {
-                if (targetingManager.isGroupTarget && targetingManager.currentTargetGroup === "allies") {
+                if (targetingManager.isGroupTarget && this.battle.stateManager.currentTargetGroup === "allies") {
                     // Get appropriate targets based on Phoenix use
                     const targets = isUsingPhoenix
                         ? this.battle.party.filter((c) => c && c.isDead)
@@ -418,16 +418,16 @@ class BattleInputManager {
     handleTargetingCancel() {
         if (this.input.isKeyJustPressed("Action2")) {
             this.battle.targetingManager.endTargeting();
-            this.battle.currentMenu = "main";
+            this.battle.stateManager.currentMenu = "main";
             this.battle.audio.play("menu_cancel");
         }
     }
 
     clearHoverStates() {
-        this.battle.hoveredMenuOption = null;
+        this.battle.stateManager.hoveredMenuOption = null;
         this.battle.targetingManager.hoveredTarget = null;
-        this.battle.hoveredSpell = null;
-        this.battle.hoveredCancel = false;
+        this.battle.stateManager.hoveredSpell = null;
+        this.battle.stateManager.hoveredCancel = false;
     }
 
     getSpellMenuBounds(index) {
@@ -443,17 +443,17 @@ class BattleInputManager {
     handleItemMenu(mousePos, isTouching) {
         const availableItems = this.battle.partyInventory.getAvailableItems();
         const totalItems = availableItems.length;
-        const totalPages = Math.ceil(totalItems / this.battle.maxVisibleItems);
-        const currentPage = Math.floor(this.battle.itemScrollOffset / this.battle.maxVisibleItems);
+        const totalPages = Math.ceil(totalItems / this.battle.stateManager.maxVisibleItems);
+        const currentPage = Math.floor(this.battle.stateManager.itemScrollOffset / this.battle.stateManager.maxVisibleItems);
         const itemsPerColumn = 4;
         const visibleItems = availableItems.slice(
-            currentPage * this.battle.maxVisibleItems,
-            (currentPage + 1) * this.battle.maxVisibleItems
+            currentPage * this.battle.stateManager.maxVisibleItems,
+            (currentPage + 1) * this.battle.stateManager.maxVisibleItems
         );
 
         // Handle item hovers
         visibleItems.forEach((itemData, visibleIndex) => {
-            const actualIndex = visibleIndex + currentPage * this.battle.maxVisibleItems;
+            const actualIndex = visibleIndex + currentPage * this.battle.stateManager.maxVisibleItems;
             const isSecondColumn = visibleIndex >= itemsPerColumn;
             const bounds = {
                 x: isSecondColumn ? 280 : 120, // Match registration
@@ -464,11 +464,11 @@ class BattleInputManager {
             const isInBounds = this.input.isPointInBounds(mousePos.x, mousePos.y, bounds);
             if (isInBounds !== this.battle[`lastItem${actualIndex}Bounds`]) {
                 if (isInBounds) {
-                    this.battle.hoveredItem = itemData;
-                    this.battle.subMenuPosition = actualIndex;
+                    this.battle.stateManager.hoveredItem = itemData;
+                    this.battle.stateManager.subMenuPosition = actualIndex;
                     this.battle.audio.play("menu_move");
-                } else if (this.battle.hoveredItem === itemData && !isTouching) {
-                    this.battle.hoveredItem = null;
+                } else if (this.battle.stateManager.hoveredItem === itemData && !isTouching) {
+                    this.battle.stateManager.hoveredItem = null;
                 }
                 this.battle[`lastItem${actualIndex}Bounds`] = isInBounds;
             }
@@ -483,21 +483,21 @@ class BattleInputManager {
         this.handleItemKeyboardNav(availableItems, currentPage, totalPages);
 
         if (this.input.isKeyJustPressed("Action2")) {
-            this.battle.currentMenu = "main";
-            this.battle.itemScrollOffset = 0;
+            this.battle.stateManager.currentMenu = "main";
+            this.battle.stateManager.itemScrollOffset = 0;
             this.battle.audio.play("menu_cancel");
         }
     }
 
     scrollItems(direction) {
-        const change = direction === "up" ? -this.battle.maxVisibleItems : this.battle.maxVisibleItems;
-        this.battle.itemScrollOffset += change;
-        this.battle.subMenuPosition = this.battle.itemScrollOffset;
+        const change = direction === "up" ? -this.battle.stateManager.maxVisibleItems : this.battle.stateManager.maxVisibleItems;
+        this.battle.stateManager.itemScrollOffset += change;
+        this.battle.stateManager.subMenuPosition = this.battle.stateManager.itemScrollOffset;
         this.battle.audio.play("menu_move");
     }
 
     handleItemSelection(itemData) {
-        this.battle.pendingItem = itemData.item;
+        this.battle.stateManager.pendingItem = itemData.item;
         this.battle.targetingManager.startTargeting(itemData.item.targetType);
         this.battle.audio.play("menu_select");
     }
@@ -512,7 +512,7 @@ class BattleInputManager {
         const itemsPerPage = itemsPerColumn * 2;
         const currentPageStart = currentPage * itemsPerPage;
 
-        const positionInPage = this.battle.subMenuPosition % itemsPerPage;
+        const positionInPage = this.battle.stateManager.subMenuPosition % itemsPerPage;
         const currentColumn = Math.floor(positionInPage / itemsPerColumn);
         const currentRow = positionInPage % itemsPerColumn;
 
@@ -521,48 +521,49 @@ class BattleInputManager {
             const targetPosition = currentPageStart + targetColumn * itemsPerColumn + currentRow;
 
             if (targetPosition < items.length) {
-                this.battle.subMenuPosition = targetPosition;
-                this.battle.hoveredItem = items[targetPosition];
+                this.battle.stateManager.subMenuPosition = targetPosition;
+                this.battle.stateManager.hoveredItem = items[targetPosition];
                 this.battle.audio.play("menu_move");
             }
         }
 
         if (pressedUp) {
             if (currentRow > 0) {
-                this.battle.subMenuPosition--;
-                this.battle.hoveredItem = items[this.battle.subMenuPosition];
+                this.battle.stateManager.subMenuPosition--;
+                this.battle.stateManager.hoveredItem = items[this.battle.stateManager.subMenuPosition];
                 this.battle.audio.play("menu_move");
             } else if (currentPage > 0) {
                 this.scrollItems("up");
                 const newPageStart = (currentPage - 1) * itemsPerPage;
-                this.battle.subMenuPosition = Math.min(
+                this.battle.stateManager.subMenuPosition = Math.min(
                     items.length - 1,
                     newPageStart + currentColumn * itemsPerColumn + (itemsPerColumn - 1)
                 );
-                this.battle.hoveredItem = items[this.battle.subMenuPosition];
+                this.battle.stateManager.hoveredItem = items[this.battle.stateManager.subMenuPosition];
             }
         }
 
         if (pressedDown) {
-            if (currentRow < itemsPerColumn - 1 && this.battle.subMenuPosition + 1 < items.length) {
-                this.battle.subMenuPosition++;
-                this.battle.hoveredItem = items[this.battle.subMenuPosition];
+            if (currentRow < itemsPerColumn - 1 && this.battle.stateManager.subMenuPosition + 1 < items.length) {
+                this.battle.stateManager.subMenuPosition++;
+                this.battle.stateManager.hoveredItem = items[this.battle.stateManager.subMenuPosition];
                 this.battle.audio.play("menu_move");
             } else if (currentPage < totalPages - 1) {
                 this.scrollItems("down");
                 const newPageStart = (currentPage + 1) * itemsPerPage;
-                this.battle.subMenuPosition = Math.min(items.length - 1, newPageStart + currentColumn * itemsPerColumn);
-                this.battle.hoveredItem = items[this.battle.subMenuPosition];
+                this.battle.stateManager.subMenuPosition = Math.min(items.length - 1, newPageStart + currentColumn * itemsPerColumn);
+                this.battle.stateManager.hoveredItem = items[this.battle.stateManager.subMenuPosition];
             }
         }
 
         if (this.input.isKeyJustPressed("Action1")) {
-            const selectedItem = items[this.battle.subMenuPosition];
+            const selectedItem = items[this.battle.stateManager.subMenuPosition];
             if (selectedItem) {
                 this.handleItemSelection(selectedItem);
             }
         }
     }
+    
     handleItemScrollArrows(mousePos, currentPage, totalPages) {
         const arrowBounds = {
             up: { x: 440, y: 600 - 130, width: 30, height: 20 },
@@ -573,7 +574,7 @@ class BattleInputManager {
         if (currentPage > 0) {
             const upArrowInBounds = this.input.isPointInBounds(mousePos.x, mousePos.y, arrowBounds.up);
             if (upArrowInBounds !== this.battle.lastUpArrowBounds) {
-                this.battle.upArrowHovered = upArrowInBounds;
+                this.battle.stateManager.upArrowHovered = upArrowInBounds;
                 this.battle.lastUpArrowBounds = upArrowInBounds;
             }
         }
@@ -582,7 +583,7 @@ class BattleInputManager {
         if (currentPage < totalPages - 1) {
             const downArrowInBounds = this.input.isPointInBounds(mousePos.x, mousePos.y, arrowBounds.down);
             if (downArrowInBounds !== this.battle.lastDownArrowBounds) {
-                this.battle.downArrowHovered = downArrowInBounds;
+                this.battle.stateManager.downArrowHovered = downArrowInBounds;
                 this.battle.lastDownArrowBounds = downArrowInBounds;
             }
         }
@@ -606,7 +607,7 @@ class BattleInputManager {
         if (currentPage > 0) {
             const upArrowInBounds = this.input.isPointInBounds(mousePos.x, mousePos.y, arrowBounds.up);
             if (upArrowInBounds !== this.battle.lastUpArrowBounds) {
-                this.battle.upArrowHovered = upArrowInBounds;
+                this.battle.stateManager.upArrowHovered = upArrowInBounds;
                 this.battle.lastUpArrowBounds = upArrowInBounds;
             }
         }
@@ -615,7 +616,7 @@ class BattleInputManager {
         if (currentPage < totalPages - 1) {
             const downArrowInBounds = this.input.isPointInBounds(mousePos.x, mousePos.y, arrowBounds.down);
             if (downArrowInBounds !== this.battle.lastDownArrowBounds) {
-                this.battle.downArrowHovered = downArrowInBounds;
+                this.battle.stateManager.downArrowHovered = downArrowInBounds;
                 this.battle.lastDownArrowBounds = downArrowInBounds;
             }
         }
@@ -630,9 +631,9 @@ class BattleInputManager {
     }
 
     scrollSpells(direction) {
-        const change = direction === "up" ? -this.battle.maxVisibleSpells : this.battle.maxVisibleSpells;
-        this.battle.spellScrollOffset += change;
-        this.battle.subMenuPosition = this.battle.spellScrollOffset;
+        const change = direction === "up" ? -this.battle.stateManager.maxVisibleSpells : this.battle.stateManager.maxVisibleSpells;
+        this.battle.stateManager.spellScrollOffset += change;
+        this.battle.stateManager.subMenuPosition = this.battle.stateManager.spellScrollOffset;
         this.battle.audio.play("menu_move");
     }
 
@@ -643,14 +644,14 @@ class BattleInputManager {
         const pressedDown = this.input.isKeyJustPressed("DirDown");
 
         // Always set hover state to match current cursor position
-        this.battle.hoveredSpell = SPELLS[spells[this.battle.subMenuPosition]];
+        this.battle.stateManager.hoveredSpell = SPELLS[spells[this.battle.stateManager.subMenuPosition]];
 
         const spellsPerColumn = 4;
         const spellsPerPage = spellsPerColumn * 2;
         const currentPageStart = currentPage * spellsPerPage;
 
         // Calculate current position
-        const positionInPage = this.battle.subMenuPosition % spellsPerPage;
+        const positionInPage = this.battle.stateManager.subMenuPosition % spellsPerPage;
         const currentColumn = Math.floor(positionInPage / spellsPerColumn);
         const currentRow = positionInPage % spellsPerColumn;
 
@@ -661,7 +662,7 @@ class BattleInputManager {
 
             // Only move if target position has a spell
             if (targetPosition < spells.length) {
-                this.battle.subMenuPosition = targetPosition;
+                this.battle.stateManager.subMenuPosition = targetPosition;
                 this.battle.audio.play("menu_move");
             }
         }
@@ -669,14 +670,14 @@ class BattleInputManager {
         if (pressedUp) {
             if (currentRow > 0) {
                 // Move up within current column
-                this.battle.subMenuPosition--;
+                this.battle.stateManager.subMenuPosition--;
                 this.battle.audio.play("menu_move");
             } else if (currentPage > 0) {
                 // At top of any column, go to previous page
                 this.scrollSpells("up");
                 // Position at BOTTOM of same column on previous page
                 const newPageStart = (currentPage - 1) * spellsPerPage;
-                this.battle.subMenuPosition = Math.min(
+                this.battle.stateManager.subMenuPosition = Math.min(
                     spells.length - 1,
                     newPageStart + currentColumn * spellsPerColumn + (spellsPerColumn - 1)
                 );
@@ -684,16 +685,16 @@ class BattleInputManager {
         }
 
         if (pressedDown) {
-            if (currentRow < spellsPerColumn - 1 && this.battle.subMenuPosition + 1 < spells.length) {
+            if (currentRow < spellsPerColumn - 1 && this.battle.stateManager.subMenuPosition + 1 < spells.length) {
                 // Move down within current column
-                this.battle.subMenuPosition++;
+                this.battle.stateManager.subMenuPosition++;
                 this.battle.audio.play("menu_move");
             } else if (currentPage < totalPages - 1) {
                 // At bottom of any column, go to next page
                 this.scrollSpells("down");
                 // Position at TOP of same column on next page
                 const newPageStart = (currentPage + 1) * spellsPerPage;
-                this.battle.subMenuPosition = Math.min(
+                this.battle.stateManager.subMenuPosition = Math.min(
                     spells.length - 1,
                     newPageStart + currentColumn * spellsPerColumn
                 );
@@ -701,19 +702,19 @@ class BattleInputManager {
         }
 
         if (this.input.isKeyJustPressed("Action1")) {
-            const selectedSpell = SPELLS[spells[this.battle.subMenuPosition]];
+            const selectedSpell = SPELLS[spells[this.battle.stateManager.subMenuPosition]];
             this.battle.handleSpellSelection(selectedSpell);
         }
     }
 
     navigateSpellList(direction, spells, currentPage, totalPages) {
-        const newPos = this.battle.subMenuPosition + direction;
+        const newPos = this.battle.stateManager.subMenuPosition + direction;
         if (newPos >= 0 && newPos < spells.length) {
-            this.battle.subMenuPosition = newPos;
+            this.battle.stateManager.subMenuPosition = newPos;
             // Handle scrolling if needed
-            if (newPos >= (currentPage + 1) * this.battle.maxVisibleSpells) {
+            if (newPos >= (currentPage + 1) * this.battle.stateManager.maxVisibleSpells) {
                 this.scrollSpells("down");
-            } else if (newPos < currentPage * this.battle.maxVisibleSpells) {
+            } else if (newPos < currentPage * this.battle.stateManager.maxVisibleSpells) {
                 this.scrollSpells("up");
             }
             this.battle.audio.play("menu_move");

@@ -1,4 +1,4 @@
-// game/mode/battle/classes/battlesystem.js
+// game/mode/battle/classes/battlesystem.jsW
 class BattleSystem {
     constructor(party, enemyParty, audio, input, inventory, gameMaster) {
         this.party = party;
@@ -8,24 +8,20 @@ class BattleSystem {
         this.audio = audio;
         this.input = input;
         this.gameMaster = gameMaster;
-        this.state = "init";
         this.battleLog = new BattleLog();
 
-        // Create our specialized components
+        // Create our state manager and specialized components
+        this.stateManager = new BattleStateManager(this);
         this.actionExecutor = new BattleActionExecutor(this);
         this.aiController = new BattleAIController(this);
         this.targetingManager = new BattleTargetingManager(this);
 
-        this.initializeState();
-        this.inputManager = new BattleInputManager(this, this.input);
         this.setupInitialPositions();
-        
-        // Create enemy inventory with random items
-        this.enemyInventory = new Inventory();
         this.initializeEnemyInventory();
         this.resultsMenu = null;
         
-        // Create the renderer
+        // Create the input manager and renderer
+        this.inputManager = new BattleInputManager(this, this.input);
         this.renderer = new BattleRenderer(this);
     }
 
@@ -38,37 +34,6 @@ class BattleSystem {
                 this.enemyInventory.addItem(itemId, quantity);
             }
         });
-    }
-
-    initializeState() {
-        this.activeChar = null;
-        this.selectedTarget = null;
-        this.currentMenu = "main";
-        this.selectedAction = null;
-        this.menuPosition = 0;
-        this.subMenuPosition = 0;
-        this.currentMessage = null;
-        this.animations = [];
-        this.transitionProgress = 0;
-        this.isPaused = false;
-        this.pendingSpell = null;
-        this.itemMenuPosition = 0;
-        this.itemScrollOffset = 0;
-        this.maxVisibleItems = 8;
-        this.hoveredItem = null;
-        this.pendingItem = null;
-        this.hoveredMenuOption = null;
-        this.hoveredSpell = null;
-        this.showCancelButton = false;
-        this.spellScrollOffset = 0;
-        this.maxVisibleSpells = 8;
-        this.upArrowHovered = false;
-        this.downArrowHovered = false;
-        this.actionQueue = []; // Will hold {character, action, target} objects
-        this.readyOrder = []; // track who filled their ATB in order
-        this.isProcessingAction = false; // Flag to track if we're currently animating/processing an action
-        this.stateStartTime = null;
-        this.readyForWorldTransition = false;
     }
 
     handleInput(input) {
@@ -94,8 +59,8 @@ class BattleSystem {
     }
 
     handleSpellSelection(selectedSpell) {
-        if (this.activeChar.mp >= selectedSpell.mpCost) {
-            this.pendingSpell = selectedSpell;
+        if (this.stateManager.activeChar.mp >= selectedSpell.mpCost) {
+            this.stateManager.pendingSpell = selectedSpell;
             this.targetingManager.startTargeting(selectedSpell.targetType);
             this.audio.play("menu_select");
         } else {
@@ -107,7 +72,7 @@ class BattleSystem {
     attemptRun() {
         if (Math.random() < 0.5) {
             this.battleLog.addMessage("Got away safely!", "system");
-            this.state = "victory";
+            this.stateManager.state = "victory";
         } else {
             this.battleLog.addMessage("Couldn't escape!", "system");
             this.showBattleMessage("Couldn't escape!");
@@ -130,78 +95,80 @@ class BattleSystem {
     }
 
     update() {
-        if (this.isPaused) return;
+        if (this.stateManager.isPaused) return;
 
-        if (this.state === "post_results") {
-            this.updateTransitions();
+        if (this.stateManager.state === "post_results") {
+            this.stateManager.updateTransitions();
             return;
         }
 
-        if (this.state === "results") {
+        if (this.stateManager.state === "results") {
             // Update the results menu
             if (this.resultsMenu) {
                 const result = this.resultsMenu.update();
 
                 if (result === "exit") {
-                    console.log("Exit returned from menu..");
-                    // Clean up
-                    this.resultsMenu.cleanup();
-                    this.resultsMenu = null;
+    console.log("Exit returned from menu..");
+    // Clean up
+    this.resultsMenu.cleanup();
+    this.resultsMenu = null;
 
-                    // Set state back to victory and make sure readyForWorldTransition is true
-                    this.state = "victory";
-                    this.readyForWorldTransition = true;
+    // Instead of going back to victory state, go to a new post_results state
+    this.stateManager.state = "post_results";
+    this.stateManager.readyForWorldTransition = true;
 
-                    // Reset transition progress to ensure animation plays
-                    this.transitionProgress = 1;
-                    return;
-                }
+    // Reset transition progress to ensure animation plays
+    this.stateManager.transitionProgress = 0;
+    return;
+}
             }
             return; // Skip the rest of the update method
         }
 
         // Handle victory and game over states
-        if (this.state === "victory" || this.state === "gameover") {
-            if (!this.stateStartTime) {
-                this.stateStartTime = Date.now();
+        if (this.stateManager.state === "victory" || this.stateManager.state === "gameover") {
+            if (!this.stateManager.stateStartTime) {
+                this.stateManager.stateStartTime = Date.now();
                 // Play the victory sound when entering this state
-                if (this.state === "victory") {
+                if (this.stateManager.state === "victory") {
                     this.audio.play("victory");
                 }
             }
 
             // Stay in this state for 3 seconds before allowing transition
             const stateDuration = 3000; // 3 seconds
-            if (Date.now() - this.stateStartTime > stateDuration) {
-                if (this.state === "victory") {
+            if (Date.now() - this.stateManager.stateStartTime > stateDuration) {
+                if (this.stateManager.state === "victory") {
                     // After victory screen, show results
                     this.showResultsScreen();
                 } else {
                     // Game over goes straight to world
-                    this.readyForWorldTransition = true;
+                    this.stateManager.readyForWorldTransition = true;
                 }
             }
 
             // Only update transition after the delay
-            if (this.readyForWorldTransition) {
-                this.updateTransitions();
+            if (this.stateManager.readyForWorldTransition) {
+                this.stateManager.updateTransitions();
             }
 
             return; // Skip the rest of the update method
         }
 
-        // Set showCancelButton based on menu context - moved from targetingMode dependency
-        if (this.currentMenu === "magic" || this.currentMenu === "item" || this.targetingManager.targetingMode) {
-            this.showCancelButton = true;
+        // Set showCancelButton based on menu context
+        if (this.stateManager.currentMenu === "magic" || 
+            this.stateManager.currentMenu === "item" || 
+            this.targetingManager.targetingMode) {
+            this.stateManager.showCancelButton = true;
         } else {
-            this.showCancelButton = false;
+            this.stateManager.showCancelButton = false;
         }
 
         // First, handle animations and transitions
         this.actionExecutor.handleAnimations();
 
         // Apply pending effects if animations are complete
-        if (this.actionExecutor.getPendingEffect() && this.animations.length === 0) {
+        if (this.actionExecutor.getPendingEffect() && this.stateManager.animations.length === 0) {
             this.actionExecutor.getPendingEffect()();
             this.actionExecutor.clearPendingEffect();
         }
@@ -231,12 +198,12 @@ class BattleSystem {
                         // If character died, immediately reset ATB and remove from ready order
                         char.isReady = false;
                         char.atbCurrent = 0;
-                        this.readyOrder = this.readyOrder.filter(c => c !== char);
+                        this.stateManager.readyOrder = this.stateManager.readyOrder.filter(c => c !== char);
                         
                         // If the active character died, clear it
-                        if (this.activeChar === char) {
-                            this.activeChar = null;
-                            this.currentMenu = "main";
+                        if (this.stateManager.activeChar === char) {
+                            this.stateManager.activeChar = null;
+                            this.stateManager.currentMenu = "main";
                             // End targeting if active character died
                             if (this.targetingManager.targetingMode) {
                                 this.targetingManager.endTargeting();
@@ -244,7 +211,7 @@ class BattleSystem {
                         }
                         
                         // Remove any queued actions for this character
-                        this.actionQueue = this.actionQueue.filter(action => action.character !== char);
+                        this.stateManager.actionQueue = this.stateManager.actionQueue.filter(action => action.character !== char);
                         
                         this.battleLog.addMessage(`${char.name} was defeated!`, "system");
                     }
@@ -272,45 +239,48 @@ class BattleSystem {
             }
         });
 
-        this.updateTransitions();
+        this.stateManager.updateTransitions();
 
         // Check victory/defeat conditions
-        if (this.checkBattleEnd()) return;
+        if (this.stateManager.checkBattleEnd(this.party, this.enemies)) return;
 
         // Update ATB gauges and track who becomes ready
         this.updateATBGauges();
 
         // Only process actions if we're not already processing one
         // and there are no active animations AND no ongoing stat animations
-        if (!this.isProcessingAction && this.animations.length === 0 && !hasOngoingStatAnimations) {
+        if (!this.stateManager.isProcessingAction && 
+            this.stateManager.animations.length === 0 && 
+            !hasOngoingStatAnimations) {
+            
             // If we have queued actions, process the next one
-            if (this.actionQueue.length > 0) {
+            if (this.stateManager.actionQueue.length > 0) {
                 this.actionExecutor.processNextAction();
             }
             // Otherwise, if we have ready characters and no active character
-            else if (!this.activeChar && this.readyOrder.length > 0) {
-                const nextCharacter = this.readyOrder[0];
+            else if (!this.stateManager.activeChar && this.stateManager.readyOrder.length > 0) {
+                const nextCharacter = this.stateManager.readyOrder[0];
 
                 // Double check that the character is still alive before processing
                 if (nextCharacter.isDead) {
                     // Remove dead character from ready order
-                    this.readyOrder.shift();
+                    this.stateManager.readyOrder.shift();
                     return;
                 }
 
                 if (nextCharacter.isEnemy) {
                     // Only handle enemy input if no actions are queued at all
-                    if (this.actionQueue.length === 0) {
+                    if (this.stateManager.actionQueue.length === 0) {
                         this.aiController.handleEnemyInput(nextCharacter);
-                        this.readyOrder.shift();
+                        this.stateManager.readyOrder.shift();
                     }
                 } else {
                     // Reset pagination whenever a new character becomes active
-                    this.spellScrollOffset = 0;
-                    this.itemScrollOffset = 0;
-                    this.subMenuPosition = 0;
+                    this.stateManager.spellScrollOffset = 0;
+                    this.stateManager.itemScrollOffset = 0;
+                    this.stateManager.subMenuPosition = 0;
 
-                    this.activeChar = nextCharacter;
+                    this.stateManager.activeChar = nextCharacter;
                 }
             }
         }
@@ -330,56 +300,19 @@ class BattleSystem {
             char.updateStatus();
 
             if (!wasReady && char.isReady) {
-                const hasQueuedAction = this.actionQueue.some((action) => action.character === char);
-                const alreadyInReadyOrder = this.readyOrder.includes(char);
+                const hasQueuedAction = this.stateManager.actionQueue.some((action) => action.character === char);
+                const alreadyInReadyOrder = this.stateManager.readyOrder.includes(char);
 
                 if (!hasQueuedAction && !alreadyInReadyOrder) {
                     char.isEnemy = this.enemies.includes(char);
-                    this.readyOrder.push(char);
+                    this.stateManager.readyOrder.push(char);
                 }
             }
         });
     }
 
-    checkBattleEnd() {
-        if (this.party.every((char) => char.isDead)) {
-            this.state = "gameover";
-            this.battleLog.addMessage("Game Over!", "system");
-            this.transitionProgress = 0; // Reset transition progress
-            this.stateStartTime = null; // Reset state timing
-            return true;
-        } else if (this.enemies.every((enemy) => enemy.isDead)) {
-            this.state = "victory";
-            this.battleLog.addMessage("Victory!", "system");
-            this.transitionProgress = 0; // Reset transition progress
-            this.stateStartTime = null; // Reset state timing
-            return true;
-        }
-        return false;
-    }
-
-    updateTransitions() {
-        switch (this.state) {
-            case "init":
-                if (this.transitionProgress < 1) {
-                    this.transitionProgress += 0.02;
-                } else {
-                    this.state = "battle";
-                }
-                break;
-
-            case "victory":
-            case "gameover":
-            case "post_results": 
-                if (this.transitionProgress < 1) {
-                    this.transitionProgress += 0.01;
-                }
-                break;
-        }
-    }
-
     showBattleMessage(message) {
-        this.currentMessage = {
+        this.stateManager.currentMessage = {
             text: message,
             alpha: 1.0,
             startTime: Date.now()
@@ -397,18 +330,183 @@ class BattleSystem {
         this.resultsMenu = new BattleResultsMenu(this.ctx, this.input, this.gameMaster, battleResults);
 
         // Change state
-        this.state = "results";
-        this.stateStartTime = null;
+        this.stateManager.state = "results";
+        this.stateManager.stateStartTime = null;
     }
 
     render(ctx) {
         // If showing results menu, only render that
-        if (this.state === "results" && this.resultsMenu) {
+        if (this.stateManager.state === "results" && this.resultsMenu) {
             this.resultsMenu.draw();
             return;
         }
 
         // Otherwise use the renderer for normal battle rendering
         this.renderer.render(ctx);
+    }
+}
+
+// game/mode/battle/classes/battlestatemanager.js
+class BattleStateManager {
+    constructor(battleSystem) {
+        this.battle = battleSystem;
+        
+        // State properties - directly accessible
+        this.state = "init";
+        this.stateStartTime = null;
+        this.readyForWorldTransition = false;
+        this.transitionProgress = 0;
+        this.isPaused = false;
+        
+        // Battle flow state
+        this.activeChar = null;
+        this.actionQueue = [];
+        this.readyOrder = [];
+        this.isProcessingAction = false;
+        
+        // Menu state
+        this.currentMenu = "main";
+        this.selectedAction = null;
+        this.menuPosition = 0;
+        this.subMenuPosition = 0;
+        this.pendingSpell = null;
+        this.pendingItem = null;
+        
+        // UI state
+        this.hoveredMenuOption = null;
+        this.hoveredItem = null;
+        this.hoveredSpell = null;
+        this.showCancelButton = false;
+        this.upArrowHovered = false;
+        this.downArrowHovered = false;
+        this.currentMessage = null;
+        
+        // Pagination
+        this.itemScrollOffset = 0;
+        this.spellScrollOffset = 0;
+        this.maxVisibleItems = 8;
+        this.maxVisibleSpells = 8;
+        
+        // Animation state
+        this.animations = [];
+    }
+
+    // Core state management
+    resetState() {
+        this.activeChar = null;
+        this.currentMenu = "main";
+        this.selectedAction = null;
+        this.pendingSpell = null;
+        this.pendingItem = null;
+        this.showCancelButton = false;
+    }
+    
+    enterBattleState() {
+        this.state = "battle";
+    }
+    
+    enterVictoryState() {
+        this.state = "victory";
+        this.transitionProgress = 0;
+        this.stateStartTime = null;
+    }
+    
+    enterGameOverState() {
+        this.state = "gameover";
+        this.transitionProgress = 0;
+        this.stateStartTime = null;
+    }
+    
+    enterResultsState() {
+        this.state = "results";
+        this.stateStartTime = null;
+    }
+    
+    // Message handling
+    showMessage(message) {
+        this.currentMessage = {
+            text: message,
+            alpha: 1.0,
+            startTime: Date.now()
+        };
+    }
+    
+    updateMessage() {
+        if (this.currentMessage) {
+            const messageAge = Date.now() - this.currentMessage.startTime;
+            if (messageAge > 1000) {
+                this.currentMessage.alpha = Math.max(0, 1 - (messageAge - 1000) / 1000);
+            }
+            if (this.currentMessage.alpha <= 0) {
+                this.currentMessage = null;
+            }
+        }
+    }
+    
+    // Animation handling
+    addAnimation(animation) {
+        this.animations.push(animation);
+    }
+    
+    updateAnimations() {
+        this.animations = this.animations.filter(anim => {
+            anim.update();
+            return !anim.finished;
+        });
+    }
+    
+    // Action queue management
+    queueAction(action) {
+        this.actionQueue.push(action);
+    }
+    
+    dequeueAction() {
+        return this.actionQueue.shift();
+    }
+    
+    addReadyCharacter(character) {
+        if (!this.readyOrder.includes(character)) {
+            this.readyOrder.push(character);
+        }
+    }
+    
+    getNextReadyCharacter() {
+        return this.readyOrder.length > 0 ? this.readyOrder[0] : null;
+    }
+    
+    removeFromReadyOrder(character) {
+        this.readyOrder = this.readyOrder.filter(char => char !== character);
+    }
+    
+    // Update methods
+    updateTransitions() {
+    switch (this.state) {
+        case "init":
+            if (this.transitionProgress < 1) {
+                this.transitionProgress += 0.02;
+            } else {
+                this.state = "battle";
+            }
+            break;
+
+        case "victory":
+        case "gameover":
+        case "post_results": // Add this case
+            if (this.transitionProgress < 1) {
+                this.transitionProgress += 0.01;
+            }
+            break;
+    }
+}
+    
+    checkBattleEnd(party, enemies) {
+        if (party.every(char => !char || char.isDead)) {
+            this.enterGameOverState();
+            return true;
+        } else if (enemies.every(enemy => enemy.isDead)) {
+            this.enterVictoryState();
+            return true;
+        }
+        return false;
     }
 }

@@ -131,7 +131,7 @@ class BattleAIController {
                 this.battle.enemyInventory.removeItem(selectedAction.itemId);
             }
 
-            this.battle.actionQueue.push(actionObject);
+            this.battle.stateManager.actionQueue.push(actionObject);
         }
 
         enemy.isReady = false;

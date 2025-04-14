@@ -11,7 +11,7 @@ class BattleActionExecutor {
         if (!attack || !attack.character || !attack.target) return;
 
         this.isProcessingAction = true;
-        this.battle.animations.push(
+        this.battle.stateManager.animations.push(
             new AttackAnimation(attack.character, attack.target, this.battle.enemies.includes(attack.character))
         );
 
@@ -52,14 +52,14 @@ class BattleActionExecutor {
             
             targets.forEach((target) => {
                 if (!target.isDead) {
-                    this.battle.animations.push(
+                    this.battle.stateManager.animations.push(
                         new SpellAnimation(action.spell.animation, target.pos, action.character, isEnemy, !isFirstTarget)
                     );
                     isFirstTarget = false;
                 }
             });
         } else {
-            this.battle.animations.push(
+            this.battle.stateManager.animations.push(
                 new SpellAnimation(action.spell.animation, action.target.pos, action.character, isEnemy)
             );
         }
@@ -107,7 +107,7 @@ class BattleActionExecutor {
                 });
                 
                 // Target message based on who's being targeted
-                targetMessage = this.battle.currentTargetGroup === "allies" ? "all allies" : "all enemies";
+                targetMessage = this.battle.stateManager.currentTargetGroup === "allies" ? "all allies" : "all enemies";
             } else {
                 // Handle single target
                 if (isHealingSpell) {
@@ -160,10 +160,10 @@ class BattleActionExecutor {
         if (action.isGroupTarget) {
             const targets = Array.isArray(action.target) ? action.target : [action.target];
             targets.forEach((target) => {
-                this.battle.animations.push(new ItemAnimation(action.item.animation, target.pos, action.character));
+                this.battle.stateManager.animations.push(new ItemAnimation(action.item.animation, target.pos, action.character));
             });
         } else {
-            this.battle.animations.push(new ItemAnimation(action.item.animation, action.target.pos, action.character));
+            this.battle.stateManager.animations.push(new ItemAnimation(action.item.animation, action.target.pos, action.character));
         }
 
         // Store the item effect to apply after animation completes
@@ -333,7 +333,7 @@ class BattleActionExecutor {
     // Animation handling
     handleAnimations() {
         // Update and filter battle animations
-        this.battle.animations = this.battle.animations.filter((anim) => {
+        this.battle.stateManager.animations = this.battle.stateManager.animations.filter((anim) => {
             anim.update();
             return !anim.finished;
         });
@@ -341,13 +341,13 @@ class BattleActionExecutor {
 
     // Process the next action in the queue
     processNextAction() {
-        const nextAction = this.battle.actionQueue[0];
+        const nextAction = this.battle.stateManager.actionQueue[0];
         this.isProcessingAction = true;
 
         // Verify the character and target are still valid before executing action
         if (nextAction.character.isDead) {
             // Skip actions for dead characters
-            this.battle.actionQueue.shift();
+            this.battle.stateManager.actionQueue.shift();
             this.isProcessingAction = false;
             return;
         }
@@ -360,7 +360,7 @@ class BattleActionExecutor {
             const message = `${nextAction.character.name}'s action failed - target is no longer valid!`;
             this.battle.battleLog.addMessage(message, "system");
             this.battle.showBattleMessage(message);
-            this.battle.actionQueue.shift();
+            this.battle.stateManager.actionQueue.shift();
             this.isProcessingAction = false;
             return;
         }
@@ -377,7 +377,7 @@ class BattleActionExecutor {
                 break;
         }
 
-        this.battle.actionQueue.shift();
+        this.battle.stateManager.actionQueue.shift();
     }
 
     // Getters
