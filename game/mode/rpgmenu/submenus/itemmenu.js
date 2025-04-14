@@ -52,11 +52,20 @@ class ItemMenu extends BaseSubmenu {
         if (this.characterPanel.selectionState === "selecting_target") {
             const inventory = this.gameMaster.partyInventory;
             const items = inventory.getAvailableItems();
+            const selectedItem = items[this.selectedIndex];
             const party = this.gameMaster.persistentParty;
+            
+            // Special handling for Phoenix item to target only dead characters
+            const isPhoenixItem = selectedItem && selectedItem.item.name === "Phoenix";
 
             if (this.characterPanel.targetMode === "single") {
                 // Handle mouse hover for targeting
-                party.forEach((_, index) => {
+                party.forEach((char, index) => {
+                    // For Phoenix, only hover over dead characters; for other items, only hover over living characters
+                    if ((isPhoenixItem && !char.isDead) || (!isPhoenixItem && char.isDead)) {
+                        return;
+                    }
+                    
                     if (this.input.isElementHovered(`character_panel_${index}`)) {
                         this.characterPanel.selectedCharIndex = index;
                     }
@@ -64,29 +73,52 @@ class ItemMenu extends BaseSubmenu {
 
                 // Single target selection
                 for (let index = 0; index < party.length; index++) {
+                    // Skip invalid targets based on item type
+                    if ((isPhoenixItem && !party[index].isDead) || (!isPhoenixItem && party[index].isDead)) {
+                        continue;
+                    }
+                    
                     if (this.input.isElementJustPressed(`character_panel_${index}`)) {
                         this.handleItemUse(items[this.selectedIndex], party[index]);
                         this.characterPanel.selectionState = "none";
                         this.characterPanel.selectedCharIndex = -1;
+                        this.characterPanel.isPhoenixTargeting = false; // Reset Phoenix targeting
                         return;
                     }
                 }
 
                 if (this.input.isKeyJustPressed("Action1") && this.characterPanel.selectedCharIndex !== -1) {
-                    this.handleItemUse(items[this.selectedIndex], party[this.characterPanel.selectedCharIndex]);
-                    this.characterPanel.selectionState = "none";
-                    this.characterPanel.selectedCharIndex = -1;
+                    // Check if the target is valid based on item type
+                    const targetChar = party[this.characterPanel.selectedCharIndex];
+                    if ((isPhoenixItem && targetChar.isDead) || (!isPhoenixItem && !targetChar.isDead)) {
+                        this.handleItemUse(items[this.selectedIndex], targetChar);
+                        this.characterPanel.selectionState = "none";
+                        this.characterPanel.selectedCharIndex = -1;
+                        this.characterPanel.isPhoenixTargeting = false; // Reset Phoenix targeting
+                    }
                     return;
                 }
             } else {
                 // All target handling
                 if (
-                    party.some((_, index) => this.input.isElementJustPressed(`character_panel_${index}`)) ||
+                    party.some((char, index) => {
+                        // Filter click validation based on item type
+                        if ((isPhoenixItem && !char.isDead) || (!isPhoenixItem && char.isDead)) {
+                            return false;
+                        }
+                        return this.input.isElementJustPressed(`character_panel_${index}`);
+                    }) ||
                     this.input.isKeyJustPressed("Action1")
                 ) {
-                    this.handleItemUse(items[this.selectedIndex], party);
+                    // Filter party members based on item type
+                    const validTargets = isPhoenixItem ? 
+                        party.filter(char => char.isDead) : 
+                        party.filter(char => !char.isDead);
+                        
+                    this.handleItemUse(items[this.selectedIndex], validTargets);
                     this.characterPanel.selectionState = "none";
                     this.characterPanel.selectedCharIndex = -1;
+                    this.characterPanel.isPhoenixTargeting = false; // Reset Phoenix targeting
                     return;
                 }
             }
@@ -95,6 +127,7 @@ class ItemMenu extends BaseSubmenu {
             if (this.input.isKeyJustPressed("Action2")) {
                 this.characterPanel.selectionState = "none";
                 this.characterPanel.selectedCharIndex = -1;
+                this.characterPanel.isPhoenixTargeting = false; // Reset Phoenix targeting
                 return;
             }
 
@@ -139,9 +172,29 @@ class ItemMenu extends BaseSubmenu {
             if (this.input.isElementJustPressed(`submenu_item_${i}`)) {
                 const selectedItem = items[actualIndex];
                 if (selectedItem) {
+                    this.selectedIndex = actualIndex;
                     this.characterPanel.selectionState = "selecting_target";
                     this.characterPanel.targetMode = selectedItem.item.targetType.startsWith("all_") ? "all" : "single";
-                    this.characterPanel.selectedCharIndex = this.characterPanel.targetMode === "single" ? 0 : -1;
+                    
+                    // Set Phoenix targeting mode if using Phoenix item
+                    const isPhoenixItem = selectedItem.item.name === "Phoenix";
+                    this.characterPanel.isPhoenixTargeting = isPhoenixItem;
+                    
+                    // Set initial target based on item type
+                    if (this.characterPanel.targetMode === "single") {
+                        // Special handling for Phoenix item (target dead characters)
+                        if (isPhoenixItem) {
+                            // Find first dead character
+                            const firstDeadIndex = this.gameMaster.persistentParty.findIndex(char => char.isDead);
+                            this.characterPanel.selectedCharIndex = firstDeadIndex >= 0 ? firstDeadIndex : 0;
+                        } else {
+                            // For regular items, find first living character
+                            const firstLivingIndex = this.gameMaster.persistentParty.findIndex(char => !char.isDead);
+                            this.characterPanel.selectedCharIndex = firstLivingIndex >= 0 ? firstLivingIndex : 0;
+                        }
+                    } else {
+                        this.characterPanel.selectedCharIndex = -1;
+                    }
                     return;
                 }
             }
@@ -185,51 +238,70 @@ class ItemMenu extends BaseSubmenu {
             if (selectedItem) {
                 this.characterPanel.selectionState = "selecting_target";
                 this.characterPanel.targetMode = selectedItem.item.targetType.startsWith("all_") ? "all" : "single";
-                this.characterPanel.selectedCharIndex = this.characterPanel.targetMode === "single" ? 0 : -1;
+                
+                // Set Phoenix targeting mode if using Phoenix item
+                const isPhoenixItem = selectedItem.item.name === "Phoenix";
+                this.characterPanel.isPhoenixTargeting = isPhoenixItem;
+                
+                // Set initial target based on item type
+                if (this.characterPanel.targetMode === "single") {
+                    // Special handling for Phoenix item (target dead characters)
+                    if (isPhoenixItem) {
+                        // Find first dead character
+                        const firstDeadIndex = this.gameMaster.persistentParty.findIndex(char => char.isDead);
+                        this.characterPanel.selectedCharIndex = firstDeadIndex >= 0 ? firstDeadIndex : 0;
+                    } else {
+                        // For regular items, find first living character
+                        const firstLivingIndex = this.gameMaster.persistentParty.findIndex(char => !char.isDead);
+                        this.characterPanel.selectedCharIndex = firstLivingIndex >= 0 ? firstLivingIndex : 0;
+                    }
+                } else {
+                    this.characterPanel.selectedCharIndex = -1;
+                }
                 return;
             }
         }
     }
 
     handleItemUse(itemData, target) {
-    const item = itemData.item;
-    
-    // Check if we have the item
-    if (itemData.quantity <= 0) {
-        console.log("No items remaining!");
+        const item = itemData.item;
+        
+        // Check if we have the item
+        if (itemData.quantity <= 0) {
+            console.log("No items remaining!");
+            return false;
+        }
+
+        let success = false;
+        if (Array.isArray(target)) {
+            // Handle all-target items
+            target.forEach((char) => {
+                if (item.effect) {
+                    success = item.effect(char);
+                    console.log(`Using ${item.name} on ${char.name}`);
+                }
+            });
+        } else {
+            // Handle single-target items
+            if (item.effect) {
+                success = item.effect(target);
+                console.log(`Using ${item.name} on ${target.name}`);
+            }
+        }
+
+        // If the item was used successfully, decrease the quantity
+        if (success) {
+            itemData.quantity--;
+            // Remove the item if quantity reaches 0
+            if (itemData.quantity <= 0) {
+                const inventory = this.gameMaster.partyInventory;
+                inventory.removeItem(item.id);
+            }
+            return true;
+        }
+
         return false;
     }
-
-    let success = false;
-    if (Array.isArray(target)) {
-        // Handle all-target items
-        target.forEach((char) => {
-            if (item.effect) {
-                success = item.effect(char);
-                console.log(`Using ${item.name} on ${char.name}`);
-            }
-        });
-    } else {
-        // Handle single-target items
-        if (item.effect) {
-            success = item.effect(target);
-            console.log(`Using ${item.name} on ${target.name}`);
-        }
-    }
-
-    // If the item was used successfully, decrease the quantity
-    if (success) {
-        itemData.quantity--;
-        // Remove the item if quantity reaches 0
-        if (itemData.quantity <= 0) {
-            const inventory = this.gameMaster.partyInventory;
-            inventory.removeItem(item.id);
-        }
-        return true;
-    }
-
-    return false;
-}
 
     draw() {
         const m = this.layout;
@@ -282,8 +354,22 @@ class ItemMenu extends BaseSubmenu {
             const inventory = this.gameMaster.partyInventory;
             const items = inventory.getAvailableItems();
             const selectedItem = items[this.selectedIndex];
+            
+            // Add special message for targeting based on item type
             if (selectedItem) {
+                // Draw description
                 this.drawDescriptionPanel(selectedItem.item.description);
+                
+                // Add special targeting message
+                this.ctx.font = "18px monospace";
+                this.ctx.fillStyle = "#ff4444";
+                
+                if (selectedItem.item.name === "Phoenix") {
+                    this.ctx.fillStyle = "#ffcc00"; // Gold color for Phoenix
+                    this.ctx.fillText("(Can only target dead characters)", m.x + m.width / 2, m.y + 130);
+                } else {
+                    this.ctx.fillText("(Can only target living characters)", m.x + m.width / 2, m.y + 130);
+                }
             }
             return;
         }
@@ -299,10 +385,13 @@ class ItemMenu extends BaseSubmenu {
 
             this.ctx.save();
 
+            // Special highlighting for Phoenix items (gold glow)
+            const isPhoenixItem = itemData.item.name === "Phoenix";
+
             // Selection highlight with glow and gradient
             if (actualIndex === this.selectedIndex) {
                 // Add glow effect
-                this.ctx.shadowColor = colors.glowColor;
+                this.ctx.shadowColor = isPhoenixItem ? "#ffcc00" : colors.glowColor;
                 this.ctx.shadowBlur = colors.glowBlur;
 
                 // Background for selected item with gradient
@@ -311,8 +400,8 @@ class ItemMenu extends BaseSubmenu {
                     y - 2,
                     this.layout.width - this.layout.itemPadding * 2,
                     this.layout.itemHeight,
-                    colors.selectedBackground.start,
-                    colors.selectedBackground.end
+                    isPhoenixItem ? "rgba(255, 204, 0, 0.3)" : colors.selectedBackground.start,
+                    isPhoenixItem ? "rgba(255, 204, 0, 0.5)" : colors.selectedBackground.end
                 );
                 this.ctx.fillRect(
                     this.layout.x + this.layout.itemPadding,
@@ -323,7 +412,12 @@ class ItemMenu extends BaseSubmenu {
             }
 
             // Text color - normalText by default, selectedText when selected
-            this.ctx.fillStyle = actualIndex === this.selectedIndex ? colors.selectedText : colors.normalText;
+            if (isPhoenixItem) {
+                // Phoenix items get gold color
+                this.ctx.fillStyle = actualIndex === this.selectedIndex ? "#ffcc00" : "#ddaa00";
+            } else {
+                this.ctx.fillStyle = actualIndex === this.selectedIndex ? colors.selectedText : colors.normalText;
+            }
             this.ctx.font = "24px monospace";
 
             // Draw item emoji and name (left aligned)

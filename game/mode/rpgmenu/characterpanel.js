@@ -43,6 +43,8 @@ class CharacterPanel {
         this.selectedCharIndex = -1;
         this.selectionState = "none";
         this.targetMode = "single";
+        // NEW: Add a flag for phoenix targeting mode
+        this.isPhoenixTargeting = false;
 
         this.registerInteractiveElements();
     }
@@ -70,7 +72,19 @@ class CharacterPanel {
         // Handle mouse hover for character selection in all states that need it
         if (this.selectionState === "selecting_hero" || this.selectionState === "selecting_target") {
             // Check for mouse hover on any character panel
-            this.party.forEach((_, index) => {
+            this.party.forEach((char, index) => {
+                // Skip dead characters for normal targeting or caster selection
+                // but include them for Phoenix targeting
+                if ((char.isDead && !this.isPhoenixTargeting && this.selectionState === "selecting_target") || 
+                    (char.isDead && this.selectionState === "selecting_hero")) {
+                    return;
+                }
+                
+                // For Phoenix targeting, skip living characters
+                if (!char.isDead && this.isPhoenixTargeting && this.selectionState === "selecting_target") {
+                    return;
+                }
+                
                 if (this.input.isElementHovered(`character_panel_${index}`)) {
                     this.selectedCharIndex = index;
                 }
@@ -78,10 +92,87 @@ class CharacterPanel {
 
             // Handle keyboard navigation
             if (this.input.isKeyJustPressed("DirUp")) {
-                this.selectedCharIndex = Math.max(0, this.selectedCharIndex - 1);
+                if (this.selectionState === "selecting_hero") {
+                    // Find the previous living character for hero selection
+                    let newIndex = this.selectedCharIndex - 1;
+                    while (newIndex >= 0) {
+                        if (!this.party[newIndex].isDead) {
+                            break;
+                        }
+                        newIndex--;
+                    }
+                    if (newIndex >= 0) {
+                        this.selectedCharIndex = newIndex;
+                    }
+                } else if (this.selectionState === "selecting_target") {
+                    if (this.isPhoenixTargeting) {
+                        // Find the previous DEAD character for Phoenix
+                        let newIndex = this.selectedCharIndex - 1;
+                        while (newIndex >= 0) {
+                            if (this.party[newIndex].isDead) {
+                                break;
+                            }
+                            newIndex--;
+                        }
+                        if (newIndex >= 0) {
+                            this.selectedCharIndex = newIndex;
+                        }
+                    } else {
+                        // Find the previous LIVING character for normal items
+                        let newIndex = this.selectedCharIndex - 1;
+                        while (newIndex >= 0) {
+                            if (!this.party[newIndex].isDead) {
+                                break;
+                            }
+                            newIndex--;
+                        }
+                        if (newIndex >= 0) {
+                            this.selectedCharIndex = newIndex;
+                        }
+                    }
+                }
             }
+            
             if (this.input.isKeyJustPressed("DirDown")) {
-                this.selectedCharIndex = Math.min(this.party.length - 1, this.selectedCharIndex + 1);
+                if (this.selectionState === "selecting_hero") {
+                    // Find the next living character for hero selection
+                    let newIndex = this.selectedCharIndex + 1;
+                    while (newIndex < this.party.length) {
+                        if (!this.party[newIndex].isDead) {
+                            break;
+                        }
+                        newIndex++;
+                    }
+                    if (newIndex < this.party.length) {
+                        this.selectedCharIndex = newIndex;
+                    }
+                } else if (this.selectionState === "selecting_target") {
+                    if (this.isPhoenixTargeting) {
+                        // Find the next DEAD character for Phoenix
+                        let newIndex = this.selectedCharIndex + 1;
+                        while (newIndex < this.party.length) {
+                            if (this.party[newIndex].isDead) {
+                                break;
+                            }
+                            newIndex++;
+                        }
+                        if (newIndex < this.party.length) {
+                            this.selectedCharIndex = newIndex;
+                        }
+                    } else {
+                        // Find the next LIVING character for normal items
+                        let newIndex = this.selectedCharIndex + 1;
+                        while (newIndex < this.party.length) {
+                            if (!this.party[newIndex].isDead) {
+                                break;
+                            }
+                            newIndex++;
+                        }
+                        if (newIndex < this.party.length) {
+                            this.selectedCharIndex = newIndex;
+                        }
+                    }
+                }
             }
         }
     }
@@ -107,25 +198,49 @@ class CharacterPanel {
 
             this.ctx.save();
 
-            // Add glow effect to the entire panel when selected
+            // Determine if this character is selectable based on targeting mode
+            let isSelectable = true;
+            if (this.selectionState === "selecting_hero") {
+                // Only living characters can cast
+                isSelectable = !char.isDead;
+            } else if (this.selectionState === "selecting_target") {
+                // For phoenix, only dead characters are valid targets
+                // For other items/spells, only living characters are valid
+                isSelectable = this.isPhoenixTargeting ? char.isDead : !char.isDead;
+            }
+
+            // Add glow effect to the entire panel when selected and selectable
             if (
-                (index === this.selectedCharIndex &&
+                (index === this.selectedCharIndex && isSelectable &&
                     (this.selectionState === "selecting_target" || this.selectionState === "selecting_hero")) ||
-                (this.targetMode === "all" && this.selectionState === "selecting_target")
+                (this.targetMode === "all" && this.selectionState === "selecting_target" && isSelectable)
             ) {
                 this.ctx.shadowColor = colors.glowColor;
                 this.ctx.shadowBlur = colors.glowBlur;
             }
 
-            // Panel background with gradient
-            this.ctx.fillStyle = this.createGradient(
-                x,
-                y,
-                p.width,
-                p.height,
-                colors.menuBackground.start,
-                colors.menuBackground.end
-            );
+            // Make dead character panels more visually distinct
+            if (char.isDead) {
+                // Use a darker background for dead characters
+                this.ctx.fillStyle = this.createGradient(
+                    x,
+                    y,
+                    p.width,
+                    p.height,
+                    "rgba(50, 50, 50, 0.8)",
+                    "rgba(30, 30, 30, 0.8)"
+                );
+            } else {
+                // Panel background with gradient for living characters
+                this.ctx.fillStyle = this.createGradient(
+                    x,
+                    y,
+                    p.width,
+                    p.height,
+                    colors.menuBackground.start,
+                    colors.menuBackground.end
+                );
+            }
             this.ctx.fillRect(x, y, p.width, p.height);
 
             this.ctx.restore();
@@ -136,10 +251,11 @@ class CharacterPanel {
             // Portrait border
             this.ctx.save();
 
+            // Add special highlighting for dead characters when Phoenix targeting is active
             if (
-                (index === this.selectedCharIndex &&
+                (index === this.selectedCharIndex && isSelectable &&
                     (this.selectionState === "selecting_target" || this.selectionState === "selecting_hero")) ||
-                (this.targetMode === "all" && this.selectionState === "selecting_target")
+                (this.targetMode === "all" && this.selectionState === "selecting_target" && isSelectable)
             ) {
                 this.ctx.shadowColor = colors.glowColor;
                 this.ctx.shadowBlur = colors.glowBlur;
@@ -161,6 +277,19 @@ class CharacterPanel {
             // Character sprite
             this.ctx.save();
             this.ctx.imageSmoothingEnabled = false;
+            
+            // Apply semi-transparency to dead character sprites
+            if (char.isDead) {
+                // Make dead characters for Phoenix targeting more visible
+                this.ctx.globalAlpha = (this.isPhoenixTargeting && index === this.selectedCharIndex) ? 0.9 : 0.6;
+                
+                // Add a gold aura for selected dead characters with Phoenix
+                if (this.isPhoenixTargeting && index === this.selectedCharIndex) {
+                    this.ctx.shadowColor = "#ffcc00";  // Golden glow for Phoenix targets
+                    this.ctx.shadowBlur = 15;
+                }
+            }
+            
             this.ctx.drawImage(
                 this.sprites[char.type],
                 0,
@@ -175,15 +304,49 @@ class CharacterPanel {
             this.ctx.imageSmoothingEnabled = true;
             this.ctx.restore();
 
+            // Add a clear "DEAD" indicator for dead characters
+            if (char.isDead) {
+                this.ctx.save();
+                
+                // Different styling if this is a valid Phoenix target
+                if (this.isPhoenixTargeting && (index === this.selectedCharIndex || this.targetMode === "all")) {
+                    // Gold styling for Phoenix targets
+                    this.ctx.strokeStyle = "#ffcc00";
+                    this.ctx.fillStyle = "#ffcc00";
+                    this.ctx.lineWidth = 3;
+                    this.ctx.font = "bold 24px monospace";
+                    this.ctx.textAlign = "center";
+                    this.ctx.fillText("REVIVE", portraitX + p.portrait.size/2, portraitY + p.portrait.size/2);
+                } else {
+                    // Regular red X for dead characters
+                    this.ctx.strokeStyle = "#ff4444";
+                    this.ctx.lineWidth = 4;
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(portraitX + 10, portraitY + 10);
+                    this.ctx.lineTo(portraitX + p.portrait.size - 10, portraitY + p.portrait.size - 10);
+                    this.ctx.moveTo(portraitX + p.portrait.size - 10, portraitY + 10);
+                    this.ctx.lineTo(portraitX + 10, portraitY + p.portrait.size - 10);
+                    this.ctx.stroke();
+                    
+                    // Add "DEAD" text 
+                    this.ctx.fillStyle = "#ff4444";
+                    this.ctx.font = "bold 24px monospace";
+                    this.ctx.textAlign = "center";
+                    this.ctx.fillText("DEAD", portraitX + p.portrait.size/2, portraitY + p.portrait.size/2);
+                }
+                
+                this.ctx.restore();
+            }
+
             // Stats section
             const statsX = portraitX + p.portrait.size + 25;
 
             // Name with color change and glow on selection
             this.ctx.save();
             if (
-                (index === this.selectedCharIndex &&
+                (index === this.selectedCharIndex && isSelectable &&
                     (this.selectionState === "selecting_target" || this.selectionState === "selecting_hero")) ||
-                (this.targetMode === "all" && this.selectionState === "selecting_target")
+                (this.targetMode === "all" && this.selectionState === "selecting_target" && isSelectable)
             ) {
                 this.ctx.shadowColor = colors.glowColor;
                 this.ctx.shadowBlur = colors.glowBlur;
@@ -191,22 +354,43 @@ class CharacterPanel {
             } else {
                 this.ctx.shadowColor = "transparent";
                 this.ctx.shadowBlur = 0;
-                this.ctx.fillStyle = colors.normalText;
+                this.ctx.fillStyle = char.isDead ? "#888888" : colors.normalText; // Grayed out for dead
+            }
+
+            // For Phoenix targeting, make dead character names gold if selected
+            if (this.isPhoenixTargeting && char.isDead && 
+                (index === this.selectedCharIndex || this.targetMode === "all")) {
+                this.ctx.fillStyle = "#ffcc00";
             }
 
             this.ctx.font = `${p.stats.fontSize}px monospace`;
             this.ctx.textAlign = "left";
-            this.ctx.fillText(`${char.name}`, statsX, y + p.stats.nameY);
+            this.ctx.fillText(`${char.name}${char.isDead ? " [DEAD]" : ""}`, statsX, y + p.stats.nameY);
             this.ctx.restore();
 
             // Level
-            this.ctx.fillStyle = colors.normalText;
+            this.ctx.fillStyle = char.isDead ? "#888888" : colors.normalText;
+            // Gold color for Phoenix targets
+            if (this.isPhoenixTargeting && char.isDead && 
+                (index === this.selectedCharIndex || this.targetMode === "all")) {
+                this.ctx.fillStyle = "#ffcc00";
+            }
             this.ctx.textAlign = "right";
             this.ctx.fillText(`Level ${char.level}`, x + p.width - 20, y + p.stats.nameY);
 
             // HP and MP Bars
-            this.drawStatBar(statsX, y + p.stats.firstBarY, char.hp, char.maxHp, "#00ff00", "HP", p.stats.width);
-            this.drawStatBar(statsX, y + p.stats.secondBarY, char.mp, char.maxMp, "#0000ff", "MP", p.stats.width);
+            let hpColor = char.isDead ? "#888888" : "#00ff00";
+            let mpColor = char.isDead ? "#888888" : "#0000ff";
+            
+            // Gold colors for Phoenix targets
+            if (this.isPhoenixTargeting && char.isDead && 
+                (index === this.selectedCharIndex || this.targetMode === "all")) {
+                hpColor = "#ffcc00";
+                mpColor = "#ffcc00";
+            }
+            
+            this.drawStatBar(statsX, y + p.stats.firstBarY, char.hp, char.maxHp, hpColor, "HP", p.stats.width);
+            this.drawStatBar(statsX, y + p.stats.secondBarY, char.mp, char.maxMp, mpColor, "MP", p.stats.width);
         });
     }
 
@@ -254,5 +438,6 @@ class CharacterPanel {
         this.selectedCharIndex = -1;
         this.selectionState = "none";
         this.targetMode = "single";
+        this.isPhoenixTargeting = false;
     }
 }

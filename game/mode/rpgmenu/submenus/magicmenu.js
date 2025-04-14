@@ -17,8 +17,14 @@ class MagicMenu extends BaseSubmenu {
             height: l.backButton.height
         }));
 
+        // NEW FIX: Initialize with the first living character instead of just character 0
         this.characterPanel.selectionState = "selecting_hero";
-        this.characterPanel.selectedCharIndex = 0;
+        
+        // Find first living character in the party
+        const firstLivingIndex = this.gameMaster.persistentParty.findIndex(char => !char.isDead);
+        
+        // If all characters are dead, default to 0, otherwise use the first living character
+        this.characterPanel.selectedCharIndex = firstLivingIndex >= 0 ? firstLivingIndex : 0;
     }
 
     registerSpellElements() {
@@ -70,7 +76,10 @@ class MagicMenu extends BaseSubmenu {
             const party = this.gameMaster.persistentParty;
 
             // Handle hovering for hero selection
-            party.forEach((_, index) => {
+            party.forEach((char, index) => {
+                // Skip dead characters when hovering
+                if (char.isDead) return;
+                
                 if (this.input.isElementHovered(`character_panel_${index}`)) {
                     this.characterPanel.selectedCharIndex = index;
                 }
@@ -78,6 +87,9 @@ class MagicMenu extends BaseSubmenu {
 
             // Handle hero selection clicks
             for (let index = 0; index < party.length; index++) {
+                // Skip interaction with dead characters
+                if (party[index].isDead) continue;
+                
                 if (this.input.isElementJustPressed(`character_panel_${index}`)) {
                     this.characterPanel.selectionState = "selected_hero";
                     this.casterIndex = index;
@@ -88,9 +100,16 @@ class MagicMenu extends BaseSubmenu {
 
             // Keyboard selection
             if (this.input.isKeyJustPressed("Action1")) {
-                this.characterPanel.selectionState = "selected_hero";
-                this.casterIndex = this.characterPanel.selectedCharIndex;
-                this.registerSpellElements();
+                // Don't allow selecting dead characters
+                const selectedChar = party[this.characterPanel.selectedCharIndex];
+                if (selectedChar && !selectedChar.isDead) {
+                    this.characterPanel.selectionState = "selected_hero";
+                    this.casterIndex = this.characterPanel.selectedCharIndex;
+                    this.registerSpellElements();
+                } else {
+                    // Display an error message or feedback
+                    console.log("Cannot select a dead character");
+                }
                 return;
             }
 
@@ -109,7 +128,10 @@ class MagicMenu extends BaseSubmenu {
 
             if (this.characterPanel.targetMode === "single") {
                 // Handle hovering for targeting
-                party.forEach((_, index) => {
+                party.forEach((char, index) => {
+                    // Only include living characters for targeting
+                    if (char.isDead) return;
+                    
                     if (this.input.isElementHovered(`character_panel_${index}`)) {
                         this.characterPanel.selectedCharIndex = index;
                     }
@@ -117,6 +139,9 @@ class MagicMenu extends BaseSubmenu {
 
                 // Handle target selection clicks
                 for (let index = 0; index < party.length; index++) {
+                    // Skip dead targets
+                    if (party[index].isDead) continue;
+                    
                     if (this.input.isElementJustPressed(`character_panel_${index}`)) {
                         this.handleSpellUse(selectedChar, selectedChar.spells[this.selectedIndex], party[index]);
                         this.characterPanel.selectionState = "selected_hero";
@@ -127,21 +152,27 @@ class MagicMenu extends BaseSubmenu {
                 }
 
                 if (this.input.isKeyJustPressed("Action1")) {
-                    this.handleSpellUse(
-                        selectedChar,
-                        selectedChar.spells[this.selectedIndex],
-                        party[this.characterPanel.selectedCharIndex]
-                    );
-                    this.characterPanel.selectionState = "selected_hero";
+                    // Check if target is alive
+                    const targetChar = party[this.characterPanel.selectedCharIndex];
+                    if (targetChar && !targetChar.isDead) {
+                        this.handleSpellUse(
+                            selectedChar,
+                            selectedChar.spells[this.selectedIndex],
+                            targetChar
+                        );
+                        this.characterPanel.selectionState = "selected_hero";
+                    }
                     return;
                 }
             } else {
                 // All target handling
                 if (
-                    party.some((_, index) => this.input.isElementJustPressed(`character_panel_${index}`)) ||
+                    party.some((char, index) => !char.isDead && this.input.isElementJustPressed(`character_panel_${index}`)) ||
                     this.input.isKeyJustPressed("Action1")
                 ) {
-                    this.handleSpellUse(selectedChar, selectedChar.spells[this.selectedIndex], party);
+                    // Filter out dead party members for mass-targeting spells
+                    const livingPartyMembers = party.filter(char => !char.isDead);
+                    this.handleSpellUse(selectedChar, selectedChar.spells[this.selectedIndex], livingPartyMembers);
                     this.characterPanel.selectionState = "selected_hero";
                     this.characterPanel.selectedCharIndex = this.casterIndex;
                     return;
@@ -201,7 +232,15 @@ class MagicMenu extends BaseSubmenu {
                     const selectedSpell = SPELLS[spells[this.selectedIndex]];
                     this.characterPanel.selectionState = "selecting_target";
                     this.characterPanel.targetMode = selectedSpell.targetType.startsWith("all_") ? "all" : "single";
-                    this.characterPanel.selectedCharIndex = this.characterPanel.targetMode === "single" ? 0 : -1;
+                    
+                    // Initialize with first living character when selecting targets
+                    if (this.characterPanel.targetMode === "single") {
+                        // Find first living character to target
+                        const firstLivingIndex = this.gameMaster.persistentParty.findIndex(char => !char.isDead);
+                        this.characterPanel.selectedCharIndex = firstLivingIndex >= 0 ? firstLivingIndex : 0;
+                    } else {
+                        this.characterPanel.selectedCharIndex = -1;
+                    }
                     return;
                 }
             }
@@ -238,7 +277,15 @@ class MagicMenu extends BaseSubmenu {
                 const selectedSpell = SPELLS[spells[this.selectedIndex]];
                 this.characterPanel.selectionState = "selecting_target";
                 this.characterPanel.targetMode = selectedSpell.targetType.startsWith("all_") ? "all" : "single";
-                this.characterPanel.selectedCharIndex = this.characterPanel.targetMode === "single" ? 0 : -1;
+                
+                // Initialize with first living character
+                if (this.characterPanel.targetMode === "single") {
+                    // Find first living character to target
+                    const firstLivingIndex = this.gameMaster.persistentParty.findIndex(char => !char.isDead);
+                    this.characterPanel.selectedCharIndex = firstLivingIndex >= 0 ? firstLivingIndex : 0;
+                } else {
+                    this.characterPanel.selectedCharIndex = -1;
+                }
                 return;
             }
 
@@ -297,6 +344,11 @@ class MagicMenu extends BaseSubmenu {
             this.ctx.font = "24px monospace";
             this.ctx.textAlign = "center";
             this.ctx.fillText("Select Caster", m.x + m.width / 2, m.y + 100);
+            
+            // Add indication that dead characters can't be used
+            this.ctx.font = "18px monospace";
+            this.ctx.fillStyle = "#ff4444";
+            this.ctx.fillText("(Dead characters cannot cast magic)", m.x + m.width / 2, m.y + 130);
             return;
         }
 
@@ -305,6 +357,11 @@ class MagicMenu extends BaseSubmenu {
             this.ctx.font = "24px monospace";
             this.ctx.textAlign = "center";
             this.ctx.fillText("Select Target", m.x + m.width / 2, m.y + 100);
+            
+            // Add indication about targeting living characters
+            this.ctx.font = "18px monospace";
+            this.ctx.fillStyle = "#ff4444";
+            this.ctx.fillText("(Only living characters can be targeted)", m.x + m.width / 2, m.y + 130);
 
             // Add description panel for the selected spell
             const selectedChar = this.gameMaster.persistentParty[this.casterIndex];
