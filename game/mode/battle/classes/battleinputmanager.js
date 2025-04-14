@@ -31,39 +31,19 @@ class BattleInputManager {
                 }
                 this.battle.lastCancelBounds = isInBounds;
             }
-        }
-
-        // Add this for cancel button handling
-        if (this.battle.showCancelButton) {
-            const isHovered = this.input.isPointInBounds(mousePos.x, mousePos.y, {
-                x: 2,
-                y: this.battle.HEIGHT - 185,
-                width: 200,
-                height: 30
-            });
-
-            // Update hover state
-            if (isHovered !== this.lastBounds.cancel) {
-                this.battle.hoveredCancel = isHovered;
-                this.lastBounds.cancel = isHovered;
-            }
 
             // Handle cancel click
             if (this.input.isElementJustPressed("cancel_button")) {
-                this.battle.endTargeting();
+                if (this.battle.targetingManager.targetingMode) {
+                    this.battle.targetingManager.endTargeting();
+                }
                 this.battle.currentMenu = "main";
                 this.battle.audio.play("menu_cancel");
             }
         }
 
-        /*
-        // Clear hover states only if touch ended
-        if (!isTouching && justTouched === false) {
-            this.clearHoverStates();
-        }
-		*/
-
-        if (this.battle.targetingMode) {
+        // Direct access to targeting manager
+        if (this.battle.targetingManager.targetingMode) {
             this.handleTargeting(mousePos, isTouching);
             return;
         }
@@ -132,7 +112,7 @@ class BattleInputManager {
         switch (command) {
             case "fight":
                 this.battle.selectedAction = "fight";
-                this.battle.startTargeting(TARGET_TYPES.SINGLE_ENEMY);
+                this.battle.targetingManager.startTargeting(TARGET_TYPES.SINGLE_ENEMY);
                 this.battle.audio.play("menu_select");
                 break;
             case "magic":
@@ -141,7 +121,7 @@ class BattleInputManager {
                     this.battle.subMenuPosition = 0;
                     this.battle.audio.play("menu_select");
                 } else {
-                    this.showBattleMessage("No spells known!");
+                    this.battle.showBattleMessage("No spells known!");
                 }
                 break;
             case "item":
@@ -152,7 +132,7 @@ class BattleInputManager {
                     this.battle.selectedAction = "item";
                     this.battle.audio.play("menu_select");
                 } else {
-                    this.showBattleMessage("No items available!");
+                    this.battle.showBattleMessage("No items available!");
                 }
                 break;
             case "run":
@@ -218,26 +198,30 @@ class BattleInputManager {
     }
 
     handleTargetGroupSelection() {
+        const targetingManager = this.battle.targetingManager;
+        
         if (this.input.isKeyJustPressed("DirLeft") || this.input.isKeyJustPressed("DirRight")) {
-            this.battle.currentTargetGroup = this.battle.currentTargetGroup === "enemies" ? "allies" : "enemies";
-            this.battle.updateTargetList();
+            targetingManager.switchTargetGroup();
             this.battle.audio.play("menu_move");
         }
-        if (!this.battle.isGroupTarget) {
+        
+        if (!targetingManager.isGroupTarget) {
             // Only allow individual target selection if not group targeting
             const pressedUp = this.input.isKeyJustPressed("DirUp");
             const pressedDown = this.input.isKeyJustPressed("DirDown");
 
             if (pressedUp || pressedDown) {
                 const dir = pressedUp ? -1 : 1;
-                this.battle.targetIndex =
-                    (this.battle.targetIndex + dir + this.battle.targetList.length) % this.battle.targetList.length;
+                const newIndex = (targetingManager.targetIndex + dir + targetingManager.targetList.length) % targetingManager.targetList.length;
+                targetingManager.setTargetIndex(newIndex);
                 this.battle.audio.play("menu_move");
             }
         }
     }
 
     handleTargetHovers(mousePos, isTouching) {
+        const targetingManager = this.battle.targetingManager;
+        
         // Determine if we're using Phoenix (special case for targeting dead characters)
         const isUsingPhoenix = this.battle.pendingItem && this.battle.pendingItem.name === "Phoenix";
         
@@ -252,7 +236,7 @@ class BattleInputManager {
                 if (target.isDead) return;
             }
             
-            this.battle.currentTargetGroup = group;
+            targetingManager.currentTargetGroup = group;
             
             // Get all targets in the current group based on Phoenix targeting
             let targetList;
@@ -273,9 +257,11 @@ class BattleInputManager {
             if (targetIndex === -1) return; // Shouldn't happen, but just in case
             
             // Update the target selection state
-            this.battle.targetIndex = targetIndex;
-            this.battle.targetList = this.battle.isGroupTarget ? [targetList] : targetList;
-            this.battle.hoveredTarget = target;
+            targetingManager.setTargetIndex(targetIndex);
+            targetingManager.hoveredTarget = target;
+            
+            // Update the target list in case the group changed
+            targetingManager.updateTargetList();
         };
 
         // Check all enemies (not just filtered ones)
@@ -310,8 +296,8 @@ class BattleInputManager {
                             this.battle.audio.play("menu_move");
                         }
                     }
-                } else if (this.battle.hoveredTarget === enemy && !isTouching) {
-                    this.battle.hoveredTarget = null;
+                } else if (targetingManager.hoveredTarget === enemy && !isTouching) {
+                    targetingManager.hoveredTarget = null;
                 }
                 enemy.lastInBounds = isInBounds;
             }
@@ -349,39 +335,17 @@ class BattleInputManager {
                             this.battle.audio.play("menu_move");
                         }
                     }
-                } else if (this.battle.hoveredTarget === ally && !isTouching) {
-                    this.battle.hoveredTarget = null;
+                } else if (targetingManager.hoveredTarget === ally && !isTouching) {
+                    targetingManager.hoveredTarget = null;
                 }
                 ally.lastInBounds = isInBounds;
             }
         });
     }
 
-    updateTargetHover(target, index) {
-        this.battle.currentTargetGroup = target.type === "enemy" ? "enemies" : "allies";
-        this.battle.targetIndex = index;
-        
-        // Check if we're using a Phoenix (special case for targeting dead characters)
-        const isUsingPhoenix = this.battle.pendingItem && this.battle.pendingItem.name === "Phoenix";
-        
-        let filteredTargets;
-        if (isUsingPhoenix) {
-            // For Phoenix, get dead targets
-            filteredTargets = this.battle.currentTargetGroup === "enemies"
-                ? this.battle.enemies.filter((e) => e.isDead)
-                : this.battle.party.filter((c) => c && c.isDead);
-        } else {
-            // For normal actions, get living targets
-            filteredTargets = this.battle.currentTargetGroup === "enemies"
-                ? this.battle.enemies.filter((e) => !e.isDead)
-                : this.battle.party.filter((c) => c && !c.isDead);
-        }
-        
-        this.battle.targetList = this.battle.isGroupTarget ? [filteredTargets] : filteredTargets;
-        this.battle.hoveredTarget = target;
-    }
-
     handleTargetSelection() {
+        const targetingManager = this.battle.targetingManager;
+        
         // Check if we're using a Phoenix (special case)
         const isUsingPhoenix = this.battle.pendingItem && this.battle.pendingItem.name === "Phoenix";
         
@@ -397,14 +361,14 @@ class BattleInputManager {
             }
             
             if (this.input.isElementJustPressed(`enemy_${index}`)) {
-                if (this.battle.isGroupTarget && this.battle.currentTargetGroup === "enemies") {
+                if (targetingManager.isGroupTarget && targetingManager.currentTargetGroup === "enemies") {
                     // Get appropriate targets based on Phoenix use
                     const targets = isUsingPhoenix 
                         ? this.battle.enemies.filter((e) => e.isDead)
                         : this.battle.enemies.filter((e) => !e.isDead);
-                    this.battle.executeTargetedAction(targets);
+                    targetingManager.executeTargetedAction(targets);
                 } else {
-                    this.battle.executeTargetedAction(enemy);
+                    targetingManager.executeTargetedAction(enemy);
                 }
             }
         });
@@ -424,28 +388,28 @@ class BattleInputManager {
             }
             
             if (this.input.isElementJustPressed(`char_${index}`)) {
-                if (this.battle.isGroupTarget && this.battle.currentTargetGroup === "allies") {
+                if (targetingManager.isGroupTarget && targetingManager.currentTargetGroup === "allies") {
                     // Get appropriate targets based on Phoenix use
                     const targets = isUsingPhoenix
                         ? this.battle.party.filter((c) => c && c.isDead)
                         : this.battle.party.filter((c) => c && !c.isDead);
-                    this.battle.executeTargetedAction(targets);
+                    targetingManager.executeTargetedAction(targets);
                 } else {
-                    this.battle.executeTargetedAction(ally);
+                    targetingManager.executeTargetedAction(ally);
                 }
             }
         });
 
         // Keep existing keyboard handling
         if (this.input.isKeyJustPressed("Action1")) {
-            const target = this.battle.targetList[this.battle.targetIndex];
+            const target = targetingManager.getCurrentTarget();
             if (target) {
                 // For Phoenix, we want to check if the target is dead
                 // For normal actions, we want to check if the target is alive
                 const isValidTarget = isUsingPhoenix ? target.isDead : !target.isDead;
                 
                 if (isValidTarget) {
-                    this.battle.executeTargetedAction(target);
+                    targetingManager.executeTargetedAction(target);
                 }
             }
         }
@@ -453,7 +417,7 @@ class BattleInputManager {
 
     handleTargetingCancel() {
         if (this.input.isKeyJustPressed("Action2")) {
-            this.battle.endTargeting();
+            this.battle.targetingManager.endTargeting();
             this.battle.currentMenu = "main";
             this.battle.audio.play("menu_cancel");
         }
@@ -461,7 +425,7 @@ class BattleInputManager {
 
     clearHoverStates() {
         this.battle.hoveredMenuOption = null;
-        this.battle.hoveredTarget = null;
+        this.battle.targetingManager.hoveredTarget = null;
         this.battle.hoveredSpell = null;
         this.battle.hoveredCancel = false;
     }
@@ -534,7 +498,7 @@ class BattleInputManager {
 
     handleItemSelection(itemData) {
         this.battle.pendingItem = itemData.item;
-        this.battle.startTargeting(itemData.item.targetType);
+        this.battle.targetingManager.startTargeting(itemData.item.targetType);
         this.battle.audio.play("menu_select");
     }
 

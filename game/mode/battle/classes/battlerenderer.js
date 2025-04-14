@@ -15,7 +15,8 @@ class BattleRenderer {
         this.renderActiveCharacterIndicator(ctx);
 
         // Draw targeting cursor if in targeting mode
-        if (this.battle.targetingMode && this.battle.targetList.length > 0) {
+        const targetingManager = this.battle.targetingManager;
+        if (targetingManager.targetingMode && targetingManager.targetList.length > 0) {
             this.renderTargetingCursor(ctx);
         }
 
@@ -41,8 +42,9 @@ class BattleRenderer {
     }
 
     renderTargetingEffects(ctx) {
-        if (this.battle.hoveredTarget) {
-            const target = this.battle.hoveredTarget;
+        const targetingManager = this.battle.targetingManager;
+        if (targetingManager.hoveredTarget) {
+            const target = targetingManager.hoveredTarget;
             const isDeadTarget = target.isDead;
 
             // Animated target highlight
@@ -169,12 +171,14 @@ class BattleRenderer {
     }
 
     renderTargetingCursor(ctx) {
+        const targetingManager = this.battle.targetingManager;
+        
         // Check if using a Phoenix item
         const isUsingPhoenix = this.battle.pendingItem && this.battle.pendingItem.name === "Phoenix";
         
-        if (this.battle.isGroupTarget) {
+        if (targetingManager.isGroupTarget) {
             // Draw targeting cursor over entire group
-            const targets = this.battle.targetList[0]; // Get the group array
+            const targets = targetingManager.targetList[0]; // Get the group array
             const bounce = Math.sin(Date.now() / 100) * 5;
 
             // Draw an arrow over each target
@@ -206,7 +210,7 @@ class BattleRenderer {
             ctx.strokeRect(minX - 10 + bounce / 2, minY - 10 + bounce / 2, maxX - minX + 20, maxY - minY + 20);
         } else {
             // Single target cursor
-            const target = this.battle.targetList[this.battle.targetIndex];
+            const target = targetingManager.getCurrentTarget();
             if (target) {
                 const bounce = Math.sin(Date.now() / 100) * 5;
 
@@ -782,7 +786,7 @@ class BattleRenderer {
         else if (this.battle.state === "victory" || this.battle.state === "gameover") {
             // Background fade
             ctx.fillStyle = `rgba(0,0,0,${0.7})`;
-            ctx.fillRect(0, 0, Game.WIDTH, Game.HEIGHT - 150); // Only darken the battle area
+            ctx.fillRect(0, 0, Game.WIDTH, Game.HEIGHT - 150); // Only darken the battle area (600-150 = 450)
 
             // Add time-based effect
             const time = Date.now() / 1000;

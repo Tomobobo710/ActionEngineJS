@@ -26,6 +26,8 @@ class BattleMode {
 
         this.partyInventory = this.gameMaster.partyInventory;
 
+        this.createSoundEffects();
+        
         // Start initial battle
         this.startNewBattle();
         // Register UI elements
@@ -33,7 +35,87 @@ class BattleMode {
 
         this.colors = gameMaster.persistentParty.colors; // prob want to move this out one day
     }
+    createSoundEffects() {
+        // Menus and UI
+        this.audio.createComplexSound("menu_move", {
+            frequencies: [880, 1100],
+            types: ["square", "sine"],
+            mix: [0.7, 0.3],
+            duration: 0.05,
+            envelope: {
+                attack: 0.01,
+                decay: 0.02,
+                sustain: 0.3,
+                release: 0.02
+            }
+        });
 
+        this.audio.createComplexSound("menu_select", {
+            frequencies: [440, 880, 1320],
+            types: ["square", "sine", "triangle"],
+            mix: [0.4, 0.3, 0.3],
+            duration: 0.1,
+            envelope: {
+                attack: 0.01,
+                decay: 0.05,
+                sustain: 0.5,
+                release: 0.04
+            }
+        });
+
+        // Battle actions
+        this.audio.createComplexSound("sword_hit", {
+            frequencies: [220, 440, 880],
+            types: ["square", "square", "triangle"],
+            mix: [0.5, 0.3, 0.2],
+            duration: 0.2,
+            envelope: {
+                attack: 0.01,
+                decay: 0.1,
+                sustain: 0.4,
+                release: 0.09
+            }
+        });
+
+        this.audio.createComplexSound("magic_cast", {
+            frequencies: [440, 587, 880, 1174],
+            types: ["sine", "triangle", "sine", "triangle"],
+            mix: [0.3, 0.3, 0.2, 0.2],
+            duration: 0.5,
+            envelope: {
+                attack: 0.1,
+                decay: 0.2,
+                sustain: 0.4,
+                release: 0.2
+            }
+        });
+
+        this.audio.createSweepSound("heal", {
+            startFreq: 440,
+            endFreq: 880,
+            type: "sine",
+            duration: 0.3,
+            envelope: {
+                attack: 0.05,
+                decay: 0.1,
+                sustain: 0.6,
+                release: 0.15
+            }
+        });
+
+        this.audio.createComplexSound("victory", {
+            frequencies: [440, 550, 660, 880],
+            types: ["triangle", "sine", "triangle", "sine"],
+            mix: [0.3, 0.3, 0.2, 0.2],
+            duration: 1.0,
+            envelope: {
+                attack: 0.05,
+                decay: 0.2,
+                sustain: 0.5,
+                release: 0.25
+            }
+        });
+    }
     loadSprites() {
         // Load hero sprites
         ["warrior", "mage", "thief"].forEach((type) => {
