@@ -47,6 +47,13 @@ class AttackAnimation {
     }
 
     render(ctx) {
+        // Check if target is defined before using it
+        if (!this.target || !this.target.pos) {
+            console.warn("Warning: Attack animation target is undefined or missing position data");
+            this.finished = true; // Mark animation as finished to remove it
+            return;
+        }
+
         // Impact effect (when hit connects)
         if (this.frame >= 15 && this.frame < 30) {
             ctx.save();
