@@ -70,6 +70,8 @@ if (savedState && savedState.position) {
             
         }
         
+        // Status effect timer for world mode
+        this.statusEffectTimer = 0;
     }
 
     initializeMode() {
@@ -164,7 +166,6 @@ if (savedState && savedState.position) {
         this.lastTime = performance.now();
         this.physicsWorld.resume();
     }
-
     update() {
         const currentTime = performance.now();
         this.deltaTime = Math.min((currentTime - this.lastTime) / 1000, 0.25);
@@ -173,6 +174,9 @@ if (savedState && savedState.position) {
         if (!this.isPaused) {
             // Update world time
             this.updateWorldTime(this.deltaTime);
+            
+            // Update status effects for all party members in world mode
+            this.updatePartyStatusEffects(this.deltaTime);
             
             if (!this.use2DRenderer) {
                 this.shaderManager.updateCharacterBuffers(this.character);
@@ -199,6 +203,22 @@ if (savedState && savedState.position) {
                 return;
             }
         }
+    }
+    
+    // Update status effects for all party members in world mode
+    updatePartyStatusEffects(deltaTime) {
+        if (!this.gameModeManager || !this.gameModeManager.gameMaster) return;
+        
+        const party = this.gameModeManager.gameMaster.persistentParty;
+        if (!party) return;
+        
+        // Update status effects for each party member
+        party.forEach(character => {
+            if (character) {
+                // Pass the world mode instance as context for damage number display
+                character.updateStatus({ deltaTime, context: this });
+            }
+        });
     }
 
     updateWorldTime(deltaTime) {
@@ -311,20 +331,93 @@ if (savedState && savedState.position) {
         } else {
             this.debugPanel.clear();
         }
-    if (this.guiCtx) {
-    this.guiCtx.save(); // Save whatever state we inherited
     
-    // Set ALL the text settings we actually need, don't assume anything
-    this.guiCtx.font = '20px Arial';
-    this.guiCtx.fillStyle = 'white';
-    this.guiCtx.textAlign = 'left';
-    this.guiCtx.textBaseline = 'top';
+        // Draw time, status effects, and floating damage numbers on UI
+        if (this.guiCtx) {
+            this.drawWorldUI();
+        }
+    }
     
-    // Draw our time
-    this.guiCtx.fillText(this.getTimeString(), 10, 30);
-    
-    this.guiCtx.restore(); // Put back whatever mess was there before
-}
+    // NEW: Draw time and status effects
+    drawWorldUI() {
+        this.guiCtx.save();
+        
+        // Set ALL the text settings we actually need, don't assume anything
+        this.guiCtx.font = '20px Arial';
+        this.guiCtx.fillStyle = 'white';
+        this.guiCtx.textAlign = 'left';
+        this.guiCtx.textBaseline = 'top';
+        
+        // Draw time in top left
+        this.guiCtx.fillText(this.getTimeString(), 10, 30);
+        
+        // Draw status effects for all party members if any are active
+        if (this.gameModeManager && this.gameModeManager.gameMaster) {
+            const party = this.gameModeManager.gameMaster.persistentParty;
+            if (party) {
+                let hasActiveStatus = false;
+                
+                // First check if any party member has active status effects
+                party.forEach(character => {
+                    if (!character) return;
+                    Object.values(character.status).forEach(duration => {
+                        if (duration > 0) hasActiveStatus = true;
+                    });
+                });
+                
+                // If at least one party member has a status effect, show the status panel
+                if (hasActiveStatus) {
+                    // Draw status effect panel
+                    this.guiCtx.fillStyle = 'rgba(0, 0, 50, 0.7)';
+                    this.guiCtx.fillRect(5, 60, 200, 30 * party.length);
+                    this.guiCtx.strokeStyle = '#ffffff';
+                    this.guiCtx.lineWidth = 1;
+                    this.guiCtx.strokeRect(5, 60, 200, 30 * party.length);
+                    
+                    // Draw each character's status
+                    let yOffset = 65;
+                    party.forEach(character => {
+                        if (!character) return;
+                        
+                        // Character name
+                        this.guiCtx.fillStyle = '#ffffff';
+                        this.guiCtx.font = '14px Arial';
+                        this.guiCtx.fillText(character.name + ':', 10, yOffset);
+                        
+                        // Status effect icons
+                        let xOffset = 80;
+                        Object.entries(character.status).forEach(([status, duration]) => {
+                            if (duration > 0) {
+                                // Use different colors for different status types
+                                let statusColor;
+                                switch (status) {
+                                    case "poison":
+                                        statusColor = "#9933ff"; // Purple for poison
+                                        break;
+                                    case "blind":
+                                        statusColor = "#888888"; // Gray for blind
+                                        break;
+                                    case "silence":
+                                        statusColor = "#33ccff"; // Light blue for silence
+                                        break;
+                                    default:
+                                        statusColor = "#ffff00"; // Yellow for default
+                                }
+                                
+                                // Draw status icon
+                                this.guiCtx.fillStyle = statusColor;
+                                this.guiCtx.fillText(`${status}:${duration}`, xOffset, yOffset);
+                                xOffset += 50; // Space between status icons
+                            }
+                        });
+                        
+                        yOffset += 25;
+                    });
+                }
+            }
+        }
+        
+        this.guiCtx.restore();
     }
 
     getTimeString() {
@@ -445,5 +538,102 @@ if (savedState && savedState.position) {
         this.canvases = null;
         this.input = null;
         this.audio = null;
+    }
+
+
+    // Add a method to show temporary damage numbers for world effects (like poison damage)
+    showDamageNumber(character, amount, type) {
+        // Only create damage numbers if we have gui context
+        if (!this.guiCtx) return;
+        
+        // Add a damage number at a random position near the player character
+        const x = 400 + (Math.random() * 40 - 20);
+        const y = 300 + (Math.random() * 40 - 20);
+        
+        // Track the damage number with its own animation
+        if (!this.damageNumbers) {
+            this.damageNumbers = [];
+        }
+        
+        this.damageNumbers.push({
+            x,
+            y,
+            amount,
+            type,
+            startTime: Date.now(),
+            duration: 2000,
+            character: character.name
+        });
+    }
+    
+    // Update damage numbers animation in world mode
+    updateDamageNumbers() {
+        if (!this.damageNumbers) return;
+        
+        // Remove expired damage numbers
+        this.damageNumbers = this.damageNumbers.filter(number => {
+            const elapsed = Date.now() - number.startTime;
+            return elapsed < number.duration;
+        });
+    }
+    
+    // Render damage numbers in world mode
+    renderDamageNumbers() {
+        if (!this.damageNumbers || !this.guiCtx) return;
+        
+        this.guiCtx.save();
+        
+        // Render active damage numbers
+        this.damageNumbers.forEach(number => {
+            const elapsed = Date.now() - number.startTime;
+            const progress = elapsed / number.duration;
+            
+            // Float upward and fade out
+            const offsetY = -50 * progress;
+            const alpha = 1 - progress;
+            
+            // Different colors for different types
+            let color;
+            switch (number.type) {
+                case "physical":
+                    color = "#ff3333"; // Red for physical damage
+                    break;
+                case "magical":
+                    color = "#ffff00"; // Yellow for magic damage
+                    break;
+                case "poison":
+                    color = "#9933ff"; // Purple for poison
+                    break;
+                case "heal":
+                    color = "#33ff33"; // Green for healing
+                    break;
+                case "blind":
+                    color = "#888888"; // Gray for blind
+                    break;
+                case "silence":
+                    color = "#33ccff"; // Light blue for silence
+                    break;
+                default:
+                    color = "#ffffff"; // White for unknown
+            }
+            
+            this.guiCtx.globalAlpha = alpha;
+            this.guiCtx.fillStyle = color;
+            this.guiCtx.strokeStyle = "#000000";
+            this.guiCtx.lineWidth = 2;
+            this.guiCtx.font = "bold 20px Arial";
+            this.guiCtx.textAlign = "center";
+            this.guiCtx.textBaseline = "middle";
+            
+            // Draw text with outline for better visibility
+            this.guiCtx.strokeText(number.amount, number.x, number.y + offsetY);
+            this.guiCtx.fillText(number.amount, number.x, number.y + offsetY);
+            
+            // Add character name below for context
+            this.guiCtx.font = "12px Arial";
+            this.guiCtx.fillText(number.character, number.x, number.y + offsetY + 20);
+        });
+        
+        this.guiCtx.restore();
     }
 }

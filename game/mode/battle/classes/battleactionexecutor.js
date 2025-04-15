@@ -11,25 +11,69 @@ class BattleActionExecutor {
         if (!attack || !attack.character || !attack.target) return;
 
         this.isProcessingAction = true;
+        
+        // Check for blindness - if blind, high chance to miss
+        if (attack.character.status.blind > 0) {
+            // 75% chance to miss when blind
+            const attackResult = attack.character.attack(attack.target);
+            
+            if (!attackResult.success && attackResult.reason === "blind") {
+                const message = `${attack.character.name} attacks but misses due to blindness!`;
+                this.battle.battleLog.addMessage(message, "miss");
+                this.battle.showBattleMessage(message);
+                this.battle.audio.play("menu_error"); // Use error sound for miss
+                
+                // Add MISS floating text
+                this.battle.damageNumbers.push({
+                    x: attack.target.pos.x,
+                    y: attack.target.pos.y,
+                    amount: "MISS!",
+                    type: "blind",
+                    startTime: Date.now(),
+                    duration: 1500
+                });
+                
+                this.isProcessingAction = false;
+                return;
+            }
+        }
+        
+        // If we're here, the attack should proceed with animation
         this.battle.animations.push(
             new AttackAnimation(attack.character, attack.target, this.battle.enemies.includes(attack.character))
         );
 
         // Store the pending effect to apply after animation completes
         this.pendingEffect = () => {
-            const damage = Math.floor(attack.character.stats.attack * 1.5);
-            const actualDamage = Math.min(attack.target.hp, damage);
+            const attackResult = attack.character.attack(attack.target);
+            
+            if (attackResult.success) {
+                // Start the HP animation
+                attack.target.animatingHP = true;
+                attack.target.targetHP = Math.max(0, attack.target.hp - attackResult.damage);
+                attack.target.hpAnimStartTime = Date.now();
 
-            // Start the HP animation
-            attack.target.animatingHP = true;
-            attack.target.targetHP = Math.max(0, attack.target.hp - actualDamage);
-            attack.target.hpAnimStartTime = Date.now();
-
-            const message = `${attack.character.name} attacks ${attack.target.name} for ${actualDamage} damage!`;
-            this.battle.battleLog.addMessage(message, "damage");
-            this.battle.showBattleMessage(message);
-
-            this.battle.audio.play("sword_hit");
+                // Add floating damage number
+                this.battle.damageNumbers.push({
+                    x: attack.target.pos.x,
+                    y: attack.target.pos.y,
+                    amount: attackResult.damage,
+                    type: "physical", // Red for physical damage
+                    startTime: Date.now(),
+                    duration: 1500
+                });
+                const message = `${attack.character.name} attacks ${attack.target.name} for ${attackResult.damage} damage! (Turn ${this.battle.turnCounter})`;
+                this.battle.battleLog.addMessage(message, "damage");
+                this.battle.showBattleMessage(message);
+                this.battle.audio.play("sword_hit");
+            } else {
+                // If attack failed for some reason
+                const message = `${attack.character.name}'s attack on ${attack.target.name} failed!`;
+                this.battle.battleLog.addMessage(message, "miss");
+                this.battle.showBattleMessage(message);
+                this.battle.audio.play("menu_error");
+            }
+            
             this.isProcessingAction = false;
         };
     }
@@ -37,6 +81,49 @@ class BattleActionExecutor {
     // For spells
     executeSpell(action) {
         if (!action || !action.spell || !action.character || !action.target) return;
+
+        // Check for silence status effect
+        if (action.character.status.silence > 0) {
+            // Show feedback when silenced
+            const message = `${action.character.name} tried to cast ${action.spell.name} but is silenced!`;
+            this.battle.battleLog.addMessage(message, "miss");
+            this.battle.showBattleMessage(message);
+            this.battle.audio.play("menu_error");
+            
+            // Add SILENCE floating text
+            this.battle.damageNumbers.push({
+                x: action.character.pos.x,
+                y: action.character.pos.y,
+                amount: "SILENCED!",
+                type: "silence",
+                startTime: Date.now(),
+                duration: 1500
+            });
+            
+            // Remove from ready queue
+            if (this.battle.readyOrder.includes(action.character)) {
+                this.battle.readyOrder.shift();
+            }
+            
+            this.isProcessingAction = false;
+            return;
+        }
+        
+        // Check for MP cost
+        if (action.character.mp < action.spell.mpCost) {
+            const message = `${action.character.name} tried to cast ${action.spell.name} but doesn't have enough MP!`;
+            this.battle.battleLog.addMessage(message, "miss");
+            this.battle.showBattleMessage(message);
+            this.battle.audio.play("menu_error");
+            
+            // Remove from ready queue
+            if (this.battle.readyOrder.includes(action.character)) {
+                this.battle.readyOrder.shift();
+            }
+            
+            this.isProcessingAction = false;
+            return;
+        }
 
         this.isProcessingAction = true;
 
@@ -66,88 +153,202 @@ class BattleActionExecutor {
 
         // Store the spell effect to apply after animations finish
         this.pendingEffect = () => {
-            // MP cost for caster (animate MP decrease)
-            action.character.animatingMP = true;
-            action.character.targetMP = Math.max(0, action.character.mp - action.spell.mpCost);
-            action.character.mpAnimStartTime = Date.now();
-
-            // Then handle effect on targets
-            let totalAmount = 0;
-            let targetMessage;
-            let effectType;
-
-            // Check if this is a healing spell or damage spell
-            const isHealingSpell = action.spell.effect === "heal";
+            // Cast the spell and get results
+            let spellResult;
             
             if (action.isGroupTarget) {
                 const targets = Array.isArray(action.target) ? action.target : [action.target];
-                targets.forEach((target) => {
+                // For group targets, we need to handle each target separately
+                let totalAmount = 0;
+                let success = false;
+                
+                targets.forEach(target => {
                     if (!target.isDead) {
-                        // Process differently based on spell effect type
-                        if (isHealingSpell) {
-                            // For healing spells
-                            const healAmount = this.calculateSpellDamage(action.character, action.spell, target);
-                            totalAmount += healAmount;
-
-                            // Start HP animation for healing
-                            target.animatingHP = true;
-                            target.targetHP = Math.min(target.maxHp, target.hp + healAmount);
-                            target.hpAnimStartTime = Date.now();
-                        } else {
-                            // For damage spells (original behavior)
-                            const damage = this.calculateSpellDamage(action.character, action.spell, target);
-                            totalAmount += damage;
-
-                            // Start HP animation for damage
-                            target.animatingHP = true;
-                            target.targetHP = Math.max(0, target.hp - damage);
-                            target.hpAnimStartTime = Date.now();
+                        const result = action.character.castSpell(action.spell, target);
+                        if (result.success) {
+                            success = true;
+                            totalAmount += result.effect;
+                            
+                            // Process effect based on spell type
+                            this.handleSpellEffectVisualization(target, action.spell, result);
                         }
                     }
                 });
                 
-                // Target message based on who's being targeted
-                targetMessage = this.battle.currentTargetGroup === "allies" ? "all allies" : "all enemies";
+                spellResult = { 
+                    success: success,
+                    effect: totalAmount, 
+                    type: action.spell.effect
+                };
+                
             } else {
-                // Handle single target
-                if (isHealingSpell) {
-                    // For healing spells
-                    const healAmount = this.calculateSpellDamage(action.character, action.spell, action.target);
-                    totalAmount = healAmount;
-
-                    // Start HP animation for healing
-                    action.target.animatingHP = true;
-                    action.target.targetHP = Math.min(action.target.maxHp, action.target.hp + healAmount);
-                    action.target.hpAnimStartTime = Date.now();
-                } else {
-                    // For damage spells (original behavior)
-                    const damage = this.calculateSpellDamage(action.character, action.spell, action.target);
-                    totalAmount = damage;
-
-                    // Start HP animation for damage
-                    action.target.animatingHP = true;
-                    action.target.targetHP = Math.max(0, action.target.hp - damage);
-                    action.target.hpAnimStartTime = Date.now();
+                // For single target
+                spellResult = action.character.castSpell(action.spell, action.target);
+                
+                if (spellResult.success) {
+                    // Process effect based on spell type
+                    this.handleSpellEffectVisualization(action.target, action.spell, spellResult);
                 }
-
-                targetMessage = action.target.name;
             }
-
-            // Play appropriate sound and create message
-            if (isHealingSpell) {
-                this.battle.audio.play("heal");
-                const message = `${action.character.name} casts ${action.spell.name} on ${targetMessage}, restoring ${totalAmount} HP!`;
-                this.battle.battleLog.addMessage(message, "heal");
+            
+            // MP cost for caster (animate MP decrease)
+            if (spellResult.success) {
+                action.character.animatingMP = true;
+                action.character.targetMP = Math.max(0, action.character.mp);
+                action.character.mpAnimStartTime = Date.now();
+                
+                // Create appropriate message
+                let message;
+                let targetMessage = action.isGroupTarget ? 
+                    (this.battle.currentTargetGroup === "allies" ? "all allies" : "all enemies") : 
+                    action.target.name;
+                
+                // Add turn information to all messages
+                const turnInfo = ` (Turn ${this.battle.turnCounter})`;
+                
+                if (action.spell.effect === "heal") {
+                    this.battle.audio.play("heal");
+                    message = `${action.character.name} casts ${action.spell.name} on ${targetMessage}, restoring ${spellResult.effect} HP!${turnInfo}`;
+                    this.battle.battleLog.addMessage(message, "heal");
+                } else if (action.spell.effect === "status") {
+                    this.battle.audio.play("magic_cast");
+                    message = `${action.character.name} casts ${action.spell.name} on ${targetMessage}!${turnInfo}`;
+                    this.battle.battleLog.addMessage(message, "status");
+                } else {
+                    this.battle.audio.play("magic_cast");
+                    message = `${action.character.name} casts ${action.spell.name} on ${targetMessage} for ${spellResult.effect} damage!${turnInfo}`;
+                    this.battle.battleLog.addMessage(message, "damage");
+                }            } else {
+                // Spell failed
+                let message;
+                if (spellResult.reason === "silence") {
+                    message = `${action.character.name} tried to cast ${action.spell.name} but is silenced!`;
+                } else if (spellResult.reason === "mp") {
+                    message = `${action.character.name} tried to cast ${action.spell.name} but doesn't have enough MP!`;
+                } else {
+                    message = `${action.character.name}'s spell ${action.spell.name} failed!`;
+                }
+                
+                this.battle.battleLog.addMessage(message, "miss");
                 this.battle.showBattleMessage(message);
-            } else {
-                this.battle.audio.play("magic_cast");
-                const message = `${action.character.name} casts ${action.spell.name} on ${targetMessage} for ${totalAmount} damage!`;
-                this.battle.battleLog.addMessage(message, "damage");
-                this.battle.showBattleMessage(message);
+                this.battle.audio.play("menu_error");
             }
 
             this.isProcessingAction = false;
         };
+    }
+    // Helper to handle spell effect visualization
+    handleSpellEffectVisualization(target, spell, spellResult) {
+        if (spell.effect === "heal") {
+            // Healing effect
+            const healAmount = spellResult.effect;
+            
+            // Start HP animation for healing
+            target.animatingHP = true;
+            target.targetHP = Math.min(target.maxHp, target.hp);
+            target.hpAnimStartTime = Date.now();
+            
+            // Add heal number (green)
+            this.battle.damageNumbers.push({
+                x: target.pos.x,
+                y: target.pos.y,
+                amount: healAmount,
+                type: "heal", // Green for healing
+                startTime: Date.now(),
+                duration: 1500
+            });
+        } else if (spell.effect === "status") {
+            // Status effect applied - check if we have effects info
+            if (spellResult.effectsApplied && spellResult.effectsApplied.length > 0) {
+                // Show status effect notifications for each effect applied
+                spellResult.effectsApplied.forEach((effect, index) => {
+                    // Enhanced visual feedback for status effects
+                    this.battle.damageNumbers.push({
+                        x: target.pos.x,
+                        y: target.pos.y - (index * 20), // Offset multiple effects
+                        amount: effect.status.toUpperCase(),
+                        type: effect.status,
+                        startTime: Date.now() + (index * 200), // Stagger the timing
+                        duration: 1500
+                    });
+                    
+                    // Add the emoji indicator for the status type
+                    let emoji = "";
+                    switch(effect.status) {
+                        case "poison": emoji = "☠️"; break;
+                        case "blind": emoji = "👁️"; break;
+                        case "silence": emoji = "🤐"; break;
+                        default: emoji = "⚠️"; break;
+                    }
+                    
+                    // Add a secondary visual effect
+                    this.battle.damageNumbers.push({
+                        x: target.pos.x + (Math.random() * 20 - 10),
+                        y: target.pos.y - (index * 20) + (Math.random() * 10 - 5),
+                        amount: emoji,
+                        type: effect.status,
+                        startTime: Date.now() + (index * 200) + 150, // Slight delay
+                        duration: 1200
+                    });
+                    
+                    // Log to battle text
+                    this.battle.battleLog.addMessage(
+                        `${target.name} is afflicted with ${effect.status.toUpperCase()}!`, 
+                        "status"
+                    );
+                });
+            } else {
+                // Fallback for old behavior - just use the spell's defined status effects
+                spell.statusEffects.forEach((effect, index) => {
+                    // Enhanced visual feedback for status effects
+                    this.battle.damageNumbers.push({
+                        x: target.pos.x,
+                        y: target.pos.y - (index * 20),
+                        amount: effect.type.toUpperCase(),
+                        type: effect.type,
+                        startTime: Date.now() + (index * 200),
+                        duration: 1500
+                    });
+                    
+                    // Add the emoji indicator for the status type
+                    let emoji = "";
+                    switch(effect.type) {
+                        case "poison": emoji = "☠️"; break;
+                        case "blind": emoji = "👁️"; break;
+                        case "silence": emoji = "🤐"; break;
+                        default: emoji = "⚠️"; break;
+                    }
+                    
+                    // Add a secondary visual effect
+                    this.battle.damageNumbers.push({
+                        x: target.pos.x + (Math.random() * 20 - 10),
+                        y: target.pos.y - (index * 20) + (Math.random() * 10 - 5),
+                        amount: emoji,
+                        type: effect.type,
+                        startTime: Date.now() + (index * 200) + 150, // Slight delay
+                        duration: 1200
+                    });
+                });
+            }
+        } else {
+            // Damage spell
+            const damage = spellResult.effect;
+            
+            // Start HP animation for damage
+            target.animatingHP = true;
+            target.targetHP = Math.max(0, target.hp);
+            target.hpAnimStartTime = Date.now();
+            
+            // Add damage number (yellow for magic)
+            this.battle.damageNumbers.push({
+                x: target.pos.x,
+                y: target.pos.y,
+                amount: damage,
+                type: "magical", // Yellow for magic
+                startTime: Date.now(),
+                duration: 1500
+            });
+        }
     }
 
     // For items
@@ -185,6 +386,16 @@ class BattleActionExecutor {
                         target.animatingHP = true;
                         target.targetHP = Math.min(target.maxHp, target.hp + healAmount);
                         target.hpAnimStartTime = Date.now();
+                        
+                        // Add heal number
+                        this.battle.damageNumbers.push({
+                            x: target.pos.x,
+                            y: target.pos.y,
+                            amount: healAmount,
+                            type: "heal", // Green for healing
+                            startTime: Date.now(),
+                            duration: 1500
+                        });
                     } else if (action.item.name.toLowerCase().includes("ether")) {
                         const mpRestored = this.calculateMPRestored(target, action.item);
 
@@ -199,11 +410,21 @@ class BattleActionExecutor {
                         target.animatingHP = true;
                         target.targetHP = Math.max(0, target.hp - damage);
                         target.hpAnimStartTime = Date.now();
+                        
+                        // Add damage number
+                        this.battle.damageNumbers.push({
+                            x: target.pos.x,
+                            y: target.pos.y,
+                            amount: damage,
+                            type: "physical", // Red for physical
+                            startTime: Date.now(),
+                            duration: 1500
+                        });
                     }
                 });
                 targetMessage = "all allies";
             } else {
-                // Similar logic for single target
+                // Single target items
                 if (action.item.name.toLowerCase().includes("potion")) {
                     const healAmount = this.calculateHealAmount(action.target, action.item);
                     totalHealing = healAmount;
@@ -212,6 +433,16 @@ class BattleActionExecutor {
                     action.target.animatingHP = true;
                     action.target.targetHP = Math.min(action.target.maxHp, action.target.hp + healAmount);
                     action.target.hpAnimStartTime = Date.now();
+                    
+                    // Add heal number
+                    this.battle.damageNumbers.push({
+                        x: action.target.pos.x,
+                        y: action.target.pos.y,
+                        amount: healAmount,
+                        type: "heal", // Green for healing
+                        startTime: Date.now(),
+                        duration: 1500
+                    });
 
                     effectMessage = ` restoring ${totalHealing} HP`;
                     this.battle.audio.play("heal");
@@ -231,6 +462,16 @@ class BattleActionExecutor {
                     action.target.animatingHP = true;
                     action.target.targetHP = Math.max(0, action.target.hp - damage);
                     action.target.hpAnimStartTime = Date.now();
+                    
+                    // Add damage number
+                    this.battle.damageNumbers.push({
+                        x: action.target.pos.x,
+                        y: action.target.pos.y,
+                        amount: damage,
+                        type: "physical", // Red for physical
+                        startTime: Date.now(),
+                        duration: 1500
+                    });
 
                     effectMessage = ` dealing ${damage} damage`;
                 } else if (action.item.name.toLowerCase().includes("phoenix")) {
@@ -242,6 +483,56 @@ class BattleActionExecutor {
                     } else {
                         effectMessage = " but it had no effect!";
                     }
+                } else if (action.item.name.toLowerCase().includes("poison")) {
+                    // Apply poison status effect
+                    action.target.addStatus("poison", 5);
+                    effectMessage = " inflicting poison!";
+                    
+                    // Show effect with purple text
+                    this.battle.damageNumbers.push({
+                        x: action.target.pos.x,
+                        y: action.target.pos.y,
+                        amount: "POISON",
+                        type: "poison", // Purple for poison
+                        startTime: Date.now(),
+                        duration: 1500
+                    });
+                } else if (action.item.name.toLowerCase().includes("smoke")) {
+                    // Apply blind status effect
+                    action.target.addStatus("blind", 3);
+                    effectMessage = " causing blindness!";
+                    
+                    // Show effect
+                    this.battle.damageNumbers.push({
+                        x: action.target.pos.x,
+                        y: action.target.pos.y,
+                        amount: "BLIND",
+                        type: "blind", // Gray for blind
+                        startTime: Date.now(),
+                        duration: 1500
+                    });
+                } else if (action.item.name.toLowerCase().includes("silence")) {
+                    // Apply silence status effect
+                    action.target.addStatus("silence", 4);
+                    effectMessage = " silencing their magic!";
+                    
+                    // Show effect
+                    this.battle.damageNumbers.push({
+                        x: action.target.pos.x,
+                        y: action.target.pos.y,
+                        amount: "SILENCE",
+                        type: "silence", // Light blue for silence
+                        startTime: Date.now(),
+                        duration: 1500
+                    });
+                } else if (action.item.name.toLowerCase().includes("antidote")) {
+                    // Cure poison
+                    const success = action.target.removeStatus("poison");
+                    effectMessage = success ? " curing poison!" : " but it had no effect!";
+                } else if (action.item.name.toLowerCase().includes("remedy")) {
+                    // Cure all status effects
+                    const success = action.target.removeAllStatus();
+                    effectMessage = success ? " curing all status effects!" : " but it had no effect!";
                 }
                 targetMessage = action.target.name;
             }
@@ -257,10 +548,9 @@ class BattleActionExecutor {
                 this.battle.partyInventory.removeItem(itemId);
             }
 
-            const message = `${action.character.name} used ${action.item.name} on ${targetMessage}${effectMessage}!`;
+            const message = `${action.character.name} used ${action.item.name} on ${targetMessage}${effectMessage}! (Turn ${this.battle.turnCounter})`;
             this.battle.battleLog.addMessage(message, action.item.name.toLowerCase().includes("potion") ? "heal" : "damage");
             this.battle.showBattleMessage(message);
-
             this.isProcessingAction = false;
         };
     }

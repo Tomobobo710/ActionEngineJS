@@ -56,6 +56,11 @@ class RPGMenuMode {
         this.selectedIndex = 0;
         this.activeSubmenu = null;
         this.pendingMenuActivation = false;
+        
+        // Status effect timer for menu mode
+        this.statusEffectTimer = 0;
+        this.lastTime = performance.now();
+        this.deltaTime = 0;
 
         // Register menu elements
         this.registerMenuElements();
@@ -90,6 +95,15 @@ class RPGMenuMode {
     }
 
     update() {
+        // Calculate delta time for status effect updates
+        const currentTime = performance.now();
+        this.deltaTime = (currentTime - this.lastTime) / 1000;
+        this.lastTime = currentTime;
+        
+        // Update status effects for party members
+        this.updatePartyStatusEffects(this.deltaTime);
+        
+        // Update character panel
         this.characterPanel.update();
 
         // Handle pending menu activation first
@@ -140,6 +154,23 @@ class RPGMenuMode {
             this.input.isElementJustPressed(`menu_option_${this.selectedIndex}`)
         ) {
             this.handleMenuSelection(this.selectedIndex);
+        }
+    }
+    
+    // NEW: Update status effects for all party members in menu mode
+    updatePartyStatusEffects(deltaTime) {
+        this.statusEffectTimer += deltaTime;
+        
+        // Update status effects every 0.5 seconds
+        if (this.statusEffectTimer >= 0.5) {
+            this.statusEffectTimer = 0;
+            
+            // Update each party member's status effects
+            this.gameMaster.persistentParty.forEach(character => {
+                if (character) {
+                    character.updateStatus({ deltaTime });
+                }
+            });
         }
     }
 

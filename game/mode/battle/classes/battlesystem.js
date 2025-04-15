@@ -27,6 +27,9 @@ class BattleSystem {
         
         // Create the renderer
         this.renderer = new BattleRenderer(this);
+
+        // NEW: Add array to track damage number animations
+        this.damageNumbers = [];
     }
 
     initializeEnemyInventory() {
@@ -51,7 +54,7 @@ class BattleSystem {
         this.animations = [];
         this.transitionProgress = 0;
         this.isPaused = false;
-        this.pendingSpell = null;
+        this.turnCounter = 0; // Added turn counter to track battle turns        this.pendingSpell = null;
         this.itemMenuPosition = 0;
         this.itemScrollOffset = 0;
         this.maxVisibleItems = 8;
@@ -69,8 +72,10 @@ class BattleSystem {
         this.isProcessingAction = false; // Flag to track if we're currently animating/processing an action
         this.stateStartTime = null;
         this.readyForWorldTransition = false;
+        this.damageNumbers = []; // NEW: Reset damage numbers
+        this.turnCounter = 0; // Reset turn counter
     }
-
+        
     handleInput(input) {
         this.inputManager.handleInput(input);
     }
@@ -327,7 +332,7 @@ class BattleSystem {
             
             const wasReady = char.isReady;
             char.updateATB();
-            char.updateStatus();
+            char.updateStatus(this); // Pass battle system reference - NEW
 
             if (!wasReady && char.isReady) {
                 const hasQueuedAction = this.actionQueue.some((action) => action.character === char);
@@ -336,8 +341,14 @@ class BattleSystem {
                 if (!hasQueuedAction && !alreadyInReadyOrder) {
                     char.isEnemy = this.enemies.includes(char);
                     this.readyOrder.push(char);
-                }
-            }
+                    
+                    // Increment turn counter when any character becomes ready to act
+                    this.turnCounter++;
+                    
+                    // Log to battle log which character's turn is starting
+                    const turnType = char.isEnemy ? "enemy" : "ally";
+                    this.battleLog.addMessage(`Turn ${this.turnCounter}: ${char.name}'s turn begins`, turnType);
+                }            }
         });
     }
 

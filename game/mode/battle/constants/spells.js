@@ -48,13 +48,41 @@ const SPELLS = {
         mpCost: 6,
         power: 12,
         element: "poison",
-         effect: "damage",
+        effect: "status",
         targetType: TARGET_TYPES.SINGLE_ENEMY,
         animation: {
             color: "#88ff88",
             type: "mist"
         },
-        description: "Poison elemental dmg (single)"
+        statusEffects: [
+            {
+                type: "poison",
+                duration: 5,
+                chance: 0.85
+            }
+        ],
+        description: "Poisons target to cause damage over time (single)"
+    },
+    silence: {
+        name: "Silence",
+        emoji: "🤐",
+        mpCost: 8,
+        power: 5,
+        element: "none",
+        effect: "status",
+        targetType: TARGET_TYPES.SINGLE_ENEMY,
+        animation: {
+            color: "#33ccff",
+            type: "mist"
+        },
+        statusEffects: [
+            {
+                type: "silence",
+                duration: 4,
+                chance: 0.85
+            }
+        ],
+        description: "Silences target to prevent spellcasting (single)"
     },
     heal: {
         name: "Heal",

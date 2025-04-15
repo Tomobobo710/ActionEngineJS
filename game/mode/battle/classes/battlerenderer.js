@@ -25,12 +25,18 @@ class BattleRenderer {
 
         // Draw party members
         this.renderPartyMembers(ctx);
+        
+        // Draw turn counter in the top-right corner
+        this.renderTurnCounter(ctx);
 
         // Draw battle menu
         this.drawBattleMenu(ctx);
 
         // Draw active animations
         this.battle.animations.forEach((anim) => anim.render(ctx));
+        
+        // Render damage numbers
+        this.renderDamageNumbers(ctx);
 
         // Draw messages
         this.drawMessages(ctx);
@@ -40,7 +46,85 @@ class BattleRenderer {
             this.drawTransition(ctx);
         }
     }
-
+    
+    // Enhanced method to render the turn counter and battle log
+    renderTurnCounter(ctx) {
+        // Draw battle log messages in the top-left corner
+        this.renderBattleLog(ctx);
+        
+        // Draw turn counter with more visual polish in top-right corner
+        ctx.save();
+        
+        // Background for turn counter
+        const turnText = `Turn: ${this.battle.turnCounter}`;
+        ctx.font = "bold 18px monospace";
+        const textWidth = ctx.measureText(turnText).width;
+        
+        // Create a semi-transparent background with border
+        ctx.fillStyle = "rgba(0, 0, 102, 0.7)";
+        ctx.fillRect(Game.WIDTH - textWidth - 30, 10, textWidth + 20, 30);
+        ctx.strokeStyle = "#ffff00";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(Game.WIDTH - textWidth - 30, 10, textWidth + 20, 30);
+        
+        // Draw turn counter text
+        ctx.fillStyle = "#ffff00"; // Bright yellow for visibility
+        ctx.textAlign = "center";
+        ctx.fillText(turnText, Game.WIDTH - textWidth/2 - 20, 30);
+        
+        ctx.restore();
+    }
+    
+    // New method to render the battle log
+    renderBattleLog(ctx) {
+        const messages = this.battle.battleLog.messages;
+        if (messages.length === 0) return;
+        
+        ctx.save();
+        
+        // Background for battle log
+        ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+        ctx.fillRect(10, 10, 400, Math.min(messages.length * 25 + 10, 150));
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(10, 10, 400, Math.min(messages.length * 25 + 10, 150));
+        
+        // Draw battle log messages
+        ctx.font = "14px monospace";
+        ctx.textAlign = "left";
+        
+        // Show the most recent messages at the top
+        const maxMessagesToShow = 5;
+        const messagesToRender = messages.slice(0, maxMessagesToShow);
+        
+        messagesToRender.forEach((message, index) => {
+            // Choose color based on message type
+            switch (message.type) {
+                case "damage":
+                    ctx.fillStyle = "#ff3333"; // Red for damage
+                    break;
+                case "heal":
+                    ctx.fillStyle = "#33ff33"; // Green for healing
+                    break;
+                case "system":
+                    ctx.fillStyle = "#ffff33"; // Yellow for system messages
+                    break;
+                case "turn":
+                case "enemy":
+                    ctx.fillStyle = "#ff9933"; // Orange for turn/enemy messages
+                    break;
+                case "ally":
+                    ctx.fillStyle = "#33ccff"; // Blue for ally messages
+                    break;
+                default:
+                    ctx.fillStyle = "#ffffff"; // White for normal messages
+            }
+            
+            ctx.fillText(message.text, 20, 30 + index * 25);
+        });
+        
+        ctx.restore();
+    }
     renderTargetingEffects(ctx) {
         const targetingManager = this.battle.targetingManager;
         if (targetingManager.hoveredTarget) {
@@ -124,7 +208,23 @@ class BattleRenderer {
             let statusY = target.pos.y + 30;
             Object.entries(target.status).forEach(([status, duration]) => {
                 if (duration > 0) {
-                    ctx.fillStyle = "#ffff00";
+                    // Use different colors for different status types
+                    let statusColor;
+                    switch (status) {
+                        case "poison":
+                            statusColor = "#9933ff"; // Purple for poison
+                            break;
+                        case "blind":
+                            statusColor = "#888888"; // Gray for blind
+                            break;
+                        case "silence":
+                            statusColor = "#33ccff"; // Light blue for silence
+                            break;
+                        default:
+                            statusColor = "#ffff00"; // Yellow for default
+                    }
+                    
+                    ctx.fillStyle = statusColor;
                     ctx.fillText(`${status.toUpperCase()}: ${duration}`, hpX, statusY);
                     statusY += 12;
                 }
@@ -281,6 +381,9 @@ class BattleRenderer {
                 const atbWidth = (enemy.atbCurrent / enemy.atbMax) * barWidth;
                 ctx.fillRect(enemy.pos.x - barWidth / 2, enemy.pos.y + 30 + barSpacing, atbWidth, barHeight);
             }
+
+            // Draw status effect icons
+            this.renderStatusEffects(ctx, enemy);
         });
     }
 
@@ -377,6 +480,159 @@ class BattleRenderer {
                 const atbWidth = (char.atbCurrent / char.atbMax) * barWidth;
                 ctx.fillRect(char.pos.x - barWidth / 2, char.pos.y + 30 + barSpacing * 2, atbWidth, barHeight);
             }
+            
+            // Draw status effect icons
+            this.renderStatusEffects(ctx, char);
+        });
+    }
+    
+    // Render status effect icons
+    renderStatusEffects(ctx, character) {
+        const statusEffects = [];
+        
+        // Check which status effects are active
+        Object.entries(character.status).forEach(([status, duration]) => {
+            if (duration > 0) {
+                statusEffects.push({ type: status, duration: duration });
+            }
+        });
+        
+        if (statusEffects.length > 0) {
+            // Position above the character
+            const baseX = character.pos.x - ((statusEffects.length - 1) * 10);
+            const baseY = character.pos.y - 40;
+            
+            statusEffects.forEach((effect, index) => {
+                const x = baseX + index * 20;
+                const y = baseY;
+                
+                // Draw circle for the status with a pulsing effect
+                ctx.save();
+                
+                // Add pulsing effect
+                const time = Date.now() / 1000;
+                const pulse = Math.sin(time * 2 + index) * 0.2 + 0.9; // Oscillate between 0.7 and 1.1 size
+                
+                ctx.beginPath();
+                ctx.arc(x, y, 10 * pulse, 0, Math.PI * 2);
+                
+                // Set color based on status type with gradient for better visibility
+                const gradient = ctx.createRadialGradient(x, y, 0, x, y, 10 * pulse);
+                
+                switch (effect.type) {
+                    case "poison":
+                        gradient.addColorStop(0, "rgba(180, 60, 255, 0.9)"); // Brighter center
+                        gradient.addColorStop(1, "rgba(136, 0, 255, 0.7)"); // Purple for poison
+                        break;
+                    case "blind":
+                        gradient.addColorStop(0, "rgba(150, 150, 150, 0.9)");
+                        gradient.addColorStop(1, "rgba(68, 68, 68, 0.7)"); // Dark gray for blind
+                        break;
+                    case "silence":
+                        gradient.addColorStop(0, "rgba(100, 220, 255, 0.9)");
+                        gradient.addColorStop(1, "rgba(0, 204, 255, 0.7)"); // Light blue for silence
+                        break;
+                    default:
+                        gradient.addColorStop(0, "rgba(255, 255, 255, 0.9)");
+                        gradient.addColorStop(1, "rgba(255, 255, 255, 0.7)"); // White for unknown
+                }
+                
+                ctx.fillStyle = gradient;
+                ctx.fill();
+                
+                // Add a stroke for better visibility
+                ctx.strokeStyle = "#ffffff";
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                
+                // Draw status duration
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "bold 10px Arial";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText(effect.duration, x, y);
+                
+                // Draw a tiny icon to represent the status type
+                const iconY = y - 1; // Slight adjustment to center visually
+                ctx.textAlign = "center";
+                
+                // Draw icon based on status type
+                switch (effect.type) {
+                    case "poison":
+                        ctx.font = "8px Arial";
+                        ctx.fillText("☠️", x, iconY);
+                        break;
+                    case "blind":
+                        ctx.font = "8px Arial";
+                        ctx.fillText("👁️", x, iconY);
+                        break;
+                    case "silence":
+                        ctx.font = "8px Arial";
+                        ctx.fillText("🤐", x, iconY);
+                        break;
+                }
+                
+                ctx.restore();
+            });
+        }
+    }
+    
+    // Render damage numbers
+    renderDamageNumbers(ctx) {
+        // Remove expired damage numbers
+        this.battle.damageNumbers = this.battle.damageNumbers.filter(number => {
+            const elapsed = Date.now() - number.startTime;
+            return elapsed < number.duration;
+        });
+        
+        // Render active damage numbers
+        this.battle.damageNumbers.forEach(number => {
+            const elapsed = Date.now() - number.startTime;
+            const progress = elapsed / number.duration;
+            
+            // Float upward and fade out
+            const offsetY = -30 * progress;
+            const alpha = 1 - progress;
+            
+            // Different colors for different damage types
+            let color;
+            switch (number.type) {
+                case "physical":
+                    color = "#ff3333"; // Red for physical damage
+                    break;
+                case "magical":
+                    color = "#ffff00"; // Yellow for magic damage
+                    break;
+                case "poison":
+                    color = "#9933ff"; // Purple for poison damage
+                    break;
+                case "heal":
+                    color = "#33ff33"; // Green for healing
+                    break;
+                case "blind":
+                    color = "#888888"; // Gray for blind
+                    break;
+                case "silence":
+                    color = "#33ccff"; // Light blue for silence
+                    break;
+                default:
+                    color = "#ffffff"; // White for unknown
+            }
+            
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = color;
+            ctx.strokeStyle = "#000000";
+            ctx.lineWidth = 2;
+            ctx.font = "bold 20px Arial";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            
+            // Draw text with outline for better visibility
+            ctx.strokeText(number.amount, number.x, number.y + offsetY);
+            ctx.fillText(number.amount, number.x, number.y + offsetY);
+            
+            ctx.restore();
         });
     }
 
@@ -507,8 +763,24 @@ class BattleRenderer {
             // Draw status effects
             Object.entries(char.status).forEach(([status, duration], j) => {
                 if (duration > 0) {
-                    ctx.fillStyle = "#ff0";
-                    ctx.fillText(status.toUpperCase(), x + 300 + j * 70, y + 25);
+                    // Use different colors for different status types
+                    let statusColor;
+                    switch (status) {
+                        case "poison":
+                            statusColor = "#9933ff"; // Purple for poison
+                            break;
+                        case "blind":
+                            statusColor = "#888888"; // Gray for blind
+                            break;
+                        case "silence":
+                            statusColor = "#33ccff"; // Light blue for silence
+                            break;
+                        default:
+                            statusColor = "#ffff00"; // Yellow for default
+                    }
+                    
+                    ctx.fillStyle = statusColor;
+                    ctx.fillText(`${status.toUpperCase()}:${duration}`, x + 300 + j * 70, y + 25);
                 }
             });
         });

@@ -29,7 +29,7 @@ const DEFAULT_PARTY = [
         magic: 18,
         speed: 10,
         skills: ["Attack"],
-        spells: ["fire", "ice", "bolt", "poison", "heal", "quake", "wind", "water", "holy"]
+        spells: ["fire", "ice", "bolt", "poison", "silence", "heal", "quake", "wind", "water", "holy"]
     },
     {
         name: "Edge",
@@ -41,7 +41,7 @@ const DEFAULT_PARTY = [
         magic: 10,
         speed: 16,
         skills: ["Attack", "Steal"],
-        spells: ["bolt", "poison"]
+        spells: ["bolt", "poison", "silence"]
     }
 ];
 
@@ -142,6 +142,7 @@ const STARTER_INVENTORY = [
     { item: "bomb", quantity: 2 },
     { item: "ether", quantity: 3 },
     { item: "smokeScreen", quantity: 2 },
+    { item: "silenceScroll", quantity: 2 },
     { item: "antidote", quantity: 3 },
     { item: "megaEther", quantity: 2 },
     { item: "phoenix", quantity: 2 },

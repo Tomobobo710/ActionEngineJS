@@ -391,7 +391,65 @@ class CharacterPanel {
             
             this.drawStatBar(statsX, y + p.stats.firstBarY, char.hp, char.maxHp, hpColor, "HP", p.stats.width);
             this.drawStatBar(statsX, y + p.stats.secondBarY, char.mp, char.maxMp, mpColor, "MP", p.stats.width);
+            
+            // Draw status effects
+            this.drawStatusEffects(char, statsX, y + p.stats.firstBarY + 35, p.stats.width);
         });
+    }
+    
+    // Add method to draw status effects
+    drawStatusEffects(character, x, y, width) {
+        // Check which status effects are active
+        const activeStatuses = Object.entries(character.status)
+            .filter(([status, duration]) => duration > 0);
+            
+        if (activeStatuses.length === 0) return; // No status effects
+        
+        this.ctx.save();
+        
+        // Draw status effect box with semi-transparent background
+        this.ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+        this.ctx.fillRect(x, y, width, 24);
+        this.ctx.strokeStyle = "#666666";
+        this.ctx.strokeRect(x, y, width, 24);
+        
+        // Draw status effect icons and text
+        let statusX = x + 10;
+        activeStatuses.forEach(([status, duration]) => {
+            // Choose color and icon based on status type
+            let statusColor;
+            let statusEmoji;
+            
+            switch(status) {
+                case "poison":
+                    statusColor = "#9933ff"; // Purple for poison 
+                    statusEmoji = "☠️";
+                    break;
+                case "blind":
+                    statusColor = "#888888"; // Gray for blind
+                    statusEmoji = "👁️";
+                    break;
+                case "silence":
+                    statusColor = "#33ccff"; // Light blue for silence
+                    statusEmoji = "🤐";
+                    break;
+                default:
+                    statusColor = "#ffffff"; // White for unknown
+                    statusEmoji = "❓";
+            }
+            
+            // Draw emoji and text
+            this.ctx.font = "16px monospace";
+            this.ctx.textAlign = "left";
+            this.ctx.fillText(statusEmoji, statusX, y + 18);
+            
+            this.ctx.fillStyle = statusColor;
+            this.ctx.fillText(` ${status.toUpperCase()}: ${duration}`, statusX + 20, y + 18);
+            
+            statusX += 120; // Move to next status position
+        });
+        
+        this.ctx.restore();
     }
 
     drawStatBar(x, y, current, max, color, label, width) {

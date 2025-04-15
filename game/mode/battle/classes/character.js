@@ -41,6 +41,13 @@ class Character {
 
         // Status effects
         this.status = {
+            poison: data.status?.poison || 0,
+            blind: data.status?.blind || 0,
+            silence: data.status?.silence || 0
+        };
+        
+        // Status effect timers for world/menu mode
+        this.statusTimers = {
             poison: 0,
             blind: 0,
             silence: 0
@@ -53,7 +60,7 @@ class Character {
         this.animFrame = 0;
 
         // Battle state
-        this.isDead = false;
+        this.isDead = data.isDead || false;
         this.isDefending = false;
         this.currentTarget = null;
 
@@ -151,20 +158,71 @@ class Character {
     }
 
     castSpell(spell, target) {
-        if (this.mp < spell.mpCost) return false;
-        if (this.status.silence > 0) return false;
+        if (this.mp < spell.mpCost) return { success: false, reason: "mp", effect: 0 };
+        
+        // Check for silence status effect
+        if (this.status.silence > 0) {
+            return { success: false, reason: "silence", effect: 0 };
+        }
 
         this.mp -= spell.mpCost;
 
-        let power = Math.floor((this.stats.magicAttack * spell.power) / 10);
-        const targets = Array.isArray(target) ? target : [target];
-        let totalEffect = 0;
+        // Handle different spell effects
+        if (spell.effect === "heal") {
+            // Healing spell 
+            let power = Math.floor((this.stats.magicAttack * spell.power) / 10);
+            const targets = Array.isArray(target) ? target : [target];
+            let totalEffect = 0;
 
-        targets.forEach((t) => {
-            if (!t.isDead) {
-                if (spell.effect === "heal") {
+            targets.forEach((t) => {
+                if (!t.isDead) {
                     totalEffect += t.heal(power);
-                } else {
+                }
+            });
+            
+            return { success: true, effect: totalEffect, type: "heal" };
+        } 
+        else if (spell.effect === "status") {
+            // Status effect spell
+            const targets = Array.isArray(target) ? target : [target];
+            let success = false;
+            let effectsApplied = [];
+            
+            targets.forEach((t) => {
+                if (!t.isDead) {
+                    // Apply all status effects defined in the spell
+                    spell.statusEffects.forEach(effect => {
+                        // Check if status effect application succeeds based on chance
+                        if (Math.random() < effect.chance) {
+                            const wasApplied = t.addStatus(effect.type, effect.duration);
+                            success = true;
+                            
+                            if (wasApplied) {
+                                effectsApplied.push({
+                                    target: t,
+                                    status: effect.type
+                                });
+                            }
+                        }
+                    });
+                }
+            });
+            
+            return { 
+                success, 
+                effect: 0, 
+                type: "status",
+                effectsApplied: effectsApplied 
+            };
+        }
+        else {
+            // Damage spell
+            let power = Math.floor((this.stats.magicAttack * spell.power) / 10);
+            const targets = Array.isArray(target) ? target : [target];
+            let totalEffect = 0;
+
+            targets.forEach((t) => {
+                if (!t.isDead) {
                     let finalDamage = power;
                     if (t.weaknesses && t.weaknesses.includes(spell.element)) {
                         finalDamage = Math.floor(finalDamage * 1.5);
@@ -174,10 +232,10 @@ class Character {
                     }
                     totalEffect += t.takeDamage(finalDamage, "magical");
                 }
-            }
-        });
+            });
 
-        return totalEffect;
+            return { success: true, effect: totalEffect, type: "damage" };
+        }
     }
 
     calculateStats() {
@@ -216,8 +274,31 @@ class Character {
             if (this.atbCurrent >= this.atbMax) {
                 this.atbCurrent = this.atbMax;
                 this.isReady = true;
+                // Turn tracking happens in BattleSystem.updateATBGauges
             }
         }
+    }    attack(target) {
+        if (this.isDead || target.isDead) return { success: false, reason: "invalid", damage: 0 };
+        
+        // Check for blind status (75% chance to miss)
+        if (this.status.blind > 0 && Math.random() < 0.75) {
+            // Add "MISS" visual feedback
+            if (target.pos) {
+                // If we're in a battle context with target positions
+                return { success: false, reason: "blind", damage: 0, effect: "miss" };
+            } else {
+                // If we're in a different context
+                return { success: false, reason: "blind", damage: 0 };
+            }
+        }
+        
+        // Calculate damage
+        let damage = Math.floor(this.stats.attack * 1.5);
+        damage = Math.max(1, damage - target.stats.defense);
+        
+        // Apply damage
+        const actualDamage = target.takeDamage(damage, "physical");
+        return { success: true, damage: actualDamage };
     }
 
     takeDamage(amount, type = "physical") {
@@ -232,6 +313,9 @@ class Character {
         if (this.hp === 0) {
             this.isDead = true;
             this.isReady = false;
+            
+            // Remove all status effects when a character dies
+            this.removeAllStatus();
         }
 
         return damage;
@@ -252,14 +336,32 @@ class Character {
     }
 
     addStatus(status, duration) {
-        this.status[status] = Math.max(this.status[status], duration);
+        // Only apply the status if it exists in our status object
+        if (this.status.hasOwnProperty(status)) {
+            // Apply status with specified duration, keeping the longer duration
+            this.status[status] = Math.max(this.status[status], duration);
+            
+            // Reset the status timer when newly applied
+            this.statusTimers[status] = 0;
+            
+            // Return true if status was newly applied or extended
+            const wasApplied = this.status[status] > 0;
+            
+            // Log status application for debugging
+            console.log(`${this.name} ${wasApplied ? 'is now' : 'is still'} affected by ${status} for ${this.status[status]} turns`);
+            
+            return wasApplied;
+        }
+        
+        // Status type not recognized
+        console.warn(`Attempted to apply unknown status: ${status}`);
+        return false;
     }
-
-    // Add these methods to the Character class
 
     removeAllStatus() {
         Object.keys(this.status).forEach((statusEffect) => {
             this.status[statusEffect] = 0;
+            this.statusTimers[statusEffect] = 0;
         });
         return true;
     }
@@ -267,6 +369,7 @@ class Character {
     removeStatus(statusName) {
         if (this.status[statusName]) {
             this.status[statusName] = 0;
+            this.statusTimers[statusName] = 0;
             return true;
         }
         return false;
@@ -279,16 +382,221 @@ class Character {
         return true;
     }
 
-    updateStatus() {
+    // Update status effects for both battle and world/menu modes
+    updateStatus(context = {}) {
+        // In battle mode, update every turn using battle reference
+        if (context && context.damageNumbers) {
+            this.updateBattleStatus(context);
+        } 
+        // In world/menu mode, update based on time
+        else {
+            this.updateWorldStatus(context?.deltaTime || 0, context?.context);
+        }
+    }
+    
+    updateBattleStatus(battle) {
+        // Skip status updates if character is dead
+        if (this.isDead) return;
+        
         Object.keys(this.status).forEach((status) => {
             if (this.status[status] > 0) {
-                this.status[status]--;
-
-                // Status effects
+                // Apply status effects
                 switch (status) {
                     case "poison":
-                        this.takeDamage(Math.floor(this.maxHp / 16));
+                        // Calculate poison damage as 1/16 of max HP
+                        const poisonDamage = Math.floor(this.maxHp / 16);
+                        this.takeDamage(poisonDamage);
+                        
+                        // Add a visible damage number for poison with enhanced visuals
+                        if (battle) {
+                            // Add turn information to the battle log message
+                            const turnInfo = battle.turnCounter ? ` (Turn ${battle.turnCounter})` : '';
+                            
+                            battle.damageNumbers.push({
+                                x: this.pos.x,
+                                y: this.pos.y,
+                                amount: poisonDamage,
+                                type: "poison",
+                                startTime: Date.now(),
+                                duration: 1500
+                            });
+                            
+                            // Create a secondary visual effect to enhance the poison impact
+                            battle.damageNumbers.push({
+                                x: this.pos.x + (Math.random() * 20 - 10),
+                                y: this.pos.y + (Math.random() * 10 - 5),
+                                amount: "☠️",
+                                type: "poison",
+                                startTime: Date.now() + 200, // Slight delay for sequential effect
+                                duration: 1000
+                            });
+                            
+                            // Also add message to battle log
+                            if (battle.battleLog) {
+                                battle.battleLog.addMessage(`${this.name} takes ${poisonDamage} poison damage!${turnInfo}`, "damage");
+                            }
+                        }
                         break;
+
+                    // Visual indicators for blind/silence are shown when actions are attempted
+                    case "blind":
+                        // Show blind effect reminder
+                        if (battle) {
+                            battle.damageNumbers.push({
+                                x: this.pos.x,
+                                y: this.pos.y - 15,
+                                amount: "BLIND",
+                                type: "blind",
+                                startTime: Date.now(),
+                                duration: 1000
+                            });
+                        }
+                        break;
+                    case "silence":
+                        // Show silence effect reminder
+                        if (battle) {
+                            battle.damageNumbers.push({
+                                x: this.pos.x,
+                                y: this.pos.y - 15,
+                                amount: "SILENCE",
+                                type: "silence",
+                                startTime: Date.now(),
+                                duration: 1000
+                            });
+                        }
+                        break;
+                }
+                
+                // Decrease status effect duration at the end of each turn
+                this.status[status]--;
+                
+                // Show status expiring message if it just expired
+                if (this.status[status] === 0 && battle) {
+                    battle.damageNumbers.push({
+                        x: this.pos.x,
+                        y: this.pos.y - 30,
+                        amount: `${status.toUpperCase()} EXPIRED`,
+                        type: status,
+                        startTime: Date.now(),
+                        duration: 1500
+                    });
+                    
+                    // Also add message to battle log with turn counter
+                    if (battle.battleLog) {
+                        const turnInfo = battle.turnCounter ? ` (Turn ${battle.turnCounter})` : '';
+                        battle.battleLog.addMessage(`${this.name}'s ${status} has worn off!${turnInfo}`, "system");
+                    }
+                }
+            }
+        });
+    }
+        
+    // Get a snapshot of this character's current state for persistence
+    getState() {
+        return {
+            name: this.name,
+            type: this.type,
+            level: this.level,
+            hp: this.hp,
+            maxHp: this.maxHp,
+            mp: this.mp,
+            maxMp: this.maxMp,
+            strength: this.strength,
+            magic: this.magic,
+            speed: this.speed,
+            xp: this.xp,
+            nextLevelXp: this.nextLevelXp,
+            skills: [...this.skills],
+            spells: [...this.spells],
+            status: { ...this.status },
+            statusTimers: { ...this.statusTimers },
+            isDead: this.isDead,
+            // Include any equipment or other relevant data
+            equipment: this.equipment ? JSON.parse(JSON.stringify(this.equipment)) : null
+        };
+    }
+    
+    // Apply a state snapshot to this character for persistence
+    applyState(state) {
+        if (!state) return;
+        
+        // Apply core stats
+        this.hp = state.hp;
+        this.mp = state.mp;
+        this.isDead = state.isDead || false;
+        
+        // Copy status effects
+        if (state.status) {
+            Object.keys(this.status).forEach(statusType => {
+                // Make sure we initialize all known status types
+                this.status[statusType] = 0;
+            });
+            
+            // Then apply any active status effects from the saved state
+            Object.keys(state.status).forEach(statusType => {
+                this.status[statusType] = state.status[statusType];
+            });
+        }
+        
+        // Copy status timers
+        if (state.statusTimers) {
+            Object.keys(this.statusTimers).forEach(statusType => {
+                // Make sure we initialize all known timer types
+                this.statusTimers[statusType] = 0;
+            });
+            
+            // Then apply any active timers from the saved state
+            Object.keys(state.statusTimers).forEach(statusType => {
+                this.statusTimers[statusType] = state.statusTimers[statusType];
+            });
+        }
+        
+        // Apply equipment if present
+        if (state.equipment) {
+            this.equipment = JSON.parse(JSON.stringify(state.equipment));
+            this.calculateStats(); // Recalculate stats with equipment
+        }
+    }
+
+    // Modified updateWorldStatus method that connects with the World mode visualization
+    updateWorldStatus(deltaTime, worldContext) {
+        if (this.isDead) return;
+        
+        Object.keys(this.status).forEach((status) => {
+            if (this.status[status] > 0) {
+                // Update timers for non-battle status effects
+                this.statusTimers[status] += deltaTime;
+                
+                // Every 3 seconds in world mode for poison
+                if (status === "poison" && this.statusTimers[status] >= 3) {
+                    this.statusTimers[status] = 0; // Reset timer
+                    
+                    // Apply poison damage (1/16 of max HP)
+                    const poisonDamage = Math.floor(this.maxHp / 16);
+                    this.hp = Math.max(1, this.hp - poisonDamage); // Never kill in world mode, just leave at 1 HP
+                    
+                    // Show damage number in world mode if possible
+                    if (worldContext && typeof worldContext.showDamageNumber === 'function') {
+                        worldContext.showDamageNumber(this, poisonDamage, "poison");
+                    } else {
+                        console.log(`${this.name} takes ${poisonDamage} poison damage in world mode`);
+                    }
+                }
+                
+                // If a status effect has been active for too long in world/menu mode,
+                // decrease the duration (1 per 6 seconds)
+                if (this.statusTimers[status] >= 6) {
+                    this.statusTimers[status] = 0;
+                    this.status[status]--;
+                    
+                    // Show status effect expiring in world mode if possible
+                    if (this.status[status] === 0) {
+                        if (worldContext && typeof worldContext.showDamageNumber === 'function') {
+                            worldContext.showDamageNumber(this, `${status.toUpperCase()} EXPIRED`, status);
+                        } else {
+                            console.log(`${this.name}'s ${status} has worn off in world mode`);
+                        }
+                    }
                 }
             }
         });

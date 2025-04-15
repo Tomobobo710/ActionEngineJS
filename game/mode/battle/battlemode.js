@@ -19,9 +19,18 @@ class BattleMode {
         this.enemyTemplates = ENEMY_TEMPLATES;
 
         this.persistentParty = this.gameMaster.persistentParty;
-        // Update the sprites for the party members
+        // Update the sprites for the party members and maintain status effects
         this.persistentParty.forEach((char) => {
             char.sprite = this.sprites[char.type];
+            
+            // Make sure status effect systems are initialized
+            if (!char.statusTimers) {
+                char.statusTimers = {
+                    poison: 0,
+                    blind: 0,
+                    silence: 0
+                };
+            }
         });
 
         this.partyInventory = this.gameMaster.partyInventory;
@@ -409,7 +418,7 @@ class BattleMode {
     }
 
     cleanup() {
-        // Clear battle system
+        // Preserve all character data including status effects
         if (this.battle) {
             if (this.battle.state === "victory") {
                 // Reset ATB values before saving
@@ -417,6 +426,38 @@ class BattleMode {
                     if (char) {
                         char.atbCurrent = 0;
                         char.isReady = false;
+                        
+                        // Ensure we're transferring status effects back to persistent party
+                        const persistentChar = this.persistentParty.find(p => p.name === char.name);
+                        if (persistentChar) {
+                            // Copy status effects with enhanced logging
+                            console.log(`Transferring status effects from battle back to persistent character: ${char.name}`);
+                            
+                            // Copy all status effects
+                            Object.keys(char.status).forEach(statusType => {
+                                const oldValue = persistentChar.status[statusType];
+                                persistentChar.status[statusType] = char.status[statusType];
+                                
+                                // Log any status changes
+                                if (oldValue !== persistentChar.status[statusType]) {
+                                    console.log(`  - ${statusType}: ${oldValue} => ${persistentChar.status[statusType]}`);
+                                }
+                            });
+                            
+                            // Ensure statusTimers is initialized with correct values
+                            if (!persistentChar.statusTimers) {
+                                persistentChar.statusTimers = {
+                                    poison: 0,
+                                    blind: 0,
+                                    silence: 0
+                                };
+                            }
+                            
+                            // Copy the status timers too
+                            Object.keys(char.statusTimers).forEach(statusType => {
+                                persistentChar.statusTimers[statusType] = char.statusTimers[statusType];
+                            });
+                        }
                     }
                 });
                 this.persistentParty = this.battle.party;

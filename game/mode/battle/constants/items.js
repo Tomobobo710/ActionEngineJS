@@ -1,4 +1,4 @@
-// game/mode/battle/classes/items.js
+// game/mode/battle/constants/items.js
 const ITEMS = {
     potion: {
         name: "Potion",
@@ -31,7 +31,7 @@ const ITEMS = {
             target.addStatus("poison", 5);
             return true;
         },
-        description: "Poison damage (single)"
+        description: "Inflicts poison for 5 turns (single)"
     },
     bomb: {
         name: "Bomb",
@@ -65,7 +65,7 @@ const ITEMS = {
             target.addStatus("blind", 3);
             return true;
         },
-        description: "Blinds enemies (all)"
+        description: "Blinds enemies for 3 turns (all)"
     },
     antidote: {
         name: "Antidote",
@@ -96,7 +96,7 @@ const ITEMS = {
             target.revive(50); // Revive with 50% HP
             return true;
         },
-        description: "Revives ally (single)"
+        description: "Revives ally with 50% HP (single)"
     },
     remedy: {
         name: "Remedy",
@@ -105,6 +105,17 @@ const ITEMS = {
         effect: (target) => {
             return target.removeAllStatus();
         },
-        description: "Removes all status (single)"
+        description: "Removes all status effects (single)"
+    },
+    silenceScroll: {
+        name: "Silence",
+        emoji: "📜",
+        targetType: TARGET_TYPES.SINGLE_ENEMY,
+        effect: (target) => {
+            if (target.isDead) return false;
+            target.addStatus("silence", 4);
+            return true;
+        },
+        description: "Silences enemy for 4 turns (single)"
     }
 };
