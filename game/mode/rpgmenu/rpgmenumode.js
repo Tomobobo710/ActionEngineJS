@@ -99,10 +99,7 @@ class RPGMenuMode {
         const currentTime = performance.now();
         this.deltaTime = (currentTime - this.lastTime) / 1000;
         this.lastTime = currentTime;
-        
-        // Update status effects for party members
-        this.updatePartyStatusEffects(this.deltaTime);
-        
+                
         // Update character panel
         this.characterPanel.update();
 
@@ -157,20 +154,13 @@ class RPGMenuMode {
         }
     }
     
-    // NEW: Update status effects for all party members in menu mode
+    // Update status effects for all party members in menu mode
     updatePartyStatusEffects(deltaTime) {
         this.statusEffectTimer += deltaTime;
         
         // Update status effects every 0.5 seconds
         if (this.statusEffectTimer >= 0.5) {
             this.statusEffectTimer = 0;
-            
-            // Update each party member's status effects
-            this.gameMaster.persistentParty.forEach(character => {
-                if (character) {
-                    character.updateStatus({ deltaTime });
-                }
-            });
         }
     }
 

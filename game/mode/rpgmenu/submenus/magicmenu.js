@@ -345,10 +345,6 @@ class MagicMenu extends BaseSubmenu {
             this.ctx.textAlign = "center";
             this.ctx.fillText("Select Caster", m.x + m.width / 2, m.y + 100);
             
-            // Add indication that dead characters can't be used
-            this.ctx.font = "18px monospace";
-            this.ctx.fillStyle = "#ff4444";
-            this.ctx.fillText("(Dead characters cannot cast magic)", m.x + m.width / 2, m.y + 130);
             return;
         }
 

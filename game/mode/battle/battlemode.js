@@ -19,18 +19,10 @@ class BattleMode {
         this.enemyTemplates = ENEMY_TEMPLATES;
 
         this.persistentParty = this.gameMaster.persistentParty;
+        
         // Update the sprites for the party members and maintain status effects
         this.persistentParty.forEach((char) => {
             char.sprite = this.sprites[char.type];
-            
-            // Make sure status effect systems are initialized
-            if (!char.statusTimers) {
-                char.statusTimers = {
-                    poison: 0,
-                    blind: 0,
-                    silence: 0
-                };
-            }
         });
 
         this.partyInventory = this.gameMaster.partyInventory;
@@ -442,20 +434,6 @@ class BattleMode {
                                 if (oldValue !== persistentChar.status[statusType]) {
                                     console.log(`  - ${statusType}: ${oldValue} => ${persistentChar.status[statusType]}`);
                                 }
-                            });
-                            
-                            // Ensure statusTimers is initialized with correct values
-                            if (!persistentChar.statusTimers) {
-                                persistentChar.statusTimers = {
-                                    poison: 0,
-                                    blind: 0,
-                                    silence: 0
-                                };
-                            }
-                            
-                            // Copy the status timers too
-                            Object.keys(char.statusTimers).forEach(statusType => {
-                                persistentChar.statusTimers[statusType] = char.statusTimers[statusType];
                             });
                         }
                     }

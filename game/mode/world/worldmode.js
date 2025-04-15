@@ -10,68 +10,59 @@ class WorldMode {
 
         this.initializeMode();
         this.pendingBattleTransition = false;
-        this.pendingMenuTransition = false;  // Add this new flag
-        
+        this.pendingMenuTransition = false; // Add this new flag
+
         if (this.createCharacter) {
             this.character = new ThirdPersonActionCharacter(this.terrain, this.camera, this);
 
             // Get saved state
-const savedState = gameModeManager.gameMaster.getPlayerState();
-if (savedState && savedState.position) {
-    // Position and rotation
-    this.character.body.position.set(
-        savedState.position.x,
-        savedState.position.y,
-        savedState.position.z
-    );
-    this.character.rotation = savedState.rotation;
-    
-    // Velocities
-    if (savedState.linear_velocity) {
-        this.character.body.linear_velocity.set(
-            savedState.linear_velocity.x,
-            savedState.linear_velocity.y,
-            savedState.linear_velocity.z
-        );
-    }
-    
-    if (savedState.angular_velocity) {
-        this.character.body.angular_velocity.set(
-            savedState.angular_velocity.x,
-            savedState.angular_velocity.y,
-            savedState.angular_velocity.z
-        );
-    }
-    
-    // Other physics properties
-    if (savedState.physics_properties) {
-        this.character.body.friction = savedState.physics_properties.friction;
-        this.character.body.restitution = savedState.physics_properties.restitution;
-        // Any other properties...
-    }
-    
-    console.log("Restored complete physics state");
-}
+            const savedState = gameModeManager.gameMaster.getPlayerState();
+            if (savedState && savedState.position) {
+                // Position and rotation
+                this.character.body.position.set(savedState.position.x, savedState.position.y, savedState.position.z);
+                this.character.rotation = savedState.rotation;
+
+                // Velocities
+                if (savedState.linear_velocity) {
+                    this.character.body.linear_velocity.set(
+                        savedState.linear_velocity.x,
+                        savedState.linear_velocity.y,
+                        savedState.linear_velocity.z
+                    );
+                }
+
+                if (savedState.angular_velocity) {
+                    this.character.body.angular_velocity.set(
+                        savedState.angular_velocity.x,
+                        savedState.angular_velocity.y,
+                        savedState.angular_velocity.z
+                    );
+                }
+
+                // Other physics properties
+                if (savedState.physics_properties) {
+                    this.character.body.friction = savedState.physics_properties.friction;
+                    this.character.body.restitution = savedState.physics_properties.restitution;
+                    // Any other properties...
+                }
+
+                console.log("Restored complete physics state");
+            }
 
             this.shaderManager.updateCharacterBuffers(this.character);
-        
-        
-        const savedTime = gameModeManager.gameMaster.getWorldTime();
-        this.worldTime = { ...savedTime };
-        
-        // Time progression speed (minutes per real second)
-        this.timeProgressionRate = 1; // Adjust this to change how fast time moves
-    
-        // Add a flag to track if rain is active
-        this.rainCycleActive = false;
 
-        // Time tracking for weather cycles
-        this.lastWeatherCheck = 0;    
-            
+            const savedTime = gameModeManager.gameMaster.getWorldTime();
+            this.worldTime = { ...savedTime };
+
+            // Time progression speed (minutes per real second)
+            this.timeProgressionRate = 1; // Adjust this to change how fast time moves
+
+            // Add a flag to track if rain is active
+            this.rainCycleActive = false;
+
+            // Time tracking for weather cycles
+            this.lastWeatherCheck = 0;
         }
-        
-        // Status effect timer for world mode
-        this.statusEffectTimer = 0;
     }
 
     initializeMode() {
@@ -174,14 +165,11 @@ if (savedState && savedState.position) {
         if (!this.isPaused) {
             // Update world time
             this.updateWorldTime(this.deltaTime);
-            
-            // Update status effects for all party members in world mode
-            this.updatePartyStatusEffects(this.deltaTime);
-            
+
             if (!this.use2DRenderer) {
                 this.shaderManager.updateCharacterBuffers(this.character);
             }
-            
+
             this.physicsWorld.update(this.deltaTime);
             this.handleInput();
             this.weatherSystem.update(this.deltaTime, this.terrain);
@@ -189,85 +177,69 @@ if (savedState && savedState.position) {
             if (this.character && this.weatherSystem) {
                 this.weatherSystem.updatePosition(this.character.position);
             }
-            
+
             // Check for pending transitions after all updates are complete
             if (this.pendingBattleTransition) {
                 this.pendingBattleTransition = false;
-                this.gameModeManager.switchMode('battle');
+                this.gameModeManager.switchMode("battle");
                 return;
             }
 
             if (this.pendingMenuTransition) {
                 this.pendingMenuTransition = false;
-                this.gameModeManager.switchMode('rpgmenu');
+                this.gameModeManager.switchMode("rpgmenu");
                 return;
             }
         }
     }
-    
-    // Update status effects for all party members in world mode
-    updatePartyStatusEffects(deltaTime) {
-        if (!this.gameModeManager || !this.gameModeManager.gameMaster) return;
-        
-        const party = this.gameModeManager.gameMaster.persistentParty;
-        if (!party) return;
-        
-        // Update status effects for each party member
-        party.forEach(character => {
-            if (character) {
-                // Pass the world mode instance as context for damage number display
-                character.updateStatus({ deltaTime, context: this });
-            }
-        });
-    }
 
     updateWorldTime(deltaTime) {
-    // Calculate minutes to add based on delta time and progression rate
-    const minutesToAdd = deltaTime * this.timeProgressionRate;
-    
-    // Store previous minutes for comparison
-    const previousMinutes = Math.floor(this.worldTime.minutes);
-    
-    // Add minutes
-    this.worldTime.minutes += minutesToAdd;
-    
-    // Handle minute overflow
-    while (this.worldTime.minutes >= 60) {
-        this.worldTime.minutes -= 60;
-        this.worldTime.hours += 1;
-        
-        // Handle hour overflow
-        if (this.worldTime.hours >= 24) {
-            this.worldTime.hours = 0;
-        }
-    }
-    
-    // Check if we should toggle rain based on 30-minute intervals
-    const currentMinutes = Math.floor(this.worldTime.minutes);
-    const totalMinutes = (this.worldTime.hours * 60) + currentMinutes;
-    
-    // Check if we've crossed a 30-minute boundary
-    if (Math.floor(totalMinutes / 30) !== Math.floor(this.lastWeatherCheck / 30)) {
-        this.lastWeatherCheck = totalMinutes;
-        
-        if (!this.rainCycleActive) {
-            // Start rain
-            if (this.weatherSystem) {
-                this.weatherSystem.current = "rain";
-                this.rainCycleActive = true;
-                console.log("[WorldMode] Starting rain cycle");
-            }
-        } else {
-            // Stop rain
-            if (this.weatherSystem) {
-                this.weatherSystem.current = "stopWeather";
-                this.rainCycleActive = false;
-                console.log("[WorldMode] Stopping rain cycle");
+        // Calculate minutes to add based on delta time and progression rate
+        const minutesToAdd = deltaTime * this.timeProgressionRate;
+
+        // Store previous minutes for comparison
+        const previousMinutes = Math.floor(this.worldTime.minutes);
+
+        // Add minutes
+        this.worldTime.minutes += minutesToAdd;
+
+        // Handle minute overflow
+        while (this.worldTime.minutes >= 60) {
+            this.worldTime.minutes -= 60;
+            this.worldTime.hours += 1;
+
+            // Handle hour overflow
+            if (this.worldTime.hours >= 24) {
+                this.worldTime.hours = 0;
             }
         }
+
+        // Check if we should toggle rain based on 30-minute intervals
+        const currentMinutes = Math.floor(this.worldTime.minutes);
+        const totalMinutes = this.worldTime.hours * 60 + currentMinutes;
+
+        // Check if we've crossed a 30-minute boundary
+        if (Math.floor(totalMinutes / 30) !== Math.floor(this.lastWeatherCheck / 30)) {
+            this.lastWeatherCheck = totalMinutes;
+
+            if (!this.rainCycleActive) {
+                // Start rain
+                if (this.weatherSystem) {
+                    this.weatherSystem.current = "rain";
+                    this.rainCycleActive = true;
+                    console.log("[WorldMode] Starting rain cycle");
+                }
+            } else {
+                // Stop rain
+                if (this.weatherSystem) {
+                    this.weatherSystem.current = "stopWeather";
+                    this.rainCycleActive = false;
+                    console.log("[WorldMode] Stopping rain cycle");
+                }
+            }
+        }
     }
-}
-    
+
     handleInput() {
         if (this.character) {
             this.character.applyInput(this.input, this.deltaTime);
@@ -331,103 +303,36 @@ if (savedState && savedState.position) {
         } else {
             this.debugPanel.clear();
         }
-    
-        // Draw time, status effects, and floating damage numbers on UI
+
+        // Draw gui
         if (this.guiCtx) {
             this.drawWorldUI();
         }
     }
-    
-    // NEW: Draw time and status effects
+
+    // Draw time and status effects
     drawWorldUI() {
         this.guiCtx.save();
-        
-        // Set ALL the text settings we actually need, don't assume anything
-        this.guiCtx.font = '20px Arial';
-        this.guiCtx.fillStyle = 'white';
-        this.guiCtx.textAlign = 'left';
-        this.guiCtx.textBaseline = 'top';
-        
+
+        this.guiCtx.font = "20px Arial";
+        this.guiCtx.fillStyle = "white";
+        this.guiCtx.textAlign = "left";
+        this.guiCtx.textBaseline = "top";
+
         // Draw time in top left
         this.guiCtx.fillText(this.getTimeString(), 10, 30);
-        
-        // Draw status effects for all party members if any are active
-        if (this.gameModeManager && this.gameModeManager.gameMaster) {
-            const party = this.gameModeManager.gameMaster.persistentParty;
-            if (party) {
-                let hasActiveStatus = false;
-                
-                // First check if any party member has active status effects
-                party.forEach(character => {
-                    if (!character) return;
-                    Object.values(character.status).forEach(duration => {
-                        if (duration > 0) hasActiveStatus = true;
-                    });
-                });
-                
-                // If at least one party member has a status effect, show the status panel
-                if (hasActiveStatus) {
-                    // Draw status effect panel
-                    this.guiCtx.fillStyle = 'rgba(0, 0, 50, 0.7)';
-                    this.guiCtx.fillRect(5, 60, 200, 30 * party.length);
-                    this.guiCtx.strokeStyle = '#ffffff';
-                    this.guiCtx.lineWidth = 1;
-                    this.guiCtx.strokeRect(5, 60, 200, 30 * party.length);
-                    
-                    // Draw each character's status
-                    let yOffset = 65;
-                    party.forEach(character => {
-                        if (!character) return;
-                        
-                        // Character name
-                        this.guiCtx.fillStyle = '#ffffff';
-                        this.guiCtx.font = '14px Arial';
-                        this.guiCtx.fillText(character.name + ':', 10, yOffset);
-                        
-                        // Status effect icons
-                        let xOffset = 80;
-                        Object.entries(character.status).forEach(([status, duration]) => {
-                            if (duration > 0) {
-                                // Use different colors for different status types
-                                let statusColor;
-                                switch (status) {
-                                    case "poison":
-                                        statusColor = "#9933ff"; // Purple for poison
-                                        break;
-                                    case "blind":
-                                        statusColor = "#888888"; // Gray for blind
-                                        break;
-                                    case "silence":
-                                        statusColor = "#33ccff"; // Light blue for silence
-                                        break;
-                                    default:
-                                        statusColor = "#ffff00"; // Yellow for default
-                                }
-                                
-                                // Draw status icon
-                                this.guiCtx.fillStyle = statusColor;
-                                this.guiCtx.fillText(`${status}:${duration}`, xOffset, yOffset);
-                                xOffset += 50; // Space between status icons
-                            }
-                        });
-                        
-                        yOffset += 25;
-                    });
-                }
-            }
-        }
-        
+
         this.guiCtx.restore();
     }
 
     getTimeString() {
         const hours = Math.floor(this.worldTime.hours);
         const minutes = Math.floor(this.worldTime.minutes);
-        const period = hours >= 12 ? 'PM' : 'AM';
+        const period = hours >= 12 ? "PM" : "AM";
         const displayHours = hours % 12 || 12;
-        return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
+        return `${displayHours}:${minutes.toString().padStart(2, "0")} ${period}`;
     }
-    
+
     createTestSphere() {
         if (this.sphere) {
             this.physicsWorld.removeObject(this.sphere);
@@ -450,10 +355,7 @@ if (savedState && savedState.position) {
     cleanup() {
         // Save world time before cleanup
         if (this.gameModeManager?.gameMaster) {
-            this.gameModeManager.gameMaster.setWorldTime(
-                this.worldTime.hours,
-                this.worldTime.minutes
-            );
+            this.gameModeManager.gameMaster.setWorldTime(this.worldTime.hours, this.worldTime.minutes);
         }
         // Clean up physics
         if (this.physicsWorld) {
@@ -523,9 +425,9 @@ if (savedState && savedState.position) {
             document.body.removeChild(this.gameCanvas2D);
             this.gameCanvas2D = null;
         }
-        
+
         this.input.clearAllElements();
-        
+
         // Clear canvas references
         this.gameCanvas3D = null;
         this.gameCanvas3DCtx = null;
@@ -538,102 +440,5 @@ if (savedState && savedState.position) {
         this.canvases = null;
         this.input = null;
         this.audio = null;
-    }
-
-
-    // Add a method to show temporary damage numbers for world effects (like poison damage)
-    showDamageNumber(character, amount, type) {
-        // Only create damage numbers if we have gui context
-        if (!this.guiCtx) return;
-        
-        // Add a damage number at a random position near the player character
-        const x = 400 + (Math.random() * 40 - 20);
-        const y = 300 + (Math.random() * 40 - 20);
-        
-        // Track the damage number with its own animation
-        if (!this.damageNumbers) {
-            this.damageNumbers = [];
-        }
-        
-        this.damageNumbers.push({
-            x,
-            y,
-            amount,
-            type,
-            startTime: Date.now(),
-            duration: 2000,
-            character: character.name
-        });
-    }
-    
-    // Update damage numbers animation in world mode
-    updateDamageNumbers() {
-        if (!this.damageNumbers) return;
-        
-        // Remove expired damage numbers
-        this.damageNumbers = this.damageNumbers.filter(number => {
-            const elapsed = Date.now() - number.startTime;
-            return elapsed < number.duration;
-        });
-    }
-    
-    // Render damage numbers in world mode
-    renderDamageNumbers() {
-        if (!this.damageNumbers || !this.guiCtx) return;
-        
-        this.guiCtx.save();
-        
-        // Render active damage numbers
-        this.damageNumbers.forEach(number => {
-            const elapsed = Date.now() - number.startTime;
-            const progress = elapsed / number.duration;
-            
-            // Float upward and fade out
-            const offsetY = -50 * progress;
-            const alpha = 1 - progress;
-            
-            // Different colors for different types
-            let color;
-            switch (number.type) {
-                case "physical":
-                    color = "#ff3333"; // Red for physical damage
-                    break;
-                case "magical":
-                    color = "#ffff00"; // Yellow for magic damage
-                    break;
-                case "poison":
-                    color = "#9933ff"; // Purple for poison
-                    break;
-                case "heal":
-                    color = "#33ff33"; // Green for healing
-                    break;
-                case "blind":
-                    color = "#888888"; // Gray for blind
-                    break;
-                case "silence":
-                    color = "#33ccff"; // Light blue for silence
-                    break;
-                default:
-                    color = "#ffffff"; // White for unknown
-            }
-            
-            this.guiCtx.globalAlpha = alpha;
-            this.guiCtx.fillStyle = color;
-            this.guiCtx.strokeStyle = "#000000";
-            this.guiCtx.lineWidth = 2;
-            this.guiCtx.font = "bold 20px Arial";
-            this.guiCtx.textAlign = "center";
-            this.guiCtx.textBaseline = "middle";
-            
-            // Draw text with outline for better visibility
-            this.guiCtx.strokeText(number.amount, number.x, number.y + offsetY);
-            this.guiCtx.fillText(number.amount, number.x, number.y + offsetY);
-            
-            // Add character name below for context
-            this.guiCtx.font = "12px Arial";
-            this.guiCtx.fillText(number.character, number.x, number.y + offsetY + 20);
-        });
-        
-        this.guiCtx.restore();
     }
 }

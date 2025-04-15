@@ -45,13 +45,6 @@ class Character {
             blind: data.status?.blind || 0,
             silence: data.status?.silence || 0
         };
-        
-        // Status effect timers for world/menu mode
-        this.statusTimers = {
-            poison: 0,
-            blind: 0,
-            silence: 0
-        };
 
         // Animation properties
         this.pos = { x: 0, y: 0 };
@@ -344,9 +337,6 @@ class Character {
             // Status effects persist until explicitly cured
             this.status[status] = 1; // Simply mark it as active (1)
             
-            // Reset the status timer when newly applied
-            this.statusTimers[status] = 0;
-            
             // Return true if status was newly applied or extended
             const wasApplied = this.status[status] > 0;
             
@@ -364,7 +354,6 @@ class Character {
     removeAllStatus() {
         Object.keys(this.status).forEach((statusEffect) => {
             this.status[statusEffect] = 0;
-            this.statusTimers[statusEffect] = 0;
         });
         return true;
     }
@@ -372,7 +361,6 @@ class Character {
     removeStatus(statusName) {
         if (this.status[statusName]) {
             this.status[statusName] = 0;
-            this.statusTimers[statusName] = 0;
             return true;
         }
         return false;
@@ -384,28 +372,8 @@ class Character {
         this.hp = Math.floor(this.maxHp * (percentHp / 100));
         return true;
     }
-
-    // Update status effects for both battle and world/menu modes
-    updateStatus(context = {}) {
-        // In battle mode, update every turn using battle reference
-        if (context && context.damageNumbers) {
-            this.updateBattleStatus(context);
-        } 
-        // In world/menu mode, update based on time
-        else {
-            this.updateWorldStatus(context?.deltaTime || 0, context?.context);
-        }
-    }
     
-    updateBattleStatus(battle) {
-        // Skip status updates if character is dead
-        if (this.isDead) return;
-        
-        // We don't need to loop through all status effects here anymore
-        // Status effects should only be applied when the character becomes active
-    }
-    
-    // New method to apply status effects when it's this character's turn to act
+    // Apply status effects when it's this character's turn to act
     applyStatusEffectsOnTurn(battle) {
         // Skip if character is dead
         if (this.isDead) return;
@@ -501,7 +469,6 @@ class Character {
             skills: [...this.skills],
             spells: [...this.spells],
             status: { ...this.status },
-            statusTimers: { ...this.statusTimers },
             isDead: this.isDead,
             // Include any equipment or other relevant data
             equipment: this.equipment ? JSON.parse(JSON.stringify(this.equipment)) : null
@@ -530,53 +497,10 @@ class Character {
             });
         }
         
-        // Copy status timers
-        if (state.statusTimers) {
-            Object.keys(this.statusTimers).forEach(statusType => {
-                // Make sure we initialize all known timer types
-                this.statusTimers[statusType] = 0;
-            });
-            
-            // Then apply any active timers from the saved state
-            Object.keys(state.statusTimers).forEach(statusType => {
-                this.statusTimers[statusType] = state.statusTimers[statusType];
-            });
-        }
-        
         // Apply equipment if present
         if (state.equipment) {
             this.equipment = JSON.parse(JSON.stringify(state.equipment));
             this.calculateStats(); // Recalculate stats with equipment
         }
-    }
-
-    // Modified updateWorldStatus method that connects with the World mode visualization
-    updateWorldStatus(deltaTime, worldContext) {
-        if (this.isDead) return;
-        
-        // We still want to apply poison effects in world mode, but at a timed interval
-        // rather than on character turns (since there are no turns in world mode)
-        Object.keys(this.status).forEach((status) => {
-            if (this.status[status] > 0) {
-                // Update timers for non-battle status effects
-                this.statusTimers[status] += deltaTime;
-                
-                // Every 3 seconds in world mode for poison
-                if (status === "poison" && this.statusTimers[status] >= 3) {
-                    this.statusTimers[status] = 0; // Reset timer
-                    
-                    // Apply poison damage (1/16 of max HP)
-                    const poisonDamage = Math.floor(this.maxHp / 16);
-                    this.hp = Math.max(1, this.hp - poisonDamage); // Never kill in world mode, just leave at 1 HP
-                    
-                    // Show damage number in world mode if possible
-                    if (worldContext && typeof worldContext.showDamageNumber === 'function') {
-                        worldContext.showDamageNumber(this, poisonDamage, "poison");
-                    } else {
-                        console.log(`${this.name} takes ${poisonDamage} poison damage in world mode`);
-                    }
-                }
-            }
-        });
     }
 }
