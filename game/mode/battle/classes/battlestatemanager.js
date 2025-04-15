@@ -2,20 +2,20 @@
 class BattleStateManager {
     constructor(battleSystem) {
         this.battle = battleSystem;
-
+        
         // State properties - directly accessible
         this.state = "init";
         this.stateStartTime = null;
         this.readyForWorldTransition = false;
         this.transitionProgress = 0;
         this.isPaused = false;
-
+        
         // Battle flow state
         this.activeChar = null;
         this.actionQueue = [];
         this.readyOrder = [];
         this.isProcessingAction = false;
-
+        
         // Menu state
         this.currentMenu = "main";
         this.selectedAction = null;
@@ -23,7 +23,7 @@ class BattleStateManager {
         this.subMenuPosition = 0;
         this.pendingSpell = null;
         this.pendingItem = null;
-
+        
         // UI state
         this.hoveredMenuOption = null;
         this.hoveredItem = null;
@@ -32,13 +32,13 @@ class BattleStateManager {
         this.upArrowHovered = false;
         this.downArrowHovered = false;
         this.currentMessage = null;
-
+        
         // Pagination
         this.itemScrollOffset = 0;
         this.spellScrollOffset = 0;
         this.maxVisibleItems = 8;
         this.maxVisibleSpells = 8;
-
+        
         // Animation state
         this.animations = [];
     }
@@ -52,28 +52,28 @@ class BattleStateManager {
         this.pendingItem = null;
         this.showCancelButton = false;
     }
-
+    
     enterBattleState() {
         this.state = "battle";
     }
-
+    
     enterVictoryState() {
         this.state = "victory";
         this.transitionProgress = 0;
         this.stateStartTime = null;
     }
-
+    
     enterGameOverState() {
         this.state = "gameover";
         this.transitionProgress = 0;
         this.stateStartTime = null;
     }
-
+    
     enterResultsState() {
         this.state = "results";
         this.stateStartTime = null;
     }
-
+    
     // Message handling
     showMessage(message) {
         this.currentMessage = {
@@ -82,7 +82,7 @@ class BattleStateManager {
             startTime: Date.now()
         };
     }
-
+    
     updateMessage() {
         if (this.currentMessage) {
             const messageAge = Date.now() - this.currentMessage.startTime;
@@ -94,42 +94,42 @@ class BattleStateManager {
             }
         }
     }
-
+    
     // Animation handling
     addAnimation(animation) {
         this.animations.push(animation);
     }
-
+    
     updateAnimations() {
-        this.animations = this.animations.filter((anim) => {
+        this.animations = this.animations.filter(anim => {
             anim.update();
             return !anim.finished;
         });
     }
-
+    
     // Action queue management
     queueAction(action) {
         this.actionQueue.push(action);
     }
-
+    
     dequeueAction() {
         return this.actionQueue.shift();
     }
-
+    
     addReadyCharacter(character) {
         if (!this.readyOrder.includes(character)) {
             this.readyOrder.push(character);
         }
     }
-
+    
     getNextReadyCharacter() {
         return this.readyOrder.length > 0 ? this.readyOrder[0] : null;
     }
-
+    
     removeFromReadyOrder(character) {
-        this.readyOrder = this.readyOrder.filter((char) => char !== character);
+        this.readyOrder = this.readyOrder.filter(char => char !== character);
     }
-
+    
     // Update methods
     updateTransitions() {
         switch (this.state) {
@@ -140,22 +140,22 @@ class BattleStateManager {
                     this.state = "battle";
                 }
                 break;
-
+                
             case "victory":
             case "gameover":
-            case "post_results": // Add this case
+            case "post_results": 
                 if (this.transitionProgress < 1) {
                     this.transitionProgress += 0.01;
                 }
                 break;
         }
     }
-
+    
     checkBattleEnd(party, enemies) {
-        if (party.every((char) => !char || char.isDead)) {
+        if (party.every(char => !char || char.isDead)) {
             this.enterGameOverState();
             return true;
-        } else if (enemies.every((enemy) => enemy.isDead)) {
+        } else if (enemies.every(enemy => enemy.isDead)) {
             this.enterVictoryState();
             return true;
         }

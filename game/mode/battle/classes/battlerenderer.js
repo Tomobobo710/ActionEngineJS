@@ -2,6 +2,9 @@
 class BattleRenderer {
     constructor(battleSystem) {
         this.battle = battleSystem;
+        // Keep references to the UI state from battle system
+        this.upArrowHovered = false;
+        this.downArrowHovered = false;
     }
 
     render(ctx) {
@@ -27,17 +30,13 @@ class BattleRenderer {
         this.drawBattleMenu(ctx);
 
         // Draw active animations
-        this.battle.stateManager.animations.forEach((anim) => anim.render(ctx));
+        this.battle.animations.forEach((anim) => anim.render(ctx));
 
         // Draw messages
         this.drawMessages(ctx);
 
         // Draw transition effects
-        if (
-            this.battle.stateManager.state === "init" ||
-            this.battle.stateManager.state === "victory" ||
-            this.battle.stateManager.state === "gameover"
-        ) {
+        if (this.battle.state === "init" || this.battle.state === "victory" || this.battle.state === "gameover") {
             this.drawTransition(ctx);
         }
     }
@@ -54,9 +53,8 @@ class BattleRenderer {
             const pulseSize = Math.sin(time * 4) * 2;
 
             // Outer glow - adjust color based on if targeting a dead character with Phoenix
-            let isPhoenix =
-                this.battle.stateManager.pendingItem && this.battle.stateManager.pendingItem.name === "Phoenix";
-
+            let isPhoenix = this.battle.pendingItem && this.battle.pendingItem.name === "Phoenix";
+            
             // Use different colors for dead/alive targets
             if (isDeadTarget && isPhoenix) {
                 // Golden/resurrection glow for Phoenix on dead targets
@@ -67,7 +65,7 @@ class BattleRenderer {
                 ctx.strokeStyle = target.type === "enemy" ? "#ff8888" : "#88ff88";
                 ctx.shadowColor = target.type === "enemy" ? "#ff0000" : "#00ff00";
             }
-
+            
             ctx.lineWidth = 2;
             ctx.shadowBlur = 15;
 
@@ -131,7 +129,7 @@ class BattleRenderer {
                     statusY += 12;
                 }
             });
-
+            
             // Show dead status if applicable
             if (isDeadTarget) {
                 ctx.fillStyle = "#ff4444";
@@ -143,45 +141,30 @@ class BattleRenderer {
     }
 
     renderActiveCharacterIndicator(ctx) {
-        if (this.battle.stateManager.activeChar && !this.battle.stateManager.activeChar.isDead) {
+        if (this.battle.activeChar && !this.battle.activeChar.isDead) {
             // Keep the existing glow effect
             const gradient = ctx.createRadialGradient(
-                this.battle.stateManager.activeChar.pos.x,
-                this.battle.stateManager.activeChar.pos.y,
+                this.battle.activeChar.pos.x,
+                this.battle.activeChar.pos.y,
                 10,
-                this.battle.stateManager.activeChar.pos.x,
-                this.battle.stateManager.activeChar.pos.y,
+                this.battle.activeChar.pos.x,
+                this.battle.activeChar.pos.y,
                 30
             );
             gradient.addColorStop(0, "rgba(255, 255, 0, 0.2)");
             gradient.addColorStop(1, "rgba(255, 255, 0, 0)");
             ctx.fillStyle = gradient;
             ctx.beginPath();
-            ctx.arc(
-                this.battle.stateManager.activeChar.pos.x,
-                this.battle.stateManager.activeChar.pos.y,
-                30,
-                0,
-                Math.PI * 2
-            );
+            ctx.arc(this.battle.activeChar.pos.x, this.battle.activeChar.pos.y, 30, 0, Math.PI * 2);
             ctx.fill();
 
             // Add a bouncing white arrow to the left
             const bounce = Math.sin(Date.now() / 100) * 5;
             ctx.fillStyle = "#ffffff";
             ctx.beginPath();
-            ctx.moveTo(
-                this.battle.stateManager.activeChar.pos.x - 50 + bounce,
-                this.battle.stateManager.activeChar.pos.y
-            );
-            ctx.lineTo(
-                this.battle.stateManager.activeChar.pos.x - 35 + bounce,
-                this.battle.stateManager.activeChar.pos.y - 10
-            );
-            ctx.lineTo(
-                this.battle.stateManager.activeChar.pos.x - 35 + bounce,
-                this.battle.stateManager.activeChar.pos.y + 10
-            );
+            ctx.moveTo(this.battle.activeChar.pos.x - 50 + bounce, this.battle.activeChar.pos.y);
+            ctx.lineTo(this.battle.activeChar.pos.x - 35 + bounce, this.battle.activeChar.pos.y - 10);
+            ctx.lineTo(this.battle.activeChar.pos.x - 35 + bounce, this.battle.activeChar.pos.y + 10);
             ctx.closePath();
             ctx.fill();
         }
@@ -189,11 +172,10 @@ class BattleRenderer {
 
     renderTargetingCursor(ctx) {
         const targetingManager = this.battle.targetingManager;
-
+        
         // Check if using a Phoenix item
-        const isUsingPhoenix =
-            this.battle.stateManager.pendingItem && this.battle.stateManager.pendingItem.name === "Phoenix";
-
+        const isUsingPhoenix = this.battle.pendingItem && this.battle.pendingItem.name === "Phoenix";
+        
         if (targetingManager.isGroupTarget) {
             // Draw targeting cursor over entire group
             const targets = targetingManager.targetList[0]; // Get the group array
@@ -252,7 +234,7 @@ class BattleRenderer {
                 // For dead enemies, draw them with transparency and a visual indicator
                 ctx.globalAlpha = 0.5; // Make them semi-transparent
                 ctx.drawImage(enemy.sprite, enemy.pos.x - 24, enemy.pos.y - 24);
-
+                
                 // Draw an "X" over dead enemies
                 ctx.strokeStyle = "red";
                 ctx.lineWidth = 3;
@@ -262,7 +244,7 @@ class BattleRenderer {
                 ctx.moveTo(enemy.pos.x + 20, enemy.pos.y - 20);
                 ctx.lineTo(enemy.pos.x - 20, enemy.pos.y + 20);
                 ctx.stroke();
-
+                
                 // Reset alpha for other elements
                 ctx.globalAlpha = 1.0;
             } else {
@@ -305,16 +287,15 @@ class BattleRenderer {
     renderPartyMembers(ctx) {
         this.battle.party.forEach((char) => {
             if (!char) return; // Skip empty slots
-
+            
             // Check for phoenix targeting mode
-            const isPhoenixMode =
-                this.battle.stateManager.pendingItem && this.battle.stateManager.pendingItem.name === "Phoenix";
-
+            const isPhoenixMode = this.battle.pendingItem && this.battle.pendingItem.name === "Phoenix";
+            
             if (char.isDead) {
                 // For dead party members, add a visual representation
                 ctx.globalAlpha = 0.5; // Make them semi-transparent
                 ctx.drawImage(char.sprite, char.pos.x - 16, char.pos.y - 16);
-
+                
                 // Draw a cross over dead party members
                 ctx.strokeStyle = "red";
                 ctx.lineWidth = 3;
@@ -324,25 +305,25 @@ class BattleRenderer {
                 ctx.moveTo(char.pos.x + 12, char.pos.y - 12);
                 ctx.lineTo(char.pos.x - 12, char.pos.y + 12);
                 ctx.stroke();
-
+                
                 // Add "DEAD" text
                 ctx.fillStyle = "#ff4444";
                 ctx.font = "10px monospace";
                 ctx.textAlign = "center";
                 ctx.fillText("DEAD", char.pos.x, char.pos.y + 25);
-
+                
                 // If in phoenix targeting mode, add a special glow
                 if (isPhoenixMode) {
                     const time = Date.now() / 1000;
                     const pulseAlpha = 0.3 + Math.sin(time * 3) * 0.2;
-
+                    
                     ctx.globalAlpha = pulseAlpha;
                     ctx.fillStyle = "#ffdf00";
                     ctx.beginPath();
                     ctx.arc(char.pos.x, char.pos.y, 20, 0, Math.PI * 2);
                     ctx.fill();
                 }
-
+                
                 // Reset alpha
                 ctx.globalAlpha = 1.0;
             } else {
@@ -401,8 +382,8 @@ class BattleRenderer {
 
     drawBattleMenu(ctx) {
         // Draw cancel button if needed
-        if (this.battle.stateManager.showCancelButton) {
-            const isHovered = this.battle.stateManager.hoveredCancel;
+        if (this.battle.showCancelButton) {
+            const isHovered = this.battle.hoveredCancel;
 
             ctx.save();
             // Make background wider to cover all text
@@ -441,9 +422,9 @@ class BattleRenderer {
         this.renderCommandMenu(ctx);
 
         // Draw sub-menus
-        if (this.battle.stateManager.currentMenu === "magic") {
+        if (this.battle.currentMenu === "magic") {
             this.renderMagicMenu(ctx);
-        } else if (this.battle.stateManager.currentMenu === "item") {
+        } else if (this.battle.currentMenu === "item") {
             this.drawItemMenu(ctx);
         }
     }
@@ -454,7 +435,7 @@ class BattleRenderer {
 
             const x = 475;
             const y = Game.HEIGHT - 140 + i * 45;
-            const isActive = char === this.battle.stateManager.activeChar;
+            const isActive = char === this.battle.activeChar;
 
             // Draw highlight box for active character
             if (isActive) {
@@ -466,13 +447,13 @@ class BattleRenderer {
             ctx.fillStyle = isActive ? "#ffff00" : char.isDead ? "#ff4444" : "#fff";
             ctx.font = "16px monospace";
             ctx.textAlign = "left";
-
+            
             // Add "DEAD" indicator for dead characters
             let nameText = char.name;
             if (char.isDead) {
                 nameText += " [DEAD]";
             }
-
+            
             ctx.fillText(nameText, x + 10, y + 20);
 
             // HP bar with animation
@@ -536,7 +517,7 @@ class BattleRenderer {
     renderCommandMenu(ctx) {
         const commands = ["Fight", "Magic", "Item", "Run"];
         commands.forEach((cmd, i) => {
-            const isHovered = this.battle.stateManager.hoveredMenuOption === cmd.toLowerCase();
+            const isHovered = this.battle.hoveredMenuOption === cmd.toLowerCase();
 
             // Enhanced background effect
             if (isHovered) {
@@ -553,7 +534,7 @@ class BattleRenderer {
                 gradient.addColorStop(1, `rgba(68, 68, 255, ${0.6 + Math.sin(time * 2) * 0.2})`);
                 ctx.fillStyle = gradient;
             } else {
-                ctx.fillStyle = i === this.battle.stateManager.menuPosition ? "#4444ff" : "transparent";
+                ctx.fillStyle = i === this.battle.menuPosition ? "#4444ff" : "transparent";
             }
 
             ctx.fillRect(10, Game.HEIGHT - 140 + i * 35, 100, 30);
@@ -587,13 +568,11 @@ class BattleRenderer {
     }
 
     renderMagicMenu(ctx) {
-        const spells = this.battle.stateManager.activeChar.spells;
+        const spells = this.battle.activeChar.spells;
         const totalSpells = spells.length;
-        const totalPages = Math.ceil(totalSpells / this.battle.stateManager.maxVisibleSpells);
-        const currentPage = Math.floor(
-            this.battle.stateManager.spellScrollOffset / this.battle.stateManager.maxVisibleSpells
-        );
-        const visibleSpells = Math.min(this.battle.stateManager.maxVisibleSpells, totalSpells);
+        const totalPages = Math.ceil(totalSpells / this.battle.maxVisibleSpells);
+        const currentPage = Math.floor(this.battle.spellScrollOffset / this.battle.maxVisibleSpells);
+        const visibleSpells = Math.min(this.battle.maxVisibleSpells, totalSpells);
 
         // Define layout constants
         const gap = 10;
@@ -601,19 +580,19 @@ class BattleRenderer {
         const columnWidth = 150;
 
         // Draw page navigation arrows
-        if (totalSpells > this.battle.stateManager.maxVisibleSpells) {
+        if (totalSpells > this.battle.maxVisibleSpells) {
             this.renderPaginationArrows(ctx, currentPage, totalPages);
         }
 
         // Draw visible spells
         for (let i = 0; i < visibleSpells; i++) {
-            const spellIndex = i + this.battle.stateManager.spellScrollOffset;
+            const spellIndex = i + this.battle.spellScrollOffset;
             if (spellIndex >= totalSpells) break;
 
             const spellId = spells[spellIndex];
             const spell = SPELLS[spellId];
-            const isHovered = this.battle.stateManager.hoveredSpell === spell;
-            const isSelected = spellIndex === this.battle.stateManager.subMenuPosition;
+            const isHovered = this.battle.hoveredSpell === spell;
+            const isSelected = spellIndex === this.battle.subMenuPosition;
 
             const spellCol = Math.floor(i / 4);
             const spellRow = i % 4;
@@ -659,11 +638,9 @@ class BattleRenderer {
     drawItemMenu(ctx) {
         const availableItems = this.battle.partyInventory.getAvailableItems();
         const totalItems = availableItems.length;
-        const totalPages = Math.ceil(totalItems / this.battle.stateManager.maxVisibleItems);
-        const currentPage = Math.floor(
-            this.battle.stateManager.itemScrollOffset / this.battle.stateManager.maxVisibleItems
-        );
-        const visibleItems = Math.min(this.battle.stateManager.maxVisibleItems, totalItems);
+        const totalPages = Math.ceil(totalItems / this.battle.maxVisibleItems);
+        const currentPage = Math.floor(this.battle.itemScrollOffset / this.battle.maxVisibleItems);
+        const visibleItems = Math.min(this.battle.maxVisibleItems, totalItems);
 
         // Define layout constants
         const gap = 10;
@@ -672,12 +649,12 @@ class BattleRenderer {
 
         // Draw visible items
         for (let i = 0; i < visibleItems; i++) {
-            const itemIndex = i + this.battle.stateManager.itemScrollOffset;
+            const itemIndex = i + this.battle.itemScrollOffset;
             if (itemIndex >= totalItems) break;
 
             const itemData = availableItems[itemIndex];
-            const isHovered = this.battle.stateManager.hoveredItem === itemData;
-            const isSelected = itemIndex === this.battle.stateManager.subMenuPosition;
+            const isHovered = this.battle.hoveredItem === itemData;
+            const isSelected = itemIndex === this.battle.subMenuPosition;
 
             const itemCol = Math.floor(i / 4);
             const itemRow = i % 4;
@@ -720,7 +697,7 @@ class BattleRenderer {
         }
 
         // Draw page navigation arrows
-        if (totalItems > this.battle.stateManager.maxVisibleItems) {
+        if (totalItems > this.battle.maxVisibleItems) {
             this.renderPaginationArrows(ctx, currentPage, totalPages);
         }
     }
@@ -731,8 +708,8 @@ class BattleRenderer {
 
         // Up arrow
         if (currentPage > 0) {
-            ctx.fillStyle = this.battle.stateManager.upArrowHovered ? "#ffff88" : "#ffffff";
-            if (this.battle.stateManager.upArrowHovered) {
+            ctx.fillStyle = this.battle.upArrowHovered ? "#ffff88" : "#ffffff";
+            if (this.battle.upArrowHovered) {
                 ctx.shadowColor = "#ffffff";
                 ctx.shadowBlur = 10;
             }
@@ -743,7 +720,7 @@ class BattleRenderer {
             ctx.lineTo(arrowX + arrowSize, Game.HEIGHT - 110);
             ctx.closePath();
             ctx.fill();
-            if (this.battle.stateManager.upArrowHovered) {
+            if (this.battle.upArrowHovered) {
                 ctx.shadowBlur = 0;
             }
         }
@@ -757,8 +734,8 @@ class BattleRenderer {
 
         // Down arrow
         if (currentPage < totalPages - 1) {
-            ctx.fillStyle = this.battle.stateManager.downArrowHovered ? "#ffff88" : "#ffffff";
-            if (this.battle.stateManager.downArrowHovered) {
+            ctx.fillStyle = this.battle.downArrowHovered ? "#ffff88" : "#ffffff";
+            if (this.battle.downArrowHovered) {
                 ctx.shadowColor = "#ffffff";
                 ctx.shadowBlur = 10;
             }
@@ -770,43 +747,43 @@ class BattleRenderer {
             ctx.closePath();
             ctx.fill();
 
-            if (this.battle.stateManager.downArrowHovered) {
+            if (this.battle.downArrowHovered) {
                 ctx.shadowBlur = 0;
             }
         }
     }
 
     drawMessages(ctx) {
-        if (this.battle.stateManager.currentMessage) {
+        if (this.battle.currentMessage) {
             // Calculate how long the message has been showing
-            const messageAge = Date.now() - this.battle.stateManager.currentMessage.startTime;
+            const messageAge = Date.now() - this.battle.currentMessage.startTime;
 
             // Start fading after 1 second
             if (messageAge > 1000) {
-                this.battle.stateManager.currentMessage.alpha = Math.max(0, 1 - (messageAge - 1000) / 1000);
+                this.battle.currentMessage.alpha = Math.max(0, 1 - (messageAge - 1000) / 1000);
             }
 
             // Draw the message
-            ctx.fillStyle = `rgba(255,255,255,${this.battle.stateManager.currentMessage.alpha})`;
+            ctx.fillStyle = `rgba(255,255,255,${this.battle.currentMessage.alpha})`;
             ctx.font = "20px monospace";
             ctx.textAlign = "center";
-            ctx.fillText(this.battle.stateManager.currentMessage.text, Game.WIDTH / 2, 50);
+            ctx.fillText(this.battle.currentMessage.text, Game.WIDTH / 2, 50);
 
             // Remove message when fully faded
-            if (this.battle.stateManager.currentMessage.alpha <= 0) {
-                this.battle.stateManager.currentMessage = null;
+            if (this.battle.currentMessage.alpha <= 0) {
+                this.battle.currentMessage = null;
             }
         }
     }
 
     drawTransition(ctx) {
         // Handle initial fade in/out
-        if (this.battle.stateManager.state === "init") {
-            ctx.fillStyle = `rgba(0,0,0,${1 - this.battle.stateManager.transitionProgress})`;
+        if (this.battle.state === "init") {
+            ctx.fillStyle = `rgba(0,0,0,${1 - this.battle.transitionProgress})`;
             ctx.fillRect(0, 0, Game.WIDTH, Game.HEIGHT - 150); // Only darken the battle area
         }
         // Handle victory/gameover screens
-        else if (this.battle.stateManager.state === "victory" || this.battle.stateManager.state === "gameover") {
+        else if (this.battle.state === "victory" || this.battle.state === "gameover") {
             // Background fade
             ctx.fillStyle = `rgba(0,0,0,${0.7})`;
             ctx.fillRect(0, 0, Game.WIDTH, Game.HEIGHT - 150); // Only darken the battle area (600-150 = 450)
@@ -819,12 +796,12 @@ class BattleRenderer {
             ctx.save();
             ctx.translate(Game.WIDTH / 2, Game.HEIGHT / 2 - 50);
             ctx.scale(scale, scale);
-            ctx.fillStyle = this.battle.stateManager.state === "victory" ? "#ffff00" : "#ff4444";
+            ctx.fillStyle = this.battle.state === "victory" ? "#ffff00" : "#ff4444";
             ctx.font = "bold 48px monospace";
             ctx.textAlign = "center";
-            ctx.shadowColor = this.battle.stateManager.state === "victory" ? "#ffaa00" : "#aa0000";
+            ctx.shadowColor = this.battle.state === "victory" ? "#ffaa00" : "#aa0000";
             ctx.shadowBlur = 15;
-            ctx.fillText(this.battle.stateManager.state.toUpperCase() + "!", 0, 0);
+            ctx.fillText(this.battle.state.toUpperCase() + "!", 0, 0);
             ctx.restore();
 
             // Draw secondary message
@@ -832,7 +809,7 @@ class BattleRenderer {
             ctx.font = "20px monospace";
             ctx.textAlign = "center";
 
-            if (this.battle.stateManager.state === "victory") {
+            if (this.battle.state === "victory") {
                 ctx.fillText("You defeated all enemies!", Game.WIDTH / 2, Game.HEIGHT / 2 + 20);
             } else {
                 ctx.fillText("Your party was defeated...", Game.WIDTH / 2, Game.HEIGHT / 2 + 20);

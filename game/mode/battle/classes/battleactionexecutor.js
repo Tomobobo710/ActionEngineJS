@@ -11,7 +11,7 @@ class BattleActionExecutor {
         if (!attack || !attack.character || !attack.target) return;
 
         this.isProcessingAction = true;
-        this.battle.stateManager.animations.push(
+        this.battle.animations.push(
             new AttackAnimation(attack.character, attack.target, this.battle.enemies.includes(attack.character))
         );
 
@@ -45,27 +45,21 @@ class BattleActionExecutor {
 
         if (action.isGroupTarget) {
             const targets = Array.isArray(action.target) ? action.target : [action.target];
-
+            
             // For group targets, only the first animation should show darkening
             // so we'll mark all subsequent ones as group animations
             let isFirstTarget = true;
-
+            
             targets.forEach((target) => {
                 if (!target.isDead) {
-                    this.battle.stateManager.animations.push(
-                        new SpellAnimation(
-                            action.spell.animation,
-                            target.pos,
-                            action.character,
-                            isEnemy,
-                            !isFirstTarget
-                        )
+                    this.battle.animations.push(
+                        new SpellAnimation(action.spell.animation, target.pos, action.character, isEnemy, !isFirstTarget)
                     );
                     isFirstTarget = false;
                 }
             });
         } else {
-            this.battle.stateManager.animations.push(
+            this.battle.animations.push(
                 new SpellAnimation(action.spell.animation, action.target.pos, action.character, isEnemy)
             );
         }
@@ -84,7 +78,7 @@ class BattleActionExecutor {
 
             // Check if this is a healing spell or damage spell
             const isHealingSpell = action.spell.effect === "heal";
-
+            
             if (action.isGroupTarget) {
                 const targets = Array.isArray(action.target) ? action.target : [action.target];
                 targets.forEach((target) => {
@@ -111,9 +105,9 @@ class BattleActionExecutor {
                         }
                     }
                 });
-
+                
                 // Target message based on who's being targeted
-                targetMessage = this.battle.stateManager.currentTargetGroup === "allies" ? "all allies" : "all enemies";
+                targetMessage = this.battle.currentTargetGroup === "allies" ? "all allies" : "all enemies";
             } else {
                 // Handle single target
                 if (isHealingSpell) {
@@ -166,14 +160,10 @@ class BattleActionExecutor {
         if (action.isGroupTarget) {
             const targets = Array.isArray(action.target) ? action.target : [action.target];
             targets.forEach((target) => {
-                this.battle.stateManager.animations.push(
-                    new ItemAnimation(action.item.animation, target.pos, action.character)
-                );
+                this.battle.animations.push(new ItemAnimation(action.item.animation, target.pos, action.character));
             });
         } else {
-            this.battle.stateManager.animations.push(
-                new ItemAnimation(action.item.animation, action.target.pos, action.character)
-            );
+            this.battle.animations.push(new ItemAnimation(action.item.animation, action.target.pos, action.character));
         }
 
         // Store the item effect to apply after animation completes
@@ -268,10 +258,7 @@ class BattleActionExecutor {
             }
 
             const message = `${action.character.name} used ${action.item.name} on ${targetMessage}${effectMessage}!`;
-            this.battle.battleLog.addMessage(
-                message,
-                action.item.name.toLowerCase().includes("potion") ? "heal" : "damage"
-            );
+            this.battle.battleLog.addMessage(message, action.item.name.toLowerCase().includes("potion") ? "heal" : "damage");
             this.battle.showBattleMessage(message);
 
             this.isProcessingAction = false;
@@ -346,7 +333,7 @@ class BattleActionExecutor {
     // Animation handling
     handleAnimations() {
         // Update and filter battle animations
-        this.battle.stateManager.animations = this.battle.stateManager.animations.filter((anim) => {
+        this.battle.animations = this.battle.animations.filter((anim) => {
             anim.update();
             return !anim.finished;
         });
@@ -354,28 +341,26 @@ class BattleActionExecutor {
 
     // Process the next action in the queue
     processNextAction() {
-        const nextAction = this.battle.stateManager.actionQueue[0];
+        const nextAction = this.battle.actionQueue[0];
         this.isProcessingAction = true;
 
         // Verify the character and target are still valid before executing action
         if (nextAction.character.isDead) {
             // Skip actions for dead characters
-            this.battle.stateManager.actionQueue.shift();
+            this.battle.actionQueue.shift();
             this.isProcessingAction = false;
             return;
         }
 
         // For single target actions, check if the target is dead (unless using Phoenix)
-        if (
-            !nextAction.isGroupTarget &&
-            nextAction.target.isDead &&
-            !(nextAction.type === "item" && nextAction.item && nextAction.item.name === "Phoenix")
-        ) {
+        if (!nextAction.isGroupTarget && 
+            nextAction.target.isDead && 
+            !(nextAction.type === "item" && nextAction.item && nextAction.item.name === "Phoenix")) {
             // Skip actions with dead targets (except for Phoenix item)
             const message = `${nextAction.character.name}'s action failed - target is no longer valid!`;
             this.battle.battleLog.addMessage(message, "system");
             this.battle.showBattleMessage(message);
-            this.battle.stateManager.actionQueue.shift();
+            this.battle.actionQueue.shift();
             this.isProcessingAction = false;
             return;
         }
@@ -392,7 +377,7 @@ class BattleActionExecutor {
                 break;
         }
 
-        this.battle.stateManager.actionQueue.shift();
+        this.battle.actionQueue.shift();
     }
 
     // Getters
