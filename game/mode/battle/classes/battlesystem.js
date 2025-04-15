@@ -324,16 +324,27 @@ class BattleSystem {
     easeOutCubic(x) {
         return 1 - Math.pow(1 - x, 3);
     }
-
     updateATBGauges() {
+        // Check if we should pause ATB filling:
+        // 1. If any character is ready and waiting for input
+        // 2. If an action is currently being processed or animated
+        const shouldPauseATB = this.activeChar !== null || 
+                              this.isProcessingAction || 
+                              this.animations.length > 0;
+        
+        if (shouldPauseATB) {
+            // Don't update ATB gauges when actions are pending or being executed
+            return;
+        }
+        
         [...this.party, ...this.enemies].forEach((char) => {
             // Skip dead characters completely
             if (!char || char.isDead) return;
             
             const wasReady = char.isReady;
             char.updateATB();
-            char.updateStatus(this); // Pass battle system reference - NEW
-
+            char.updateStatus(this); // Pass battle system reference
+            
             if (!wasReady && char.isReady) {
                 const hasQueuedAction = this.actionQueue.some((action) => action.character === char);
                 const alreadyInReadyOrder = this.readyOrder.includes(char);
@@ -342,13 +353,11 @@ class BattleSystem {
                     char.isEnemy = this.enemies.includes(char);
                     this.readyOrder.push(char);
                     
-                    // Increment turn counter when any character becomes ready to act
-                    this.turnCounter++;
-                    
-                    // Log to battle log which character's turn is starting
-                    const turnType = char.isEnemy ? "enemy" : "ally";
-                    this.battleLog.addMessage(`Turn ${this.turnCounter}: ${char.name}'s turn begins`, turnType);
-                }            }
+                    // Log to battle log which character is ready to act (without incrementing turn counter)
+                    const readyType = char.isEnemy ? "enemy" : "ally";
+                    this.battleLog.addMessage(`${char.name} is ready to act!`, readyType);
+                }
+            }
         });
     }
 

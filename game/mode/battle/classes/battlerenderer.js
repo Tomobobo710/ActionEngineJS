@@ -52,28 +52,31 @@ class BattleRenderer {
         // Draw battle log messages in the top-left corner
         this.renderBattleLog(ctx);
         
-        // Draw turn counter with more visual polish in top-right corner
-        ctx.save();
-        
-        // Background for turn counter
-        const turnText = `Turn: ${this.battle.turnCounter}`;
-        ctx.font = "bold 18px monospace";
-        const textWidth = ctx.measureText(turnText).width;
-        
-        // Create a semi-transparent background with border
-        ctx.fillStyle = "rgba(0, 0, 102, 0.7)";
-        ctx.fillRect(Game.WIDTH - textWidth - 30, 10, textWidth + 20, 30);
-        ctx.strokeStyle = "#ffff00";
-        ctx.lineWidth = 2;
-        ctx.strokeRect(Game.WIDTH - textWidth - 30, 10, textWidth + 20, 30);
-        
-        // Draw turn counter text
-        ctx.fillStyle = "#ffff00"; // Bright yellow for visibility
-        ctx.textAlign = "center";
-        ctx.fillText(turnText, Game.WIDTH - textWidth/2 - 20, 30);
-        
-        ctx.restore();
+        // Only show turn counter if battle has started and actions have occurred
+        if (this.battle.turnCounter > 0) {
+            ctx.save();
+            
+            // Background for turn counter
+            const turnText = `Turn: ${this.battle.turnCounter}`;
+            ctx.font = "bold 18px monospace";
+            const textWidth = ctx.measureText(turnText).width;
+            
+            // Create a semi-transparent background with border
+            ctx.fillStyle = "rgba(0, 0, 102, 0.7)";
+            ctx.fillRect(Game.WIDTH - textWidth - 30, 10, textWidth + 20, 30);
+            ctx.strokeStyle = "#ffff00";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(Game.WIDTH - textWidth - 30, 10, textWidth + 20, 30);
+            
+            // Draw turn counter text
+            ctx.fillStyle = "#ffff00"; // Bright yellow for visibility
+            ctx.textAlign = "center";
+            ctx.fillText(turnText, Game.WIDTH - textWidth/2 - 20, 30);
+            
+            ctx.restore();
+        }
     }
+    
     
     // New method to render the battle log
     renderBattleLog(ctx) {

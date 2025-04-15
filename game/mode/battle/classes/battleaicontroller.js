@@ -12,7 +12,6 @@ class BattleAIController {
             enemy.atbCurrent = 0;
             return;
         }
-
         const livingPartyMembers = this.battle.party.filter((member) => !member.isDead);
         const livingEnemies = this.battle.enemies.filter((e) => !e.isDead);
 
