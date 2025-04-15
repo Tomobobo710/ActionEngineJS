@@ -223,10 +223,12 @@ class BattleRenderer {
                         case "silence":
                             statusColor = "#33ccff"; // Light blue for silence
                             break;
+                        case "wither":
+                            statusColor = "#333333"; // Black for wither
+                            break;
                         default:
                             statusColor = "#ffff00"; // Yellow for default
-                    }
-                    
+                    }                    
                     ctx.fillStyle = statusColor;
                     ctx.fillText(`${status.toUpperCase()}: ${duration}`, hpX, statusY);
                     statusY += 12;
@@ -535,11 +537,14 @@ class BattleRenderer {
                         gradient.addColorStop(0, "rgba(100, 220, 255, 0.9)");
                         gradient.addColorStop(1, "rgba(0, 204, 255, 0.7)"); // Light blue for silence
                         break;
+                    case "wither":
+                        gradient.addColorStop(0, "rgba(80, 80, 80, 0.9)");
+                        gradient.addColorStop(1, "rgba(20, 20, 20, 0.7)"); // Black for wither
+                        break;
                     default:
                         gradient.addColorStop(0, "rgba(255, 255, 255, 0.9)");
                         gradient.addColorStop(1, "rgba(255, 255, 255, 0.7)"); // White for unknown
-                }
-                
+                }                
                 ctx.fillStyle = gradient;
                 ctx.fill();
                 
@@ -563,19 +568,21 @@ class BattleRenderer {
                 switch (effect.type) {
                     case "poison":
                         ctx.font = "8px Arial";
-                        ctx.fillText("☠️", x, iconY);
+                        ctx.fillText("\u2620\ufe0f", x, iconY);
                         break;
                     case "blind":
                         ctx.font = "8px Arial";
-                        ctx.fillText("👁️", x, iconY);
+                        ctx.fillText("\ud83d\udc41\ufe0f", x, iconY);
                         break;
                     case "silence":
                         ctx.font = "8px Arial";
-                        ctx.fillText("🤐", x, iconY);
+                        ctx.fillText("\ud83e\udd10", x, iconY);
+                        break;
+                    case "wither":
+                        ctx.font = "8px Arial";
+                        ctx.fillText("\ud83d\udda4", x, iconY); // Using black heart emoji for wither
                         break;
                 }
-                
-                ctx.restore();
             });
         }
     }
@@ -609,6 +616,9 @@ class BattleRenderer {
                 case "poison":
                     color = "#9933ff"; // Purple for poison damage
                     break;
+                case "wither":
+                    color = "#333333"; // Black for wither damage
+                    break;
                 case "heal":
                     color = "#33ff33"; // Green for healing
                     break;
@@ -620,8 +630,7 @@ class BattleRenderer {
                     break;
                 default:
                     color = "#ffffff"; // White for unknown
-            }
-            
+            }            
             ctx.save();
             ctx.globalAlpha = alpha;
             ctx.fillStyle = color;
@@ -759,7 +768,7 @@ class BattleRenderer {
             const displayMP = char.animatingMP
                 ? Math.round(char.mp + (char.targetMP - char.mp) * char.mpAnimProgress)
                 : char.mp;
-
+            
             ctx.fillStyle = "#fff";
             ctx.fillText(`${displayMP}/${char.maxMp}`, x + 210, y + 35);
 
@@ -778,6 +787,9 @@ class BattleRenderer {
                         case "silence":
                             statusColor = "#33ccff"; // Light blue for silence
                             break;
+                        case "wither":
+                            statusColor = "#333333"; // Black for wither
+                            break;
                         default:
                             statusColor = "#ffff00"; // Yellow for default
                     }
@@ -788,7 +800,7 @@ class BattleRenderer {
             });
         });
     }
-
+    
     renderCommandMenu(ctx) {
         const commands = ["Fight", "Magic", "Item", "Run"];
         commands.forEach((cmd, i) => {

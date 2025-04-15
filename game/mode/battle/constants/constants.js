@@ -41,7 +41,7 @@ const DEFAULT_PARTY = [
         magic: 10,
         speed: 16,
         skills: ["Attack", "Steal"],
-        spells: ["bolt", "poison", "silence"]
+        spells: ["bolt", "poison", "silence", "wither"]
     }
 ];
 

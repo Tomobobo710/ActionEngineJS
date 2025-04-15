@@ -43,9 +43,9 @@ class Character {
         this.status = {
             poison: data.status?.poison || 0,
             blind: data.status?.blind || 0,
-            silence: data.status?.silence || 0
+            silence: data.status?.silence || 0,
+            wither: data.status?.wither || 0
         };
-
         // Animation properties
         this.pos = { x: 0, y: 0 };
         this.targetPos = { x: 0, y: 0 };
@@ -388,11 +388,12 @@ class Character {
                         const poisonDamage = Math.floor(this.maxHp / 16);
                         this.takeDamage(poisonDamage);
                         
-                        // Add a visible damage number for poison with enhanced visuals
+                        // Add a visible damage number for poison with the damage value instead of emoji
                         if (battle) {
                             // Add turn information to the battle log message
                             const turnInfo = battle.turnCounter ? ` (Turn ${battle.turnCounter})` : '';
                             
+                            // Show the damage as a purple number
                             battle.damageNumbers.push({
                                 x: this.pos.x,
                                 y: this.pos.y,
@@ -402,19 +403,36 @@ class Character {
                                 duration: 1500
                             });
                             
-                            // Create a secondary visual effect to enhance the poison impact
+                            // Also add message to battle log
+                            if (battle.battleLog) {
+                                battle.battleLog.addMessage(`${this.name} takes ${poisonDamage} poison damage!${turnInfo}`, "damage");
+                            }
+                        }
+                        break;
+                        
+                    case "wither":
+                        // Calculate wither damage as 1/12 of max HP (slightly stronger than poison)
+                        const witherDamage = Math.floor(this.maxHp / 12);
+                        this.takeDamage(witherDamage);
+                        
+                        // Add a visible damage number for wither with the damage value
+                        if (battle) {
+                            // Add turn information to the battle log message
+                            const witherTurnInfo = battle.turnCounter ? ` (Turn ${battle.turnCounter})` : '';
+                            
+                            // Show the damage as a black number
                             battle.damageNumbers.push({
-                                x: this.pos.x + (Math.random() * 20 - 10),
-                                y: this.pos.y + (Math.random() * 10 - 5),
-                                amount: "☠️",
-                                type: "poison",
-                                startTime: Date.now() + 200, // Slight delay for sequential effect
-                                duration: 1000
+                                x: this.pos.x,
+                                y: this.pos.y,
+                                amount: witherDamage,
+                                type: "wither",
+                                startTime: Date.now(),
+                                duration: 1500
                             });
                             
                             // Also add message to battle log
                             if (battle.battleLog) {
-                                battle.battleLog.addMessage(`${this.name} takes ${poisonDamage} poison damage!${turnInfo}`, "damage");
+                                battle.battleLog.addMessage(`${this.name} takes ${witherDamage} wither damage!${witherTurnInfo}`, "damage");
                             }
                         }
                         break;
@@ -446,11 +464,11 @@ class Character {
                             });
                         }
                         break;
+                    }
                 }
-            }
         });
     }
-        
+
     // Get a snapshot of this character's current state for persistence
     getState() {
         return {

@@ -153,5 +153,26 @@ const SPELLS = {
             type: "explosion"
         },
         description: "Holy elemental healing (all)" 
+    },
+    wither: {
+        name: "Wither",
+        emoji: "\ud83d\udda4", // Black heart emoji
+        mpCost: 8,
+        power: 10,
+        element: "dark",
+        effect: "status",
+        targetType: TARGET_TYPES.SINGLE_ENEMY,
+        animation: {
+            color: "#333333",
+            type: "mist"
+        },
+        statusEffects: [
+            {
+                type: "wither",
+                duration: 5,
+                chance: 0.8
+            }
+        ],
+        description: "Withers target to cause stronger damage over time (single)"
     }
 };
