@@ -234,6 +234,7 @@ class BattleSystem {
                     // Check if character died from this
                     if (char.hp <= 0) {
                         char.isDead = true;
+                        char.removeAllStatus(); // why we have to do this here is a bug cause takeDamage() should have done it idk
                         // If character died, immediately reset ATB and remove from ready order
                         char.isReady = false;
                         char.atbCurrent = 0;
