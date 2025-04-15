@@ -630,7 +630,6 @@ class BattleActionExecutor {
     }
 
     // Process the next action in the queue
-    // Process the next action in the queue
     processNextAction() {
         const nextAction = this.battle.actionQueue[0];
         this.isProcessingAction = true;
@@ -659,11 +658,12 @@ class BattleActionExecutor {
         // Increment turn counter right before executing an action
         this.battle.turnCounter++;
         
+        // Apply status effects when it's the character's turn to act
+        nextAction.character.applyStatusEffectsOnTurn(this.battle);
+        
         // Log the turn start to battle log
         const turnType = this.battle.enemies.includes(nextAction.character) ? "enemy" : "ally";
-        this.battle.battleLog.addMessage(`Turn ${this.battle.turnCounter}: ${nextAction.character.name} takes action`, turnType);
-
-        switch (nextAction.type) {
+        this.battle.battleLog.addMessage(`Turn ${this.battle.turnCounter}: ${nextAction.character.name} takes action`, turnType);        switch (nextAction.type) {
             case "attack":
                 this.executeAttack(nextAction);
                 break;

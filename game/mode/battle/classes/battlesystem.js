@@ -54,7 +54,8 @@ class BattleSystem {
         this.animations = [];
         this.transitionProgress = 0;
         this.isPaused = false;
-        this.turnCounter = 0; // Added turn counter to track battle turns        this.pendingSpell = null;
+        this.turnCounter = 0; // Added turn counter to track battle turns
+        this.pendingSpell = null;
         this.itemMenuPosition = 0;
         this.itemScrollOffset = 0;
         this.maxVisibleItems = 8;
@@ -303,6 +304,9 @@ class BattleSystem {
                     return;
                 }
 
+                // Apply status effects when it becomes this character's turn
+                nextCharacter.applyStatusEffectsOnTurn(this);
+                
                 if (nextCharacter.isEnemy) {
                     // Only handle enemy input if no actions are queued at all
                     if (this.actionQueue.length === 0) {
@@ -324,6 +328,7 @@ class BattleSystem {
     easeOutCubic(x) {
         return 1 - Math.pow(1 - x, 3);
     }
+    
     updateATBGauges() {
         // Check if we should pause ATB filling:
         // 1. If any character is ready and waiting for input
@@ -343,7 +348,6 @@ class BattleSystem {
             
             const wasReady = char.isReady;
             char.updateATB();
-            char.updateStatus(this); // Pass battle system reference
             
             if (!wasReady && char.isReady) {
                 const hasQueuedAction = this.actionQueue.some((action) => action.character === char);

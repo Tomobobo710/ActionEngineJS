@@ -277,7 +277,9 @@ class Character {
                 // Turn tracking happens in BattleSystem.updateATBGauges
             }
         }
-    }    attack(target) {
+    }    
+    
+    attack(target) {
         if (this.isDead || target.isDead) return { success: false, reason: "invalid", damage: 0 };
         
         // Check for blind status (75% chance to miss)
@@ -338,8 +340,9 @@ class Character {
     addStatus(status, duration) {
         // Only apply the status if it exists in our status object
         if (this.status.hasOwnProperty(status)) {
-            // Apply status with specified duration, keeping the longer duration
-            this.status[status] = Math.max(this.status[status], duration);
+            // Apply status - note that we ignore duration now as per new design
+            // Status effects persist until explicitly cured
+            this.status[status] = 1; // Simply mark it as active (1)
             
             // Reset the status timer when newly applied
             this.statusTimers[status] = 0;
@@ -348,7 +351,7 @@ class Character {
             const wasApplied = this.status[status] > 0;
             
             // Log status application for debugging
-            console.log(`${this.name} ${wasApplied ? 'is now' : 'is still'} affected by ${status} for ${this.status[status]} turns`);
+            console.log(`${this.name} is now affected by ${status} until cured`);
             
             return wasApplied;
         }
@@ -398,6 +401,16 @@ class Character {
         // Skip status updates if character is dead
         if (this.isDead) return;
         
+        // We don't need to loop through all status effects here anymore
+        // Status effects should only be applied when the character becomes active
+    }
+    
+    // New method to apply status effects when it's this character's turn to act
+    applyStatusEffectsOnTurn(battle) {
+        // Skip if character is dead
+        if (this.isDead) return;
+        
+        // Apply status effects when it's the character's actionable frame
         Object.keys(this.status).forEach((status) => {
             if (this.status[status] > 0) {
                 // Apply status effects
@@ -465,27 +478,6 @@ class Character {
                             });
                         }
                         break;
-                }
-                
-                // Decrease status effect duration at the end of each turn
-                this.status[status]--;
-                
-                // Show status expiring message if it just expired
-                if (this.status[status] === 0 && battle) {
-                    battle.damageNumbers.push({
-                        x: this.pos.x,
-                        y: this.pos.y - 30,
-                        amount: `${status.toUpperCase()} EXPIRED`,
-                        type: status,
-                        startTime: Date.now(),
-                        duration: 1500
-                    });
-                    
-                    // Also add message to battle log with turn counter
-                    if (battle.battleLog) {
-                        const turnInfo = battle.turnCounter ? ` (Turn ${battle.turnCounter})` : '';
-                        battle.battleLog.addMessage(`${this.name}'s ${status} has worn off!${turnInfo}`, "system");
-                    }
                 }
             }
         });
@@ -562,6 +554,8 @@ class Character {
     updateWorldStatus(deltaTime, worldContext) {
         if (this.isDead) return;
         
+        // We still want to apply poison effects in world mode, but at a timed interval
+        // rather than on character turns (since there are no turns in world mode)
         Object.keys(this.status).forEach((status) => {
             if (this.status[status] > 0) {
                 // Update timers for non-battle status effects
@@ -580,22 +574,6 @@ class Character {
                         worldContext.showDamageNumber(this, poisonDamage, "poison");
                     } else {
                         console.log(`${this.name} takes ${poisonDamage} poison damage in world mode`);
-                    }
-                }
-                
-                // If a status effect has been active for too long in world/menu mode,
-                // decrease the duration (1 per 6 seconds)
-                if (this.statusTimers[status] >= 6) {
-                    this.statusTimers[status] = 0;
-                    this.status[status]--;
-                    
-                    // Show status effect expiring in world mode if possible
-                    if (this.status[status] === 0) {
-                        if (worldContext && typeof worldContext.showDamageNumber === 'function') {
-                            worldContext.showDamageNumber(this, `${status.toUpperCase()} EXPIRED`, status);
-                        } else {
-                            console.log(`${this.name}'s ${status} has worn off in world mode`);
-                        }
                     }
                 }
             }
