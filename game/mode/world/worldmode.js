@@ -5,7 +5,7 @@ class WorldMode {
         this.input = input;
         this.audio = audio;
         this.gameModeManager = gameModeManager;
-        this.physicsWorld = new ActionPhysicsWorld3D();
+        
         this.isPaused = false;
 
         this.initializeMode();
@@ -87,7 +87,7 @@ class WorldMode {
         this.weatherSystem = new WeatherSystem();
         this.shaderManager = new ShaderManager(this.renderer3D.gl);
         this.shaderManager.registerAllShaders(this.renderer3D);
-        this.physicsWorld.setShaderManager(this.shaderManager);
+        this.physicsWorld = new ActionPhysicsWorld3D(this.shaderManager);
 
         this.camera = new ActionCamera();
         this.seed = 420;
