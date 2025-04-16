@@ -77,6 +77,10 @@ class StatusMenu extends BaseSubmenu {
         const colors = this.gameMaster.modeManager.activeMode.colors;
         const party = this.gameMaster.persistentParty;
         
+        // Save initial context state and set default text properties
+        this.ctx.save();
+        this.ctx.textBaseline = "middle";
+        
         // Draw window header with gradient
         this.ctx.fillStyle = this.createGradient(
             m.x, m.y, m.width, m.headerHeight,
@@ -117,6 +121,9 @@ class StatusMenu extends BaseSubmenu {
         
         // Draw description panel with XP information
         this.drawXpProgress(party[this.selectedCharIndex]);
+        
+        // Restore initial context state
+        this.ctx.restore();
     }
     
     drawCharacterList() {

@@ -7,6 +7,14 @@ class CharacterPanel {
         this.party = party;
         this.sprites = sprites;
         this.gameMode = gameMode; // Store reference to access colors
+        
+        // Add debug flag
+        this.debugCanvasState = false;
+        
+        // Add index property to each character for easier reference
+        this.party.forEach((char, index) => {
+            char.index = index;
+        });
 
         // Panel configuration
         this.config = {
@@ -192,10 +200,14 @@ class CharacterPanel {
         const p = this.config;
         const colors = this.gameMode.colors;
 
+        // Save the context state at the beginning of the drawing method
+        this.ctx.save();
+
         this.party.forEach((char, index) => {
             const x = p.startX;
             const y = p.startY + index * (p.height + p.verticalGap);
 
+            // Save the context state for each character panel
             this.ctx.save();
 
             // Determine if this character is selectable based on targeting mode
@@ -243,6 +255,7 @@ class CharacterPanel {
             }
             this.ctx.fillRect(x, y, p.width, p.height);
 
+            // Restore context after panel background
             this.ctx.restore();
 
             const portraitX = x + p.portrait.margin;
@@ -316,6 +329,7 @@ class CharacterPanel {
                     this.ctx.lineWidth = 3;
                     this.ctx.font = "bold 24px monospace";
                     this.ctx.textAlign = "center";
+                    this.ctx.textBaseline = "middle";
                     this.ctx.fillText("REVIVE", portraitX + p.portrait.size/2, portraitY + p.portrait.size/2);
                 } else {
                     // Regular red X for dead characters
@@ -332,17 +346,18 @@ class CharacterPanel {
                     this.ctx.fillStyle = "#ff4444";
                     this.ctx.font = "bold 24px monospace";
                     this.ctx.textAlign = "center";
+                    this.ctx.textBaseline = "middle";
                     this.ctx.fillText("DEAD", portraitX + p.portrait.size/2, portraitY + p.portrait.size/2);
                 }
                 
                 this.ctx.restore();
             }
 
-            // Stats section
+            // Stats section - save context before modifying text properties
+            this.ctx.save();
             const statsX = portraitX + p.portrait.size + 25;
 
             // Name with color change and glow on selection
-            this.ctx.save();
             if (
                 (index === this.selectedCharIndex && isSelectable &&
                     (this.selectionState === "selecting_target" || this.selectionState === "selecting_hero")) ||
@@ -365,10 +380,10 @@ class CharacterPanel {
 
             this.ctx.font = `${p.stats.fontSize}px monospace`;
             this.ctx.textAlign = "left";
+            this.ctx.textBaseline = "middle";
             this.ctx.fillText(`${char.name}${char.isDead ? " [DEAD]" : ""}`, statsX, y + p.stats.nameY);
-            this.ctx.restore();
 
-            // Level
+            // Level - use current context settings
             this.ctx.fillStyle = char.isDead ? "#888888" : colors.normalText;
             // Gold color for Phoenix targets
             if (this.isPhoenixTargeting && char.isDead && 
@@ -377,6 +392,9 @@ class CharacterPanel {
             }
             this.ctx.textAlign = "right";
             this.ctx.fillText(`Level ${char.level}`, x + p.width - 20, y + p.stats.nameY);
+            
+            // Restore context after name and level
+            this.ctx.restore();
 
             // HP and MP Bars
             let hpColor = char.isDead ? "#888888" : "#00ff00";
@@ -395,6 +413,9 @@ class CharacterPanel {
             // Draw status effects
             this.drawStatusEffects(char, statsX, y + p.stats.firstBarY + 35, p.stats.width);
         });
+        
+        // Restore the initial context state at the end of drawing
+        this.ctx.restore();
     }
     
     // Add method to draw status effects
@@ -405,18 +426,24 @@ class CharacterPanel {
             
         if (activeStatuses.length === 0) return; // No status effects
         
+        // Save context before drawing status effects
         this.ctx.save();
         
-        // Draw status effect box with semi-transparent background
-        this.ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
-        this.ctx.fillRect(x, y, width, 24);
-        this.ctx.strokeStyle = "#666666";
-        this.ctx.strokeRect(x, y, width, 24);
+        // Calculate position (bottom right of character panel)
+        const p = this.config;
+        const panelX = this.config.startX;
+        const panelY = this.config.startY + character.index * (p.height + p.verticalGap);
+        const statusIconSize = 24;
+        const statusSpacing = 8;
+        const bottomPadding = -6;
         
-        // Draw status effect icons and text
-        let statusX = x + 10;
-        activeStatuses.forEach(([status, duration]) => {
-            // Choose color and icon based on status type
+        // Start from the bottom right and move left
+        let statusX = panelX + p.width - statusIconSize - 10; // Right edge with padding
+        const statusY = panelY + p.height - statusIconSize - bottomPadding; // Bottom with padding
+        
+        // Draw status effect icons only (no text, no background)
+        activeStatuses.forEach(([status]) => {
+            // Choose icon and glow color based on status type
             let statusColor;
             let statusEmoji;
             
@@ -438,17 +465,21 @@ class CharacterPanel {
                     statusEmoji = "❓";
             }
             
-            // Draw emoji and text
-            this.ctx.font = "16px monospace";
-            this.ctx.textAlign = "left";
-            this.ctx.fillText(statusEmoji, statusX, y + 18);
+            // Add subtle glow to make icon pop against background
+            this.ctx.shadowColor = statusColor;
+            this.ctx.shadowBlur = 8;
             
-            this.ctx.fillStyle = statusColor;
-            this.ctx.fillText(` ${status.toUpperCase()}: ${duration}`, statusX + 20, y + 18);
+            // Draw emoji icon
+            this.ctx.font = "20px monospace";
+            this.ctx.textAlign = "center";
+            this.ctx.textBaseline = "middle";
+            this.ctx.fillText(statusEmoji, statusX, statusY);
             
-            statusX += 120; // Move to next status position
+            // Move to the left for the next icon
+            statusX -= (statusIconSize + statusSpacing);
         });
         
+        // Restore context after drawing status effects
         this.ctx.restore();
     }
 
@@ -456,6 +487,9 @@ class CharacterPanel {
         const height = this.config.stats.barHeight;
         const p = this.config.stats.barText;
         const colors = this.gameMode.colors;
+        
+        // Save context at the beginning of drawing a stat bar
+        this.ctx.save();
 
         // Background gradient - now diagonal
         this.ctx.fillStyle = this.createGradient(x, y, width, height, "#222222", "#333333");
@@ -476,7 +510,11 @@ class CharacterPanel {
         this.ctx.fillStyle = colors.normalText;
         this.ctx.font = `${p.label.size}px monospace`;
         this.ctx.textAlign = "left";
-        this.ctx.fillText(`${label}: ${current}/${max}`, x, y + height + 18);
+        this.ctx.textBaseline = "middle";
+        this.ctx.fillText(`${label}: ${current}/${max}`, x, y + height + 15);
+        
+        // Restore context after drawing a stat bar
+        this.ctx.restore();
     }
 
     adjustColor(color, amount) {

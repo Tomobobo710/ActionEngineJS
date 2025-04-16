@@ -236,6 +236,12 @@ class RPGMenuMode {
             return;
         }
 
+        // Save the initial context state for the main menu drawing
+        this.ctx.save();
+        
+        // Set default text properties for consistent rendering across menus
+        this.ctx.textBaseline = "middle";
+        
         // Otherwise draw everything as normal
         this.ctx.fillStyle = this.createGradient(
             0,
@@ -256,6 +262,9 @@ class RPGMenuMode {
         }
 
         this.drawInfoPanel();
+        
+        // Restore the initial context state
+        this.ctx.restore();
     }
 
     drawMenuOptions() {
