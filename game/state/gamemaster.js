@@ -21,6 +21,7 @@ class GameMaster {
 
         // Add party and inventory creation here
         this.partyInventory = new Inventory();
+        this.equipmentInventory = new EquipmentInventory();
         this.persistentParty = DEFAULT_PARTY.map(
             (char) =>
                 new Character({
@@ -43,6 +44,46 @@ class GameMaster {
         STARTER_INVENTORY.forEach(({ item, quantity }) => {
             this.partyInventory.addItem(item, quantity);
         });
+        
+        // Add equipment to inventory
+        this.equipmentInventory.addItem(EQUIPMENT.ironSword);
+        this.equipmentInventory.addItem(EQUIPMENT.steelSword);
+        this.equipmentInventory.addItem(EQUIPMENT.magicWand);
+        this.equipmentInventory.addItem(EQUIPMENT.chainmail);
+        this.equipmentInventory.addItem(EQUIPMENT.plateArmor);
+        this.equipmentInventory.addItem(EQUIPMENT.wizardHat);
+        this.equipmentInventory.addItem(EQUIPMENT.ironHelm);
+        this.equipmentInventory.addItem(EQUIPMENT.powerRing);
+        this.equipmentInventory.addItem(EQUIPMENT.magicPendant);
+        this.equipmentInventory.addItem(EQUIPMENT.guardianAmulet);
+        
+        // Start each character with equipment
+        // Warrior (Cecil)
+        this.persistentParty[0].equipment = {
+            weapon: JSON.parse(JSON.stringify(EQUIPMENT.bronzeSword)),
+            armor: JSON.parse(JSON.stringify(EQUIPMENT.leatherArmor)),
+            helmet: JSON.parse(JSON.stringify(EQUIPMENT.leatherCap)),
+            accessory: null
+        };
+        
+        // Mage (Rosa)
+        this.persistentParty[1].equipment = {
+            weapon: JSON.parse(JSON.stringify(EQUIPMENT.woodenStaff)),
+            armor: JSON.parse(JSON.stringify(EQUIPMENT.magicRobe)),
+            helmet: JSON.parse(JSON.stringify(EQUIPMENT.wizardHat)),
+            accessory: null
+        };
+        
+        // Thief (Edge)
+        this.persistentParty[2].equipment = {
+            weapon: JSON.parse(JSON.stringify(EQUIPMENT.dagger)),
+            armor: JSON.parse(JSON.stringify(EQUIPMENT.shadowCloak)),
+            helmet: null,
+            accessory: JSON.parse(JSON.stringify(EQUIPMENT.speedBoots))
+        };
+        
+        // Calculate stats with equipment
+        this.persistentParty.forEach(character => character.calculateStats());
 
         // Kickstart game with a mode
         this.modeManager.switchMode("start");

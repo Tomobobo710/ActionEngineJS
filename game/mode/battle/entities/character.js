@@ -233,28 +233,40 @@ class Character {
 
     calculateStats() {
         // Base stats
-        this.stats.attack = this.strength;
-        this.stats.defense = Math.floor(this.strength / 2);
-        this.stats.magicAttack = this.magic;
-        this.stats.magicDefense = Math.floor(this.magic / 2);
-        this.stats.accuracy = 90 + Math.floor(this.speed / 2);
-        this.stats.evasion = Math.floor(this.speed / 3);
+        this.stats = {
+            atk: this.strength,
+            def: Math.floor(this.strength / 2),
+            mag: this.magic,
+            mdef: Math.floor(this.magic / 2),
+            speed: this.speed,
+            accuracy: 90 + Math.floor(this.speed / 2),
+            evasion: Math.floor(this.speed / 3)
+        };
+        
+        // These are used for battle calculations
+        this.stats.attack = this.stats.atk;
+        this.stats.defense = this.stats.def;
+        this.stats.magicAttack = this.stats.mag;
+        this.stats.magicDefense = this.stats.mdef;
 
         // Add equipment bonuses
-        if (this.equipment.weapon) {
-            this.stats.attack += this.equipment.weapon.attack || 0;
-            this.stats.magicAttack += this.equipment.weapon.magicAttack || 0;
-        }
+        if (this.equipment) {
+            // Process each equipment type
+            ['weapon', 'armor', 'helmet', 'accessory'].forEach(slotType => {
+                const equip = this.equipment[slotType];
+                if (equip && equip.stats) {
+                    // Add each stat bonus from the equipment
+                    Object.keys(equip.stats).forEach(statName => {
+                        if (this.stats[statName] !== undefined) {
+                            this.stats[statName] += equip.stats[statName];
+                        }
+                    });
 
-        if (this.equipment.armor) {
-            this.stats.defense += this.equipment.armor.defense || 0;
-            this.stats.magicDefense += this.equipment.armor.magicDefense || 0;
-        }
-
-        if (this.equipment.accessory) {
-            Object.keys(this.stats).forEach((stat) => {
-                if (this.equipment.accessory[stat]) {
-                    this.stats[stat] += this.equipment.accessory[stat];
+                    // Update battle calculation stats
+                    if (equip.stats.atk) this.stats.attack += equip.stats.atk;
+                    if (equip.stats.def) this.stats.defense += equip.stats.def;
+                    if (equip.stats.mag) this.stats.magicAttack += equip.stats.mag;
+                    if (equip.stats.mdef) this.stats.magicDefense += equip.stats.mdef;
                 }
             });
         }
