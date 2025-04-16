@@ -190,6 +190,9 @@ class RPGMenuMode {
                 this.activeSubmenu = new EquipmentMenu(this.ctx, this.input, this.gameMaster);
                 this.deactivateMainMenu();
                 break;
+            case "Status":
+                this.activeSubmenu = new StatusMenu(this.ctx, this.input, this.gameMaster, this.characterPanel);
+                break;
             case "Formation":
                 break;                
         }

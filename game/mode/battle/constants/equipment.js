@@ -44,7 +44,7 @@ const EQUIPMENT = {
         id: "woodenStaff",
         name: "Wooden Staff",
         type: "weapon",
-        emoji: "🪄",
+        emoji: "🦯",
         stats: {
             atk: 2,
             def: 0,
@@ -57,7 +57,7 @@ const EQUIPMENT = {
         id: "magicWand",
         name: "Magic Wand",
         type: "weapon",
-        emoji: "🪄",
+        emoji: "🔮",
         stats: {
             atk: 3,
             def: 0,
