@@ -113,7 +113,8 @@ class ActionRenderer3D {
         // First render all non-water objects
         if (renderableObjects?.length) {
             for (const object of renderableObjects) {
-                if (!(object instanceof Ocean) && object) {
+                // Check if Ocean exists in the global scope before doing instanceof check
+                if (!(typeof Ocean !== 'undefined' && object instanceof Ocean) && object) {
                     this.objectRenderer.render(object, renderData.camera, shaderSet, this.currentTime);
                 }
             }
@@ -122,7 +123,7 @@ class ActionRenderer3D {
         // Then render water objects last
         if (renderableObjects?.length) {
             for (const object of renderableObjects) {
-                if (object instanceof Ocean) {
+                if (typeof Ocean !== 'undefined' && object instanceof Ocean) {
                     this.waterRenderer.render(renderData.camera, this.currentTime, object);
                 }
             }
