@@ -1,8 +1,8 @@
 // game/display/gl/shadermanager.js
 class ShaderManager {
-    constructor(gl, initialSize = 500) {
-        this.gl = gl;
-        this.isWebGL2 = gl.getParameter(gl.VERSION).includes("WebGL 2.0");
+    constructor(renderer3D, initialSize = 500) {
+        this.gl = renderer3D.gl;
+        this.isWebGL2 = this.gl.getParameter(this.gl.VERSION).includes("WebGL 2.0");
 
         // Initialize buffers
         this.terrainBuffers = this.createBuffers();

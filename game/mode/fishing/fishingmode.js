@@ -4,16 +4,15 @@ class FishingMode {
         this.guiCanvas = canvases.guiCanvas;
         this.debugCanvas = canvases.debugCanvas;
         this.input = input;
-        
         this.renderer3d = new ActionRenderer3D(this.canvas);
         this.guiContext = this.guiCanvas.getContext("2d");
         this.ui = new FishingUI(this.guiCanvas, this.guiContext);
         const initialCameraPos = new Vector3(0, 20, -60);
         const initialCameraTarget = new Vector3(0, 0, 0);
         this.camera = new ActionCamera(initialCameraPos, initialCameraTarget);
-        this.shaderManager = new ShaderManager(this.renderer3d.gl);
-        this.shaderManager.registerAllShaders(this.renderer3d);
+        this.shaderManager = new ShaderManager(this.renderer3d);
         this.physicsWorld = new ActionPhysicsWorld3D(this.shaderManager);
+        
         this.ocean = new Ocean(this.physicsWorld, 500, 500, 8, 1);
         this.fishingArea = new FishingArea();
         this.fishingArea.setPhysicsWorld(this.physicsWorld);

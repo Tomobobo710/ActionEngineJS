@@ -84,12 +84,14 @@ class WorldMode {
         this.renderer3D = new ActionRenderer3D(this.gameCanvas3D);
         this.renderer2D = new ActionRenderer2D(this.guiCanvas);
 
-        this.weatherSystem = new WeatherSystem();
-        this.shaderManager = new ShaderManager(this.renderer3D.gl);
-        this.shaderManager.registerAllShaders(this.renderer3D);
+        
+        this.shaderManager = new ShaderManager(this.renderer3D);
+        
         this.physicsWorld = new ActionPhysicsWorld3D(this.shaderManager);
 
         this.camera = new ActionCamera();
+        
+        this.weatherSystem = new WeatherSystem();
         this.seed = 420;
 
         this.generateWorld();
