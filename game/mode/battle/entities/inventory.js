@@ -1,4 +1,4 @@
-// game/mode/battle/classes/inventory.js
+// game/mode/battle/entities/inventory.js
 class Inventory {
     constructor() {
         // Store items as a Map with item IDs and quantities

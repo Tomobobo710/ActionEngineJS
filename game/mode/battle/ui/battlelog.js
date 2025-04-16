@@ -1,4 +1,4 @@
-// game/mode/battle/classes/battlelog.js
+// game/mode/battle/ui/battlelog.js
 class BattleLog {
     constructor() {
         this.messages = [];

@@ -1,4 +1,4 @@
-// game/mode/battle/classes/character.js
+// game/mode/battle/entities/character.js
 class Character {
     constructor(data) {
         this.name = data.name;

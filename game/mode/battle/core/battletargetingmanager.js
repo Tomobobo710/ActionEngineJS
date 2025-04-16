@@ -1,4 +1,4 @@
-// game/mode/battle/classes/battletargetingmanager.js
+// game/mode/battle/core/battletargetingmanager.js
 class BattleTargetingManager {
     constructor(battleSystem) {
         this.battle = battleSystem;

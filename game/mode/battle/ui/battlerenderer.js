@@ -1,4 +1,4 @@
-// game/mode/battle/classes/battlerenderer.js
+// game/mode/battle/ui/battlerenderer.js
 class BattleRenderer {
     constructor(battleSystem) {
         this.battle = battleSystem;

@@ -1,4 +1,4 @@
-// game/mode/batle/classes/spell.js
+// game/mode/battle/entities/spell.js
 class Spell {
     constructor(data) {
         this.name = data.name;

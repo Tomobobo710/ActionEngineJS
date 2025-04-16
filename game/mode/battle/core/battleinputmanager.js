@@ -1,4 +1,4 @@
-// game/mode/battle/classes/battleinputmanager.js
+// game/mode/battle/core/battleinputmanager.js
 class BattleInputManager {
     constructor(battleSystem, input) {
         this.battle = battleSystem;

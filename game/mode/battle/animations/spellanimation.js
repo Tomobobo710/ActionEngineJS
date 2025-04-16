@@ -1,4 +1,4 @@
-// game/mode/battle/classes/spellanimation.js
+// game/mode/battle/animations/spellanimation.js
 class SpellAnimation {
     constructor(config, targetPos, attacker, isEnemy, isGroupAnimation = false) {
         this.config = config;

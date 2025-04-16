@@ -1,3 +1,4 @@
+// game/mode/battle/ui/battleresultsmenu.js
 class BattleResultsMenu extends BaseFullScreenMenu {
     constructor(ctx, input, gameMaster, battleResults) {
         super(ctx, input, gameMaster);

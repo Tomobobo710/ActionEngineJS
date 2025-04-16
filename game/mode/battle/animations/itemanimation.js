@@ -1,4 +1,4 @@
-// game/mode/battle/classes/itemanimation.js
+// game/mode/battle/animations/itemanimation.js
 class ItemAnimation {
     constructor(config, targetPos, user) {
         this.config = config || {}; // Allow for custom config or use defaults

@@ -1,4 +1,4 @@
-// game/mode/battle/classes/sprite.js
+// game/mode/battle/entities/sprite.js
 class Sprite {
     static genHeroSprite(type) {
         const c = document.createElement("canvas");

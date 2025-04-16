@@ -1,4 +1,4 @@
-// game/mode/battle/classes/battleaicontroller.js
+// game/mode/battle/core/battleaicontroller.js
 class BattleAIController {
     constructor(battleSystem) {
         this.battle = battleSystem;

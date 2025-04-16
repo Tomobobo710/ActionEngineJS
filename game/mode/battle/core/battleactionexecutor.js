@@ -1,4 +1,4 @@
-// game/mode/battle/classes/battleactionexecutor.js
+// game/mode/battle/core/battleactionexecutor.js
 class BattleActionExecutor {
     constructor(battleSystem) {
         this.battle = battleSystem;

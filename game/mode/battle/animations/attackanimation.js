@@ -1,4 +1,4 @@
-// game/mode/battle/classes/attackanimation.js
+// game/mode/battle/animations/attackanimation.js
 class AttackAnimation {
     constructor(attacker, target, isEnemy) {
         this.attacker = attacker;

@@ -1,4 +1,4 @@
-// game/mode/battle/classes/battlesystem.js
+// game/mode/battle/core/battlesystem.js
 class BattleSystem {
     constructor(party, enemyParty, audio, input, inventory, gameMaster) {
         this.party = party;
