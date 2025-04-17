@@ -134,6 +134,19 @@ static max(out, a, b) {
         );
     }
     
+    divideScalar(scalar) {
+        if (scalar === 0) {
+            console.warn("Vector3: Division by zero!");
+            return new Vector3(0, 0, 0);
+        }
+        
+        return new Vector3(
+            this.x / scalar,
+            this.y / scalar,
+            this.z / scalar
+        );
+    }
+    
     subtract(other) {
         return new Vector3(
             this.x - other.x,
