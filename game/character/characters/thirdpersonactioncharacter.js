@@ -149,25 +149,47 @@ class ThirdPersonActionCharacter extends ActionCharacter {
     update(deltaTime){
         super.update(deltaTime);
         
+        // Get the character's physics state from the debug info
+        const state = this.debugInfo.state.current;
+        const velocity = this.debugInfo.physics.velocity;
+        
+        // Check if the character is moving on the ground
+        // Using a small threshold to filter out physics jitters
+        const isMoving = state === "grounded" && 
+                       (Math.abs(velocity.x) > 0.01 || Math.abs(velocity.z) > 0.01);
+        
+        // Increment timer based on movement and grounded state
+        if (isMoving) {
+            this.movementTimer += deltaTime;
+            // Check if we've hit the time threshold
+            if (this.movementTimer >= this.battleThreshold) {
+                // Reset timer and generate new threshold
+                this.movementTimer = 0;
+                this.battleThreshold = this.generateNewBattleThreshold();
+                // Set pending battle transition
+                this.game.pendingBattleTransition = true;
+            }
+        }
+        
         const pos = this.body.position;
 
-            // Check if we're below 0
-            if (pos.y < 0) {
-                // Get current triangle
-                const currentTriangle = this.getCurrentTriangle();
-                if (currentTriangle) {
-                    // Set position 10 units above exact height on triangle
-                    const heightOnTriangle = this.getHeightOnTriangle(currentTriangle, pos.x, pos.z);
-                    pos.y = heightOnTriangle + 10;
+        // Check if we're below 0
+        if (pos.y < 0) {
+            // Get current triangle
+            const currentTriangle = this.getCurrentTriangle();
+            if (currentTriangle) {
+                // Set position 10 units above exact height on triangle
+                const heightOnTriangle = this.getHeightOnTriangle(currentTriangle, pos.x, pos.z);
+                pos.y = heightOnTriangle + 10;
 
-                    // Reset velocities
-                    this.body.linear_velocity.set(0, 0, 0);
-                    this.body.angular_velocity.set(0, 0, 0);
+                // Reset velocities
+                this.body.linear_velocity.set(0, 0, 0);
+                this.body.angular_velocity.set(0, 0, 0);
 
-                    // Force state to falling
-                    this.controller.changeState("falling");
-                }
+                // Force state to falling
+                this.controller.changeState("falling");
             }
+        }
         
         // Update animations based on state changes
         this.updateAnimationState();

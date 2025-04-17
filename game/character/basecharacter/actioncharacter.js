@@ -170,20 +170,7 @@ class ActionCharacter extends RenderableObject {
             isMovingThisFrame = true;
         }
 
-        // Increment timer based on movement and grounded state
-        if (isMovingThisFrame && this.debugInfo?.state?.current === "grounded") {
-            this.movementTimer += deltaTime;
-
-            // Check if we've hit the time threshold
-            if (this.movementTimer >= this.battleThreshold) {
-                // Reset timer and generate new threshold
-                this.movementTimer = 0;
-                this.battleThreshold = this.generateNewBattleThreshold();
-
-                // Set pending battle transition
-                this.game.pendingBattleTransition = true;
-            }
-        }
+        // Movement tracking for input is handled at the derived class level
 
         // Normalize the movement vector if moving diagonally
         if (moveDir.lengthSquared() > 0) {
