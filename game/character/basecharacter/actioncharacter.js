@@ -10,7 +10,7 @@ class ActionCharacter extends RenderableObject {
         this.position = new Vector3(0, 40, 0); // Center position
         this.facingDirection = new Vector3(0, 0, 1);
         this.rotation = 0;
-        this.size = 4;
+
         this.height = 6;
         this.scale = 1;
 

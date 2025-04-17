@@ -11,20 +11,7 @@ class ThirdPersonActionCharacter extends ActionCharacter {
         
         this.debugInfo = null;
         // Create controller
-        this.controller = new Goblin.CharacterController(game.physicsWorld.getWorld(), {
-            width: this.size,
-            height: this.height,
-            depth: this.size,
-            mass: 1,
-            jumpForce: 60,
-            moveSpeed: 50,
-            maxSpeed: 50,
-            springDamper: 1,
-            springStrength: 10,
-            rideHeight: 4,
-            forceSmoothing: 0.1,
-            rayLength: 6
-        });
+        this.controller = new Goblin.CharacterController(game.physicsWorld.getWorld());
 
         this.firstPersonHeight = this.height * 0.5;
         this.isFirstPerson = false;
