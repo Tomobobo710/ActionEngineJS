@@ -10,7 +10,7 @@ class Game {
    
    constructor(canvases, input, audio) {
        // Create canvas contexts
-       this.setupCanvases(canvases);
+       this.canvases = canvases;
        
        // Create game master
        this.gameMaster = new GameMaster(this.canvases, input, audio);
@@ -20,7 +20,7 @@ class Game {
    }
 
    setupCanvases(canvases) {
-       this.canvases = canvases;
+       
 
        // Setup 3D canvas
        this.canvases.gameCanvas.width = Game.WIDTH;
