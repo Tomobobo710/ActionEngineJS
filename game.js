@@ -18,22 +18,6 @@ class Game {
        console.log("[Game] Initialization completed, starting game loop...");
        this.loop();
    }
-
-   setupCanvases(canvases) {
-       
-
-       // Setup 3D canvas
-       this.canvases.gameCanvas.width = Game.WIDTH;
-       this.canvases.gameCanvas.height = Game.HEIGHT;
-
-       // Setup GUI canvas 
-       this.canvases.guiCanvas.width = Game.WIDTH;
-       this.canvases.guiCanvas.height = Game.HEIGHT;
-
-       // Setup debug canvas
-       this.canvases.debugCanvas.width = Game.WIDTH;
-       this.canvases.debugCanvas.height = Game.HEIGHT;
-   }
    
    loop() {
        this.gameMaster.update();
