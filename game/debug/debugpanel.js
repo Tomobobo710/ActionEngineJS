@@ -379,7 +379,7 @@ class DebugPanel {
                 slider.value = slider.min + (slider.max - slider.min) * percentage;
 
                 // Update LightingManager config through the renderer3D reference
-                let config = this.game.renderer3d.lightingManager.getLightConfig();
+                let config = this.game.renderer3D.lightingManager.getLightConfig();
                 let target = config;
                 for (let i = 0; i < slider.path.length - 1; i++) {
                     target = target[slider.path[i]];
@@ -387,7 +387,7 @@ class DebugPanel {
                 target[slider.path[slider.path.length - 1]] = slider.value;
 
                 // Force lighting update
-                this.game.renderer3d.lightingManager.updateLightMatrix();
+                this.game.renderer3D.lightingManager.updateLightMatrix();
             }
 
             // Draw slider label

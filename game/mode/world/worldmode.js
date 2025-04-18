@@ -86,6 +86,8 @@ class WorldMode {
 
         
         this.shaderManager = new ShaderManager(this.renderer3D);
+        // Register all available shaders with the renderer
+        this.shaderManager.registerAllShaders(this.renderer3D);
         
         this.physicsWorld = new ActionPhysicsWorld3D(this.shaderManager);
 
