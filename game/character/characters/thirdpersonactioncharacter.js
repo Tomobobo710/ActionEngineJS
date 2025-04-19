@@ -4,6 +4,9 @@ class ThirdPersonActionCharacter extends ActionCharacter {
         this.game = game;
         this.terrain = terrain;
         
+        // Store a global reference for debugging
+        window.gameCharacter = this;
+        
         // Add these new properties
         this.movementTimer = 0;
         this.battleThreshold = this.generateNewBattleThreshold();

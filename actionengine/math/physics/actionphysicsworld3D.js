@@ -27,7 +27,73 @@ class ActionPhysicsWorld3D {
         this.physicsAccumulator += frameTime;
 
         while (this.physicsAccumulator >= this.fixedTimeStep) {
-            this.world.step(this.fixedTimeStep);
+            try {
+                this.world.step(this.fixedTimeStep);
+            } catch (error) {
+                if (error.toString().includes("silhouette")) {
+                    console.error("===== SILHOUETTE ERROR DETECTED =====");
+                    console.error("Error message:", error.message);
+                    console.error("Error stack:", error.stack);
+                    
+                    // Log object counts and world state
+                    console.error("Physics objects count:", this.objects.size);
+                    console.error("Rigid bodies count:", this.world.rigid_bodies.length);
+                    
+                    // Log character information if available
+                    if (window.gameCharacter) {
+                        console.error("Character information:");
+                        console.error("  - Type:", window.gameCharacter.constructor.name);
+                        console.error("  - Position:", 
+                            window.gameCharacter.body.position.x,
+                            window.gameCharacter.body.position.y,
+                            window.gameCharacter.body.position.z
+                        );
+                        console.error("  - Has body?", !!window.gameCharacter.body);
+                        console.error("  - Body in world?", this.world.rigid_bodies.includes(window.gameCharacter.body));
+                    }
+                    
+                    // Log object pool sizes - these are key to understanding the issue
+                    if (window.Goblin && window.Goblin.ObjectPool) {
+                        console.error("Goblin object pools:");
+                        Object.keys(window.Goblin.ObjectPool.pools).forEach(key => {
+                            console.error(`  - ${key}: ${window.Goblin.ObjectPool.pools[key].length} objects`);
+                        });
+                    }
+                    
+                    // Continue execution - skip this physics step
+                    console.error("Skipping current physics step due to error");
+                    
+                    // Log a counter of how many times this has happened
+                    this._silhouetteErrorCount = (this._silhouetteErrorCount || 0) + 1;
+                    console.error(`Total silhouette errors: ${this._silhouetteErrorCount}`);
+                    
+                    // Keep track of what the character was doing when this happened
+                    if (window.gameCharacter && window.gameCharacter.debugInfo) {
+                        const state = window.gameCharacter.debugInfo.state;
+                        console.error("Character state when error occurred:", state ? state.current : "unknown");
+                    }
+                    
+                    // Store detailed information for later analysis
+                    if (!window._silhouetteErrorLog) window._silhouetteErrorLog = [];
+                    window._silhouetteErrorLog.push({
+                        timestamp: new Date().toISOString(),
+                        errorMessage: error.message,
+                        characterPosition: window.gameCharacter ? 
+                            [window.gameCharacter.body.position.x, 
+                             window.gameCharacter.body.position.y, 
+                             window.gameCharacter.body.position.z] : null,
+                        characterState: window.gameCharacter && window.gameCharacter.debugInfo ? 
+                            window.gameCharacter.debugInfo.state.current : null
+                    });
+                    
+                    // Skip this physics step
+                    this.physicsAccumulator -= this.fixedTimeStep;
+                    continue;
+                } else {
+                    // Re-throw any other errors
+                    throw error;
+                }
+            }
             this.physicsAccumulator -= this.fixedTimeStep;
             this.objects.forEach((object) => {
                 if (object.body) {
