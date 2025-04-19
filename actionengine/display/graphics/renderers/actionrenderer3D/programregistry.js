@@ -66,25 +66,6 @@ class ProgramRegistry {
             }
         };
 
-        // Copy shadow shader from default set
-        newSet.shadow = {
-            program: defaultSet.shadow.program,
-            locations: defaultSet.shadow.locations
-        };
-
-        // If new shader set has its own shadow shaders, set those up
-        if (shaders.shadow) {
-            const shadowProgram = this.createShaderProgram(shaders.shadow.vertex, shaders.shadow.fragment);
-            newSet.shadow = {
-                program: shadowProgram,
-                locations: {
-                    position: this.gl.getAttribLocation(shadowProgram, "aPosition"),
-                    lightSpaceMatrix: this.gl.getUniformLocation(shadowProgram, "uLightSpaceMatrix"),
-                    modelMatrix: this.gl.getUniformLocation(shadowProgram, "uModelMatrix")
-                }
-            };
-        }
-
         this.setupShaderLocations(newSet, shaders, defaultSet);
         this.shaders.set(name, newSet);
     }
@@ -103,9 +84,6 @@ class ProgramRegistry {
                 lightPos: this.gl.getUniformLocation(pbrProgram, "uLightPos"),
                 lightDir: this.gl.getUniformLocation(pbrProgram, "uLightDir"),
                 lightIntensity: this.gl.getUniformLocation(pbrProgram, "uLightIntensity"),
-                shadowMap: this.gl.getUniformLocation(pbrProgram, "uShadowMap"),
-                shadowBias: this.gl.getUniformLocation(pbrProgram, "uShadowBias"),
-                shadowDarkness: this.gl.getUniformLocation(pbrProgram, "uShadowDarkness"),
                 lightSpaceMatrix: this.gl.getUniformLocation(pbrProgram, "uLightSpaceMatrix"),
                 roughness: this.gl.getUniformLocation(pbrProgram, "uRoughness"),
                 metallic: this.gl.getUniformLocation(pbrProgram, "uMetallic"),

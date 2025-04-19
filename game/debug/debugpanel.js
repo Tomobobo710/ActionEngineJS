@@ -171,30 +171,6 @@ class DebugPanel {
                 id: "lightingSliderBaseReflectivity",
                 path: ["MATERIAL", "BASE_REFLECTIVITY"]
             },
-            "Shadow Frustum Size": {
-                value: 1,
-                min: 0.1,
-                max: 10,
-                dragging: false,
-                id: "lightingSliderFrustumSize",
-                path: ["SHADOW", "FRUSTUM_SIZE"]
-            },
-            "Shadow Bias": {
-                value: 0.04,
-                min: 0,
-                max: 0.1,
-                dragging: false,
-                id: "lightingSliderBias",
-                path: ["SHADOW", "BIAS"]
-            },
-            "Shadow Darkness": {
-                value: 0.5,
-                min: 0,
-                max: 1,
-                dragging: false,
-                id: "lightingSliderDarkness",
-                path: ["SHADOW", "DARKNESS"]
-            }
         };
         Object.entries(this.lightingSliders).forEach(([name, slider]) => {
             this.game.input.registerElement(

@@ -5,12 +5,6 @@ class DebugRenderer3D {
         this.programManager = programManager;
         this.lightingManager = lightingManager;
 
-        // Get debug-related programs and locations from program manager
-        this.debugShadowMapProgram = this.programManager.getDebugShadowProgram();
-        this.debugShadowLocations = this.programManager.getDebugShadowLocations();
-        this.debugQuadBuffer = this.programManager.getDebugQuadBuffer();
-        this.debugBackgroundBuffer = this.programManager.getDebugBackgroundBuffer();
-
         // Create buffer for direction indicators
         this.directionBuffer = this.gl.createBuffer();
         
@@ -21,37 +15,10 @@ class DebugRenderer3D {
     }
     
     
-    
-    drawDebugShadowMap() {
-        const width = this.gl.canvas.width;
-        const height = this.gl.canvas.height;
-        this.gl.viewport(0, 0, width, height);
-
-        this.gl.useProgram(this.debugShadowMapProgram);
-
-        // Draw background
-        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.debugBackgroundBuffer);
-        this.gl.vertexAttribPointer(this.debugShadowLocations.position, 2, this.gl.FLOAT, false, 0, 0);
-        this.gl.enableVertexAttribArray(this.debugShadowLocations.position);
-        this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4);
-
-        // Draw shadow map quad
-        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.debugQuadBuffer);
-        this.gl.vertexAttribPointer(this.debugShadowLocations.position, 2, this.gl.FLOAT, false, 0, 0);
-        
-        // Bind shadow map texture
-        this.gl.activeTexture(this.gl.TEXTURE0);
-        this.gl.bindTexture(this.gl.TEXTURE_2D, this.lightingManager.getShadowMap());
-        this.gl.uniform1i(this.debugShadowLocations.shadowMap, 0);
-        
-        this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4);
-    }
-
     drawDebugLines(camera, character, currentTime) {
     if (!character) return;
     
     // Clear previous data
-    
     const shaderSet = this.programManager.getProgramRegistry().getCurrentShaderSet();
     const currentTriangle = character.getCurrentTriangle();
     

@@ -15,16 +15,6 @@ class ObjectRenderer3D {
         };
     }
 
-    renderShadowPass(object, renderableBuffers, renderableIndexCount, shaderSet) {
-        this.gl.uniformMatrix4fv(
-            shaderSet.shadow.locations.lightSpaceMatrix,
-            false,
-            this.lightingManager.getLightSpaceMatrix()
-        );
-        this.gl.uniformMatrix4fv(shaderSet.shadow.locations.modelMatrix, false, object.getModelMatrix());
-        this.drawObject(shaderSet.shadow.locations, renderableBuffers, renderableIndexCount);
-    }
-
     render(object, camera, shaderSet, currentTime) {
         const triangleCount = object.triangles.length;
         const vertexCount = triangleCount * 9;
@@ -123,12 +113,6 @@ class ObjectRenderer3D {
         const terrainProgram = shaderSet.terrain;
         gl.useProgram(terrainProgram.program);
         this.setupObjectShader(terrainProgram.locations, projection, view, model, camera);
-
-        if (shaderSet === this.programManager.getProgramRegistry().shaders.get("pbr")) {
-            gl.activeTexture(gl.TEXTURE0);
-            gl.bindTexture(gl.TEXTURE_2D, this.lightingManager.getShadowMap());
-            gl.uniform1i(terrainProgram.locations.shadowMap, 0);
-        }
 
         this.drawObject(terrainProgram.locations, indices.length);
     }

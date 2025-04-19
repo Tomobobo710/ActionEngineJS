@@ -52,42 +52,6 @@ class ActionRenderer3D {
             this.canvasManager.setClearColor(0.529, 0.808, 0.922, 1.0); // Original blue
         }
 
-        // SHADOW PASS
-        if (shaderSet === this.programRegistry.shaders.get("pbr")) {
-            this.canvasManager.bindFramebuffer(this.lightingManager.getShadowFramebuffer());
-            this.canvasManager.setViewport(
-                this.lightingManager.getShadowMapSize(),
-                this.lightingManager.getShadowMapSize()
-            );
-            this.canvasManager.clear();
-
-            this.gl.useProgram(shaderSet.shadow.program);
-
-            // Render terrain shadows if terrain exists
-            if (terrainBuffers && terrainIndexCount) {
-                this.terrainRenderer.renderShadowPass(terrainBuffers, terrainIndexCount, shaderSet);
-            }
-
-            // Render character shadows if character exists
-            if (character && characterBuffers && characterIndexCount) {
-                this.characterRenderer.renderShadowPass(character, characterBuffers, characterIndexCount, shaderSet);
-            }
-
-            // Render renderable object shadows if they exist
-            if (renderableObjects?.length && renderableBuffers && renderableIndexCount) {
-                for (const object of renderableObjects) {
-                    if (object) {
-                        this.objectRenderer.renderShadowPass(
-                            object,
-                            renderableBuffers,
-                            renderableIndexCount,
-                            shaderSet
-                        );
-                    }
-                }
-            }
-        }
-
         // MAIN RENDER PASS
         this.canvasManager.resetToDefaultFramebuffer();
         this.canvasManager.clear();
@@ -139,7 +103,6 @@ class ActionRenderer3D {
             if (camera) {
                 this.debugRenderer.drawDebugLines(camera, character, this.currentTime);
             }
-            this.debugRenderer.drawDebugShadowMap();
         }
     }
 }

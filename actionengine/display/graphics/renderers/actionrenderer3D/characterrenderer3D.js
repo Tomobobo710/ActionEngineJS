@@ -4,18 +4,7 @@ class CharacterRenderer3D {
         this.programManager = programManager;
         this.lightingManager = lightingManager;
     }
-
-    renderShadowPass(character, characterBuffers, characterIndexCount, shaderSet) {
-        if (!character) return;
-        
-        this.gl.uniformMatrix4fv(
-            shaderSet.shadow.locations.modelMatrix, 
-            false, 
-            character.getModelMatrix()
-        );
-        this.drawCharacter(shaderSet.shadow.locations, characterBuffers, characterIndexCount);
-    }
-
+    
     render(character, characterBuffers, characterIndexCount, camera, shaderSet, currentTime) {
         if (!character) return;
 

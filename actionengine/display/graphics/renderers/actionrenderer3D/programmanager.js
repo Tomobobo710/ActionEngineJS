@@ -7,24 +7,20 @@ class ProgramManager {
 
         // Store shader programs
         this.particleProgram = null;
-        this.debugShadowMapProgram = null;
 
         // Store locations for different shader programs
         this.particleLocations = {};
-        this.debugShadowLocations = {};
 
         // Debug visualization buffers
         this.debugQuadBuffer = null;
         this.debugBackgroundBuffer = null;
 
-        // Initialize everything
+        // Initialize shaders
         this.initializeShaderPrograms();
-        this.initializeDebugBuffers();
     }
 
     initializeShaderPrograms() {
         this.initializeParticleShader();
-        this.initializeDebugShadowShader();
         this.initializeWaterShader();
         this.initializeDefaultShaders();
     }
@@ -72,22 +68,9 @@ class ProgramManager {
 
         console.log("Water locations:", this.waterLocations); // Debug
     }
-    initializeDebugShadowShader() {
-        const debugShadowMapShader = new DebugShadowMapShader();
-        this.debugShadowMapProgram = this.programRegistry.createShaderProgram(
-            debugShadowMapShader.getDebugShadowMapVertexShader(this.isWebGL2),
-            debugShadowMapShader.getDebugShadowMapFragmentShader(this.isWebGL2)
-        );
-
-        this.debugShadowLocations = {
-            position: this.gl.getAttribLocation(this.debugShadowMapProgram, "aPosition"),
-            shadowMap: this.gl.getUniformLocation(this.debugShadowMapProgram, "uShadowMap")
-        };
-    }
 
     initializeDefaultShaders() {
         const defaultShader = new DefaultShader();
-        const shadowShader = new ShadowShader();
 
         const defaultTerrainProgram = this.programRegistry.createShaderProgram(
             defaultShader.getTerrainVertexShader(),
@@ -102,11 +85,6 @@ class ProgramManager {
         const defaultLineProgram = this.programRegistry.createShaderProgram(
             defaultShader.getLineVertexShader(),
             defaultShader.getLineFragmentShader()
-        );
-
-        const defaultShadowProgram = this.programRegistry.createShaderProgram(
-            shadowShader.getShadowVertexShader(),
-            shadowShader.getShadowFragmentShader()
         );
 
         // Add default shader set to registry
@@ -150,46 +128,7 @@ class ProgramManager {
                     viewMatrix: this.gl.getUniformLocation(defaultLineProgram, "uViewMatrix")
                 }
             },
-            shadow: {
-                program: defaultShadowProgram,
-                locations: {
-                    position: this.gl.getAttribLocation(defaultShadowProgram, "aPosition"),
-                    lightSpaceMatrix: this.gl.getUniformLocation(defaultShadowProgram, "uLightSpaceMatrix"),
-                    modelMatrix: this.gl.getUniformLocation(defaultShadowProgram, "uModelMatrix")
-                }
-            }
         });
-    }
-
-    initializeDebugBuffers() {
-        // Create debug quad buffer for shadow map visualization
-        this.debugQuadBuffer = this.gl.createBuffer();
-        const quadVertices = new Float32Array([
-            -1.0,
-            -1.0, // bottom left
-            -0.5,
-            -1.0, // bottom right
-            -1.0,
-            -0.5, // top left
-            -0.5,
-            -0.5 // top right
-        ]);
-        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.debugQuadBuffer);
-        this.gl.bufferData(this.gl.ARRAY_BUFFER, quadVertices, this.gl.STATIC_DRAW);
-
-        this.debugBackgroundBuffer = this.gl.createBuffer();
-        const backgroundQuad = new Float32Array([
-            -1.2,
-            -1.2, // noticeably larger
-            1.2,
-            -1.2,
-            -1.2,
-            1.2,
-            1.2,
-            1.2
-        ]);
-        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.debugBackgroundBuffer);
-        this.gl.bufferData(this.gl.ARRAY_BUFFER, backgroundQuad, this.gl.STATIC_DRAW);
     }
 
     // Accessor methods
@@ -207,22 +146,6 @@ class ProgramManager {
 
     getWaterLocations() {
         return this.waterLocations;
-    }
-
-    getDebugShadowProgram() {
-        return this.debugShadowMapProgram;
-    }
-
-    getDebugShadowLocations() {
-        return this.debugShadowLocations;
-    }
-
-    getDebugQuadBuffer() {
-        return this.debugQuadBuffer;
-    }
-
-    getDebugBackgroundBuffer() {
-        return this.debugBackgroundBuffer;
     }
 
     getProgramRegistry() {

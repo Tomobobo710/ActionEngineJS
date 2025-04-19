@@ -148,8 +148,8 @@ void main() {
 
     float NdotL = max(dot(N, L), 0.0);
 
-    // Combine everything
-    vec3 color = (kD * albedo / 3.14159 + specular) * NdotL * shadow * uLightIntensity;
+    // Combine everything - shadow variable removed
+    vec3 color = (kD * albedo / 3.14159 + specular) * NdotL * uLightIntensity;
     
     // Apply distance attenuation
     color *= distanceAttenuation;

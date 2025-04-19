@@ -7,16 +7,6 @@ class TerrainRenderer3D {
         this.lightingManager = lightingManager;
     }
 
-    renderShadowPass(terrainBuffers, terrainIndexCount, shaderSet) {
-        this.gl.uniformMatrix4fv(
-            shaderSet.shadow.locations.lightSpaceMatrix,
-            false,
-            this.lightingManager.getLightSpaceMatrix()
-        );
-        this.gl.uniformMatrix4fv(shaderSet.shadow.locations.modelMatrix, false, Matrix4.create());
-        this.drawTerrain(shaderSet.shadow.locations, terrainBuffers, terrainIndexCount);
-    }
-
     render(terrainBuffers, terrainIndexCount, camera, shaderSet, currentTime) {
         // Set up shared matrices
         const projection = Matrix4.perspective(Matrix4.create(), camera.fov, Game.WIDTH / Game.HEIGHT, 0.1, 10000.0);
@@ -24,16 +14,9 @@ class TerrainRenderer3D {
         Matrix4.lookAt(view, camera.position.toArray(), camera.target.toArray(), camera.up.toArray());
         const model = Matrix4.create();
 
-        // Render terrain with shadow map if using PBR shader
+        // Render terrain
         this.gl.useProgram(shaderSet.terrain.program);
         this.setupTerrainShader(shaderSet.terrain.locations, projection, view, model, camera);
-
-        if (shaderSet === this.programManager.getProgramRegistry().shaders.get("pbr")) {
-            // Bind shadow map texture
-            this.gl.activeTexture(this.gl.TEXTURE0);
-            this.gl.bindTexture(this.gl.TEXTURE_2D, this.lightingManager.getShadowMap());
-            this.gl.uniform1i(shaderSet.terrain.locations.shadowMap, 0);
-        }
 
         // If using default shader, set up texturing
         if (shaderSet === this.programManager.getProgramRegistry().shaders.get("default")) {
