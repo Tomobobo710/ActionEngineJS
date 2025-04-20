@@ -4,6 +4,7 @@ class ObjectRenderer3D {
         this.renderer = renderer;
         this.gl = gl;
         this.programManager = programManager;
+        this.programRegistry = programManager.getProgramRegistry();
         this.lightingManager = lightingManager;
 
         // Create buffer for each renderable object
@@ -122,14 +123,32 @@ class ObjectRenderer3D {
         this.gl.uniformMatrix4fv(locations.viewMatrix, false, view);
         this.gl.uniformMatrix4fv(locations.modelMatrix, false, model);
 
-        const config = this.lightingManager.getLightConfig();
-        this.gl.uniform3fv(locations.lightPos, [config.POSITION.x, config.POSITION.y, config.POSITION.z]);
-        this.gl.uniform3fv(locations.lightDir, this.lightingManager.getLightDir().toArray());
-        this.gl.uniform1f(locations.lightIntensity, config.INTENSITY);
+        // Set camera position if the shader uses it
+        if (locations.cameraPos !== -1 && locations.cameraPos !== null) {
+            this.gl.uniform3fv(locations.cameraPos, camera.position.toArray());
+        }
 
-        this.gl.uniform1f(locations.roughness, config.MATERIAL.ROUGHNESS);
-        this.gl.uniform1f(locations.metallic, config.MATERIAL.METALLIC);
-        this.gl.uniform1f(locations.baseReflectivity, config.MATERIAL.BASE_REFLECTIVITY);
+        const config = this.lightingManager.getLightConfig();
+        if (locations.lightPos !== -1 && locations.lightPos !== null) {
+            this.gl.uniform3fv(locations.lightPos, [config.POSITION.x, config.POSITION.y, config.POSITION.z]);
+        }
+        if (locations.lightDir !== -1 && locations.lightDir !== null) {
+            this.gl.uniform3fv(locations.lightDir, this.lightingManager.getLightDir().toArray());
+        }
+        if (locations.lightIntensity !== -1 && locations.lightIntensity !== null) {
+            this.gl.uniform1f(locations.lightIntensity, config.INTENSITY);
+        }
+
+        // Set PBR material properties if they are defined in the shader
+        if (locations.roughness !== -1 && locations.roughness !== null) {
+            this.gl.uniform1f(locations.roughness, config.MATERIAL.ROUGHNESS);
+        }
+        if (locations.metallic !== -1 && locations.metallic !== null) {
+            this.gl.uniform1f(locations.metallic, config.MATERIAL.METALLIC);
+        }
+        if (locations.baseReflectivity !== -1 && locations.baseReflectivity !== null) {
+            this.gl.uniform1f(locations.baseReflectivity, config.MATERIAL.BASE_REFLECTIVITY);
+        }
     }
 
     drawObject(locations, indexCount) {
@@ -164,6 +183,25 @@ class ObjectRenderer3D {
         if (locations.texCoord !== -1) {
             this.gl.disableVertexAttribArray(locations.texCoord);
             this.gl.vertexAttrib2f(locations.texCoord, 0.0, 0.0);
+        }
+        
+        // Bind texture array if the shader uses it
+        if (locations.textureArray !== -1 && locations.textureArray !== null && this.renderer.textureArray) {
+            // Determine which shader we're using
+            const currentShaderSet = this.programRegistry.getCurrentShaderSet();
+            const isPBRShader = this.programRegistry?.shaders.get("pbr") === currentShaderSet;
+            
+            if (isPBRShader) {
+                // Use texture unit 1 for PBR shader
+                this.gl.activeTexture(this.gl.TEXTURE1);
+                this.gl.bindTexture(this.gl.TEXTURE_2D_ARRAY, this.renderer.textureArray);
+                this.gl.uniform1i(locations.textureArray, 1);
+            } else {
+                // Use texture unit 0 for other shaders
+                this.gl.activeTexture(this.gl.TEXTURE0);
+                this.gl.bindTexture(this.gl.TEXTURE_2D_ARRAY, this.renderer.textureArray);
+                this.gl.uniform1i(locations.textureArray, 0);
+            }
         }
 
         this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.buffers.indices);

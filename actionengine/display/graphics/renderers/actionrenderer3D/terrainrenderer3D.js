@@ -4,6 +4,7 @@ class TerrainRenderer3D {
         this.renderer = renderer;
         this.gl = gl;
         this.programManager = programManager;
+        this.programRegistry = programManager.getProgramRegistry();
         this.lightingManager = lightingManager;
     }
 
@@ -18,12 +19,30 @@ class TerrainRenderer3D {
         this.gl.useProgram(shaderSet.terrain.program);
         this.setupTerrainShader(shaderSet.terrain.locations, projection, view, model, camera);
 
-        // If using default shader, set up texturing
-        if (shaderSet === this.programManager.getProgramRegistry().shaders.get("default")) {
+        // Set up texturing for any shader that needs it
+        const isPBRShader = this.programRegistry?.shaders.get("pbr") === shaderSet;
+        const isDefaultShader = this.programRegistry?.shaders.get("default") === shaderSet;
+        
+        // Handle default shader textures
+        if (isDefaultShader && 
+            shaderSet.terrain.locations.textureArray !== undefined && 
+            shaderSet.terrain.locations.textureArray !== null &&
+            shaderSet.terrain.locations.textureArray !== -1) {
             // Bind texture array
             this.gl.activeTexture(this.gl.TEXTURE0);
-            this.gl.bindTexture(this.gl.TEXTURE_2D_ARRAY, this.renderer.textureManager.textureArray);
+            this.gl.bindTexture(this.gl.TEXTURE_2D_ARRAY, this.renderer.textureArray);
             this.gl.uniform1i(shaderSet.terrain.locations.textureArray, 0);
+        }
+        
+        // Handle PBR shader textures
+        if (isPBRShader && 
+            shaderSet.terrain.locations.textureArray !== undefined && 
+            shaderSet.terrain.locations.textureArray !== null &&
+            shaderSet.terrain.locations.textureArray !== -1) {
+            // Bind texture array to a different texture unit
+            this.gl.activeTexture(this.gl.TEXTURE1);
+            this.gl.bindTexture(this.gl.TEXTURE_2D_ARRAY, this.renderer.textureArray);
+            this.gl.uniform1i(shaderSet.terrain.locations.textureArray, 1);
         }
 
         this.drawTerrain(shaderSet.terrain.locations, terrainBuffers, terrainIndexCount);
@@ -34,17 +53,38 @@ class TerrainRenderer3D {
         this.gl.uniformMatrix4fv(locations.viewMatrix, false, view);
         this.gl.uniformMatrix4fv(locations.modelMatrix, false, model);
 
+        // Set camera position if available
+        if (locations.cameraPos !== undefined && locations.cameraPos !== null && locations.cameraPos !== -1) {
+            this.gl.uniform3fv(locations.cameraPos, camera.position.toArray());
+        }
+
         // Light properties from LightingManager
         const config = this.lightingManager.getLightConfig();
 
-        this.gl.uniform3fv(locations.lightPos, [config.POSITION.x, config.POSITION.y, config.POSITION.z]);
-        this.gl.uniform3fv(locations.lightDir, this.lightingManager.getLightDir().toArray());
-        this.gl.uniform1f(locations.lightIntensity, config.INTENSITY);
+        if (locations.lightPos !== undefined && locations.lightPos !== null && locations.lightPos !== -1) {
+            this.gl.uniform3fv(locations.lightPos, [config.POSITION.x, config.POSITION.y, config.POSITION.z]);
+        }
 
-        // PBR material properties
-        this.gl.uniform1f(locations.roughness, config.MATERIAL.ROUGHNESS);
-        this.gl.uniform1f(locations.metallic, config.MATERIAL.METALLIC);
-        this.gl.uniform1f(locations.baseReflectivity, config.MATERIAL.BASE_REFLECTIVITY);
+        if (locations.lightDir !== undefined && locations.lightDir !== null && locations.lightDir !== -1) {
+            this.gl.uniform3fv(locations.lightDir, this.lightingManager.getLightDir().toArray());
+        }
+
+        if (locations.lightIntensity !== undefined && locations.lightIntensity !== null && locations.lightIntensity !== -1) {
+            this.gl.uniform1f(locations.lightIntensity, config.INTENSITY);
+        }
+
+        // PBR material properties (only if the shader uses them)
+        if (locations.roughness !== undefined && locations.roughness !== null && locations.roughness !== -1) {
+            this.gl.uniform1f(locations.roughness, config.MATERIAL.ROUGHNESS);
+        }
+
+        if (locations.metallic !== undefined && locations.metallic !== null && locations.metallic !== -1) {
+            this.gl.uniform1f(locations.metallic, config.MATERIAL.METALLIC);
+        }
+
+        if (locations.baseReflectivity !== undefined && locations.baseReflectivity !== null && locations.baseReflectivity !== -1) {
+            this.gl.uniform1f(locations.baseReflectivity, config.MATERIAL.BASE_REFLECTIVITY);
+        }
     }
 
     drawTerrain(locations, terrainBuffers, indexCount) {

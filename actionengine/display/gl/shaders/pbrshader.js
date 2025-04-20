@@ -6,6 +6,9 @@ class PBRShader {
     ${isWebGL2 ? "in" : "attribute"} vec3 aPosition;
     ${isWebGL2 ? "in" : "attribute"} vec3 aNormal;
     ${isWebGL2 ? "in" : "attribute"} vec3 aColor;
+    ${isWebGL2 ? "in" : "attribute"} vec2 aTexCoord;
+    ${isWebGL2 ? "in" : "attribute"} float aTextureIndex;
+    ${isWebGL2 ? "in" : "attribute"} float aUseTexture;
     
     // Uniforms - shared data for all vertices
     uniform mat4 uProjectionMatrix;
@@ -21,6 +24,9 @@ class PBRShader {
     ${isWebGL2 ? "out" : "varying"} vec4 vLightSpacePos; // Position from light's view
     ${isWebGL2 ? "out" : "varying"} vec3 vColor;
     ${isWebGL2 ? "out" : "varying"} vec3 vViewDir;       // Direction to camera
+    ${isWebGL2 ? "flat out" : "varying"} float vTextureIndex;
+    ${isWebGL2 ? "out" : "varying"} vec2 vTexCoord;
+    ${isWebGL2 ? "flat out" : "varying"} float vUseTexture;
     
     void main() {
         // Calculate world position
@@ -34,10 +40,13 @@ class PBRShader {
         vViewDir = normalize(uCameraPos - worldPos.xyz);
         
         // Transform position to light space for shadow mapping
-        vec4 vLightSpacePos = uLightSpaceMatrix * vec4(vWorldPos, 1.0);
+        vLightSpacePos = uLightSpaceMatrix * vec4(vWorldPos, 1.0);
         
-        // Pass color to fragment shader
+        // Pass color and texture info to fragment shader
         vColor = aColor;
+        vTexCoord = aTexCoord;
+        vTextureIndex = aTextureIndex;
+        vUseTexture = aUseTexture;
         
         // Final position
         gl_Position = uProjectionMatrix * uViewMatrix * worldPos;
@@ -47,6 +56,7 @@ class PBRShader {
     getTerrainFragmentShader(isWebGL2) {
         return `${isWebGL2 ? "#version 300 es\n" : ""}
 precision highp float;
+${isWebGL2 ? "precision mediump sampler2DArray;\n" : ""}
 
 // Inputs from vertex shader
 ${isWebGL2 ? "in" : "varying"} vec3 vNormal;
@@ -54,6 +64,9 @@ ${isWebGL2 ? "in" : "varying"} vec3 vWorldPos;
 ${isWebGL2 ? "in" : "varying"} vec4 vLightSpacePos;
 ${isWebGL2 ? "in" : "varying"} vec3 vColor;
 ${isWebGL2 ? "in" : "varying"} vec3 vViewDir;
+${isWebGL2 ? "flat in" : "varying"} float vTextureIndex;
+${isWebGL2 ? "in" : "varying"} vec2 vTexCoord;
+${isWebGL2 ? "flat in" : "varying"} float vUseTexture;
 
 // Material properties
 uniform float uRoughness;
@@ -67,6 +80,9 @@ uniform vec3 uCameraPos;
 uniform float uShadowBias;
 uniform float uShadowDarkness;
 uniform float uLightIntensity;
+
+// Texture sampler
+uniform sampler2DArray uPBRTextureArray;
 
 ${isWebGL2 ? 
     "precision highp sampler2DShadow;\nuniform sampler2DShadow uShadowMap;" : 
@@ -128,9 +144,18 @@ void main() {
     // Shadow calculation
     float shadow = ShadowCalculation(vLightSpacePos);
 
+    // Determine albedo - either from texture or vertex color
+    vec3 albedo;
+    if (vUseTexture > 0.5) {
+        // Sample from texture array using texture index
+        vec4 texColor = texture(uPBRTextureArray, vec3(vTexCoord, vTextureIndex));
+        albedo = texColor.rgb;
+    } else {
+        albedo = vColor;
+    }
+
     // Base reflectivity
     vec3 baseF0 = vec3(uBaseReflectivity);
-    vec3 albedo = vColor;
     baseF0 = mix(baseF0, albedo, uMetallic);
 
     // Cook-Torrance BRDF
@@ -148,14 +173,14 @@ void main() {
 
     float NdotL = max(dot(N, L), 0.0);
 
-    // Combine everything - shadow variable removed
+    // Combine everything
     vec3 color = (kD * albedo / 3.14159 + specular) * NdotL * uLightIntensity;
     
     // Apply distance attenuation
     color *= distanceAttenuation;
 
-    // Add ambient light (currently 0)
-    vec3 ambient = vec3(0) * albedo;
+    // Add ambient light
+    vec3 ambient = vec3(0.03) * albedo;
     color += ambient;
 
     // HDR tonemapping
@@ -174,30 +199,98 @@ void main() {
     ${isWebGL2 ? "in" : "attribute"} vec3 aPosition;
     ${isWebGL2 ? "in" : "attribute"} vec3 aNormal;
     ${isWebGL2 ? "in" : "attribute"} vec3 aColor;
+    ${isWebGL2 ? "in" : "attribute"} vec2 aTexCoord;
+    ${isWebGL2 ? "in" : "attribute"} float aTextureIndex;
+    ${isWebGL2 ? "in" : "attribute"} float aUseTexture;
+    
     uniform mat4 uProjectionMatrix;
     uniform mat4 uViewMatrix;
     uniform mat4 uModelMatrix;
+    uniform vec3 uCameraPos;
+    
     ${isWebGL2 ? "out" : "varying"} vec3 vNormal;
+    ${isWebGL2 ? "out" : "varying"} vec3 vWorldPos;
+    ${isWebGL2 ? "out" : "varying"} vec3 vViewDir;
     ${isWebGL2 ? "out" : "varying"} vec3 vColor;
+    ${isWebGL2 ? "flat out" : "varying"} float vTextureIndex;
+    ${isWebGL2 ? "out" : "varying"} vec2 vTexCoord;
+    ${isWebGL2 ? "flat out" : "varying"} float vUseTexture;
     
     void main() {
-        gl_Position = uProjectionMatrix * uViewMatrix * uModelMatrix * vec4(aPosition, 1.0);
+        // Calculate world position
+        vec4 worldPos = uModelMatrix * vec4(aPosition, 1.0);
+        vWorldPos = worldPos.xyz;
+        
+        // Transform normal to world space
         vNormal = mat3(uModelMatrix) * aNormal;
+        
+        // Calculate view direction
+        vViewDir = normalize(uCameraPos - worldPos.xyz);
+        
+        // Pass color and texture info to fragment shader
         vColor = aColor;
+        vTexCoord = aTexCoord;
+        vTextureIndex = aTextureIndex;
+        vUseTexture = aUseTexture;
+        
+        // Final position
+        gl_Position = uProjectionMatrix * uViewMatrix * worldPos;
     }`;
     }
 
     getCharacterFragmentShader(isWebGL2) {
         return `${isWebGL2 ? "#version 300 es\n" : ""}
     precision mediump float;
+    ${isWebGL2 ? "precision mediump sampler2DArray;\n" : ""}
+    
     ${isWebGL2 ? "in" : "varying"} vec3 vNormal;
+    ${isWebGL2 ? "in" : "varying"} vec3 vWorldPos;
+    ${isWebGL2 ? "in" : "varying"} vec3 vViewDir;
     ${isWebGL2 ? "in" : "varying"} vec3 vColor;
+    ${isWebGL2 ? "flat in" : "varying"} float vTextureIndex;
+    ${isWebGL2 ? "in" : "varying"} vec2 vTexCoord;
+    ${isWebGL2 ? "flat in" : "varying"} float vUseTexture;
     ${isWebGL2 ? "out vec4 fragColor;\n" : ""}
     
+    // Material properties
+    uniform float uRoughness;
+    uniform float uMetallic;
+    
+    // Light properties
+    uniform vec3 uLightDir;
+    
+    // Texture sampler
+    uniform sampler2DArray uPBRTextureArray;
+    
     void main() {
-        vec3 lightDir = normalize(vec3(0.5, 1.0, 0.5));
-        float diffuse = max(dot(normalize(vNormal), lightDir), 0.0);
-        vec3 color = vColor * (0.3 + 0.7 * diffuse);
+        vec3 N = normalize(vNormal);
+        vec3 L = normalize(uLightDir);
+        vec3 V = normalize(vViewDir);
+        vec3 H = normalize(V + L);
+        
+        // Determine albedo - either from texture or vertex color
+        vec3 albedo;
+        if (vUseTexture > 0.5) {
+            // Sample from texture array using texture index
+            vec4 texColor = texture(uPBRTextureArray, vec3(vTexCoord, vTextureIndex));
+            albedo = texColor.rgb;
+        } else {
+            albedo = vColor;
+        }
+        
+        // Basic lighting calculation
+        float diffuse = max(dot(N, L), 0.0);
+        float specular = pow(max(dot(N, H), 0.0), 32.0) * 0.3;
+        
+        // Final color
+        vec3 color = albedo * (0.2 + 0.7 * diffuse) + specular * (0.5 + 0.5 * uMetallic);
+        
+        // Simple tonemapping
+        color = color / (color + vec3(1.0));
+        
+        // Gamma correction
+        color = pow(color, vec3(1.0/2.2));
+        
         ${isWebGL2 ? "fragColor" : "gl_FragColor"} = vec4(color, 1.0);
     }`;
     }

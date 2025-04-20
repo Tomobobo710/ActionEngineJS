@@ -88,7 +88,12 @@ class ProgramRegistry {
                 roughness: this.gl.getUniformLocation(pbrProgram, "uRoughness"),
                 metallic: this.gl.getUniformLocation(pbrProgram, "uMetallic"),
                 baseReflectivity: this.gl.getUniformLocation(pbrProgram, "uBaseReflectivity"),
-                cameraPos: this.gl.getUniformLocation(pbrProgram, "uCameraPos")
+                cameraPos: this.gl.getUniformLocation(pbrProgram, "uCameraPos"),
+                // Texture-related locations
+                textureArray: this.gl.getUniformLocation(pbrProgram, "uPBRTextureArray"),
+                textureIndex: this.gl.getAttribLocation(pbrProgram, "aTextureIndex"),
+                texCoord: this.gl.getAttribLocation(pbrProgram, "aTexCoord"),
+                useTexture: this.gl.getAttribLocation(pbrProgram, "aUseTexture")
             };
         } else {
             newSet.terrain.locations = defaultSet.terrain.locations;
@@ -102,7 +107,16 @@ class ProgramRegistry {
                 color: this.gl.getAttribLocation(newSet.character.program, "aColor"),
                 projectionMatrix: this.gl.getUniformLocation(newSet.character.program, "uProjectionMatrix"),
                 viewMatrix: this.gl.getUniformLocation(newSet.character.program, "uViewMatrix"),
-                modelMatrix: this.gl.getUniformLocation(newSet.character.program, "uModelMatrix")
+                modelMatrix: this.gl.getUniformLocation(newSet.character.program, "uModelMatrix"),
+                cameraPos: this.gl.getUniformLocation(newSet.character.program, "uCameraPos"),
+                lightDir: this.gl.getUniformLocation(newSet.character.program, "uLightDir"),
+                roughness: this.gl.getUniformLocation(newSet.character.program, "uRoughness"),
+                metallic: this.gl.getUniformLocation(newSet.character.program, "uMetallic"),
+                // Texture-related locations
+                textureArray: this.gl.getUniformLocation(newSet.character.program, "uPBRTextureArray"),
+                textureIndex: this.gl.getAttribLocation(newSet.character.program, "aTextureIndex"),
+                texCoord: this.gl.getAttribLocation(newSet.character.program, "aTexCoord"),
+                useTexture: this.gl.getAttribLocation(newSet.character.program, "aUseTexture")
             };
         } else {
             newSet.character.locations = defaultSet.character.locations;

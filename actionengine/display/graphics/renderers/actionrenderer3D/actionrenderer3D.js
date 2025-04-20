@@ -12,13 +12,16 @@ class ActionRenderer3D {
         this.lightingManager = new LightingManager(this.gl, this.canvasManager.isWebGL2());
         this.debugRenderer = new DebugRenderer3D(this.gl, this.programManager, this.lightingManager);
         this.weatherRenderer = new WeatherRenderer3D(this.gl, this.programManager);
+        // Create texture array before other renderers
+        this.textureManager = new TextureManager(this.gl);
+        this.textureArray = this.textureManager.textureArray;
+        
         this.terrainRenderer = new TerrainRenderer3D(this, this.gl, this.programManager, this.lightingManager);
         this.characterRenderer = new CharacterRenderer3D(this.gl, this.programManager, this.lightingManager);
         this.objectRenderer = new ObjectRenderer3D(this, this.gl, this.programManager, this.lightingManager);
         // Get program registry reference
         this.programRegistry = this.programManager.getProgramRegistry();
         this.waterRenderer = new WaterRenderer3D(this.gl, this.programManager);
-        this.textureManager = new TextureManager(this.gl);
         // Time tracking
         this.startTime = performance.now();
         this.currentTime = 0;
@@ -69,7 +72,8 @@ class ActionRenderer3D {
                 characterIndexCount,
                 camera,
                 shaderSet,
-                this.currentTime
+                this.currentTime,
+                this  // Pass the renderer instance
             );
         }
 
