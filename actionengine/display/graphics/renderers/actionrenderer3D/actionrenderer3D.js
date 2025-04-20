@@ -16,7 +16,6 @@ class ActionRenderer3D {
         this.textureManager = new TextureManager(this.gl);
         this.textureArray = this.textureManager.textureArray;
         
-        // CharacterRenderer3D removed - characters now use standard object renderer
         this.objectRenderer = new ObjectRenderer3D(this, this.gl, this.programManager, this.lightingManager);
         // Get program registry reference
         this.programRegistry = this.programManager.getProgramRegistry();
@@ -89,8 +88,6 @@ class ActionRenderer3D {
                 }
             }
         }
-
-        // Legacy character rendering removed - character is now in renderableObjects
 
         // Render all non-water objects in a batch
         for (const object of nonWaterObjects) {

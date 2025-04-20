@@ -42,7 +42,6 @@ class ShaderManager {
                     vertex: shader.getStandardVertexShader?.(this.isWebGL2),
                     fragment: shader.getStandardFragmentShader?.(this.isWebGL2)
                 },
-                // Character shader removed - characters now use standard shader
                 lines: {
                     vertex: shader.getLineVertexShader?.(this.isWebGL2),
                     fragment: shader.getLineFragmentShader?.(this.isWebGL2)
@@ -71,8 +70,6 @@ class ShaderManager {
                 fragment: standardFragment
             };
         }
-
-        // Character shader registration removed - characters now use standard shader
 
         const lineVertex = this.getShader("LineVertex", name);
         const lineFragment = this.getShader("LineFragment", name);
@@ -322,7 +319,6 @@ class ShaderManager {
 
     getBufferInfo() {
         return {
-            // Character buffers removed - characters now use standard rendering
             renderableBuffers: this.renderableBuffers,
             renderableIndexCount: this.renderableIndexCount
         };
