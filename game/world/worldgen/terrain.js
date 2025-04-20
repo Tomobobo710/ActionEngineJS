@@ -225,4 +225,10 @@ class Terrain {
 
         return terrainBody;
     }
+
+
+    // Make terrain a proper renderable object like any other object
+    getTriangles() {
+        return this.triangles;
+    }
 }

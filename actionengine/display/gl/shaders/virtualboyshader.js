@@ -1,6 +1,6 @@
 // game/display/gl/shaders/virtualboyshader.js
 class VirtualBoyShader {
-    getTerrainVertexShader(isWebGL2) {
+    getStandardVertexShader(isWebGL2) { // Renamed from getTerrainVertexShader
         return `${isWebGL2 ? "#version 300 es\n" : ""}
         ${isWebGL2 ? "in" : "attribute"} vec3 aPosition;
         ${isWebGL2 ? "in" : "attribute"} vec3 aNormal;
@@ -24,7 +24,7 @@ class VirtualBoyShader {
         }`;
     }
 
-    getTerrainFragmentShader(isWebGL2) {
+    getStandardFragmentShader(isWebGL2) { // Renamed from getTerrainFragmentShader
         return `${isWebGL2 ? "#version 300 es\n" : ""}
         precision mediump float;
         ${isWebGL2 ? "flat in float vLighting;\nin vec3 vBarycentricCoord;\nout vec4 fragColor;" 

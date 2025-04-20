@@ -72,9 +72,9 @@ class ProgramManager {
     initializeDefaultShaders() {
         const defaultShader = new DefaultShader();
 
-        const defaultTerrainProgram = this.programRegistry.createShaderProgram(
-            defaultShader.getTerrainVertexShader(),
-            defaultShader.getTerrainFragmentShader()
+        const defaultStandardProgram = this.programRegistry.createShaderProgram(
+            defaultShader.getStandardVertexShader(),
+            defaultShader.getStandardFragmentShader()
         );
 
         const defaultCharacterProgram = this.programRegistry.createShaderProgram(
@@ -89,24 +89,24 @@ class ProgramManager {
 
         // Add default shader set to registry
         this.programRegistry.shaders.set("default", {
-            terrain: {
-                program: defaultTerrainProgram,
+            standard: {
+                program: defaultStandardProgram,
                 locations: {
                     // Existing locations
-                    position: this.gl.getAttribLocation(defaultTerrainProgram, "aPosition"),
-                    normal: this.gl.getAttribLocation(defaultTerrainProgram, "aNormal"),
-                    color: this.gl.getAttribLocation(defaultTerrainProgram, "aColor"),
-                    projectionMatrix: this.gl.getUniformLocation(defaultTerrainProgram, "uProjectionMatrix"),
-                    viewMatrix: this.gl.getUniformLocation(defaultTerrainProgram, "uViewMatrix"),
-                    modelMatrix: this.gl.getUniformLocation(defaultTerrainProgram, "uModelMatrix"),
-                    cameraPos: this.gl.getUniformLocation(defaultTerrainProgram, "uCameraPos"),
-                    lightDir: this.gl.getUniformLocation(defaultTerrainProgram, "uLightDir"),
+                    position: this.gl.getAttribLocation(defaultStandardProgram, "aPosition"),
+                    normal: this.gl.getAttribLocation(defaultStandardProgram, "aNormal"),
+                    color: this.gl.getAttribLocation(defaultStandardProgram, "aColor"),
+                    projectionMatrix: this.gl.getUniformLocation(defaultStandardProgram, "uProjectionMatrix"),
+                    viewMatrix: this.gl.getUniformLocation(defaultStandardProgram, "uViewMatrix"),
+                    modelMatrix: this.gl.getUniformLocation(defaultStandardProgram, "uModelMatrix"),
+                    cameraPos: this.gl.getUniformLocation(defaultStandardProgram, "uCameraPos"),
+                    lightDir: this.gl.getUniformLocation(defaultStandardProgram, "uLightDir"),
 
                     // Modified texture handling
-                    textureArray: this.gl.getUniformLocation(defaultTerrainProgram, "uTextureArray"),
-                    textureIndex: this.gl.getAttribLocation(defaultTerrainProgram, "aTextureIndex"),
-                    texCoord: this.gl.getAttribLocation(defaultTerrainProgram, "aTexCoord"),
-                    useTexture: this.gl.getAttribLocation(defaultTerrainProgram, "aUseTexture")
+                    textureArray: this.gl.getUniformLocation(defaultStandardProgram, "uTextureArray"),
+                    textureIndex: this.gl.getAttribLocation(defaultStandardProgram, "aTextureIndex"),
+                    texCoord: this.gl.getAttribLocation(defaultStandardProgram, "aTexCoord"),
+                    useTexture: this.gl.getAttribLocation(defaultStandardProgram, "aUseTexture")
                 }
             },
             character: {

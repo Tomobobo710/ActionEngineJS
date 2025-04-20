@@ -131,7 +131,8 @@ class WorldMode {
         };
 
         this.terrain = new Terrain(baseConfig);
-        this.shaderManager.updateTerrainBuffers(this.terrain);
+        // Terrain is now handled as a regular renderable object
+        // It uses the same standard ObjectRenderer3D as other in-game objects
 
         const terrainBody = this.terrain.createPhysicsMesh();
         this.physicsWorld.addTerrainBody(terrainBody, 1, -1);
@@ -296,7 +297,7 @@ class WorldMode {
                 ...bufferInfo,
                 camera: this.camera,
                 character: this.character,
-                renderableObjects: Array.from(this.physicsWorld.objects),
+                renderableObjects: [this.terrain, ...Array.from(this.physicsWorld.objects)],
                 showDebugPanel: this.showDebugPanel,
                 weatherSystem: this.weatherSystem
             });

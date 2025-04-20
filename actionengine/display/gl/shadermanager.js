@@ -5,11 +5,9 @@ class ShaderManager {
         this.isWebGL2 = this.gl.getParameter(this.gl.VERSION).includes("WebGL 2.0");
 
         // Initialize buffers
-        this.terrainBuffers = this.createBuffers();
         this.characterBuffers = this.createBuffers();
         this.renderableBuffers = this.createBuffers();
 
-        this.terrainIndexCount = 0;
         this.characterIndexCount = 0;
         this.renderableIndexCount = 0;
 
@@ -41,9 +39,9 @@ class ShaderManager {
         ShaderRegistry.getAllShaderNames().forEach((name) => {
             const shader = ShaderRegistry.getShader(name);
             const shaderSet = {
-                terrain: {
-                    vertex: shader.getTerrainVertexShader?.(this.isWebGL2),
-                    fragment: shader.getTerrainFragmentShader?.(this.isWebGL2)
+                standard: {
+                    vertex: shader.getStandardVertexShader?.(this.isWebGL2),
+                    fragment: shader.getStandardFragmentShader?.(this.isWebGL2)
                 },
                 character: {
                     vertex: shader.getCharacterVertexShader?.(this.isWebGL2),
@@ -69,12 +67,12 @@ class ShaderManager {
     registerShaderSet(renderer, name) {
         const shaderSet = {};
 
-        const terrainVertex = this.getShader("TerrainVertex", name);
-        const terrainFragment = this.getShader("TerrainFragment", name);
-        if (terrainVertex && terrainFragment) {
-            shaderSet.terrain = {
-                vertex: terrainVertex,
-                fragment: terrainFragment
+        const standardVertex = this.getShader("StandardVertex", name);
+        const standardFragment = this.getShader("StandardFragment", name);
+        if (standardVertex && standardFragment) {
+            shaderSet.standard = {
+                vertex: standardVertex,
+                fragment: standardFragment
             };
         }
 
@@ -101,131 +99,7 @@ class ShaderManager {
         }
     }
 
-    updateTerrainBuffers(terrain) {
-    const triangleCount = terrain.triangles.length;
-    const vertexCount = triangleCount * 9;
-    const uvCount = triangleCount * 6;
-    
-    // Preallocate all arrays
-    const positions = new Float32Array(vertexCount);
-    const normals = new Float32Array(vertexCount);
-    const colors = new Float32Array(vertexCount);
-    const uvs = new Float32Array(uvCount);
-    const textureIndices = new Float32Array(triangleCount * 3);
-    const useTextureFlags = new Float32Array(triangleCount * 3);
-    
-    // Cache texture lookups
-    const textureCache = new Map();
-    
-    for (let i = 0; i < triangleCount; i++) {
-        const triangle = terrain.triangles[i];
-        const baseIndex = i * 9;
-        const baseUVIndex = i * 6;
-        const baseFlagIndex = i * 3;
-        
-        // Vertices
-        for (let j = 0; j < 3; j++) {
-            const vertex = triangle.vertices[j];
-            const idx = baseIndex + (j * 3);
-            positions[idx] = vertex.x;
-            positions[idx + 1] = vertex.y;
-            positions[idx + 2] = vertex.z;
-        }
-        
-        // Normals
-        const normal = triangle.normal;
-        for (let j = 0; j < 3; j++) {
-            const idx = baseIndex + (j * 3);
-            normals[idx] = normal.x;
-            normals[idx + 1] = normal.y;
-            normals[idx + 2] = normal.z;
-        }
-        
-        // Process colors (can reuse the colorCache mechanism)
-        let rgb = this.colorCache.get(triangle.color);
-        if (!rgb) {
-            rgb = {
-                r: parseInt(triangle.color.slice(1, 3), 16) * this.colorMultiplier,
-                g: parseInt(triangle.color.slice(3, 5), 16) * this.colorMultiplier,
-                b: parseInt(triangle.color.slice(5, 7), 16) * this.colorMultiplier
-            };
-            this.colorCache.set(triangle.color, rgb);
-        }
-        
-        for (let j = 0; j < 3; j++) {
-            const idx = baseIndex + (j * 3);
-            colors[idx] = rgb.r;
-            colors[idx + 1] = rgb.g;
-            colors[idx + 2] = rgb.b;
-        }
-        
-        // Handle textures
-        if (triangle.texture) {
-            if (triangle.uvs) {
-                for (let j = 0; j < 3; j++) {
-                    const uv = triangle.uvs[j];
-                    uvs[baseUVIndex + j * 2] = uv.u;
-                    uvs[baseUVIndex + j * 2 + 1] = uv.v;
-                }
-            } else {
-                // Default UVs
-                uvs[baseUVIndex] = 0;
-                uvs[baseUVIndex + 1] = 0;
-                uvs[baseUVIndex + 2] = 1;
-                uvs[baseUVIndex + 3] = 0;
-                uvs[baseUVIndex + 4] = 0.5;
-                uvs[baseUVIndex + 5] = 1;
-            }
-            
-            // Cache texture indices
-            let textureIndex = textureCache.get(triangle.texture);
-            if (textureIndex === undefined) {
-                textureIndex = this.getTextureIndexForProceduralTexture(triangle.texture);
-                textureCache.set(triangle.texture, textureIndex);
-            }
-            
-            textureIndices[baseFlagIndex] = textureIndex;
-            textureIndices[baseFlagIndex + 1] = textureIndex;
-            textureIndices[baseFlagIndex + 2] = textureIndex;
-            
-            useTextureFlags[baseFlagIndex] = 1;
-            useTextureFlags[baseFlagIndex + 1] = 1;
-            useTextureFlags[baseFlagIndex + 2] = 1;
-        }
-    }
-    
-    const gl = this.gl;
-    
-    // Use bufferSubData if the buffers are pre-allocated
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.terrainBuffers.position);
-    gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
-    
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.terrainBuffers.normal);
-    gl.bufferData(gl.ARRAY_BUFFER, normals, gl.STATIC_DRAW);
-    
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.terrainBuffers.color);
-    gl.bufferData(gl.ARRAY_BUFFER, colors, gl.STATIC_DRAW);
-    
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.terrainBuffers.uv);
-    gl.bufferData(gl.ARRAY_BUFFER, uvs, gl.STATIC_DRAW);
-    
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.terrainBuffers.textureIndex);
-    gl.bufferData(gl.ARRAY_BUFFER, textureIndices, gl.STATIC_DRAW);
-    
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.terrainBuffers.useTexture);
-    gl.bufferData(gl.ARRAY_BUFFER, useTextureFlags, gl.STATIC_DRAW);
-    
-    const indices = new Uint16Array(triangleCount * 3);
-    for (let i = 0; i < indices.length; i++) {
-        indices[i] = i;
-    }
-    
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.terrainBuffers.indices);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
-    
-    this.terrainIndexCount = indices.length;
-    return this.terrainIndexCount;
-}
+    // Terrain is now handled as a regular object through updateRenderableBuffers
     getTextureIndexForProceduralTexture(proceduralTexture) {
         // Loop through textureRegistry to find which texture this is
         for (let i = 0; i < textureRegistry.textureList.length; i++) {
@@ -529,12 +403,6 @@ class ShaderManager {
     }
 
     deleteBuffers() {
-        // Delete terrain buffers
-        this.gl.deleteBuffer(this.terrainBuffers.position);
-        this.gl.deleteBuffer(this.terrainBuffers.normal);
-        this.gl.deleteBuffer(this.terrainBuffers.color);
-        this.gl.deleteBuffer(this.terrainBuffers.indices);
-
         // Delete character buffers
         this.gl.deleteBuffer(this.characterBuffers.position);
         this.gl.deleteBuffer(this.characterBuffers.normal);
@@ -550,8 +418,6 @@ class ShaderManager {
 
     getBufferInfo() {
         return {
-            terrainBuffers: this.terrainBuffers,
-            terrainIndexCount: this.terrainIndexCount,
             characterBuffers: this.characterBuffers,
             characterIndexCount: this.characterIndexCount,
             renderableBuffers: this.renderableBuffers,

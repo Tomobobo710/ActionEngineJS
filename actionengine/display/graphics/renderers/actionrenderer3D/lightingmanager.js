@@ -67,9 +67,24 @@ class LightingManager {
         ).normalize();
     }
 
-    // Method to handle frame updates
+    // Method to handle frame updates - only update when necessary
     update() {
         this.frameCount++;
-        this.updateLightMatrix();
+        
+        // Only update matrix when truly necessary
+        if (this._lastPosition === undefined || 
+            this._lastPosition.x !== this.currentLightConfig.POSITION.x ||
+            this._lastPosition.y !== this.currentLightConfig.POSITION.y ||
+            this._lastPosition.z !== this.currentLightConfig.POSITION.z) {
+            
+            this.updateLightMatrix();
+            
+            // Cache position after update
+            this._lastPosition = {
+                x: this.currentLightConfig.POSITION.x,
+                y: this.currentLightConfig.POSITION.y,
+                z: this.currentLightConfig.POSITION.z
+            };
+        }
     }
 }

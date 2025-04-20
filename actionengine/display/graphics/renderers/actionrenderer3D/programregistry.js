@@ -46,10 +46,10 @@ class ProgramRegistry {
 
         // Create new shader set using defaults for any missing shaders
         const newSet = {
-            terrain: {
-                program: shaders.terrain
-                    ? this.createShaderProgram(shaders.terrain.vertex, shaders.terrain.fragment)
-                    : defaultSet.terrain.program,
+            standard: {
+                program: shaders.standard
+                    ? this.createShaderProgram(shaders.standard.vertex, shaders.standard.fragment)
+                    : defaultSet.standard.program,
                 locations: null // Will set after program creation
             },
             character: {
@@ -71,77 +71,110 @@ class ProgramRegistry {
     }
 
     setupShaderLocations(newSet, shaders, defaultSet) {
-        // Set up locations for pbr terrain shader
-        if (shaders.terrain) {
-            const pbrProgram = newSet.terrain.program;
-            newSet.terrain.locations = {
-                position: this.gl.getAttribLocation(pbrProgram, "aPosition"),
-                normal: this.gl.getAttribLocation(pbrProgram, "aNormal"),
-                color: this.gl.getAttribLocation(pbrProgram, "aColor"),
-                projectionMatrix: this.gl.getUniformLocation(pbrProgram, "uProjectionMatrix"),
-                viewMatrix: this.gl.getUniformLocation(pbrProgram, "uViewMatrix"),
-                modelMatrix: this.gl.getUniformLocation(pbrProgram, "uModelMatrix"),
-                lightPos: this.gl.getUniformLocation(pbrProgram, "uLightPos"),
-                lightDir: this.gl.getUniformLocation(pbrProgram, "uLightDir"),
-                lightIntensity: this.gl.getUniformLocation(pbrProgram, "uLightIntensity"),
-
-                roughness: this.gl.getUniformLocation(pbrProgram, "uRoughness"),
-                metallic: this.gl.getUniformLocation(pbrProgram, "uMetallic"),
-                baseReflectivity: this.gl.getUniformLocation(pbrProgram, "uBaseReflectivity"),
-                cameraPos: this.gl.getUniformLocation(pbrProgram, "uCameraPos"),
-                // Texture-related locations
-                textureArray: this.gl.getUniformLocation(pbrProgram, "uPBRTextureArray"),
-                textureIndex: this.gl.getAttribLocation(pbrProgram, "aTextureIndex"),
-                texCoord: this.gl.getAttribLocation(pbrProgram, "aTexCoord"),
-                useTexture: this.gl.getAttribLocation(pbrProgram, "aUseTexture")
+        // Cache GL context
+        const gl = this.gl;
+        
+        // Cache attribute and uniform name strings
+        if (!this._attributeNames) {
+            this._attributeNames = {
+                position: 'aPosition',
+                normal: 'aNormal',
+                color: 'aColor',
+                texCoord: 'aTexCoord',
+                textureIndex: 'aTextureIndex',
+                useTexture: 'aUseTexture'
             };
+            
+            this._uniformNames = {
+                projectionMatrix: 'uProjectionMatrix',
+                viewMatrix: 'uViewMatrix',
+                modelMatrix: 'uModelMatrix',
+                lightPos: 'uLightPos',
+                lightDir: 'uLightDir',
+                lightIntensity: 'uLightIntensity',
+                roughness: 'uRoughness',
+                metallic: 'uMetallic',
+                baseReflectivity: 'uBaseReflectivity',
+                cameraPos: 'uCameraPos',
+                time: 'uTime'
+            };
+            
+            this._textureUniforms = {
+                standard: 'uTextureArray',
+                pbr: 'uPBRTextureArray'
+            };
+        }
+        
+        // Helper function to efficiently get shader locations
+        const getLocations = (program, isPBR = false) => {
+            const attr = this._attributeNames;
+            const unif = this._uniformNames;
+            const tex = this._textureUniforms;
+            
+            // Get all attribute and uniform locations at once
+            const locations = {
+                // Attributes
+                position: gl.getAttribLocation(program, attr.position),
+                normal: gl.getAttribLocation(program, attr.normal),
+                color: gl.getAttribLocation(program, attr.color),
+                texCoord: gl.getAttribLocation(program, attr.texCoord),
+                textureIndex: gl.getAttribLocation(program, attr.textureIndex),
+                useTexture: gl.getAttribLocation(program, attr.useTexture),
+                
+                // Uniforms
+                projectionMatrix: gl.getUniformLocation(program, unif.projectionMatrix),
+                viewMatrix: gl.getUniformLocation(program, unif.viewMatrix),
+                modelMatrix: gl.getUniformLocation(program, unif.modelMatrix),
+                lightPos: gl.getUniformLocation(program, unif.lightPos),
+                lightDir: gl.getUniformLocation(program, unif.lightDir),
+                lightIntensity: gl.getUniformLocation(program, unif.lightIntensity),
+                roughness: gl.getUniformLocation(program, unif.roughness),
+                metallic: gl.getUniformLocation(program, unif.metallic),
+                baseReflectivity: gl.getUniformLocation(program, unif.baseReflectivity),
+                cameraPos: gl.getUniformLocation(program, unif.cameraPos),
+                time: gl.getUniformLocation(program, unif.time),
+                
+                // Texture uniform
+                textureArray: gl.getUniformLocation(program, isPBR ? tex.pbr : tex.standard)
+            };
+            
+            return locations;
+        };
+
+        // Set up locations for standard object shader
+        if (shaders.standard) {
+            const isPBR = shaders.name === 'pbr';
+            newSet.standard.locations = getLocations(newSet.standard.program, isPBR);
         } else {
-            newSet.terrain.locations = defaultSet.terrain.locations;
+            newSet.standard.locations = defaultSet.standard.locations;
         }
 
         // Set up locations for character shader
         if (shaders.character) {
-            newSet.character.locations = {
-                position: this.gl.getAttribLocation(newSet.character.program, "aPosition"),
-                normal: this.gl.getAttribLocation(newSet.character.program, "aNormal"),
-                color: this.gl.getAttribLocation(newSet.character.program, "aColor"),
-                projectionMatrix: this.gl.getUniformLocation(newSet.character.program, "uProjectionMatrix"),
-                viewMatrix: this.gl.getUniformLocation(newSet.character.program, "uViewMatrix"),
-                modelMatrix: this.gl.getUniformLocation(newSet.character.program, "uModelMatrix"),
-                cameraPos: this.gl.getUniformLocation(newSet.character.program, "uCameraPos"),
-                lightDir: this.gl.getUniformLocation(newSet.character.program, "uLightDir"),
-                roughness: this.gl.getUniformLocation(newSet.character.program, "uRoughness"),
-                metallic: this.gl.getUniformLocation(newSet.character.program, "uMetallic"),
-                // Texture-related locations
-                textureArray: this.gl.getUniformLocation(newSet.character.program, "uPBRTextureArray"),
-                textureIndex: this.gl.getAttribLocation(newSet.character.program, "aTextureIndex"),
-                texCoord: this.gl.getAttribLocation(newSet.character.program, "aTexCoord"),
-                useTexture: this.gl.getAttribLocation(newSet.character.program, "aUseTexture")
-            };
+            const isPBR = shaders.name === 'pbr';
+            newSet.character.locations = getLocations(newSet.character.program, isPBR);
         } else {
             newSet.character.locations = defaultSet.character.locations;
         }
 
-        // Set up locations for line shader
+        // Set up locations for line shader (simpler, no textures)
         if (shaders.lines) {
             newSet.lines.locations = {
-                position: this.gl.getAttribLocation(newSet.lines.program, "aPosition"),
-                projectionMatrix: this.gl.getUniformLocation(newSet.lines.program, "uProjectionMatrix"),
-                viewMatrix: this.gl.getUniformLocation(newSet.lines.program, "uViewMatrix")
+                position: gl.getAttribLocation(newSet.lines.program, this._attributeNames.position),
+                projectionMatrix: gl.getUniformLocation(newSet.lines.program, this._uniformNames.projectionMatrix),
+                viewMatrix: gl.getUniformLocation(newSet.lines.program, this._uniformNames.viewMatrix),
+                time: gl.getUniformLocation(newSet.lines.program, this._uniformNames.time)
             };
         } else {
             newSet.lines.locations = defaultSet.lines.locations;
         }
-
-        // Add time uniform location to shader locations if present
-        this.setupTimeUniforms(newSet, shaders);
     }
 
     setupTimeUniforms(newSet, shaders) {
-        if (shaders.terrain) {
-            const timeLocation = this.gl.getUniformLocation(newSet.terrain.program, "uTime");
+        if (shaders.standard) {
+            const timeLocation = this.gl.getUniformLocation(newSet.standard.program, "uTime");
             if (timeLocation !== null) {
-                newSet.terrain.locations.time = timeLocation;
+                newSet.standard.locations.time = timeLocation;
             }
         }
 

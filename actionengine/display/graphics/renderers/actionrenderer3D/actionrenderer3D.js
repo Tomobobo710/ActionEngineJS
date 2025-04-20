@@ -15,10 +15,10 @@ class ActionRenderer3D {
         // Create texture array before other renderers
         this.textureManager = new TextureManager(this.gl);
         this.textureArray = this.textureManager.textureArray;
-        
-        this.terrainRenderer = new TerrainRenderer3D(this, this.gl, this.programManager, this.lightingManager);
+    
         this.characterRenderer = new CharacterRenderer3D(this.gl, this.programManager, this.lightingManager);
         this.objectRenderer = new ObjectRenderer3D(this, this.gl, this.programManager, this.lightingManager);
+        
         // Get program registry reference
         this.programRegistry = this.programManager.getProgramRegistry();
         this.waterRenderer = new WaterRenderer3D(this.gl, this.programManager);
@@ -29,8 +29,6 @@ class ActionRenderer3D {
 
     render(renderData) {
         const {
-            terrainBuffers,
-            terrainIndexCount,
             characterBuffers,
             characterIndexCount,
             renderableBuffers,
@@ -42,26 +40,58 @@ class ActionRenderer3D {
             weatherSystem
         } = renderData;
 
-        // Update lighting and time
-        this.lightingManager.update();
+        // Performance optimization: only update lighting every N frames
+        if (!this._frameCounter) this._frameCounter = 0;
+        this._frameCounter++;
+        
+        if (this._frameCounter % 5 === 0) { // Update every 5 frames
+            this.lightingManager.update();
+        }
+        
         this.currentTime = (performance.now() - this.startTime) / 1000.0;
 
-        // Get current shader set
-        const shaderSet = this.programRegistry.getCurrentShaderSet();
-
-        if (shaderSet === this.programRegistry.shaders.get("virtualboy")) {
-            this.canvasManager.setClearColor(0.0, 0.0, 0.0, 1.0); // Black
-        } else {
-            this.canvasManager.setClearColor(0.529, 0.808, 0.922, 1.0); // Original blue
+        // Cache shader set between frames
+        if (!this._cachedShaderSet) {
+            this._cachedShaderSet = this.programRegistry.getCurrentShaderSet();
+            
+            // Set clear color based on shader
+            if (this._cachedShaderSet === this.programRegistry.shaders.get("virtualboy")) {
+                this.canvasManager.setClearColor(0.0, 0.0, 0.0, 1.0); // Black
+            } else {
+                this.canvasManager.setClearColor(0.529, 0.808, 0.922, 1.0); // Original blue
+            }
+        }
+        
+        // Check if shader changed
+        const currentShaderSet = this.programRegistry.getCurrentShaderSet();
+        if (currentShaderSet !== this._cachedShaderSet) {
+            this._cachedShaderSet = currentShaderSet;
+            
+            // Update clear color if shader changed
+            if (this._cachedShaderSet === this.programRegistry.shaders.get("virtualboy")) {
+                this.canvasManager.setClearColor(0.0, 0.0, 0.0, 1.0); // Black
+            } else {
+                this.canvasManager.setClearColor(0.529, 0.808, 0.922, 1.0); // Original blue
+            }
         }
 
         // MAIN RENDER PASS
         this.canvasManager.resetToDefaultFramebuffer();
         this.canvasManager.clear();
-
-        // Render terrain if it exists
-        if (terrainBuffers && terrainIndexCount) {
-            this.terrainRenderer.render(terrainBuffers, terrainIndexCount, camera, shaderSet, this.currentTime);
+        
+        // Create empty array for water objects if they exist
+        let waterObjects = [];
+        let nonWaterObjects = [];
+        
+        // Fast pre-sorting of objects for better performance
+        if (renderableObjects?.length) {
+            for (const object of renderableObjects) {
+                if (typeof Ocean !== 'undefined' && object instanceof Ocean) {
+                    waterObjects.push(object);
+                } else if (object) {
+                    nonWaterObjects.push(object);
+                }
+            }
         }
 
         // Render character if it exists
@@ -71,30 +101,20 @@ class ActionRenderer3D {
                 characterBuffers,
                 characterIndexCount,
                 camera,
-                shaderSet,
+                this._cachedShaderSet,
                 this.currentTime,
                 this  // Pass the renderer instance
             );
         }
 
-        // Render objects if they exist
-        // First render all non-water objects
-        if (renderableObjects?.length) {
-            for (const object of renderableObjects) {
-                // Check if Ocean exists in the global scope before doing instanceof check
-                if (!(typeof Ocean !== 'undefined' && object instanceof Ocean) && object) {
-                    this.objectRenderer.render(object, renderData.camera, shaderSet, this.currentTime);
-                }
-            }
+        // Render all non-water objects in a batch
+        for (const object of nonWaterObjects) {
+            this.objectRenderer.render(object, camera, this._cachedShaderSet, this.currentTime);
         }
 
         // Then render water objects last
-        if (renderableObjects?.length) {
-            for (const object of renderableObjects) {
-                if (typeof Ocean !== 'undefined' && object instanceof Ocean) {
-                    this.waterRenderer.render(renderData.camera, this.currentTime, object);
-                }
-            }
+        for (const object of waterObjects) {
+            this.waterRenderer.render(camera, this.currentTime, object);
         }
 
         // Render weather if it exists
@@ -103,10 +123,8 @@ class ActionRenderer3D {
         }
 
         // Debug visualization if enabled
-        if (showDebugPanel) {
-            if (camera) {
-                this.debugRenderer.drawDebugLines(camera, character, this.currentTime);
-            }
+        if (showDebugPanel && camera) {
+            this.debugRenderer.drawDebugLines(camera, character, this.currentTime);
         }
     }
 }

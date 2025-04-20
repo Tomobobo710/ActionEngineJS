@@ -1,6 +1,6 @@
 // game/display/gl/shaders/defaultshader.js
 class DefaultShader {
-    getTerrainVertexShader(isWebGL2) {
+    getStandardVertexShader(isWebGL2) { // Renamed from getTerrainVertexShader
         return `#version 300 es
     in vec3 aPosition;
     in vec3 aNormal;
@@ -32,7 +32,7 @@ class DefaultShader {
     }`;
     }
 
-    getTerrainFragmentShader(isWebGL2) {
+    getStandardFragmentShader(isWebGL2) { // Renamed from getTerrainFragmentShader
         return `#version 300 es
     precision mediump float;
     precision mediump sampler2DArray;

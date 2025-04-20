@@ -1,6 +1,6 @@
 // game/display/gl/shaders/pbrshader.js
 class PBRShader {
-    getTerrainVertexShader(isWebGL2) {
+    getStandardVertexShader(isWebGL2) { // Renamed from getTerrainVertexShader
         return `${isWebGL2 ? "#version 300 es\n" : ""}
     // Attributes - data coming in per vertex
     ${isWebGL2 ? "in" : "attribute"} vec3 aPosition;
@@ -52,7 +52,7 @@ class PBRShader {
     }`;
     }
 
-    getTerrainFragmentShader(isWebGL2) {
+    getStandardFragmentShader(isWebGL2) { // Renamed from getTerrainFragmentShader
         return `${isWebGL2 ? "#version 300 es\n" : ""}
 precision highp float;
 ${isWebGL2 ? "precision mediump sampler2DArray;\n" : ""}
@@ -82,99 +82,76 @@ uniform float uLightIntensity;
 // Texture sampler
 uniform sampler2DArray uPBRTextureArray;
 
-
-
 ${isWebGL2 ? "out vec4 fragColor;" : ""}
 
-// PBR functions stay the same
-float DistributionGGX(vec3 N, vec3 H, float roughness) {
-    float a = roughness * roughness;
-    float a2 = a * a;
+// Constants for performance
+const float PI = 3.14159265359;
+const float RECIPROCAL_PI = 0.31830988618;
+
+// Optimized PBR function that combines GGX and Fresnel calculations
+// This is faster than separate function calls
+vec3 specularBRDF(vec3 N, vec3 L, vec3 V, vec3 F0, float roughness) {
+    vec3 H = normalize(V + L);
     float NdotH = max(dot(N, H), 0.0);
-    float NdotH2 = NdotH * NdotH;
-    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
-    return a2 / (3.14159 * denom * denom);
-}
-
-float GeometrySchlickGGX(float NdotV, float roughness) {
-    float r = (roughness + 1.0);
-    float k = (r * r) / 8.0;
-    return NdotV / (NdotV * (1.0 - k) + k);
-}
-
-float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
     float NdotV = max(dot(N, V), 0.0);
     float NdotL = max(dot(N, L), 0.0);
-    float ggx1 = GeometrySchlickGGX(NdotV, roughness);
-    float ggx2 = GeometrySchlickGGX(NdotL, roughness);
-    return ggx1 * ggx2;
+    float HdotV = max(dot(H, V), 0.0);
+    
+    // Roughness terms
+    float a = roughness * roughness;
+    float a2 = a * a;
+    
+    // Distribution
+    float NdotH2 = NdotH * NdotH;
+    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+    float D = a2 / (PI * denom * denom);
+    
+    // Geometry
+    float k = ((roughness + 1.0) * (roughness + 1.0)) / 8.0;
+    float G1_V = NdotV / (NdotV * (1.0 - k) + k);
+    float G1_L = NdotL / (NdotL * (1.0 - k) + k);
+    float G = G1_V * G1_L;
+    
+    // Fresnel
+    vec3 F = F0 + (1.0 - F0) * pow(1.0 - HdotV, 5.0);
+    
+    // Combined specular term
+    return (D * G * F) / (4.0 * NdotV * NdotL + 0.001);
 }
-
-vec3 fresnelSchlick(float cosTheta, vec3 F0) {
-    return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
-}
-
-
 
 void main() {
     vec3 N = normalize(vNormal);
     vec3 V = normalize(vViewDir);
-
-    // Positional light calculation
-    vec3 lightToFrag = vWorldPos - uLightPos;  // Vector from light to fragment
-    float distanceToLight = length(lightToFrag);  // Actual distance to light
-    float distanceAttenuation = 1.0 / (1.0 + 0.0001 * distanceToLight * distanceToLight);
-
-    // Directional component - use light's intended direction
     vec3 L = normalize(uLightDir);  // Light direction
-    vec3 H = normalize(V + L);  // Halfway vector
-
-
-
-    // Determine albedo - either from texture or vertex color
-    vec3 albedo;
-    if (vUseTexture > 0.5) {
-        // Sample from texture array using texture index
-        vec4 texColor = texture(uPBRTextureArray, vec3(vTexCoord, vTextureIndex));
-        albedo = texColor.rgb;
-    } else {
-        albedo = vColor;
-    }
-
-    // Base reflectivity
-    vec3 baseF0 = vec3(uBaseReflectivity);
-    baseF0 = mix(baseF0, albedo, uMetallic);
-
-    // Cook-Torrance BRDF
-    float NDF = DistributionGGX(N, H, uRoughness);
-    float G = GeometrySmith(N, V, L, uRoughness);
-    vec3 F = fresnelSchlick(max(dot(H, V), 0.0), baseF0);
-
-    vec3 numerator = NDF * G * F;
-    float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.001;
-    vec3 specular = numerator / denominator;
-
-    vec3 kS = F;
-    vec3 kD = vec3(1.0) - kS;
-    kD *= 1.0 - uMetallic;
-
     float NdotL = max(dot(N, L), 0.0);
 
-    // Combine everything
-    vec3 color = (kD * albedo / 3.14159 + specular) * NdotL * uLightIntensity;
+    // Fast path for distance attenuation calculation
+    float distanceToLight = length(vWorldPos - uLightPos);
+    float distanceAttenuation = 1.0 / (1.0 + 0.0001 * distanceToLight * distanceToLight);
+
+    // Efficient texture sampling with conditional
+    vec3 albedo = (vUseTexture > 0.5) ? 
+        texture(uPBRTextureArray, vec3(vTexCoord, vTextureIndex)).rgb : 
+        vColor;
+
+    // Base reflectivity with pre-computed metallic mix
+    vec3 baseF0 = mix(vec3(uBaseReflectivity), albedo, uMetallic);
+
+    // Calculate specular using our optimized function
+    vec3 specular = specularBRDF(N, L, V, baseF0, uRoughness);
+
+    // Efficient diffuse calculation
+    vec3 kD = (vec3(1.0) - specular) * (1.0 - uMetallic);
     
-    // Apply distance attenuation
-    color *= distanceAttenuation;
+    // Combined lighting equation - multiply terms together for fewer operations
+    vec3 color = (kD * albedo * RECIPROCAL_PI + specular) * NdotL * uLightIntensity * distanceAttenuation;
 
-    // Add ambient light
-    vec3 ambient = vec3(0.03) * albedo;
-    color += ambient;
+    // Add ambient light (pre-computed constant)
+    color += vec3(0.03) * albedo;
 
-    // HDR tonemapping
-    color = color / (color + vec3(1.0));
-
-    // Gamma correction
-    color = pow(color, vec3(1.0/2.2));
+    // Optimized tonemapping and gamma in one step to reduce calculations
+    // This approximation is faster than doing them separately
+    color = pow(color / (color + 1.0), vec3(0.4545)); // 1/2.2 ≈ 0.4545
 
     ${isWebGL2 ? "fragColor" : "gl_FragColor"} = vec4(color, 1.0);
 }`;
