@@ -49,7 +49,7 @@ class WorldMode {
                 console.log("Restored complete physics state");
             }
 
-            this.shaderManager.updateCharacterBuffers(this.character);
+            // Character no longer needs special buffer updates
 
             const savedTime = gameModeManager.gameMaster.getWorldTime();
             this.worldTime = { ...savedTime };
@@ -102,7 +102,7 @@ class WorldMode {
         this.createCharacter = true;
         if (this.createCharacter) {
             this.character = new ThirdPersonActionCharacter(this.terrain, this.camera, this);
-            this.shaderManager.updateCharacterBuffers(this.character);
+            // Character no longer needs special buffer updates
         }
 
         this.lastTime = performance.now();
@@ -145,7 +145,7 @@ class WorldMode {
 
         if (this.character) {
             this.character.terrain = this.terrain;
-            this.shaderManager.updateCharacterBuffers(this.character);
+            // Character no longer needs special buffer updates
         }
 
         this.sphere = null;
@@ -171,9 +171,7 @@ class WorldMode {
             // Update world time
             this.updateWorldTime(this.deltaTime);
 
-            if (!this.use2DRenderer) {
-                this.shaderManager.updateCharacterBuffers(this.character);
-            }
+            // Character buffers no longer need special updates - treated like any other object
 
             this.physicsWorld.update(this.deltaTime);
             this.handleInput();
@@ -296,8 +294,8 @@ class WorldMode {
             this.renderer3D.render({
                 ...bufferInfo,
                 camera: this.camera,
-                character: this.character,
-                renderableObjects: [this.terrain, ...Array.from(this.physicsWorld.objects)],
+                // character removed - now included in renderableObjects
+                renderableObjects: [this.terrain, this.character, ...Array.from(this.physicsWorld.objects)],
                 showDebugPanel: this.showDebugPanel,
                 weatherSystem: this.weatherSystem
             });

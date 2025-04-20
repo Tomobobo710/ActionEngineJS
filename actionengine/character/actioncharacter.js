@@ -233,6 +233,12 @@ class ActionCharacter extends RenderableObject {
         }
     }
     
+    // Standard method for renderable objects
+    getTriangles() {
+        return this.getCharacterModelTriangles();
+    }
+    
+    // Original method - will be called by getTriangles()
     getCharacterModelTriangles() {
         function transformVertexWithSkin(vertex, vertexIndex, triangle, skin) {
             if (!triangle.jointData || !triangle.weightData) {

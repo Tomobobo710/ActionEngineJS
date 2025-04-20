@@ -77,10 +77,7 @@ class ProgramManager {
             defaultShader.getStandardFragmentShader()
         );
 
-        const defaultCharacterProgram = this.programRegistry.createShaderProgram(
-            defaultShader.getCharacterVertexShader(),
-            defaultShader.getCharacterFragmentShader()
-        );
+        // Character shader initialization removed - characters now use standard shader
 
         const defaultLineProgram = this.programRegistry.createShaderProgram(
             defaultShader.getLineVertexShader(),
@@ -109,17 +106,7 @@ class ProgramManager {
                     useTexture: this.gl.getAttribLocation(defaultStandardProgram, "aUseTexture")
                 }
             },
-            character: {
-                program: defaultCharacterProgram,
-                locations: {
-                    position: this.gl.getAttribLocation(defaultCharacterProgram, "aPosition"),
-                    normal: this.gl.getAttribLocation(defaultCharacterProgram, "aNormal"),
-                    color: this.gl.getAttribLocation(defaultCharacterProgram, "aColor"),
-                    projectionMatrix: this.gl.getUniformLocation(defaultCharacterProgram, "uProjectionMatrix"),
-                    viewMatrix: this.gl.getUniformLocation(defaultCharacterProgram, "uViewMatrix"),
-                    modelMatrix: this.gl.getUniformLocation(defaultCharacterProgram, "uModelMatrix")
-                }
-            },
+            // Character shader removed - characters now use standard shader
             lines: {
                 program: defaultLineProgram,
                 locations: {

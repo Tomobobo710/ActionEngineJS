@@ -15,10 +15,9 @@ class ActionRenderer3D {
         // Create texture array before other renderers
         this.textureManager = new TextureManager(this.gl);
         this.textureArray = this.textureManager.textureArray;
-    
-        this.characterRenderer = new CharacterRenderer3D(this.gl, this.programManager, this.lightingManager);
-        this.objectRenderer = new ObjectRenderer3D(this, this.gl, this.programManager, this.lightingManager);
         
+        // CharacterRenderer3D removed - characters now use standard object renderer
+        this.objectRenderer = new ObjectRenderer3D(this, this.gl, this.programManager, this.lightingManager);
         // Get program registry reference
         this.programRegistry = this.programManager.getProgramRegistry();
         this.waterRenderer = new WaterRenderer3D(this.gl, this.programManager);
@@ -29,16 +28,15 @@ class ActionRenderer3D {
 
     render(renderData) {
         const {
-            characterBuffers,
-            characterIndexCount,
             renderableBuffers,
             renderableIndexCount,
             camera,
-            character,
             renderableObjects,
             showDebugPanel,
             weatherSystem
         } = renderData;
+        
+        // characterBuffers and characterIndexCount are no longer needed
 
         // Performance optimization: only update lighting every N frames
         if (!this._frameCounter) this._frameCounter = 0;
@@ -94,18 +92,7 @@ class ActionRenderer3D {
             }
         }
 
-        // Render character if it exists
-        if (character && characterBuffers && characterIndexCount) {
-            this.characterRenderer.render(
-                character,
-                characterBuffers,
-                characterIndexCount,
-                camera,
-                this._cachedShaderSet,
-                this.currentTime,
-                this  // Pass the renderer instance
-            );
-        }
+        // Legacy character rendering removed - character is now in renderableObjects
 
         // Render all non-water objects in a batch
         for (const object of nonWaterObjects) {
@@ -124,6 +111,11 @@ class ActionRenderer3D {
 
         // Debug visualization if enabled
         if (showDebugPanel && camera) {
+            // Find character in renderableObjects for debug visualization
+            const character = renderableObjects?.find(obj => 
+                obj.constructor.name === 'ThirdPersonActionCharacter' || 
+                obj.constructor.name === 'ActionCharacter'
+            );
             this.debugRenderer.drawDebugLines(camera, character, this.currentTime);
         }
     }

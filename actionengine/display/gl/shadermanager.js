@@ -43,10 +43,7 @@ class ShaderManager {
                     vertex: shader.getStandardVertexShader?.(this.isWebGL2),
                     fragment: shader.getStandardFragmentShader?.(this.isWebGL2)
                 },
-                character: {
-                    vertex: shader.getCharacterVertexShader?.(this.isWebGL2),
-                    fragment: shader.getCharacterFragmentShader?.(this.isWebGL2)
-                },
+                // Character shader removed - characters now use standard shader
                 lines: {
                     vertex: shader.getLineVertexShader?.(this.isWebGL2),
                     fragment: shader.getLineFragmentShader?.(this.isWebGL2)
@@ -76,14 +73,7 @@ class ShaderManager {
             };
         }
 
-        const characterVertex = this.getShader("CharacterVertex", name);
-        const characterFragment = this.getShader("CharacterFragment", name);
-        if (characterVertex && characterFragment) {
-            shaderSet.character = {
-                vertex: characterVertex,
-                fragment: characterFragment
-            };
-        }
+        // Character shader registration removed - characters now use standard shader
 
         const lineVertex = this.getShader("LineVertex", name);
         const lineFragment = this.getShader("LineFragment", name);
@@ -111,7 +101,8 @@ class ShaderManager {
         return 0; // Default to first texture if not found
     }
     updateCharacterBuffers(character) {
-        const characterModel = character.getCharacterModelTriangles();
+        // Now use the standard getTriangles() method like any other object
+        const characterModel = character.getTriangles();
         const triangleCount = characterModel.length;
 
         // Preallocate arrays once with exact size needed
@@ -418,8 +409,7 @@ class ShaderManager {
 
     getBufferInfo() {
         return {
-            characterBuffers: this.characterBuffers,
-            characterIndexCount: this.characterIndexCount,
+            // Character buffers removed - characters now use standard rendering
             renderableBuffers: this.renderableBuffers,
             renderableIndexCount: this.renderableIndexCount
         };

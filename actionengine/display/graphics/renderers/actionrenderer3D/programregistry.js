@@ -52,12 +52,7 @@ class ProgramRegistry {
                     : defaultSet.standard.program,
                 locations: null // Will set after program creation
             },
-            character: {
-                program: shaders.character
-                    ? this.createShaderProgram(shaders.character.vertex, shaders.character.fragment)
-                    : defaultSet.character.program,
-                locations: null
-            },
+            // 'character' shader removed - characters now use 'standard' shader
             lines: {
                 program: shaders.lines
                     ? this.createShaderProgram(shaders.lines.vertex, shaders.lines.fragment)
@@ -149,13 +144,7 @@ class ProgramRegistry {
             newSet.standard.locations = defaultSet.standard.locations;
         }
 
-        // Set up locations for character shader
-        if (shaders.character) {
-            const isPBR = shaders.name === 'pbr';
-            newSet.character.locations = getLocations(newSet.character.program, isPBR);
-        } else {
-            newSet.character.locations = defaultSet.character.locations;
-        }
+        // Character shader locations removed - characters now use standard shader
 
         // Set up locations for line shader (simpler, no textures)
         if (shaders.lines) {
@@ -178,12 +167,7 @@ class ProgramRegistry {
             }
         }
 
-        if (shaders.character) {
-            const timeLocation = this.gl.getUniformLocation(newSet.character.program, "uTime");
-            if (timeLocation !== null) {
-                newSet.character.locations.time = timeLocation;
-            }
-        }
+        // Character shader time uniform removed - characters now use standard shader
 
         if (shaders.lines) {
             const timeLocation = this.gl.getUniformLocation(newSet.lines.program, "uTime");
