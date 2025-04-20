@@ -36,8 +36,6 @@ class ActionRenderer3D {
             weatherSystem
         } = renderData;
         
-        // characterBuffers and characterIndexCount are no longer needed
-
         // Performance optimization: only update lighting every N frames
         if (!this._frameCounter) this._frameCounter = 0;
         this._frameCounter++;

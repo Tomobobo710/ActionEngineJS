@@ -5,7 +5,6 @@ class ShaderManager {
         this.isWebGL2 = this.gl.getParameter(this.gl.VERSION).includes("WebGL 2.0");
 
         // Initialize buffers
-        this.characterBuffers = this.createBuffers();
         this.renderableBuffers = this.createBuffers();
 
         this.characterIndexCount = 0;
@@ -100,87 +99,7 @@ class ShaderManager {
         }
         return 0; // Default to first texture if not found
     }
-    updateCharacterBuffers(character) {
-        // Now use the standard getTriangles() method like any other object
-        const characterModel = character.getTriangles();
-        const triangleCount = characterModel.length;
-
-        // Preallocate arrays once with exact size needed
-        const vertexCount = triangleCount * 9; // 3 vertices * 3 components per triangle
-        const positions = new Float32Array(vertexCount);
-        const normals = new Float32Array(vertexCount);
-        const colors = new Float32Array(vertexCount);
-
-        // Cache for color conversion
-        const colorCache = new Map();
-
-        // Single pass through triangles
-        for (let i = 0; i < triangleCount; i++) {
-            const triangle = characterModel[i];
-            const baseIndex = i * 9;
-
-            // Process vertices
-            for (let j = 0; j < 3; j++) {
-                const vertex = triangle.vertices[j];
-                const idx = baseIndex + j * 3;
-                positions[idx] = vertex.x;
-                positions[idx + 1] = vertex.y;
-                positions[idx + 2] = vertex.z;
-            }
-
-            // Process normal (same for all 3 vertices)
-            const normal = triangle.normal;
-            for (let j = 0; j < 3; j++) {
-                const idx = baseIndex + j * 3;
-                normals[idx] = normal.x;
-                normals[idx + 1] = normal.y;
-                normals[idx + 2] = normal.z;
-            }
-
-            // Process color with caching
-            let rgb = colorCache.get(triangle.color);
-            if (!rgb) {
-                rgb = {
-                    r: parseInt(triangle.color.substr(1, 2), 16) / 255,
-                    g: parseInt(triangle.color.substr(3, 2), 16) / 255,
-                    b: parseInt(triangle.color.substr(5, 2), 16) / 255
-                };
-                colorCache.set(triangle.color, rgb);
-            }
-
-            // Set same color for all 3 vertices
-            for (let j = 0; j < 3; j++) {
-                const idx = baseIndex + j * 3;
-                colors[idx] = rgb.r;
-                colors[idx + 1] = rgb.g;
-                colors[idx + 2] = rgb.b;
-            }
-        }
-
-        const indices = new Uint16Array(triangleCount * 3);
-        for (let i = 0; i < indices.length; i++) {
-            indices[i] = i;
-        }
-
-        const gl = this.gl;
-
-        // Batch GL operations
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.characterBuffers.position);
-        gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
-
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.characterBuffers.normal);
-        gl.bufferData(gl.ARRAY_BUFFER, normals, gl.STATIC_DRAW);
-
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.characterBuffers.color);
-        gl.bufferData(gl.ARRAY_BUFFER, colors, gl.STATIC_DRAW);
-
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.characterBuffers.indices);
-        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
-
-        this.characterIndexCount = indices.length;
-        return this.characterIndexCount;
-    }
-
+    
     updateRenderableBuffers(renderable) {
         const triangleCount = renderable.triangles.length;
 
@@ -394,12 +313,6 @@ class ShaderManager {
     }
 
     deleteBuffers() {
-        // Delete character buffers
-        this.gl.deleteBuffer(this.characterBuffers.position);
-        this.gl.deleteBuffer(this.characterBuffers.normal);
-        this.gl.deleteBuffer(this.characterBuffers.color);
-        this.gl.deleteBuffer(this.characterBuffers.indices);
-
         // Delete renderable buffers
         this.gl.deleteBuffer(this.renderableBuffers.position);
         this.gl.deleteBuffer(this.renderableBuffers.normal);
