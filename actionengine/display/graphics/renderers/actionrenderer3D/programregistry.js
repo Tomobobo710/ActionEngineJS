@@ -84,7 +84,7 @@ class ProgramRegistry {
                 lightPos: this.gl.getUniformLocation(pbrProgram, "uLightPos"),
                 lightDir: this.gl.getUniformLocation(pbrProgram, "uLightDir"),
                 lightIntensity: this.gl.getUniformLocation(pbrProgram, "uLightIntensity"),
-                lightSpaceMatrix: this.gl.getUniformLocation(pbrProgram, "uLightSpaceMatrix"),
+
                 roughness: this.gl.getUniformLocation(pbrProgram, "uRoughness"),
                 metallic: this.gl.getUniformLocation(pbrProgram, "uMetallic"),
                 baseReflectivity: this.gl.getUniformLocation(pbrProgram, "uBaseReflectivity"),

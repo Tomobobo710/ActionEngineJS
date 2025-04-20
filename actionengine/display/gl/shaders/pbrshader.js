@@ -14,14 +14,14 @@ class PBRShader {
     uniform mat4 uProjectionMatrix;
     uniform mat4 uViewMatrix;
     uniform mat4 uModelMatrix;
-    uniform mat4 uLightSpaceMatrix;  // Transform into light's perspective
+
     uniform vec3 uLightDir;
     uniform vec3 uCameraPos;
     
     // Outputs to fragment shader
     ${isWebGL2 ? "out" : "varying"} vec3 vNormal;        // Surface normal
     ${isWebGL2 ? "out" : "varying"} vec3 vWorldPos;      // Position in world space
-    ${isWebGL2 ? "out" : "varying"} vec4 vLightSpacePos; // Position from light's view
+
     ${isWebGL2 ? "out" : "varying"} vec3 vColor;
     ${isWebGL2 ? "out" : "varying"} vec3 vViewDir;       // Direction to camera
     ${isWebGL2 ? "flat out" : "varying"} float vTextureIndex;
@@ -39,8 +39,7 @@ class PBRShader {
         // Calculate view direction
         vViewDir = normalize(uCameraPos - worldPos.xyz);
         
-        // Transform position to light space for shadow mapping
-        vLightSpacePos = uLightSpaceMatrix * vec4(vWorldPos, 1.0);
+
         
         // Pass color and texture info to fragment shader
         vColor = aColor;
@@ -61,7 +60,7 @@ ${isWebGL2 ? "precision mediump sampler2DArray;\n" : ""}
 // Inputs from vertex shader
 ${isWebGL2 ? "in" : "varying"} vec3 vNormal;
 ${isWebGL2 ? "in" : "varying"} vec3 vWorldPos;
-${isWebGL2 ? "in" : "varying"} vec4 vLightSpacePos;
+
 ${isWebGL2 ? "in" : "varying"} vec3 vColor;
 ${isWebGL2 ? "in" : "varying"} vec3 vViewDir;
 ${isWebGL2 ? "flat in" : "varying"} float vTextureIndex;
@@ -77,16 +76,13 @@ uniform float uBaseReflectivity;
 uniform vec3 uLightPos;
 uniform vec3 uLightDir;
 uniform vec3 uCameraPos;
-uniform float uShadowBias;
-uniform float uShadowDarkness;
+
 uniform float uLightIntensity;
 
 // Texture sampler
 uniform sampler2DArray uPBRTextureArray;
 
-${isWebGL2 ? 
-    "precision highp sampler2DShadow;\nuniform sampler2DShadow uShadowMap;" : 
-    "uniform sampler2D uShadowMap;"}
+
 
 ${isWebGL2 ? "out vec4 fragColor;" : ""}
 
@@ -118,15 +114,7 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0) {
     return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
 }
 
-float ShadowCalculation(vec4 fragPosLightSpace) {
-    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
-    projCoords = projCoords * 0.5 + 0.5;
-    float currentDepth = projCoords.z;
-    float shadow = ${isWebGL2 ? 
-        "texture(uShadowMap, vec3(projCoords.xy, currentDepth - uShadowBias))" : 
-        `(currentDepth - uShadowBias > texture2D(uShadowMap, projCoords.xy).r ? 0.0 : 1.0)`};
-    return mix(1.0, shadow, uShadowDarkness);
-}
+
 
 void main() {
     vec3 N = normalize(vNormal);
@@ -141,8 +129,7 @@ void main() {
     vec3 L = normalize(uLightDir);  // Light direction
     vec3 H = normalize(V + L);  // Halfway vector
 
-    // Shadow calculation
-    float shadow = ShadowCalculation(vLightSpacePos);
+
 
     // Determine albedo - either from texture or vertex color
     vec3 albedo;
