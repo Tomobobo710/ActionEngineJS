@@ -222,12 +222,10 @@ class Terrain {
         // Add debug tracking
         terrainBody.debugName = `TerrainBody_${Date.now()}`;
         terrainBody.createdAt = Date.now();
-
+        
         return terrainBody;
     }
-
-
-    // Make terrain a proper renderable object like any other object
+    
     getTriangles() {
         return this.triangles;
     }

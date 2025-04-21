@@ -1,3 +1,4 @@
+// game/character/characters/thirdpersonactioncharacter.js
 class ThirdPersonActionCharacter extends ActionCharacter {
     constructor(terrain, camera, game) {
         super(camera, game);
