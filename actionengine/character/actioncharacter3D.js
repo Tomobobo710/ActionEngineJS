@@ -55,9 +55,6 @@ class ActionCharacter3D extends ActionCharacter {
             this.characterModel.body.rotation.y = engineQuat.y;
             this.characterModel.body.rotation.z = engineQuat.z;
             this.characterModel.body.rotation.w = engineQuat.w;
-            
-            // Update the visual triangles
-            this.characterModel.updateVisual();
         }
     }
 }

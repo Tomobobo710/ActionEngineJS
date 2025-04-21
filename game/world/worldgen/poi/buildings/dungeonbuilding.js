@@ -332,7 +332,6 @@ triangles.push(new Triangle(v.mesh.frontBottom, v.mesh.frontRight, v.mesh.backBo
                 });
             }
         );
-        this.physicsWorld.addObject(this);
-        this.updateVisual();
+        this.physicsWorld.addObject(this); // Add self to world
     }
 }

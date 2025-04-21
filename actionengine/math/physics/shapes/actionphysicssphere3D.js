@@ -77,33 +77,5 @@ class ActionPhysicsSphere3D extends ActionPhysicsObject3D {
                 ));
             });
         });
-        
-        //this.physicsWorld.addObject(this);
-        //this.updateVisual();
-    }
-
-    updateVisual() {
-        if (!this.body) return;
-        
-        const pos = this.body.position;
-        const rot = this.body.rotation;
-        
-        this.position = new Vector3(pos.x, pos.y, pos.z);
-        this.triangles.forEach((triangle, triIndex) => {
-            // Update normal
-            const origNormal = this.originalNormals[triIndex];
-            const rotatedNormal = this.rotateVector(origNormal, rot);
-            triangle.normal = rotatedNormal;
-            
-            // Update vertices
-            triangle.vertices.forEach((vertex, vertIndex) => {
-                const origVert = this.originalVerts[triIndex * 3 + vertIndex];
-                const rotatedVert = this.rotateVector(origVert, rot);
-                
-                vertex.x = rotatedVert.x + this.position.x;
-                vertex.y = rotatedVert.y + this.position.y;
-                vertex.z = rotatedVert.z + this.position.z;
-            });
-        });
     }
 }

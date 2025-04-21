@@ -441,7 +441,7 @@ class Fish extends ActionPhysicsObject3D {
                 vertex.z = relativeVert.z + this.position.z;
             });
         });
-
+        
         this.physicsWorld.shaderManager?.updateRenderableBuffers(this);
     }
 
@@ -468,6 +468,5 @@ class Fish extends ActionPhysicsObject3D {
     
     update(deltaTime) {
         this.animationTime += deltaTime;
-        this.updateVisual();
     }
 }

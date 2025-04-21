@@ -75,8 +75,6 @@ class ActionPhysicsPlane3D extends ActionPhysicsObject3D {
     );
     
     this.storeOriginalData();
-    this.physicsWorld.addObject(this);
-    this.updateVisual();
 }
 
     storeOriginalData() {

@@ -57,7 +57,6 @@ class TownBuilding extends ActionPhysicsObject3D {
                 console.log("TOWN");
             }
         );
-        this.physicsWorld.addObject(this);
-        this.updateVisual();
+        this.physicsWorld.addObject(this); // Add self to world
     }
 }
