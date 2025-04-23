@@ -7,6 +7,12 @@ class Terrain {
         // Core parameters
         this.gridResolution = config.gridResolution || 128;
         this.baseWorldScale = config.baseWorldScale || 128;
+        
+        // Calculate an appropriate bounding sphere for frustum culling
+        // This is based on the terrain size which is gridResolution * baseWorldScale
+        this.position = new Vector3(0, 0, 0); // Terrain is typically centered at origin
+        // A conservative estimate of terrain radius
+        this.boundingSphereRadius = Math.sqrt(2) * this.gridResolution * this.baseWorldScale / 2;
 
         // Determine generator type
         if (config.generator === undefined) {

@@ -5,6 +5,9 @@ class RenderableObject {
         this._visualDirty = true;
         this._lastPosition = null;
         this._lastRotation = null;
+        
+        // Frustum culling properties
+        this.excludeFromFrustumCulling = false; // Objects can opt out if needed
     }
     
     markVisualDirty() {

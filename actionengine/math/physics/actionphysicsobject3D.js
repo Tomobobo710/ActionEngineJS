@@ -9,6 +9,10 @@ class ActionPhysicsObject3D extends RenderableObject {
         this.originalNormals = [];
         this.originalVerts = [];
         this.position = new Vector3(0, 0, 0);
+        
+        // Calculate bounding sphere for frustum culling
+        this.calculateBoundingSphere();
+        
         this.triangles.forEach((triangle) => {
             this.originalNormals.push(new Vector3(triangle.normal.x, triangle.normal.y, triangle.normal.z));
 
@@ -98,5 +102,30 @@ class ActionPhysicsObject3D extends RenderableObject {
         rotation.transformVector3(v);
         // Return as our Vector3
         return new Vector3(v.x, v.y, v.z);
+    }
+    
+    // Calculate the bounding sphere radius for frustum culling
+    calculateBoundingSphere() {
+        if (!this.triangles || this.triangles.length === 0) {
+            // Default radius if no triangles
+            this.boundingSphereRadius = 20;
+            return;
+        }
+        
+        // Find the maximum distance from center to any vertex
+        let maxDistanceSquared = 0;
+        
+        for (const triangle of this.triangles) {
+            for (const vertex of triangle.vertices) {
+                // Simple distance from origin - assuming most objects are centered
+                const distSquared = vertex.x * vertex.x + vertex.y * vertex.y + vertex.z * vertex.z;
+                if (distSquared > maxDistanceSquared) {
+                    maxDistanceSquared = distSquared;
+                }
+            }
+        }
+        
+        // Set radius with a small buffer for safety
+        this.boundingSphereRadius = Math.sqrt(maxDistanceSquared) * 1.1;
     }
 }

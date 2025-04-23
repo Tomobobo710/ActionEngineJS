@@ -23,6 +23,18 @@ class ObjectRenderer3D {
             useTexture: this.gl.createBuffer(),      // Add use texture flag buffer
             indices: this.gl.createBuffer()
         };
+        
+        // Create view frustum for culling
+        this.viewFrustum = new ViewFrustum();
+        
+        // Frustum culling is enabled by default
+        this.enableFrustumCulling = true;
+        
+        // Simple statistics
+        this.stats = {
+            objectsTotal: 0,
+            objectsCulled: 0
+        };
     }
 
     queue(object, camera, shaderSet, currentTime) {
@@ -32,23 +44,12 @@ class ObjectRenderer3D {
             return;
         }
         
-        // Ensure object's visual geometry is up-to-date with its physics state
-        if (typeof object.updateVisual === 'function') {
-            object.updateVisual();
-        }
-        
-        const triangles = object.triangles;
-        
-        // Validate triangles exist
-        if (!triangles || triangles.length === 0) {
-            console.warn('Object has no triangles to render', object);
-            return;
-        }
-        
-        const triangleCount = triangles.length;
-
         // Initialize the object renderer for the current frame if needed
         if (!this._frameInitialized) {
+            // Reset stats
+            this.stats.objectsTotal = 0;
+            this.stats.objectsCulled = 0;
+            
             // Track all objects in the current frame
             this._frameObjects = [];
             this._totalTriangles = 0;
@@ -63,8 +64,36 @@ class ObjectRenderer3D {
             if (!this._textureCache) {
                 this._textureCache = new Map();
             }
+            
+            // Update the view frustum with the current camera
+            this.viewFrustum.updateFromCamera(camera);
         }
         
+        // Update statistics
+        this.stats.objectsTotal++;
+        
+        // Perform frustum culling if enabled
+        if (this.enableFrustumCulling) {
+            if (!this.viewFrustum.isVisible(object)) {
+                this.stats.objectsCulled++;
+                return; // Skip this object as it's outside the frustum
+            }
+        }
+        
+        // Ensure object's visual geometry is up-to-date with its physics state
+        if (typeof object.updateVisual === 'function') {
+            object.updateVisual();
+        }
+        
+        const triangles = object.triangles;
+        
+        // Validate triangles exist
+        if (!triangles || triangles.length === 0) {
+            return; // Skip silently, this is a common case
+        }
+        
+        const triangleCount = triangles.length;
+
         // Add this object to our frame tracking
         this._frameObjects.push(object);
         this._totalTriangles += triangleCount;
@@ -135,42 +164,79 @@ class ObjectRenderer3D {
             const triangleCount = triangles.length;
             
             // Process geometry data for this object
+            // Use local variables for faster access
+            const tri = triangles;
+            const normal = new Float32Array(3);
+            let r, g, b;
+            
             for (let i = 0; i < triangleCount; i++) {
-                const triangle = triangles[i];
+                const triangle = tri[i];
                 const baseIndex = (triangleOffset + i) * 9; // Offset by triangles of previous objects
 
-                // Cache color conversion
+                // Cache color conversion (only once per triangle)
                 const color = triangle.color;
                 if (color !== triangle.lastColor) {
-                    triangle.cachedColor = {
-                        r: parseInt(color.substr(1, 2), 16) / 255,
-                        g: parseInt(color.substr(3, 2), 16) / 255,
-                        b: parseInt(color.substr(5, 2), 16) / 255
-                    };
+                    // Use integer operations instead of substring for better performance
+                    const hexColor = parseInt(color.slice(1), 16);
+                    r = ((hexColor >> 16) & 255) / 255;
+                    g = ((hexColor >> 8) & 255) / 255;
+                    b = (hexColor & 255) / 255;
+                    
+                    // Cache the parsed color
+                    triangle.cachedColor = { r, g, b };
                     triangle.lastColor = color;
+                } else {
+                    // Use cached color
+                    r = triangle.cachedColor.r;
+                    g = triangle.cachedColor.g;
+                    b = triangle.cachedColor.b;
                 }
-                const { r, g, b } = triangle.cachedColor;
 
-                // Batch vertex operations
-                for (let j = 0; j < 3; j++) {
-                    const vertexOffset = baseIndex + j * 3;
-                    const vertex = triangle.vertices[j];
-
-                    // Position
-                    positions[vertexOffset] = vertex.x;
-                    positions[vertexOffset + 1] = vertex.y;
-                    positions[vertexOffset + 2] = vertex.z;
-
-                    // Normal
-                    normals[vertexOffset] = triangle.normal.x;
-                    normals[vertexOffset + 1] = triangle.normal.y;
-                    normals[vertexOffset + 2] = triangle.normal.z;
-
-                    // Color
-                    colors[vertexOffset] = r;
-                    colors[vertexOffset + 1] = g;
-                    colors[vertexOffset + 2] = b;
-                }
+                // Cache normal values once per triangle
+                normal[0] = triangle.normal.x;
+                normal[1] = triangle.normal.y;
+                normal[2] = triangle.normal.z;
+                
+                // Process all vertices of this triangle in one batch
+                // Unroll the loop for better performance
+                // Vertex 0
+                const v0 = triangle.vertices[0];
+                const vo0 = baseIndex;
+                positions[vo0] = v0.x;
+                positions[vo0 + 1] = v0.y;
+                positions[vo0 + 2] = v0.z;
+                normals[vo0] = normal[0];
+                normals[vo0 + 1] = normal[1];
+                normals[vo0 + 2] = normal[2];
+                colors[vo0] = r;
+                colors[vo0 + 1] = g;
+                colors[vo0 + 2] = b;
+                
+                // Vertex 1
+                const v1 = triangle.vertices[1];
+                const vo1 = baseIndex + 3;
+                positions[vo1] = v1.x;
+                positions[vo1 + 1] = v1.y;
+                positions[vo1 + 2] = v1.z;
+                normals[vo1] = normal[0];
+                normals[vo1 + 1] = normal[1];
+                normals[vo1 + 2] = normal[2];
+                colors[vo1] = r;
+                colors[vo1 + 1] = g;
+                colors[vo1 + 2] = b;
+                
+                // Vertex 2
+                const v2 = triangle.vertices[2];
+                const vo2 = baseIndex + 6;
+                positions[vo2] = v2.x;
+                positions[vo2 + 1] = v2.y;
+                positions[vo2 + 2] = v2.z;
+                normals[vo2] = normal[0];
+                normals[vo2 + 1] = normal[1];
+                normals[vo2 + 2] = normal[2];
+                colors[vo2] = r;
+                colors[vo2 + 1] = g;
+                colors[vo2 + 2] = b;
                 
                 // Set up indices with correct offsets for each object
                 const indexBaseOffset = (triangleOffset + i) * 3;

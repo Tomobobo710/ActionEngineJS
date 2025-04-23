@@ -1,5 +1,26 @@
 // actionengine/math/vector3.js
 class Vector3 {
+    // Vector pool for object reuse
+    static _pool = [];
+    static _poolSize = 0;
+    static _maxPoolSize = 1000;
+    
+    // Get a vector from the pool or create a new one
+    static getFromPool(x = 0, y = 0, z = 0) {
+        if (Vector3._poolSize > 0) {
+            const vec = Vector3._pool[--Vector3._poolSize];
+            vec.set(x, y, z);
+            return vec;
+        }
+        return new Vector3(x, y, z);
+    }
+    
+    // Return a vector to the pool when done with it
+    static returnToPool(vec) {
+        if (Vector3._poolSize < Vector3._maxPoolSize) {
+            Vector3._pool[Vector3._poolSize++] = vec;
+        }
+    }
     constructor(x = 0, y = 0, z = 0) {
         this.x = x;
         this.y = y;
@@ -21,19 +42,32 @@ class Vector3 {
     }
 	// For distance calculations between points
 	distanceTo(other) {
-		return Math.sqrt(
-			Math.pow(this.x - other.x, 2) + 
-			Math.pow(this.y - other.y, 2) + 
-			Math.pow(this.z - other.z, 2)
-		);
+		const dx = this.x - other.x;
+		const dy = this.y - other.y;
+		const dz = this.z - other.z;
+		return Math.sqrt(dx * dx + dy * dy + dz * dz);
+	}
+	
+	// More efficient squared distance, avoids costly sqrt when possible
+	distanceSquared(other) {
+		const dx = this.x - other.x;
+		const dy = this.y - other.y;
+		const dz = this.z - other.z;
+		return dx * dx + dy * dy + dz * dz;
 	}
 
 	// For horizontal distance (ignoring Y) - useful for camera calculations
 	horizontalDistanceTo(other) {
-		return Math.sqrt(
-			Math.pow(this.x - other.x, 2) + 
-			Math.pow(this.z - other.z, 2)
-		);
+		const dx = this.x - other.x;
+		const dz = this.z - other.z;
+		return Math.sqrt(dx * dx + dz * dz);
+	}
+	
+	// More efficient squared horizontal distance
+	horizontalDistanceSquared(other) {
+		const dx = this.x - other.x;
+		const dz = this.z - other.z;
+		return dx * dx + dz * dz;
 	}
 
 	// For applying movement/translation
@@ -43,6 +77,14 @@ class Vector3 {
 			this.y + direction.y * amount,
 			this.z + direction.z * amount
 		);
+	}
+	
+	// In-place version to avoid creating a new Vector3
+	translateInPlace(direction, amount) {
+		this.x += direction.x * amount;
+		this.y += direction.y * amount;
+		this.z += direction.z * amount;
+		return this;
 	}
 
 	// For rotation around Y axis (useful for camera orbiting)
@@ -54,6 +96,17 @@ class Vector3 {
 			this.y,
 			-this.x * sin + this.z * cos
 		);
+	}
+	
+	// In-place version to avoid creating a new Vector3
+	rotateYInPlace(angle) {
+		const cos = Math.cos(angle);
+		const sin = Math.sin(angle);
+		const x = this.x;
+		const z = this.z;
+		this.x = x * cos + z * sin;
+		this.z = -x * sin + z * cos;
+		return this;
 	}
 
 	// Gets a normalized vector representing just the horizontal component
@@ -96,6 +149,81 @@ static max(out, a, b) {
 }
     static create(x = 0, y = 0, z = 0) {
         return new Vector3(x, y, z);
+    }
+    
+    // Add optimized add operation that creates less garbage
+    add(other) {
+        return new Vector3(this.x + other.x, this.y + other.y, this.z + other.z);
+    }
+    
+    // In-place addition
+    addInPlace(other) {
+        this.x += other.x;
+        this.y += other.y;
+        this.z += other.z;
+        return this;
+    }
+    
+    // Add optimized subtract operation
+    sub(other) {
+        return new Vector3(this.x - other.x, this.y - other.y, this.z - other.z);
+    }
+    
+    // In-place subtraction
+    subInPlace(other) {
+        this.x -= other.x;
+        this.y -= other.y;
+        this.z -= other.z;
+        return this;
+    }
+    
+    // Vector normalization
+    normalize() {
+        const len = Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z);
+        if (len === 0) {
+            return new Vector3(0, 0, 0);
+        }
+        return new Vector3(this.x / len, this.y / len, this.z / len);
+    }
+    
+    // In-place normalization
+    normalizeInPlace() {
+        const len = Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z);
+        if (len !== 0) {
+            this.x /= len;
+            this.y /= len;
+            this.z /= len;
+        }
+        return this;
+    }
+    
+    // Add dot product operation
+    dot(other) {
+        return this.x * other.x + this.y * other.y + this.z * other.z;
+    }
+    
+    // Add cross product operation
+    cross(other) {
+        return new Vector3(
+            this.y * other.z - this.z * other.y,
+            this.z * other.x - this.x * other.z,
+            this.x * other.y - this.y * other.x
+        );
+    }
+    
+    // Array conversion
+    toArray() {
+        return [this.x, this.y, this.z];
+    }
+    
+    // Length calculation
+    length() {
+        return Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z);
+    }
+    
+    // Squared length (faster, avoids sqrt)
+    lengthSquared() {
+        return this.x * this.x + this.y * this.y + this.z * this.z;
     }
 
     toArray() {
