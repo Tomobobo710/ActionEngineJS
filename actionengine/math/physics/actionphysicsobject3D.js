@@ -25,9 +25,43 @@ class ActionPhysicsObject3D extends RenderableObject {
         const pos = this.body.position;
         const rot = this.body.rotation;
         const { x: posX, y: posY, z: posZ } = pos;
-
+        
+        // Check if object has moved since last update
+        if (!this._visualDirty && this._lastPosition && this._lastRotation) {
+            // Check position
+            if (Math.abs(this._lastPosition.x - posX) < 0.001 &&
+                Math.abs(this._lastPosition.y - posY) < 0.001 &&
+                Math.abs(this._lastPosition.z - posZ) < 0.001) {
+                
+                // Check rotation - using dot product as a quick comparison
+                // If dot product is very close to 1, rotation hasn't changed significantly
+                const lastQuat = this._lastRotation;
+                const curQuat = rot;
+                const dot = lastQuat.x * curQuat.x + lastQuat.y * curQuat.y + 
+                           lastQuat.z * curQuat.z + lastQuat.w * curQuat.w;
+                
+                if (Math.abs(dot) > 0.9999) {
+                    // Position and rotation haven't changed, skip update
+                    return;
+                }
+            }
+        }
+        
         // Update position once
         this.position.set(posX, posY, posZ);
+        
+        // Cache current position and rotation for next comparison
+        if (!this._lastPosition) this._lastPosition = new Vector3();
+        this._lastPosition.set(posX, posY, posZ);
+        
+        if (!this._lastRotation) this._lastRotation = new Goblin.Quaternion();
+        this._lastRotation.x = rot.x;
+        this._lastRotation.y = rot.y;
+        this._lastRotation.z = rot.z;
+        this._lastRotation.w = rot.w;
+        
+        // Mark as clean since we're updating now
+        this._visualDirty = false;
 
         // Preallocate reusable vector to avoid garbage collection
         const relativeVert = new Goblin.Vector3();

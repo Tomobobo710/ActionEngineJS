@@ -26,9 +26,27 @@ class ActionPhysicsWorld3D {
         this.lastPhysicsTime = currentTime;
         this.physicsAccumulator += frameTime;
 
+        // Store pre-physics state for objects that need to know if they've moved
+        const movedObjects = new Set();
+        if (this.physicsAccumulator >= this.fixedTimeStep) {
+            // Capture pre-step positions and rotations for moving objects
+            this.objects.forEach(object => {
+                if (object.body && !object.body.is_static) {
+                    movedObjects.add(object);
+                }
+            });
+        }
+
         while (this.physicsAccumulator >= this.fixedTimeStep) {
             try {
                 this.world.step(this.fixedTimeStep);
+                
+                // Mark objects that moved during physics as visually dirty
+                movedObjects.forEach(object => {
+                    if (typeof object.markVisualDirty === 'function') {
+                        object.markVisualDirty();
+                    }
+                });
             } catch (error) {
                 if (error.toString().includes("silhouette")) {
                     console.error("===== SILHOUETTE ERROR DETECTED =====");

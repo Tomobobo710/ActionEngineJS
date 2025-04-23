@@ -1,5 +1,19 @@
 // actionengine/display/graphics/renderableobject.js
 class RenderableObject {
+    constructor() {
+        // Add visual update tracking
+        this._visualDirty = true;
+        this._lastPosition = null;
+        this._lastRotation = null;
+    }
+    
+    markVisualDirty() {
+        this._visualDirty = true;
+    }
+    
+    isVisualDirty() {
+        return this._visualDirty;
+    }
     getModelMatrix() {
         const matrix = Matrix4.create();
         const rotationMatrix = Matrix4.create();

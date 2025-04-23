@@ -48,6 +48,11 @@ class ActionCharacter3D extends ActionCharacter {
             // Directly set the rotation components on the body's rotation quaternion
             this.characterModel.body.rotation.x = engineQuat.x;
             this.characterModel.body.rotation.y = engineQuat.y;
+            
+            // Mark the character model as dirty since we manually updated its position and rotation
+            if (typeof this.characterModel.markVisualDirty === 'function') {
+                this.characterModel.markVisualDirty();
+            }
             this.characterModel.body.rotation.z = engineQuat.z;
             this.characterModel.body.rotation.w = engineQuat.w;
         }
