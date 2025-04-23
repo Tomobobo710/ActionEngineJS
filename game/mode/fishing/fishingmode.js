@@ -209,11 +209,7 @@ class FishingMode {
     }
 
     draw() {
-    // Draw 3D scene
-    const bufferInfo = this.shaderManager.getBufferInfo();
     this.renderer3d.render({
-        renderableBuffers: bufferInfo.renderableBuffers,
-        renderableIndexCount: bufferInfo.renderableIndexCount,
         camera: this.camera,
         renderableObjects: Array.from(this.physicsWorld.objects)
     });

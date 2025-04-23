@@ -1,3 +1,5 @@
+// actionengine/math/geometry/glbloader.js
+
 /**
  * GLBLoader handles loading and parsing of GLTF/GLB 3D model files.
  * Supports skeletal animations, mesh data, and materials.

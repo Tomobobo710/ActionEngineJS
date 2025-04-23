@@ -287,10 +287,7 @@ class WorldMode {
                 this.physicsWorld.objects
             );
         } else {
-            const bufferInfo = this.shaderManager.getBufferInfo();
-
             this.renderer3D.render({
-                bufferInfo,
                 camera: this.camera,
                 renderableObjects: [...Array.from(this.physicsWorld.objects)],
                 showDebugPanel: this.showDebugPanel,

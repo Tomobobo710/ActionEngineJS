@@ -1,3 +1,4 @@
+// actionengine/math/geometry/triangle.js
 class Triangle {
     constructor(v1, v2, v3, color = "#FF00FF", texture = null, uvs = null) {
         this.vertices = [v1, v2, v3];

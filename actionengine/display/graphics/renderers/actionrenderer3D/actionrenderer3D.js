@@ -27,8 +27,6 @@ class ActionRenderer3D {
 
     render(renderData) {
         const {
-            renderableBuffers,
-            renderableIndexCount,
             camera,
             renderableObjects,
             showDebugPanel,
