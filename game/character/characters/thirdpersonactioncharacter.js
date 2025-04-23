@@ -37,7 +37,6 @@ class ThirdPersonActionCharacter extends ActionCharacter {
         this.updateTerrainInfo();
         
         this.debug = false;
-        this.updateVisual();
     }
 
     generateNewBattleThreshold() {
@@ -194,9 +193,6 @@ class ThirdPersonActionCharacter extends ActionCharacter {
         if (this.animator) {
             this.animator.update();
         }
-        
-        // Make sure triangles are updated for rendering
-        //this.updateVisual();
     }
     
     updateAnimationState() {

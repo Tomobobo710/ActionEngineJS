@@ -95,11 +95,6 @@ class ActionPhysicsWorld3D {
                 }
             }
             this.physicsAccumulator -= this.fixedTimeStep;
-            this.objects.forEach((object) => {
-                if (object.body) {
-                    object.updateVisual();
-                }
-            });
         }
     }
 

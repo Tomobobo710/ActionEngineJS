@@ -26,6 +26,15 @@ class ActionRenderer2D {
 	}
 
 	render(terrain, camera, character, showDebugPanel, weatherSystem, renderablePhysicsObjects) {
+		// Update visual representation of all renderable physics objects first
+		if (renderablePhysicsObjects) {
+			for (const object of renderablePhysicsObjects) {
+				if (object && typeof object.updateVisual === "function") {
+					object.updateVisual();
+				}
+			}
+		}
+
 		// Get view matrix ONCE at the start
 		const view = camera.getViewMatrix();
 		// Calculate view and projection matrices ONCE
@@ -234,33 +243,42 @@ class ActionRenderer2D {
 						const pixelIndex = index * 4;
 
 						if (hasTexture) {
-   let u, v;
-   if (useDepthTest) {
-       // Full perspective-correct texture mapping for near triangles
-       const interpolatedOneOverW = bary.w1 * oneOverW[0] + bary.w2 * oneOverW[1] + bary.w3 * oneOverW[2];
-       const interpolatedUOverW = bary.w1 * uvOverW[0].u + bary.w2 * uvOverW[1].u + bary.w3 * uvOverW[2].u;
-       const interpolatedVOverW = bary.w1 * uvOverW[0].v + bary.w2 * uvOverW[1].v + bary.w3 * uvOverW[2].v;
-       u = interpolatedUOverW / interpolatedOneOverW;
-       v = interpolatedVOverW / interpolatedOneOverW;
-   } else {
-       // Simpler linear interpolation for far triangles
-       u = bary.w1 * triangle.uvs[0].u + bary.w2 * triangle.uvs[1].u + bary.w3 * triangle.uvs[2].u;
-       v = bary.w1 * triangle.uvs[0].v + bary.w2 * triangle.uvs[1].v + bary.w3 * triangle.uvs[2].v;
-   }
-   const texel = triangle.texture.getPixel(
-       Math.floor(u * textureWidth),
-       Math.floor(v * textureHeight)
-   );
-   imageData[pixelIndex] = texel.r * currentLighting;
-   imageData[pixelIndex + 1] = texel.g * currentLighting;
-   imageData[pixelIndex + 2] = texel.b * currentLighting;
-   imageData[pixelIndex + 3] = 255;
-} else {
-   imageData[pixelIndex] = r * currentLighting;
-   imageData[pixelIndex + 1] = g * currentLighting;
-   imageData[pixelIndex + 2] = b * currentLighting;
-   imageData[pixelIndex + 3] = 255;
-}
+							let u, v;
+							if (useDepthTest) {
+								// Full perspective-correct texture mapping for near triangles
+								const interpolatedOneOverW =
+									bary.w1 * oneOverW[0] + bary.w2 * oneOverW[1] + bary.w3 * oneOverW[2];
+								const interpolatedUOverW =
+									bary.w1 * uvOverW[0].u + bary.w2 * uvOverW[1].u + bary.w3 * uvOverW[2].u;
+								const interpolatedVOverW =
+									bary.w1 * uvOverW[0].v + bary.w2 * uvOverW[1].v + bary.w3 * uvOverW[2].v;
+								u = interpolatedUOverW / interpolatedOneOverW;
+								v = interpolatedVOverW / interpolatedOneOverW;
+							} else {
+								// Simpler linear interpolation for far triangles
+								u =
+									bary.w1 * triangle.uvs[0].u +
+									bary.w2 * triangle.uvs[1].u +
+									bary.w3 * triangle.uvs[2].u;
+								v =
+									bary.w1 * triangle.uvs[0].v +
+									bary.w2 * triangle.uvs[1].v +
+									bary.w3 * triangle.uvs[2].v;
+							}
+							const texel = triangle.texture.getPixel(
+								Math.floor(u * textureWidth),
+								Math.floor(v * textureHeight)
+							);
+							imageData[pixelIndex] = texel.r * currentLighting;
+							imageData[pixelIndex + 1] = texel.g * currentLighting;
+							imageData[pixelIndex + 2] = texel.b * currentLighting;
+							imageData[pixelIndex + 3] = 255;
+						} else {
+							imageData[pixelIndex] = r * currentLighting;
+							imageData[pixelIndex + 1] = g * currentLighting;
+							imageData[pixelIndex + 2] = b * currentLighting;
+							imageData[pixelIndex + 3] = 255;
+						}
 					}
 				}
 			}
@@ -362,7 +380,7 @@ class ActionRenderer2D {
 		if (!character || !character.position || !character.facingDirection) {
 			return; // Skip direction indicator if character is not valid
 		}
-		
+
 		const center = character.position;
 		const directionEnd = new Vector3(
 			center.x + character.facingDirection.x * (character.size || 5) * 2, // Default size if undefined
