@@ -147,7 +147,7 @@ class WaterRenderer3D {
                 const offset = Math.sin(Date.now() * 0.001 + triangle.vertices[j].x * 0.1) * this.waterConfig.waveHeight;
                 
                 positions[baseIndex + j*3] = triangle.vertices[j].x;
-                positions[baseIndex + j*3 + 1] = triangle.vertices[j].y + offset;
+                positions[baseIndex + j*3 + 1] = triangle.vertices[j].y + offset + ocean.body.position.y;
                 positions[baseIndex + j*3 + 2] = triangle.vertices[j].z;
                 
                 normals[baseIndex + j*3] = triangle.normal.x;
