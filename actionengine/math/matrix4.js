@@ -24,107 +24,118 @@ class Matrix4 {
         return out;
     }
     static transformVector(vector, viewMatrix, projectionMatrix) {
-    // First multiply by view matrix
-    const viewResult = [0, 0, 0, 0];
-    for (let i = 0; i < 4; i++) {
-        viewResult[i] = 
-            vector[0] * viewMatrix[i] +
-            vector[1] * viewMatrix[i + 4] +
-            vector[2] * viewMatrix[i + 8] +
-            vector[3] * viewMatrix[i + 12];
-    }
-    
-    // Then multiply by projection matrix
-    const result = [0, 0, 0, 0];
-    for (let i = 0; i < 4; i++) {
-        result[i] = 
-            viewResult[0] * projectionMatrix[i] +
-            viewResult[1] * projectionMatrix[i + 4] +
-            viewResult[2] * projectionMatrix[i + 8] +
-            viewResult[3] * projectionMatrix[i + 12];
-    }
+        // First multiply by view matrix
+        const viewResult = [0, 0, 0, 0];
+        for (let i = 0; i < 4; i++) {
+            viewResult[i] =
+                vector[0] * viewMatrix[i] +
+                vector[1] * viewMatrix[i + 4] +
+                vector[2] * viewMatrix[i + 8] +
+                vector[3] * viewMatrix[i + 12];
+        }
 
-    return result;
-}
+        // Then multiply by projection matrix
+        const result = [0, 0, 0, 0];
+        for (let i = 0; i < 4; i++) {
+            result[i] =
+                viewResult[0] * projectionMatrix[i] +
+                viewResult[1] * projectionMatrix[i + 4] +
+                viewResult[2] * projectionMatrix[i + 8] +
+                viewResult[3] * projectionMatrix[i + 12];
+        }
+
+        return result;
+    }
     static fromQuat(out, q) {
-    const x = q.x, y = q.y, z = q.z, w = q.w;
-    const x2 = x + x, y2 = y + y, z2 = z + z;
-    const xx = x * x2, xy = x * y2, xz = x * z2;
-    const yy = y * y2, yz = y * z2, zz = z * z2;
-    const wx = w * x2, wy = w * y2, wz = w * z2;
+        const x = q.x,
+            y = q.y,
+            z = q.z,
+            w = q.w;
+        const x2 = x + x,
+            y2 = y + y,
+            z2 = z + z;
+        const xx = x * x2,
+            xy = x * y2,
+            xz = x * z2;
+        const yy = y * y2,
+            yz = y * z2,
+            zz = z * z2;
+        const wx = w * x2,
+            wy = w * y2,
+            wz = w * z2;
 
-    out[0] = 1 - (yy + zz);
-    out[1] = xy + wz;
-    out[2] = xz - wy;
-    out[3] = 0;
+        out[0] = 1 - (yy + zz);
+        out[1] = xy + wz;
+        out[2] = xz - wy;
+        out[3] = 0;
 
-    out[4] = xy - wz;
-    out[5] = 1 - (xx + zz);
-    out[6] = yz + wx;
-    out[7] = 0;
+        out[4] = xy - wz;
+        out[5] = 1 - (xx + zz);
+        out[6] = yz + wx;
+        out[7] = 0;
 
-    out[8] = xz + wy;
-    out[9] = yz - wx;
-    out[10] = 1 - (xx + yy);
-    out[11] = 0;
+        out[8] = xz + wy;
+        out[9] = yz - wx;
+        out[10] = 1 - (xx + yy);
+        out[11] = 0;
 
-    out[12] = 0;
-    out[13] = 0;
-    out[14] = 0;
-    out[15] = 1;
+        out[12] = 0;
+        out[13] = 0;
+        out[14] = 0;
+        out[15] = 1;
 
-    return out;
-}
-    
+        return out;
+    }
+
     static fromLightDirection(out, dir) {
-    // Make sure the direction is normalized
-    const nx = dir.x;
-    const ny = dir.y;
-    const nz = dir.z;
-    
-    // Find a perpendicular vector for the "right" direction
-    // Using world-up (0,1,0) as a reference
-    const right = [
-        nz,     // Cross product of dir with (0,1,0)
-        0,
-        -nx
-    ];
-    
-    // Normalize right vector
-    const rLength = Math.sqrt(right[0] * right[0] + right[2] * right[2]);
-    right[0] /= rLength;
-    right[2] /= rLength;
-    
-    // Get up vector by crossing right with direction
-    const up = [
-        -nx * ny,        // Cross product of right with dir
-        nx * nx + nz * nz,
-        -ny * nz
-    ];
-    
-    // Build the view matrix
-    out[0] = right[0];
-    out[1] = up[0];
-    out[2] = nx;
-    out[3] = 0;
-    
-    out[4] = right[1];
-    out[5] = up[1];
-    out[6] = ny;
-    out[7] = 0;
-    
-    out[8] = right[2];
-    out[9] = up[2];
-    out[10] = nz;
-    out[11] = 0;
-    
-    out[12] = 0;
-    out[13] = 0;
-    out[14] = 0;
-    out[15] = 1;
-    
-    return out;
-}
+        // Make sure the direction is normalized
+        const nx = dir.x;
+        const ny = dir.y;
+        const nz = dir.z;
+
+        // Find a perpendicular vector for the "right" direction
+        // Using world-up (0,1,0) as a reference
+        const right = [
+            nz, // Cross product of dir with (0,1,0)
+            0,
+            -nx
+        ];
+
+        // Normalize right vector
+        const rLength = Math.sqrt(right[0] * right[0] + right[2] * right[2]);
+        right[0] /= rLength;
+        right[2] /= rLength;
+
+        // Get up vector by crossing right with direction
+        const up = [
+            -nx * ny, // Cross product of right with dir
+            nx * nx + nz * nz,
+            -ny * nz
+        ];
+
+        // Build the view matrix
+        out[0] = right[0];
+        out[1] = up[0];
+        out[2] = nx;
+        out[3] = 0;
+
+        out[4] = right[1];
+        out[5] = up[1];
+        out[6] = ny;
+        out[7] = 0;
+
+        out[8] = right[2];
+        out[9] = up[2];
+        out[10] = nz;
+        out[11] = 0;
+
+        out[12] = 0;
+        out[13] = 0;
+        out[14] = 0;
+        out[15] = 1;
+
+        return out;
+    }
     static copy(out, a) {
         out[0] = a[0];
         out[1] = a[1];
@@ -200,94 +211,93 @@ class Matrix4 {
         out[15] = b0 * a03 + b1 * a13 + b2 * a23 + b3 * a33;
         return out;
     }
-static fromRotationTranslation(out, q, v) {
-    // Similar to his code but using our Quaternion class
-    const x = q.x, y = q.y, z = q.z, w = q.w;
-    const x2 = x + x;
-    const y2 = y + y;
-    const z2 = z + z;
+    static fromRotationTranslation(out, q, v) {
+        // Similar to his code but using our Quaternion class
+        const x = q.x,
+            y = q.y,
+            z = q.z,
+            w = q.w;
+        const x2 = x + x;
+        const y2 = y + y;
+        const z2 = z + z;
 
-    const xx = x * x2;
-    const xy = x * y2;
-    const xz = x * z2;
-    const yy = y * y2;
-    const yz = y * z2;
-    const zz = z * z2;
-    const wx = w * x2;
-    const wy = w * y2;
-    const wz = w * z2;
+        const xx = x * x2;
+        const xy = x * y2;
+        const xz = x * z2;
+        const yy = y * y2;
+        const yz = y * z2;
+        const zz = z * z2;
+        const wx = w * x2;
+        const wy = w * y2;
+        const wz = w * z2;
 
-    out[0] = 1 - (yy + zz);
-    out[1] = xy + wz;
-    out[2] = xz - wy;
-    out[3] = 0;
-    out[4] = xy - wz;
-    out[5] = 1 - (xx + zz);
-    out[6] = yz + wx;
-    out[7] = 0;
-    out[8] = xz + wy;
-    out[9] = yz - wx;
-    out[10] = 1 - (xx + yy);
-    out[11] = 0;
-    out[12] = v.x;
-    out[13] = v.y;
-    out[14] = v.z;
-    out[15] = 1;
-    return out;
-}
-    
-    static transformVertex(vertex, modelMatrix) {
-    const v = [vertex.x, vertex.y, vertex.z, 1];
-    const result = [0, 0, 0, 0];
-    
-    for (let i = 0; i < 4; i++) {
-        result[i] = 
-            v[0] * modelMatrix[i] +
-            v[1] * modelMatrix[i + 4] +
-            v[2] * modelMatrix[i + 8] +
-            v[3] * modelMatrix[i + 12];
+        out[0] = 1 - (yy + zz);
+        out[1] = xy + wz;
+        out[2] = xz - wy;
+        out[3] = 0;
+        out[4] = xy - wz;
+        out[5] = 1 - (xx + zz);
+        out[6] = yz + wx;
+        out[7] = 0;
+        out[8] = xz + wy;
+        out[9] = yz - wx;
+        out[10] = 1 - (xx + yy);
+        out[11] = 0;
+        out[12] = v.x;
+        out[13] = v.y;
+        out[14] = v.z;
+        out[15] = 1;
+        return out;
     }
-    
-    return new Vector3(
-        result[0] / result[3], 
-        result[1] / result[3], 
-        result[2] / result[3]
-    );
-}
 
-static transformNormal(normal, modelMatrix) {
-    // Calculate inverse transpose of 3x3 portion of model matrix
-    const a = modelMatrix[0],
-          b = modelMatrix[1],
-          c = modelMatrix[2],
-          d = modelMatrix[4],
-          e = modelMatrix[5],
-          f = modelMatrix[6],
-          g = modelMatrix[8],
-          h = modelMatrix[9],
-          i = modelMatrix[10];
+    static transformVertex(vertex, modelMatrix) {
+        const v = [vertex.x, vertex.y, vertex.z, 1];
+        const result = [0, 0, 0, 0];
 
-    const det = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
-    const invdet = 1.0 / det;
+        for (let i = 0; i < 4; i++) {
+            result[i] =
+                v[0] * modelMatrix[i] +
+                v[1] * modelMatrix[i + 4] +
+                v[2] * modelMatrix[i + 8] +
+                v[3] * modelMatrix[i + 12];
+        }
 
-    const invTranspose = [
-        (e * i - f * h) * invdet,
-        (c * h - b * i) * invdet,
-        (b * f - c * e) * invdet,
-        (f * g - d * i) * invdet,
-        (a * i - c * g) * invdet,
-        (c * d - a * f) * invdet,
-        (d * h - e * g) * invdet,
-        (b * g - a * h) * invdet,
-        (a * e - b * d) * invdet
-    ];
+        return new Vector3(result[0] / result[3], result[1] / result[3], result[2] / result[3]);
+    }
 
-    const x = normal.x * invTranspose[0] + normal.y * invTranspose[1] + normal.z * invTranspose[2];
-    const y = normal.x * invTranspose[3] + normal.y * invTranspose[4] + normal.z * invTranspose[5];
-    const z = normal.x * invTranspose[6] + normal.y * invTranspose[7] + normal.z * invTranspose[8];
+    static transformNormal(normal, modelMatrix) {
+        // Calculate inverse transpose of 3x3 portion of model matrix
+        const a = modelMatrix[0],
+            b = modelMatrix[1],
+            c = modelMatrix[2],
+            d = modelMatrix[4],
+            e = modelMatrix[5],
+            f = modelMatrix[6],
+            g = modelMatrix[8],
+            h = modelMatrix[9],
+            i = modelMatrix[10];
 
-    return new Vector3(x, y, z).normalize();
-}
+        const det = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
+        const invdet = 1.0 / det;
+
+        const invTranspose = [
+            (e * i - f * h) * invdet,
+            (c * h - b * i) * invdet,
+            (b * f - c * e) * invdet,
+            (f * g - d * i) * invdet,
+            (a * i - c * g) * invdet,
+            (c * d - a * f) * invdet,
+            (d * h - e * g) * invdet,
+            (b * g - a * h) * invdet,
+            (a * e - b * d) * invdet
+        ];
+
+        const x = normal.x * invTranspose[0] + normal.y * invTranspose[1] + normal.z * invTranspose[2];
+        const y = normal.x * invTranspose[3] + normal.y * invTranspose[4] + normal.z * invTranspose[5];
+        const z = normal.x * invTranspose[6] + normal.y * invTranspose[7] + normal.z * invTranspose[8];
+
+        return new Vector3(x, y, z).normalize();
+    }
     static perspective(out, fovy, aspect, near, far) {
         const f = 1.0 / Math.tan(fovy / 2);
         out[0] = f / aspect;
@@ -620,6 +630,77 @@ static transformNormal(normal, modelMatrix) {
             out[12] = a[3];
             out[13] = a[7];
             out[14] = a[11];
+            out[15] = a[15];
+        }
+
+        return out;
+    }
+
+    static rotateX(out, a, rad) {
+        const s = Math.sin(rad);
+        const c = Math.cos(rad);
+        const a10 = a[4];
+        const a11 = a[5];
+        const a12 = a[6];
+        const a13 = a[7];
+        const a20 = a[8];
+        const a21 = a[9];
+        const a22 = a[10];
+        const a23 = a[11];
+
+        out[4] = a10 * c + a20 * s;
+        out[5] = a11 * c + a21 * s;
+        out[6] = a12 * c + a22 * s;
+        out[7] = a13 * c + a23 * s;
+        out[8] = a20 * c - a10 * s;
+        out[9] = a21 * c - a11 * s;
+        out[10] = a22 * c - a12 * s;
+        out[11] = a23 * c - a13 * s;
+
+        // If the source and destination differ, we need to copy the unchanged rows
+        if (a !== out) {
+            out[0] = a[0];
+            out[1] = a[1];
+            out[2] = a[2];
+            out[3] = a[3];
+            out[12] = a[12];
+            out[13] = a[13];
+            out[14] = a[14];
+            out[15] = a[15];
+        }
+
+        return out;
+    }
+    static rotateZ(out, a, rad) {
+        const s = Math.sin(rad);
+        const c = Math.cos(rad);
+        const a00 = a[0];
+        const a01 = a[1];
+        const a02 = a[2];
+        const a03 = a[3];
+        const a10 = a[4];
+        const a11 = a[5];
+        const a12 = a[6];
+        const a13 = a[7];
+
+        out[0] = a00 * c + a10 * s;
+        out[1] = a01 * c + a11 * s;
+        out[2] = a02 * c + a12 * s;
+        out[3] = a03 * c + a13 * s;
+        out[4] = a10 * c - a00 * s;
+        out[5] = a11 * c - a01 * s;
+        out[6] = a12 * c - a02 * s;
+        out[7] = a13 * c - a03 * s;
+
+        // If the source and destination differ, we need to copy the unchanged rows
+        if (a !== out) {
+            out[8] = a[8];
+            out[9] = a[9];
+            out[10] = a[10];
+            out[11] = a[11];
+            out[12] = a[12];
+            out[13] = a[13];
+            out[14] = a[14];
             out[15] = a[15];
         }
 
