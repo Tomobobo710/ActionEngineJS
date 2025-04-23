@@ -1,15 +1,5 @@
 // actionengine/display/graphics/renderers/actionrenderer3D/objectrenderer3D.js
 class ObjectRenderer3D {
-    // New method to render all objects in one batch
-    renderBatch() {
-        if (this._frameObjects && this._frameObjects.length > 0) {
-            this.drawObjects(this._camera, this._shaderSet);
-            this._frameInitialized = false;
-            this._frameObjects = [];
-            this._totalTriangles = 0;
-        }
-    }
-
     constructor(renderer, gl, programManager, lightingManager) {
         this.renderer = renderer;
         this.gl = gl;
@@ -35,7 +25,7 @@ class ObjectRenderer3D {
         };
     }
 
-    render(object, camera, shaderSet, currentTime) {
+    queue(object, camera, shaderSet, currentTime) {
         // Skip rendering if object is invalid
         if (!object) {
             console.warn('Attempted to render null or undefined object');
@@ -80,6 +70,15 @@ class ObjectRenderer3D {
         this._totalTriangles += triangleCount;
     }
 
+    render() {
+        if (this._frameObjects && this._frameObjects.length > 0) {
+            this.drawObjects(this._camera, this._shaderSet);
+            this._frameInitialized = false;
+            this._frameObjects = [];
+            this._totalTriangles = 0;
+        }
+    }
+    
     drawObjects(camera, shaderSet) {
         // If we have no objects to render, just return
         if (!this._frameObjects || this._frameObjects.length === 0) {

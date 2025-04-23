@@ -1,4 +1,4 @@
-// actionengine/display/graphics/renderers/actionrenderer3D/programregistry.js
+// actionengine/display/gl/programregistry.js
 class ProgramRegistry {
     constructor(gl) {
         this.gl = gl;

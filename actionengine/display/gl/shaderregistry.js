@@ -1,4 +1,4 @@
-// game/display/gl/shaderregistry.js
+// actionengine/display/gl/shaderregistry.js
 class ShaderRegistry {
     constructor() {
         // Don't allow multiple instances

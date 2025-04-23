@@ -1,4 +1,4 @@
-// game/display/gl/shadermanager.js
+// actionengine/display/gl/shadermanager.js
 class ShaderManager {
     constructor(renderer3D, initialSize = 500) {
         this.gl = renderer3D.gl;

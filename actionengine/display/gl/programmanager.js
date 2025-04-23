@@ -1,4 +1,4 @@
-// actionengine/display/graphics/renderers/actionrenderer3D/programregistry.js
+// actionengine/display/gl/programmanager.js
 class ProgramManager {
     constructor(gl, isWebGL2) {
         this.gl = gl;

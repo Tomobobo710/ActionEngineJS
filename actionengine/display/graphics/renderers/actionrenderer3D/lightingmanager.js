@@ -9,8 +9,6 @@ class LightingManager {
         this.lightSpaceMatrix = Matrix4.create();
         this.lightProjection = Matrix4.create();
 
-        
-        
         this.currentLightConfig = {
             POSITION: {
                 x: 0,
@@ -28,10 +26,7 @@ class LightingManager {
                 METALLIC: 0.1,
                 BASE_REFLECTIVITY: 0.5
             },
-        };
-        
-        // Light properties idk what this shit even is bro
-        
+        };    
 
         this.lightPos = new Vector3(
             this.currentLightConfig.POSITION.x,
@@ -67,11 +62,9 @@ class LightingManager {
         ).normalize();
     }
 
-    // Method to handle frame updates - only update when necessary
     update() {
         this.frameCount++;
         
-        // Only update matrix when truly necessary
         if (this._lastPosition === undefined || 
             this._lastPosition.x !== this.currentLightConfig.POSITION.x ||
             this._lastPosition.y !== this.currentLightConfig.POSITION.y ||

@@ -89,11 +89,11 @@ class ActionRenderer3D {
 
         // Collect all objects into batch first
         for (const object of nonWaterObjects) {
-            this.objectRenderer.render(object, camera, this._cachedShaderSet, this.currentTime);
+            this.objectRenderer.queue(object, camera, this._cachedShaderSet, this.currentTime);
         }
         
         // Then render everything in one batch
-        this.objectRenderer.renderBatch();
+        this.objectRenderer.render();
         
         // Then render water objects last
         for (const object of waterObjects) {
