@@ -24,6 +24,7 @@ class Terrain {
 
         // Generate geometry
         this.generateGeometry();
+        this.body = this.createPhysicsMesh();
     }
 
     generateGeometry() {
@@ -229,4 +230,7 @@ class Terrain {
     getTriangles() {
         return this.triangles;
     }
+    
+    // Physics world requires this
+    updateVisual(){}
 }

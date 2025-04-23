@@ -84,8 +84,7 @@ class ShaderManager {
             renderer.registerShaderSet(name, shaderSet);
         }
     }
-
-    // Terrain is now handled as a regular object through updateRenderableBuffers
+    
     getTextureIndexForProceduralTexture(proceduralTexture) {
         // Loop through textureRegistry to find which texture this is
         for (let i = 0; i < textureRegistry.textureList.length; i++) {
@@ -220,93 +219,6 @@ class ShaderManager {
             this.indices = new Uint16Array(triangleCount * 3);
             this.uvs = new Float32Array(triangleCount * 6);
         }
-    }
-
-    goodupdateRenderableBuffers(renderable) {
-        const triangleCount = renderable.triangles.length;
-        const positions = new Float32Array(triangleCount * 9);
-        const normals = new Float32Array(triangleCount * 9);
-        const colors = new Float32Array(triangleCount * 9);
-
-        // Pre-calculate color values outside the loop
-        const colorCache = new Map();
-
-        for (let i = 0; i < triangleCount; i++) {
-            const triangle = renderable.triangles[i];
-            const baseIndex = i * 9;
-
-            // Process vertices and normals
-            const vertices = triangle.vertices;
-            const normal = triangle.normal;
-
-            for (let j = 0; j < 3; j++) {
-                const vertexOffset = baseIndex + j * 3;
-                const vertex = vertices[j];
-
-                // Positions
-                positions[vertexOffset] = vertex.x;
-                positions[vertexOffset + 1] = vertex.y;
-                positions[vertexOffset + 2] = vertex.z;
-
-                // Normals
-                normals[vertexOffset] = normal.x;
-                normals[vertexOffset + 1] = normal.y;
-                normals[vertexOffset + 2] = normal.z;
-            }
-
-            // Process colors with caching
-            let rgb = colorCache.get(triangle.color);
-            if (!rgb) {
-                rgb = {
-                    r: parseInt(triangle.color.substr(1, 2), 16) / 255,
-                    g: parseInt(triangle.color.substr(3, 2), 16) / 255,
-                    b: parseInt(triangle.color.substr(5, 2), 16) / 255
-                };
-                colorCache.set(triangle.color, rgb);
-            }
-
-            // Fill colors for all vertices of the triangle
-            for (let j = 0; j < 3; j++) {
-                const colorOffset = baseIndex + j * 3;
-                colors[colorOffset] = rgb.r;
-                colors[colorOffset + 1] = rgb.g;
-                colors[colorOffset + 2] = rgb.b;
-            }
-        }
-
-        // Create and fill indices array
-        const indexCount = triangleCount * 3;
-        const indices = new Uint16Array(indexCount);
-        for (let i = 0; i < indexCount; i++) {
-            indices[i] = i;
-        }
-
-        // Create UV array
-        const uvs = new Float32Array(triangleCount * 6);
-        // No need to fill with zeros as TypedArrays are zero-initialized
-
-        // Batch GL operations
-        const gl = this.gl;
-
-        // Update all buffers
-        const bufferUpdates = [
-            { buffer: this.renderableBuffers.position, data: positions },
-            { buffer: this.renderableBuffers.normal, data: normals },
-            { buffer: this.renderableBuffers.color, data: colors },
-            { buffer: this.renderableBuffers.uv, data: uvs }
-        ];
-
-        for (const { buffer, data } of bufferUpdates) {
-            gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-            gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
-        }
-
-        // Update indices separately as it uses ELEMENT_ARRAY_BUFFER
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.renderableBuffers.indices);
-        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
-
-        this.renderableIndexCount = indexCount;
-        return indexCount;
     }
 
     deleteBuffers() {

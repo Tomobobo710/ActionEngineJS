@@ -39,11 +39,6 @@ class ActionCharacter3D extends ActionCharacter {
             this.characterModel.body.position.y = this.body.position.y;
             this.characterModel.body.position.z = this.body.position.z;
             
-            // IMPORTANT: Force triangle cache to be regenerated every frame
-            // This makes the 3D renderer get fresh triangles with the current position
-            this._cachedTriangles = null;
-            this._lastModified = performance.now();
-            
             // Update capsule rotation based on character facing direction
             const angle = Math.atan2(this.facingDirection.x, this.facingDirection.z);
             

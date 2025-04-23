@@ -1,11 +1,27 @@
 // actionengine/display/graphics/renderers/actionrenderer3D/objectrenderer3D.js
 class ObjectRenderer3D {
+    // New method to render all objects in one batch
+    renderBatch() {
+        if (this._frameObjects && this._frameObjects.length > 0) {
+            this.drawObjects(this._camera, this._shaderSet);
+            this._frameInitialized = false;
+            this._frameObjects = [];
+            this._totalTriangles = 0;
+        }
+    }
+
     constructor(renderer, gl, programManager, lightingManager) {
         this.renderer = renderer;
         this.gl = gl;
         this.programManager = programManager;
         this.programRegistry = programManager.getProgramRegistry();
         this.lightingManager = lightingManager;
+        
+        // Check if WebGL2 is available for 32-bit indices
+        this.isWebGL2 = this.gl instanceof WebGL2RenderingContext;
+        
+        // Store the index element type for later use
+        this.indexType = this.isWebGL2 ? this.gl.UNSIGNED_INT : this.gl.UNSIGNED_SHORT;
 
         // Create buffer for each renderable object - support textures for all objects
         this.buffers = {
@@ -26,16 +42,12 @@ class ObjectRenderer3D {
             return;
         }
         
-        // Fast path optimization - track if the object has any textures
-        this._hasTextures = false;
-        
-        // Get triangles either directly or through getTriangles() method
-        // Cache triangles if possible - big performance boost
-        if (!object._cachedTriangles) {
-            object._cachedTriangles = object.getTriangles ? object.getTriangles() : object.triangles;
-            object._lastModified = performance.now();
+        // Ensure object's visual geometry is up-to-date with its physics state
+        if (typeof object.updateVisual === 'function') {
+            object.updateVisual();
         }
-        const triangles = object._cachedTriangles;
+        
+        const triangles = object.triangles;
         
         // Validate triangles exist
         if (!triangles || triangles.length === 0) {
@@ -44,46 +56,89 @@ class ObjectRenderer3D {
         }
         
         const triangleCount = triangles.length;
-        const vertexCount = triangleCount * 9;
 
-        // Preallocate core arrays once and reuse them if size hasn't changed
-        if (!this.cachedArrays || this.cachedArrays.positions.length !== vertexCount) {
-            this.cachedArrays = {
-                positions: new Float32Array(vertexCount),
-                normals: new Float32Array(vertexCount),
-                colors: new Float32Array(vertexCount),
-                indices: new Uint16Array(triangleCount * 3)
-            };
+        // Initialize the object renderer for the current frame if needed
+        if (!this._frameInitialized) {
+            // Track all objects in the current frame
+            this._frameObjects = [];
+            this._totalTriangles = 0;
+            this._frameInitialized = true;
+            this._currentFrameTime = performance.now();
             
-            // Pre-allocate texture arrays with null initial value
-            this.textureArrays = null;
-
-            // Indices array can be initialized once since it's always sequential
-            for (let i = 0; i < this.cachedArrays.indices.length; i++) {
-                this.cachedArrays.indices[i] = i;
+            // Store camera and shader for batch rendering
+            this._camera = camera;
+            this._shaderSet = shaderSet;
+            
+            // Create persistent texture cache
+            if (!this._textureCache) {
+                this._textureCache = new Map();
             }
+        }
+        
+        // Add this object to our frame tracking
+        this._frameObjects.push(object);
+        this._totalTriangles += triangleCount;
+    }
+
+    drawObjects(camera, shaderSet) {
+        // If we have no objects to render, just return
+        if (!this._frameObjects || this._frameObjects.length === 0) {
+            return;
+        }
+
+        // Calculate total vertex and index counts
+        const totalVertexCount = this._totalTriangles * 9;
+        const totalIndexCount = this._totalTriangles * 3;
+        const totalUvCount = this._totalTriangles * 6;
+        const totalFlagCount = this._totalTriangles * 3;
+
+        // Check if we'd exceed the 16-bit index limit
+        const exceeds16BitLimit = totalIndexCount > 65535;
+        
+        // WebGL1 can't handle more than 65535 indices (16-bit limit)
+        if (exceeds16BitLimit && !this.isWebGL2) {
+            console.warn(`This scene has ${this._totalTriangles} triangles which exceeds the WebGL1 index limit.`);
+            console.warn('Using WebGL2 with Uint32 indices would greatly improve performance.');
+        }
+        
+        // Allocate or resize buffers if needed
+        if (!this.cachedArrays || this.cachedArrays.positions.length < totalVertexCount) {
+            // Choose correct index array type based on WebGL version
+            const IndexArrayType = this.isWebGL2 ? Uint32Array : Uint16Array;
             
-            // Mark buffer data as dirty to force update
-            this._buffersDirty = true;
+            this.cachedArrays = {
+                positions: new Float32Array(totalVertexCount),
+                normals: new Float32Array(totalVertexCount),
+                colors: new Float32Array(totalVertexCount),
+                indices: new IndexArrayType(totalIndexCount)
+            };
+        }
+        
+        // Initialize texture arrays if we need them
+        if (!this.textureArrays || this.textureArrays.uvs.length < totalUvCount) {
+            this.textureArrays = {
+                uvs: new Float32Array(totalUvCount),
+                textureIndices: new Float32Array(totalFlagCount),
+                useTextureFlags: new Float32Array(totalFlagCount)
+            };
+            this.textureArrays.useTextureFlags.fill(0);
         }
 
         const { positions, normals, colors, indices } = this.cachedArrays;
         
-        // Cache texture arrays between frames - only recreate when necessary
-        // Create persistent texture cache
-        if (!this._textureCache) {
-            this._textureCache = new Map();
-        }
+        // Track offset for placing objects in buffer
+        let triangleOffset = 0;
+        let indexOffset = 0;
 
-        // Performance optimization: Only update geometry data if the object has changed
-        // or we haven't processed it before
-        const needsUpdate = this._buffersDirty || !object._lastProcessed || object._lastModified > object._lastProcessed;
-        
-        if (needsUpdate) {
-            // Process all triangles and update buffer data
+        // Process all objects in the frame
+        for (const object of this._frameObjects) {
+            const triangles = object.triangles;
+            const triangleCount = triangles.length;
+            
+            // Process geometry data for this object
             for (let i = 0; i < triangleCount; i++) {
                 const triangle = triangles[i];
-                const baseIndex = i * 9;
+                const baseIndex = (triangleOffset + i) * 9; // Offset by triangles of previous objects
 
                 // Cache color conversion
                 const color = triangle.color;
@@ -118,27 +173,20 @@ class ObjectRenderer3D {
                     colors[vertexOffset + 2] = b;
                 }
                 
+                // Set up indices with correct offsets for each object
+                const indexBaseOffset = (triangleOffset + i) * 3;
+                // Every vertex needs its own index in WebGL
+                indices[indexBaseOffset] = (triangleOffset + i) * 3;
+                indices[indexBaseOffset + 1] = (triangleOffset + i) * 3 + 1;
+                indices[indexBaseOffset + 2] = (triangleOffset + i) * 3 + 2;
+
                 // Check if this triangle has texture
                 if (triangle.texture) {
-                    // First texture encountered in this object - allocate texture arrays if needed
-                    if (!this._hasTextures) {
-                        this._hasTextures = true;
-                        
-                        // Only create these arrays if they don't exist or size changed
-                        if (!this.textureArrays ||
-                            this.textureArrays.uvs.length !== triangleCount * 6) {
-                            this.textureArrays = {
-                                uvs: new Float32Array(triangleCount * 6),
-                                textureIndices: new Float32Array(triangleCount * 3),
-                                useTextureFlags: new Float32Array(triangleCount * 3)
-                            };
-                            // Initialize all flags to zero
-                            this.textureArrays.useTextureFlags.fill(0);
-                        }
-                    }
+                    // First texture encountered in this object or frame
+                    this._hasTextures = true;
                     
-                    const baseUVIndex = i * 6;
-                    const baseFlagIndex = i * 3;
+                    const baseUVIndex = (triangleOffset + i) * 6;
+                    const baseFlagIndex = (triangleOffset + i) * 3;
                     const { uvs, textureIndices, useTextureFlags } = this.textureArrays;
                     
                     // Handle UVs
@@ -175,53 +223,42 @@ class ObjectRenderer3D {
                 }
             }
             
-            // Mark object as processed
-            object._lastProcessed = performance.now();
-            
-            // Buffer data needs to be updated
-            this._buffersDirty = true;
+            // Update triangle offset for next object
+            triangleOffset += triangleCount;
         }
-        
-        // Cache GL context and commonly used values outside of the conditional
+
+        // Cache GL context and commonly used values
         const gl = this.gl;
         const ARRAY_BUFFER = gl.ARRAY_BUFFER;
         const STATIC_DRAW = gl.STATIC_DRAW;
         
-        // Only update GL buffers if data has changed
-        if (this._buffersDirty) {
-            // Update core buffers
-            const bufferUpdates = [
-                { buffer: this.buffers.position, data: positions },
-                { buffer: this.buffers.normal, data: normals },
-                { buffer: this.buffers.color, data: colors }
-            ];
+        // Update GL buffers with all object data
+        const bufferUpdates = [
+            { buffer: this.buffers.position, data: positions },
+            { buffer: this.buffers.normal, data: normals },
+            { buffer: this.buffers.color, data: colors }
+        ];
 
-            for (const { buffer, data } of bufferUpdates) {
-                gl.bindBuffer(ARRAY_BUFFER, buffer);
-                gl.bufferData(ARRAY_BUFFER, data, STATIC_DRAW);
-            }
-            
-            // Only update texture buffers if textures were detected
-            if (this._hasTextures && this.textureArrays) {
-                const { uvs, textureIndices, useTextureFlags } = this.textureArrays;
-                const textureBufferUpdates = [
-                    { buffer: this.buffers.uv, data: uvs },
-                    { buffer: this.buffers.textureIndex, data: textureIndices },
-                    { buffer: this.buffers.useTexture, data: useTextureFlags }
-                ];
-                
-                for (const { buffer, data } of textureBufferUpdates) {
-                    gl.bindBuffer(ARRAY_BUFFER, buffer);
-                    gl.bufferData(ARRAY_BUFFER, data, STATIC_DRAW);
-                }
-            }
-
-            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.buffers.indices);
-            gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, STATIC_DRAW);
-            
-            // Buffer data is now up to date
-            this._buffersDirty = false;
+        for (const { buffer, data } of bufferUpdates) {
+            gl.bindBuffer(ARRAY_BUFFER, buffer);
+            gl.bufferData(ARRAY_BUFFER, data, STATIC_DRAW);
         }
+
+        // Always update texture buffers to ensure consistent behavior
+        const { uvs, textureIndices, useTextureFlags } = this.textureArrays;
+        const textureBufferUpdates = [
+            { buffer: this.buffers.uv, data: uvs },
+            { buffer: this.buffers.textureIndex, data: textureIndices },
+            { buffer: this.buffers.useTexture, data: useTextureFlags }
+        ];
+            
+        for (const { buffer, data } of textureBufferUpdates) {
+            gl.bindBuffer(ARRAY_BUFFER, buffer);
+            gl.bufferData(ARRAY_BUFFER, data, STATIC_DRAW);
+        }
+        
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.buffers.indices);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, STATIC_DRAW);
 
         // Cache matrix operations
         const projection = Matrix4.perspective(
@@ -237,13 +274,18 @@ class ObjectRenderer3D {
 
         const model = this.cachedModel || (this.cachedModel = Matrix4.create());
 
-        
         // Setup shader and draw - use the standard object shader
         const program = shaderSet.standard;
         gl.useProgram(program.program);
         this.setupObjectShader(program.locations, projection, view, model, camera);
 
-        this.drawObject(program.locations, indices.length);
+        // Draw all objects in one batch
+        this.drawObject(program.locations, totalIndexCount);
+        
+        // Reset frame tracking for next frame
+        this._frameInitialized = false;
+        this._frameObjects = [];
+        this._totalTriangles = 0;
     }
 
     setupObjectShader(locations, projection, view, model, camera) {
@@ -301,44 +343,26 @@ class ObjectRenderer3D {
             gl.enableVertexAttribArray(locations.color);
         }
 
-        // Only set up texture attributes if the object has textures
-        if (this._hasTextures && this.textureArrays) {
-            // Set up texture coordinates
-            if (locations.texCoord !== -1) {
-                gl.bindBuffer(ARRAY_BUFFER, this.buffers.uv);
-                gl.vertexAttribPointer(locations.texCoord, 2, gl.FLOAT, false, 0, 0);
-                gl.enableVertexAttribArray(locations.texCoord);
-            }
+        // Always set up texture attributes for consistent behavior
+        // Set up texture coordinates
+        if (locations.texCoord !== -1) {
+            gl.bindBuffer(ARRAY_BUFFER, this.buffers.uv);
+            gl.vertexAttribPointer(locations.texCoord, 2, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(locations.texCoord);
+        }
 
-            // Set up texture index
-            if (locations.textureIndex !== -1) {
-                gl.bindBuffer(ARRAY_BUFFER, this.buffers.textureIndex);
-                gl.vertexAttribPointer(locations.textureIndex, 1, gl.FLOAT, false, 0, 0);
-                gl.enableVertexAttribArray(locations.textureIndex);
-            }
+        // Set up texture index
+        if (locations.textureIndex !== -1) {
+            gl.bindBuffer(ARRAY_BUFFER, this.buffers.textureIndex);
+            gl.vertexAttribPointer(locations.textureIndex, 1, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(locations.textureIndex);
+        }
 
-            // Set up use texture flag
-            if (locations.useTexture !== -1) {
-                gl.bindBuffer(ARRAY_BUFFER, this.buffers.useTexture);
-                gl.vertexAttribPointer(locations.useTexture, 1, gl.FLOAT, false, 0, 0);
-                gl.enableVertexAttribArray(locations.useTexture);
-            }
-        } else {
-            // No textures - set default values
-            if (locations.useTexture !== -1) {
-                gl.disableVertexAttribArray(locations.useTexture);
-                gl.vertexAttrib1f(locations.useTexture, 0.0);
-            }
-
-            if (locations.textureIndex !== -1) {
-                gl.disableVertexAttribArray(locations.textureIndex);
-                gl.vertexAttrib1f(locations.textureIndex, 0.0);
-            }
-
-            if (locations.texCoord !== -1) {
-                gl.disableVertexAttribArray(locations.texCoord);
-                gl.vertexAttrib2f(locations.texCoord, 0.0, 0.0);
-            }
+        // Set up use texture flag
+        if (locations.useTexture !== -1) {
+            gl.bindBuffer(ARRAY_BUFFER, this.buffers.useTexture);
+            gl.vertexAttribPointer(locations.useTexture, 1, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(locations.useTexture);
         }
         
         // Performance optimization: Cache shader information and texture binding
@@ -347,33 +371,46 @@ class ObjectRenderer3D {
         }
         
         // Bind texture array if the shader uses it
-        if (locations.textureArray !== -1 && locations.textureArray !== null && this.renderer.textureArray) {
-            // Determine which shader we're using - only do this check once per frame
-            if (!this._lastCheckedShader || this._lastCheckedShader !== this.programRegistry.getCurrentShaderSet()) {
-                const currentShaderSet = this.programRegistry.getCurrentShaderSet();
-                this._lastCheckedShader = currentShaderSet;
-                this._currentShaderType = this.programRegistry?.shaders.get("pbr") === currentShaderSet ? "pbr" : "other";
-            }
+        if (locations.textureArray !== -1 && locations.textureArray !== null) {
+            // Get texture array from renderer
+            const textureArray = this.renderer?.textureArray;
             
-            if (this._currentShaderType === "pbr") {
-                // Use texture unit 1 for PBR shader
-                gl.activeTexture(gl.TEXTURE1);
-                gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.renderer.textureArray);
-                gl.uniform1i(locations.textureArray, 1);
+            if (textureArray) {
+                // Determine which shader we're using - only do this check once per frame
+                if (!this._lastCheckedShader || this._lastCheckedShader !== this.programRegistry.getCurrentShaderSet()) {
+                    const currentShaderSet = this.programRegistry.getCurrentShaderSet();
+                    this._lastCheckedShader = currentShaderSet;
+                    this._currentShaderType = this.programRegistry?.shaders.get("pbr") === currentShaderSet ? "pbr" : "other";
+                }
+                
+                if (this._currentShaderType === "pbr") {
+                    // Use texture unit 1 for PBR shader
+                    gl.activeTexture(gl.TEXTURE1);
+                    gl.bindTexture(gl.TEXTURE_2D_ARRAY, textureArray);
+                    gl.uniform1i(locations.textureArray, 1);
+                } else {
+                    // Use texture unit 0 for other shaders
+                    gl.activeTexture(gl.TEXTURE0);
+                    gl.bindTexture(gl.TEXTURE_2D_ARRAY, textureArray);
+                    gl.uniform1i(locations.textureArray, 0);
+                }
             } else {
-                // Use texture unit 0 for other shaders
-                gl.activeTexture(gl.TEXTURE0);
-                gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.renderer.textureArray);
-                gl.uniform1i(locations.textureArray, 0);
+                console.warn('Texture array is not available but textures are required by shader');
             }
         }
 
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.buffers.indices);
-        gl.drawElements(gl.TRIANGLES, indexCount, gl.UNSIGNED_SHORT, 0);
+        gl.drawElements(gl.TRIANGLES, indexCount, this.indexType, 0);
     }
 
     // Helper method to get texture index - works for any object with textures
     getTextureIndexForProceduralTexture(proceduralTexture) {
+        // If textureRegistry doesn't exist or isn't accessible, return 0
+        if (typeof textureRegistry === 'undefined') {
+            console.warn('textureRegistry is not defined - textures will not work correctly');
+            return 0;
+        }
+        
         // Cache texture lookup results for better performance
         if (!this._textureIndexCache) {
             this._textureIndexCache = new Map();
@@ -382,7 +419,9 @@ class ObjectRenderer3D {
             for (let i = 0; i < textureRegistry.textureList.length; i++) {
                 const name = textureRegistry.textureList[i];
                 const texture = textureRegistry.get(name);
-                this._textureIndexCache.set(texture, i);
+                if (texture) {
+                    this._textureIndexCache.set(texture, i);
+                }
             }
         }
         

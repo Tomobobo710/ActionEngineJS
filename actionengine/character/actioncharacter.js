@@ -42,7 +42,7 @@ class ActionCharacter extends RenderableObject {
         this.body.debugName = `CharacterBody_${Date.now()}`;
         this.body.createdAt = Date.now();
 
-         // Get the character body from the controller
+        // Get the character body from the controller
         this.body = this.controller.body;
         
         // Fine tune physics properties if needed
@@ -57,7 +57,7 @@ class ActionCharacter extends RenderableObject {
             worldGravity.y * gravityMultiplier,
             worldGravity.z * gravityMultiplier
         );
-                
+        
         // Add character body to physics world
         this.game.physicsWorld.getWorld().addRigidBody(this.body);
     }
@@ -170,8 +170,6 @@ class ActionCharacter extends RenderableObject {
             isMovingThisFrame = true;
         }
 
-        // Movement tracking for input is handled at the derived class level
-
         // Normalize the movement vector if moving diagonally
         if (moveDir.lengthSquared() > 0) {
             moveDir.normalize();
@@ -199,8 +197,6 @@ class ActionCharacter extends RenderableObject {
             this.rotation = this.cameraYaw + Math.PI;
 
             this.updateFacingDirection();
-
-            
 
             if (!this.camera.isDetached) {
                 if (this.isFirstPerson) {
@@ -234,11 +230,25 @@ class ActionCharacter extends RenderableObject {
     }
     
     // Standard method for renderable objects
-    getTriangles() {
-        return this.getCharacterModelTriangles();
+    updateVisual() {
+        this.triangles = this.getCharacterModelTriangles();
+        this.updateModelMatrix();
     }
     
-    // Original method - will be called by getTriangles()
+    updateModelMatrix() {
+        // Calculate the model matrix based on position and facing direction
+        const angle = Math.atan2(this.facingDirection.x, this.facingDirection.z);
+        this.modelMatrix = Matrix4.create();
+
+        // Apply rotation around character's local origin first
+        Matrix4.rotateY(this.modelMatrix, this.modelMatrix, angle);
+
+        // Then translate to world position
+        Matrix4.translate(this.modelMatrix, this.modelMatrix, [this.position.x, this.position.y, this.position.z]);
+    }
+
+    
+    // Original method - mainly used by 2d renderer
     getCharacterModelTriangles() {
         function transformVertexWithSkin(vertex, vertexIndex, triangle, skin) {
             if (!triangle.jointData || !triangle.weightData) {
@@ -280,8 +290,9 @@ class ActionCharacter extends RenderableObject {
         // Calculate model orientation transform based on facing direction
         const angle = Math.atan2(this.facingDirection.x, this.facingDirection.z);
         const modelTransform = Matrix4.create();
+        // Uncomment and use this line to position the character at the correct world position
+        Matrix4.translate(modelTransform, modelTransform, [this.position.x, this.position.y, this.position.z]);
         Matrix4.rotateY(modelTransform, modelTransform, angle);
-
         const transformedTriangles = [];
         const skin = this.characterModel.skins[0];
 

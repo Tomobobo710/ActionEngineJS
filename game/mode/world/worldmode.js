@@ -8,13 +8,18 @@ class WorldMode {
         
         this.isPaused = false;
 
+        // Initialize the core world components first
         this.initializeMode();
         this.pendingBattleTransition = false;
         this.pendingMenuTransition = false; // Add this new flag
 
+        // Create character after world initialization
         if (this.createCharacter) {
+            // Create character once and add to physics world
             this.character = new ThirdPersonActionCharacter(this.terrain, this.camera, this);
-
+            this.physicsWorld.objects.add(this.character);
+            console.log("[WorldMode] Character created and added to physics world");
+            
             // Get saved state
             const savedState = gameModeManager.gameMaster.getPlayerState();
             if (savedState && savedState.position) {
@@ -48,8 +53,6 @@ class WorldMode {
 
                 console.log("Restored complete physics state");
             }
-
-            // Character no longer needs special buffer updates
 
             const savedTime = gameModeManager.gameMaster.getWorldTime();
             this.worldTime = { ...savedTime };
@@ -97,13 +100,10 @@ class WorldMode {
         this.seed = 420;
 
         this.generateWorld();
-
+        
+        // Character will be created in the constructor after initializeMode()
         this.character = null;
         this.createCharacter = true;
-        if (this.createCharacter) {
-            this.character = new ThirdPersonActionCharacter(this.terrain, this.camera, this);
-            // Character no longer needs special buffer updates
-        }
 
         this.lastTime = performance.now();
         this.deltaTime = 0;
@@ -131,11 +131,7 @@ class WorldMode {
         };
 
         this.terrain = new Terrain(baseConfig);
-        // Terrain is now handled as a regular renderable object
-        // It uses the same standard ObjectRenderer3D as other in-game objects
-
-        const terrainBody = this.terrain.createPhysicsMesh();
-        this.physicsWorld.addTerrainBody(terrainBody, 1, -1);
+        this.physicsWorld.addObject(this.terrain);
 
         if (this.poiManager) {
             this.poiManager.cleanup();
@@ -145,7 +141,6 @@ class WorldMode {
 
         if (this.character) {
             this.character.terrain = this.terrain;
-            // Character no longer needs special buffer updates
         }
 
         this.sphere = null;
@@ -173,8 +168,9 @@ class WorldMode {
 
             // Character buffers no longer need special updates - treated like any other object
 
-            this.physicsWorld.update(this.deltaTime);
+            
             this.handleInput();
+            this.physicsWorld.update(this.deltaTime);
             this.weatherSystem.update(this.deltaTime, this.terrain);
 
             if (this.character && this.weatherSystem) {
@@ -267,6 +263,8 @@ class WorldMode {
     }
 
     draw() {
+
+        
         if (this.gameCanvas2DCtx) {
             this.gameCanvas2DCtx.clearRect(0, 0, 800, 600);
         }
@@ -283,7 +281,7 @@ class WorldMode {
             this.renderer2D.render(
                 this.terrain,
                 this.camera,
-                this.character,
+                this.character, // Pass character instead of null
                 this.showDebugPanel,
                 this.weatherSystem,
                 this.physicsWorld.objects
@@ -292,10 +290,9 @@ class WorldMode {
             const bufferInfo = this.shaderManager.getBufferInfo();
 
             this.renderer3D.render({
-                ...bufferInfo,
+                bufferInfo,
                 camera: this.camera,
-                // character removed - now included in renderableObjects
-                renderableObjects: [this.terrain, this.character, ...Array.from(this.physicsWorld.objects)],
+                renderableObjects: [...Array.from(this.physicsWorld.objects)],
                 showDebugPanel: this.showDebugPanel,
                 weatherSystem: this.weatherSystem
             });
@@ -348,7 +345,7 @@ class WorldMode {
             1,
             new Vector3(Math.random() * 20 - 10, 500, Math.random() * 20 - 10)
         );
-
+        
         this.sphere.body.debugName = `Sphere_${Date.now()}`;
         this.sphere.body.createdAt = Date.now();
 

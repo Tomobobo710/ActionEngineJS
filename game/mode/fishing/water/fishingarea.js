@@ -73,11 +73,6 @@ class FishingArea {
         }
     }
 
-    // Method to get floor triangles for rendering
-    getFloorTriangles() {
-        return this.floor.getTriangles();
-    }
-
     // Method to check if a position is within bounds
     isInBounds(position) {
         return (

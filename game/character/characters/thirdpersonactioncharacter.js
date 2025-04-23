@@ -35,13 +35,9 @@ class ThirdPersonActionCharacter extends ActionCharacter {
         this.heightPercent = 0;
         this.terrainHeight = 0;
         this.updateTerrainInfo();
-
-        // Initialize the character for object rendering
-        // This ensures triangles are generated immediately
-        this._cachedTriangles = null;
-        this._lastModified = performance.now();
         
         this.debug = false;
+        this.updateVisual();
     }
 
     generateNewBattleThreshold() {
@@ -71,49 +67,6 @@ class ThirdPersonActionCharacter extends ActionCharacter {
         const c = 1 - a - b;
 
         return a * v1.y + b * v2.y + c * v3.y;
-    }
-
-    /**
-     * Gets the transformed triangles for rendering the character model.
-     * Since animation updates happen separately through ModelAnimationController,
-     * this method only handles vertex transformations and skinning.
-     *
-     * @returns {Triangle[]} Array of transformed triangles ready for rendering
-     */
-     
-    // Override getTriangles specifically for the 3D renderer
-    getTriangles() {
-        // Get the animated triangles from the character model
-        const modelTriangles = super.getTriangles();
-        
-        // Patch for 3D renderer - apply world position to each triangle
-        const worldPos = this.position || this.body?.position;
-        if (worldPos && modelTriangles) {
-            // Create new transformed triangles that include world position
-            return modelTriangles.map(triangle => {
-                // Create new transformed vertices with world position added
-                const v1 = new Vector3(
-                    triangle.vertices[0].x + worldPos.x,
-                    triangle.vertices[0].y + worldPos.y,
-                    triangle.vertices[0].z + worldPos.z
-                );
-                const v2 = new Vector3(
-                    triangle.vertices[1].x + worldPos.x,
-                    triangle.vertices[1].y + worldPos.y,
-                    triangle.vertices[1].z + worldPos.z
-                );
-                const v3 = new Vector3(
-                    triangle.vertices[2].x + worldPos.x,
-                    triangle.vertices[2].y + worldPos.y,
-                    triangle.vertices[2].z + worldPos.z
-                );
-                
-                // Create a new triangle with the transformed vertices
-                return new Triangle(v1, v2, v3, triangle.color, triangle.texture, triangle.uvs);
-            });
-        }
-        
-        return modelTriangles;
     }
     
     updateTerrainInfo() {
@@ -193,9 +146,6 @@ class ThirdPersonActionCharacter extends ActionCharacter {
     update(deltaTime){
         super.update(deltaTime);
         
-        // Force triangle regeneration for the 3D renderer
-        this._cachedTriangles = null;
-        
         // Get the character's physics state from the debug info
         const state = this.debugInfo.state.current;
         const velocity = this.debugInfo.physics.velocity;
@@ -243,12 +193,10 @@ class ThirdPersonActionCharacter extends ActionCharacter {
 
         if (this.animator) {
             this.animator.update();
-            
-            // Force triangle cache to be regenerated on next render
-            // This makes the animation visible by invalidating cached triangles
-            this._cachedTriangles = null;
-            this._lastModified = performance.now();
         }
+        
+        // Make sure triangles are updated for rendering
+        //this.updateVisual();
     }
     
     updateAnimationState() {
