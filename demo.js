@@ -1445,15 +1445,10 @@ draw3DScene() {
 		gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 	}
 
-	// Get rendering information from shader manager
-	const bufferInfo = this.shaderManager.getBufferInfo();
-
 	// Render the scene using ActionEngine's renderer
 	this.renderer3D.render({
-		renderableBuffers: bufferInfo.renderableBuffers,
-		renderableIndexCount: bufferInfo.renderableIndexCount,
+		renderableObjects: Array.from(this.physicsWorld.objects),
 		camera: this.camera,
-		renderableObjects: Array.from(this.physicsWorld.objects)
 	});
 }
 
