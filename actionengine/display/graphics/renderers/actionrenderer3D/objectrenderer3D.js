@@ -229,7 +229,8 @@ class ObjectRenderer3D {
         // Cache GL context and commonly used values
         const gl = this.gl;
         const ARRAY_BUFFER = gl.ARRAY_BUFFER;
-        const STATIC_DRAW = gl.STATIC_DRAW;
+        // Use DYNAMIC_DRAW for buffers that change every frame
+        const DYNAMIC_DRAW = gl.DYNAMIC_DRAW;
         
         // Update GL buffers with all object data
         const bufferUpdates = [
@@ -240,7 +241,7 @@ class ObjectRenderer3D {
 
         for (const { buffer, data } of bufferUpdates) {
             gl.bindBuffer(ARRAY_BUFFER, buffer);
-            gl.bufferData(ARRAY_BUFFER, data, STATIC_DRAW);
+            gl.bufferData(ARRAY_BUFFER, data, DYNAMIC_DRAW);
         }
 
         // Always update texture buffers to ensure consistent behavior
@@ -253,11 +254,11 @@ class ObjectRenderer3D {
             
         for (const { buffer, data } of textureBufferUpdates) {
             gl.bindBuffer(ARRAY_BUFFER, buffer);
-            gl.bufferData(ARRAY_BUFFER, data, STATIC_DRAW);
+            gl.bufferData(ARRAY_BUFFER, data, DYNAMIC_DRAW);
         }
         
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.buffers.indices);
-        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, STATIC_DRAW);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, DYNAMIC_DRAW);
 
         // Cache matrix operations
         const projection = Matrix4.perspective(
@@ -410,33 +411,43 @@ class ObjectRenderer3D {
             return 0;
         }
         
-        // Cache texture lookup results for better performance
+        // Optimize texture cache with WeakMap to handle garbage collection better
         if (!this._textureIndexCache) {
-            this._textureIndexCache = new Map();
+            this._textureIndexCache = new WeakMap();
             
-            // Pre-populate cache with all known textures
-            for (let i = 0; i < textureRegistry.textureList.length; i++) {
-                const name = textureRegistry.textureList[i];
+            // Pre-populate cache with texture information
+            textureRegistry.textureList.forEach((name, index) => {
                 const texture = textureRegistry.get(name);
                 if (texture) {
-                    this._textureIndexCache.set(texture, i);
+                    this._textureIndexCache.set(texture, index);
                 }
-            }
+            });
         }
         
-        // Get from cache
+        // Get from cache with O(1) lookup
         const indexFromCache = this._textureIndexCache.get(proceduralTexture);
         if (indexFromCache !== undefined) {
             return indexFromCache;
         }
         
-        // Fallback to search if not in cache
-        for (let i = 0; i < textureRegistry.textureList.length; i++) {
-            const name = textureRegistry.textureList[i];
-            if (textureRegistry.get(name) === proceduralTexture) {
-                // Update cache
-                this._textureIndexCache.set(proceduralTexture, i);
-                return i;
+        // If not found in cache, check if we need to refresh cache
+        // This handles cases where texture registry was updated since cache creation
+        if (!this._lastCacheUpdate || 
+            performance.now() - this._lastCacheUpdate > 1000) { // Only refresh cache every second
+            
+            textureRegistry.textureList.forEach((name, index) => {
+                const texture = textureRegistry.get(name);
+                if (texture) {
+                    this._textureIndexCache.set(texture, index);
+                }
+            });
+            
+            this._lastCacheUpdate = performance.now();
+            
+            // Try lookup again after refresh
+            const indexAfterRefresh = this._textureIndexCache.get(proceduralTexture);
+            if (indexAfterRefresh !== undefined) {
+                return indexAfterRefresh;
             }
         }
         
