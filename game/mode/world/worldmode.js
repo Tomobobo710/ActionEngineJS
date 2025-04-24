@@ -315,10 +315,9 @@ class WorldMode {
         if (this.use2DRenderer) {
             this.renderer2D.render(
                 this.camera,
-                this.character, // Pass character instead of null
+                this.physicsWorld.objects,
                 this.showDebugPanel,
-                this.weatherSystem,
-                this.physicsWorld.objects
+                this.character                
             );
         } else {
             this.renderer3D.render({

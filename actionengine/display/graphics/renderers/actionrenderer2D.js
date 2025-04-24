@@ -25,7 +25,7 @@ class ActionRenderer2D {
 		this.checkerTexture.generateCheckerboard();
 	}
 
-	render(camera, character, showDebugPanel, weatherSystem, renderablePhysicsObjects) {
+	render(camera, renderablePhysicsObjects, showDebugPanel, character) {
 		// Update visual representation of all renderable physics objects first
 		if (renderablePhysicsObjects) {
 			for (const object of renderablePhysicsObjects) {
@@ -51,11 +51,6 @@ class ActionRenderer2D {
 
 		// Pass view to collectTriangles
 		const { nearTriangles, farTriangles } = this.collectTriangles(camera, renderablePhysicsObjects, view);
-
-		// Add character triangles if present
-		if (character) {
-			this.processCharacterTriangles(character, camera, nearTriangles, farTriangles, view);
-		}
 
 		// Render far triangles first (back to front) WITHOUT depth testing
 		farTriangles.sort((a, b) => b.depth - a.depth);
@@ -286,57 +281,6 @@ class ActionRenderer2D {
 
 	rasterizeTriangleNoDepth(triangle) {
 		this.rasterizeTriangleBase(triangle, false);
-	}
-
-	processCharacterTriangles(character, camera, nearTriangles, farTriangles, view) {
-		const modelMatrix = character.getModelMatrix();
-		const characterModel = character.getCharacterModelTriangles();
-		const lightDir = new Vector3(0.5, 1.0, 0.5).normalize();
-
-		for (const triangle of characterModel) {
-			const worldNormal = Matrix4.transformNormal(triangle.normal, modelMatrix);
-
-			// Transform vertices to world space
-			const transformedVerts = new Array(3);
-			for (let i = 0; i < 3; i++) {
-				transformedVerts[i] = Matrix4.transformVertex(triangle.vertices[i], modelMatrix);
-			}
-
-			// Project to screen space using our cached view
-			const projectedPoints = new Array(3);
-			let invalidProjection = false;
-			for (let i = 0; i < 3; i++) {
-				projectedPoints[i] = this.project(transformedVerts[i], camera, view);
-				if (projectedPoints[i] === null) {
-					invalidProjection = true;
-					break;
-				}
-			}
-			if (invalidProjection) continue;
-
-			// Calculate average Z depth
-			const viewZ = (projectedPoints[0].z + projectedPoints[1].z + projectedPoints[2].z) / 3;
-			if (viewZ <= 0) continue;
-
-			if (TriangleUtils.isFrontFacing(projectedPoints[0], projectedPoints[1], projectedPoints[2])) {
-				const lighting = Math.max(0.3, Math.min(1.0, worldNormal.dot(lightDir)));
-				if (viewZ <= this.depthConfig.transitionDistance) {
-					nearTriangles.push({
-						points: projectedPoints,
-						color: triangle.color,
-						lighting: lighting,
-						depth: viewZ
-					});
-				} else {
-					farTriangles.push({
-						points: projectedPoints,
-						color: triangle.color,
-						lighting: lighting,
-						depth: viewZ
-					});
-				}
-			}
-		}
 	}
 
 	renderDebugOverlays(character, camera, view) {
