@@ -176,6 +176,37 @@ class WorldMode {
             if (this.character && this.weatherSystem) {
                 this.weatherSystem.updatePosition(this.character.position);
             }
+            
+            // Check if any POIs need to set their traps
+            if (this.character && this.poiManager) {
+                // Check dungeons
+                if (this.poiManager.dungeons) {
+                    this.poiManager.dungeons.forEach(dungeon => {
+                        if (dungeon.checkPlayerDistance) {
+                            dungeon.checkPlayerDistance();
+                        }
+                    });
+                }
+                
+                // Check towns
+                if (this.poiManager.towns) {
+                    this.poiManager.towns.forEach(town => {
+                        if (town.checkPlayerDistance) {
+                            town.checkPlayerDistance();
+                        }
+                    });
+                }
+                
+                // Check fishing spots - this might need to be accessed differently
+                // since I'm not sure if they're tracked in a fishingSpots array
+                if (this.poiManager.fishingSpots) {
+                    this.poiManager.fishingSpots.forEach(spot => {
+                        if (spot.checkPlayerDistance) {
+                            spot.checkPlayerDistance();
+                        }
+                    });
+                }
+            }
 
             // Check for pending transitions after all updates are complete
             if (this.pendingBattleTransition) {

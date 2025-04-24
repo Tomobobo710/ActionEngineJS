@@ -49,11 +49,14 @@ class POIManager {
    }
 
     generateFishingSpots() {
+        this.fishingSpots = [];
         const fishingLocations = this.fishingGenerator.findFishingLocations(50);
         fishingLocations.forEach(triangle => {
             const center = this.calculateTriangleCenter(triangle);
-            new FishingSpotMarker(this.physicsWorld, this.worldMode, center);
+            const spot = new FishingSpotMarker(this.physicsWorld, this.worldMode, center);
+            this.fishingSpots.push(spot);
         });
+        // No need to log creation
     }
 
    calculateTriangleCenter(triangle) {

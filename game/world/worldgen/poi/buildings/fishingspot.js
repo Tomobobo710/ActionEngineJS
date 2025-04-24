@@ -89,13 +89,85 @@ class FishingSpotMarker extends ActionPhysicsObject3D {
 
         this.body = new Goblin.RigidBody(compoundShape, 0);
         this.body.position.set(position.x, position.y + poleHeight / 2, position.z);
-        this.body.addListener("contact", function (other_body, contact) {
-            // this body has come in `contact with` other_body and the details are provided by `contact`
-            console.log("FishingSpot");
-            requestAnimationFrame(() => {
-                    worldMode.gameModeManager.switchMode('fishing');
-                });
-        });
-        this.physicsWorld.addObject(this); // Add self to world
+        
+        // Simple flag for trap state
+        this.trapSet = false;
+        
+        // Detection zone radius (fixed size for fishing spots)
+        this.zoneRadius = 10; // Adjust as needed
+        
+        // Store our position for distance checking
+        this.position = position;
+        
+        // Store world mode for checking player position
+        this.worldMode = worldMode;
+        
+        this.id = Date.now();
+
+        // When player touches the fishing spot
+        this.body.addListener(
+            'contact',
+            (other_body, contact) => {
+                // Only care about player contacts
+                if (!other_body.debugName || !other_body.debugName.includes('Character')) return;
+                
+                console.log(`FishingSpot ${this.id} - Player contacted POI. Trap set: ${this.trapSet}`);
+                
+                // Only trigger if player has previously left the zone (trap is set)
+                if (this.trapSet) {
+                    console.log(`FishingSpot ${this.id} - TRIGGERING FISHING MODE! Trap was set.`);
+                    requestAnimationFrame(() => {
+                        worldMode.gameModeManager.switchMode('fishing');
+                    });
+                    
+                    // Reset trap after triggering
+                    this.trapSet = false;
+                }
+            }
+        );
+        
+        // Add to the physics world
+        this.physicsWorld.addObject(this);
+    }
+    
+    // Call this from WorldMode's update loop
+    checkPlayerDistance() {
+        // Skip if trap is already set
+        if (this.trapSet) return;
+        
+        // Check player position if it exists
+        if (!this.worldMode.character) return;
+        
+        const playerPos = this.worldMode.character.position;
+        const dx = playerPos.x - this.position.x;
+        const dz = playerPos.z - this.position.z;
+        const distanceToPlayer = Math.sqrt(dx*dx + dz*dz);
+        
+        // Initialize a flag to track if we've detected the player inside the zone
+        if (this.playerDetectedInZone === undefined) {
+            this.playerDetectedInZone = distanceToPlayer < this.zoneRadius;
+            
+            // Only log if player is inside the zone when first checked
+            if (this.playerDetectedInZone) {
+                console.log(`FishingSpot ${this.id} - Player detected inside zone on start.`);
+            }
+        }
+        
+        // If player is outside the zone, set the trap
+        if (distanceToPlayer > this.zoneRadius) {
+            // Only log when trap gets set (when player exits)
+            if (this.playerDetectedInZone) {
+                console.log(`FishingSpot ${this.id} - TRAP SET! Player left zone.`);
+                this.trapSet = true;
+                this.playerDetectedInZone = false;
+            } else {
+                // Player already outside zone but first time detecting it
+                this.playerDetectedInZone = false;
+                this.trapSet = true;
+            }
+        } else {
+            // Player is inside zone
+            this.playerDetectedInZone = true;
+        }
     }
 }

@@ -3,41 +3,8 @@ class TownBuilding extends ActionPhysicsObject3D {
         const hw = width / 2;
         const hh = height / 2;
         const hd = depth / 2;
-/*
-        // Create vertices same as before...
-        const v = {
-            ftl: new Vector3(-hw, hh, hd),
-            ftr: new Vector3(hw, hh, hd),
-            fbl: new Vector3(-hw, -hh, hd),
-            fbr: new Vector3(hw, -hh, hd),
-            btl: new Vector3(-hw, hh, -hd),
-            btr: new Vector3(hw, hh, -hd),
-            bbl: new Vector3(-hw, -hh, -hd),
-            bbr: new Vector3(hw, -hh, -hd)
-        };
 
-        const triangles = [
-            // Front face
-            new Triangle(v.ftl, v.fbl, v.ftr, "#B026FF"),
-            new Triangle(v.fbl, v.fbr, v.ftr, "#B026FF"),
-            // Back face
-            new Triangle(v.btr, v.bbl, v.btl, "#B026FF"),
-            new Triangle(v.btr, v.bbr, v.bbl, "#B026FF"),
-            // Right face
-            new Triangle(v.ftr, v.fbr, v.btr, "#B026FF"),
-            new Triangle(v.fbr, v.bbr, v.btr, "#B026FF"),
-            // Left face
-            new Triangle(v.btl, v.bbl, v.ftl, "#B026FF"),
-            new Triangle(v.ftl, v.bbl, v.fbl, "#B026FF"),
-            // Top face
-            new Triangle(v.ftl, v.ftr, v.btr, "#B026FF"),
-            new Triangle(v.ftl, v.btr, v.btl, "#B026FF"),
-            // Bottom face
-            new Triangle(v.fbl, v.bbl, v.fbr, "#B026FF"),
-            new Triangle(v.bbl, v.bbr, v.fbr, "#B026FF")
-        ];
-*/
-       const characterModel = GLBLoader.loadModel(townModel);
+        const characterModel = GLBLoader.loadModel(townModel);
         
         const triangles = characterModel.triangles;
         
@@ -47,16 +14,86 @@ class TownBuilding extends ActionPhysicsObject3D {
         this.animator.play(0, true);
 
         // Physics setup
-        const shape = new Goblin.BoxShape(width / 2 , height / 2 , depth / 2);
+        const shape = new Goblin.BoxShape(width / 2, height / 2, depth / 2);
         this.body = new Goblin.RigidBody(shape, 0); // mass 0 = static
         this.body.position.set(position.x, position.y + hh, position.z);
+        
+        // Simple flag for trap state
+        this.trapSet = false;
+        
+        // Detection zone radius (larger than the town itself)
+        this.zoneRadius = Math.max(width, depth) * 2;
+        
+        // Store our position for distance checking
+        this.position = position;
+        
+        // Store world mode for checking player position
+        this.worldMode = worldMode;
+        
+        this.id = Date.now();
+
+        // When player touches the town
         this.body.addListener(
             'contact',
-            function( other_body, contact ) {
-                // this body has come in `contact with` other_body and the details are provided by `contact`
-                console.log("TOWN");
+            (other_body, contact) => {
+                // Only care about player contacts
+                if (!other_body.debugName || !other_body.debugName.includes('Character')) return;
+                
+                console.log(`Town ${this.id} - Player contacted POI. Trap set: ${this.trapSet}`);
+                
+                // Only trigger if player has previously left the zone (trap is set)
+                if (this.trapSet) {
+                    console.log(`Town ${this.id} - TRIGGERING TOWN INTERACTION! Trap was set.`);
+                    // Here you would add actual town interaction code
+                    
+                    // Reset trap after triggering
+                    this.trapSet = false;
+                }
             }
         );
-        this.physicsWorld.addObject(this); // Add self to world
+        
+        // Add to the physics world
+        this.physicsWorld.addObject(this);
+    }
+    
+    // Call this from WorldMode's update loop
+    checkPlayerDistance() {
+        // Skip if trap is already set
+        if (this.trapSet) return;
+        
+        // Check player position if it exists
+        if (!this.worldMode.character) return;
+        
+        const playerPos = this.worldMode.character.position;
+        const dx = playerPos.x - this.position.x;
+        const dz = playerPos.z - this.position.z;
+        const distanceToPlayer = Math.sqrt(dx*dx + dz*dz);
+        
+        // Initialize a flag to track if we've detected the player inside the zone
+        if (this.playerDetectedInZone === undefined) {
+            this.playerDetectedInZone = distanceToPlayer < this.zoneRadius;
+            
+            // Only log if player is inside the zone when first checked
+            if (this.playerDetectedInZone) {
+                console.log(`Town ${this.id} - Player detected inside zone on start.`);
+            }
+        }
+        
+        // If player is outside the zone, set the trap
+        if (distanceToPlayer > this.zoneRadius) {
+            // Only log when trap gets set (when player exits)
+            if (this.playerDetectedInZone) {
+                console.log(`Town ${this.id} - TRAP SET! Player left zone.`);
+                this.trapSet = true;
+                this.playerDetectedInZone = false;
+            } else {
+                // Player already outside zone but first time detecting it
+                this.playerDetectedInZone = false;
+                this.trapSet = true;
+            }
+        } else {
+            // Player is inside zone
+            this.playerDetectedInZone = true;
+        }
     }
 }
