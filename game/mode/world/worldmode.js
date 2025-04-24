@@ -288,6 +288,12 @@ class WorldMode {
             this.seed = Math.floor(Math.random() * 10000);
             this.generateWorld();
         }
+        
+        // Enter dungeon mode using Action5
+        if (this.input.isKeyJustPressed("Action5")) {
+            console.log("[WorldMode] Entering dungeon mode");
+            this.gameModeManager.switchMode("dungeon");
+        }
         if (this.input.isKeyJustPressed("Action2")) {
             this.use2DRenderer = !this.use2DRenderer;
         }
