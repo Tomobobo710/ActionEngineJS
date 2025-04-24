@@ -25,7 +25,7 @@ class ActionRenderer2D {
 		this.checkerTexture.generateCheckerboard();
 	}
 
-	render(terrain, camera, character, showDebugPanel, weatherSystem, renderablePhysicsObjects) {
+	render(camera, character, showDebugPanel, weatherSystem, renderablePhysicsObjects) {
 		// Update visual representation of all renderable physics objects first
 		if (renderablePhysicsObjects) {
 			for (const object of renderablePhysicsObjects) {
@@ -50,7 +50,7 @@ class ActionRenderer2D {
 		this.clearBuffers();
 
 		// Pass view to collectTriangles
-		const { nearTriangles, farTriangles } = this.collectTriangles(terrain, camera, renderablePhysicsObjects, view);
+		const { nearTriangles, farTriangles } = this.collectTriangles(camera, renderablePhysicsObjects, view);
 
 		// Add character triangles if present
 		if (character) {
@@ -89,7 +89,7 @@ class ActionRenderer2D {
 		this.zBuffer.fill(Infinity);
 	}
 
-	collectTriangles(terrain, camera, physicsObjects, view) {
+	collectTriangles(camera, physicsObjects, view) {
 		const nearTriangles = [];
 		const farTriangles = [];
 
@@ -131,11 +131,6 @@ class ActionRenderer2D {
 				farTriangles.push(processedTriangle);
 			}
 		};
-
-		// Process terrain triangles
-		for (const triangle of terrain.triangles) {
-			processTriangle(triangle);
-		}
 
 		// Process physics object triangles
 		for (const physicsObject of physicsObjects) {

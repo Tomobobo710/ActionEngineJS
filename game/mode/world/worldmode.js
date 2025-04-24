@@ -300,8 +300,6 @@ class WorldMode {
     }
 
     draw() {
-
-        
         if (this.gameCanvas2DCtx) {
             this.gameCanvas2DCtx.clearRect(0, 0, 800, 600);
         }
@@ -316,7 +314,6 @@ class WorldMode {
 
         if (this.use2DRenderer) {
             this.renderer2D.render(
-                this.terrain,
                 this.camera,
                 this.character, // Pass character instead of null
                 this.showDebugPanel,
