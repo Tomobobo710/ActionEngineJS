@@ -280,7 +280,7 @@ class WorldMode {
             this.renderer3D.programRegistry.cycleShaders();
         }
 
-        if (this.input.isKeyJustPressed("Action3")) {
+        if (this.input.isKeyJustPressed("ActionDebugToggle")) {
             this.showDebugPanel = !this.showDebugPanel;
         }
 
@@ -289,11 +289,6 @@ class WorldMode {
             this.generateWorld();
         }
         
-        // Enter dungeon mode using Action5
-        if (this.input.isKeyJustPressed("Action5")) {
-            console.log("[WorldMode] Entering dungeon mode");
-            this.gameModeManager.switchMode("dungeon");
-        }
         if (this.input.isKeyJustPressed("Action2")) {
             this.use2DRenderer = !this.use2DRenderer;
         }

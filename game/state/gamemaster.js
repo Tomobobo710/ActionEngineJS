@@ -122,12 +122,6 @@ class GameMaster {
         const currentTime = performance.now();
         this.deltaTime = Math.min((currentTime - this.lastTime) / 1000, 0.25);
         this.lastTime = currentTime;
-
-        // Check for mode switch input
-        if (this.input.isKeyJustPressed("ActionDebugToggle")) {
-            this.modeManager.cycleMode();
-        }
-
         this.modeManager.update(this.deltaTime);
     }
 
