@@ -1,5 +1,4 @@
 // game/character/basecharacter/actioncharacter.js
-// @import ../camera/cameracollisionhandler.js
 
 class ActionCharacter extends RenderableObject {
     constructor(camera, game) {

@@ -115,6 +115,21 @@ class WorldMode {
     }
 
     generateWorld() {
+        // Store character position and properties before reset if it exists
+        let characterState = null;
+        if (this.character && this.character.body) {
+            characterState = {
+                position: new Vector3(this.character.body.position.x, this.character.body.position.y, this.character.body.position.z),
+                rotation: this.character.rotation,
+                linear_velocity: new Vector3(this.character.body.linear_velocity.x, this.character.body.linear_velocity.y, this.character.body.linear_velocity.z),
+                angular_velocity: new Vector3(this.character.body.angular_velocity.x, this.character.body.angular_velocity.y, this.character.body.angular_velocity.z)
+            };
+            // Temporarily remove character from physics world to prevent it from being deleted
+            this.physicsWorld.removeObject(this.character);
+            console.log("[WorldMode] Character temporarily removed from physics world");
+        }
+        
+        // Reset physics world
         if (this.physicsWorld) {
             let manifold = this.physicsWorld.world.narrowphase.contact_manifolds.first;
             while (manifold) {
@@ -140,7 +155,28 @@ class WorldMode {
         this.poiManager.generateAllPOIs();
 
         if (this.character) {
+            // Update the character's terrain reference to the new terrain
             this.character.terrain = this.terrain;
+            
+            // Re-add the character to the physics world
+            this.physicsWorld.addObject(this.character);
+            
+            // Restore saved state if we have one
+            if (characterState) {
+                this.character.body.position.set(characterState.position.x, characterState.position.y, characterState.position.z);
+                this.character.rotation = characterState.rotation;
+                this.character.body.linear_velocity.set(characterState.linear_velocity.x, characterState.linear_velocity.y, characterState.linear_velocity.z);
+                this.character.body.angular_velocity.set(characterState.angular_velocity.x, characterState.angular_velocity.y, characterState.angular_velocity.z);
+                this.character.updateFacingDirection();
+                
+                // Force the character to be visible
+                this.character.markVisualDirty();
+                if (this.character.updateVisual) {
+                    this.character.updateVisual();
+                }
+            }
+            
+            console.log("[WorldMode] Character reconnected to physics world after regeneration");
         }
 
         this.sphere = null;
@@ -285,6 +321,7 @@ class WorldMode {
         }
 
         if (this.input.isKeyJustPressed("Action3")) {
+            console.log("[WorldMode] Generating new world...");
             this.seed = Math.floor(Math.random() * 10000);
             this.generateWorld();
         }
