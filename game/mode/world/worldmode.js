@@ -280,11 +280,11 @@ class WorldMode {
             this.renderer3D.programRegistry.cycleShaders();
         }
 
-        if (this.input.isKeyJustPressed("ActionDebugToggle")) {
+        if (this.input.isKeyJustPressed("Action4")) {
             this.showDebugPanel = !this.showDebugPanel;
         }
 
-        if (this.input.isKeyJustPressed("Action4")) {
+        if (this.input.isKeyJustPressed("Action3")) {
             this.seed = Math.floor(Math.random() * 10000);
             this.generateWorld();
         }

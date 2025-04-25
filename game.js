@@ -9,19 +9,17 @@ class Game {
    }
    
    constructor(canvases, input, audio) {
-       // Create canvas contexts
-       this.canvases = canvases;
-       
        // Create game master
-       this.gameMaster = new GameMaster(this.canvases, input, audio);
+       this.gameMaster = new GameMaster(canvases, input, audio);
        
-       console.log("[Game] Initialization completed, starting game loop...");
-       this.loop();
+       console.log("[Game] Initialization completed");
    }
    
-   loop() {
+   action_update() {
        this.gameMaster.update();
+   }
+   
+   action_draw() {
        this.gameMaster.draw();
-       requestAnimationFrame(() => this.loop());
    }
 }

@@ -60,7 +60,7 @@ class Game {
 		this.audio = audio; // Manages sound generation and playback
 
 		// The main "game" layer
-		this.canvas = canvases.gameCanvas; // This will always be 3D in the new demo
+		this.canvas = canvases.gameCanvas; // This will always be 3D
 
 		// The two additional canvases
 		this.guiCanvas = canvases.guiCanvas; // !!!ALWAYS 2D!!! overlay for UI elements like menus and HUD
@@ -136,8 +136,7 @@ class Game {
 		// Create sounds for the demo
 		this.createGameSounds();
 
-		// Start the game loop
-		this.loop();
+		console.log("[Demo Game] Initialization completed");
 	}
 
 	/******* Fixed Coordinate System *******
@@ -262,17 +261,24 @@ class Game {
 	}
 
 	/**
-	 * A standard "game loop" that drives updates and rendering.
+	 * action_update() - Hook called by the App class each frame
 	 */
-	loop() {
+	action_update() {
 		// Calculate delta time
 		const currentTime = performance.now();
 		const deltaTime = Math.min((currentTime - this.lastTime) / 1000, 0.25); // Cap at 250ms
 		this.lastTime = currentTime;
 
+		// Call our update method with the calculated delta time
 		this.update(deltaTime);
+	}
+
+	/**
+	 * action_draw() - Hook called by the App class each frame after update
+	 */
+	action_draw() {
+		// Call our draw method
 		this.draw();
-		requestAnimationFrame(() => this.loop());
 	}
 /*-----------------
  * THE THREE-LAYER INPUT SYSTEM:
@@ -1204,7 +1210,6 @@ createGameSounds() {
 
 	/******* CHARACTER SPAWN SOUND *******/
 	// Create a sound for the spawn button click
-	// This is a new addition for the 3D character spawn
 	this.audio.createSweepSound('spawnSound', {
 		startFreq: 300,
 		endFreq: 600,
