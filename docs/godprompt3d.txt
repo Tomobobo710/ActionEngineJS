@@ -1,5 +1,6 @@
 User: So, I have this demo/document for a game engine I have been working on:
 
+```
 /**
  * Welcome to the Action Engine!
  * The Action Engine simplifies the game development process by abstracting away the complexities of setting up and managing common "video game" software components. These vital systems can be tedious to implement, and really take the fun out of game development.
@@ -62,7 +63,7 @@ class Game {
 		this.audio = audio; // Manages sound generation and playback
 
 		// The main "game" layer
-		this.canvas = canvases.gameCanvas; // This will always be 3D in the new demo
+		this.canvas = canvases.gameCanvas; // This will always be 3D
 
 		// The two additional canvases
 		this.guiCanvas = canvases.guiCanvas; // !!!ALWAYS 2D!!! overlay for UI elements like menus and HUD
@@ -138,8 +139,7 @@ class Game {
 		// Create sounds for the demo
 		this.createGameSounds();
 
-		// Start the game loop
-		this.loop();
+		console.log("[Demo Game] Initialization completed");
 	}
 
 	/******* Fixed Coordinate System *******
@@ -252,17 +252,24 @@ class Game {
 	}
 
 	/**
-	 * A standard "game loop" that drives updates and rendering.
+	 * action_update() - Hook called by the App class each frame
 	 */
-	loop() {
+	action_update() {
 		// Calculate delta time
 		const currentTime = performance.now();
 		const deltaTime = Math.min((currentTime - this.lastTime) / 1000, 0.25); // Cap at 250ms
 		this.lastTime = currentTime;
 
+		// Call our update method with the calculated delta time
 		this.update(deltaTime);
+	}
+
+	/**
+	 * action_draw() - Hook called by the App class each frame after update
+	 */
+	action_draw() {
+		// Call our draw method
 		this.draw();
-		requestAnimationFrame(() => this.loop());
 	}
 	/*-----------------
 	 * THE THREE-LAYER INPUT SYSTEM:
@@ -1195,7 +1202,6 @@ class Game {
 
 		/******* CHARACTER SPAWN SOUND *******/
 		// Create a sound for the spawn button click
-		// This is a new addition for the 3D character spawn
 		this.audio.createSweepSound("spawnSound", {
 			startFreq: 300,
 			endFreq: 600,
@@ -1435,15 +1441,10 @@ class Game {
 			gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 		}
 
-		// Get rendering information from shader manager
-		const bufferInfo = this.shaderManager.getBufferInfo();
-
 		// Render the scene using ActionEngine's renderer
 		this.renderer3D.render({
-			renderableBuffers: bufferInfo.renderableBuffers,
-			renderableIndexCount: bufferInfo.renderableIndexCount,
-			camera: this.camera,
-			renderableObjects: Array.from(this.physicsWorld.objects)
+			renderableObjects: Array.from(this.physicsWorld.objects),
+			camera: this.camera
 		});
 	}
 

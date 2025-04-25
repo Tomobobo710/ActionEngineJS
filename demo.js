@@ -159,7 +159,7 @@ class Game {
 		this.ground = this.createGround();
 		this.box = this.createBox();
 		this.sphere = this.createSphere();
-		
+
 		this.addMessage("[Game] Created basic physics objects");
 	}
 
@@ -178,26 +178,14 @@ class Game {
 
 	// Create a box with physics
 	createBox(width = 5, height = 5, depth = 5, mass = 1, position = new Vector3(0, 15, 0)) {
-		const box = new ActionPhysicsBox3D(
-			this.physicsWorld,
-			width,
-			height,
-			depth,
-			mass,
-			position
-		);
+		const box = new ActionPhysicsBox3D(this.physicsWorld, width, height, depth, mass, position);
 		this.physicsWorld.addObject(box);
 		return box;
 	}
 
 	// Create a sphere with physics
 	createSphere(radius = 3, mass = 1, position = new Vector3(8, 20, 0)) {
-		const sphere = new ActionPhysicsSphere3D(
-			this.physicsWorld,
-			radius,
-			mass,
-			position
-		);
+		const sphere = new ActionPhysicsSphere3D(this.physicsWorld, radius, mass, position);
 		this.physicsWorld.addObject(sphere);
 		return sphere;
 	}
@@ -207,11 +195,11 @@ class Game {
 		// Simply use our box creation method with a flat box shape
 		// Using 0 mass to make it static (won't move)
 		return this.createBox(
-			size,      // width - very wide
-			1,         // height - just 1 unit tall
-			size,      // depth - very deep
-			0,         // mass - 0 means static object
-			position   // position - slightly below zero by default
+			size, // width - very wide
+			1, // height - just 1 unit tall
+			size, // depth - very deep
+			0, // mass - 0 means static object
+			position // position - slightly below zero by default
 		);
 	}
 
@@ -219,13 +207,13 @@ class Game {
 	createRandomObject(position) {
 		// Simple random object creation - just boxes and spheres
 		const objectType = Math.random() > 0.5 ? 0 : 1;
-		
+
 		switch (objectType) {
 			case 0: // Sphere
 				const sphereRadius = Math.random() * 3 + 1; // radius between 1-4
 				const sphereMass = Math.random() * 5 + 1; // mass between 1-6
 				return this.createSphere(sphereRadius, sphereMass, position);
-				
+
 			case 1: // Box
 				const boxWidth = Math.random() * 4 + 2; // width between 2-6
 				const boxHeight = Math.random() * 4 + 2; // height between 2-6
@@ -242,21 +230,21 @@ class Game {
 		// Create new character if one doesn't exist
 		if (!this.player) {
 			this.addMessage("Spawning 3D character");
-			
+
 			// Initialize first/3rd person character controller
 			this.player = new ActionCharacter3D(this.camera, this);
 			this.physicsWorld.objects.add(this.player.characterModel);
-			
+
 			// Position the character in a good starting location
 			if (this.player.characterModel && this.player.characterModel.body) {
 				this.player.characterModel.body.position.set(0, 5, 0);
 			}
-			
+
 			// Connect camera to player
 			this.camera.isDetached = false;
-			
+
 			// Play spawn sound
-			this.audio.play('spawnSound');
+			this.audio.play("spawnSound");
 		}
 	}
 
@@ -280,819 +268,820 @@ class Game {
 		// Call our draw method
 		this.draw();
 	}
-/*-----------------
- * THE THREE-LAYER INPUT SYSTEM:
- * -----------------
- * Action Engine uses a sophisticated three-layer input system that mimics how a typical
- * game's interface is (ideally) structured:
- *
- * DEBUG LAYER (Top) -> GUI LAYER (Middle) -> GAME LAYER (Bottom)
- *
- * When input events occur, they cascade through these layers in order. If an upper
- * layer handles the event (like clicking a debug button), lower layers won't receive it.
- * This prevents background elements from catching input meant for UI or debug controls.
- *
- * Each registered element maps to a specific rendering layer, defaulting to:
- *
- * - GUI elements (guiCanvas): Menus, HUD, interface components
- *
- * The guiCanvas is the default layer target when no explicit layer parameter is passed to registerElement()
- *
- * Elements targeting non-default layers require explicit layer specification in registerElement():
- *
- * - Debug elements (debugCanvas): Debugging tools, development overlays  [layer='debug']
- * - Game elements (gameCanvas): In-game objects, playfield interactions  [layer='game']
- *
- * The DEMO shows this by having elements on all three layers:
- * - A debug toggle button on the debug layer
- * - Menu buttons on the GUI layer
- * - Clickable game elements on the game layer
- *
- * When registering elements, developers can specify which layer they belong to:
- * registerElement('buttonId', element, 'gui')  // Default layer
- * registerElement('gameObject', element, 'game')
- * registerElement('debugButton', element, 'debug')
- *
- * Pointer coordinates are automatically translated between layers, so developers
- * don't need to handle different coordinate spaces or canvas scaling. The input
- * system provides consistent coordinates across all layers.
- */
+	/*-----------------
+	 * THE THREE-LAYER INPUT SYSTEM:
+	 * -----------------
+	 * Action Engine uses a sophisticated three-layer input system that mimics how a typical
+	 * game's interface is (ideally) structured:
+	 *
+	 * DEBUG LAYER (Top) -> GUI LAYER (Middle) -> GAME LAYER (Bottom)
+	 *
+	 * When input events occur, they cascade through these layers in order. If an upper
+	 * layer handles the event (like clicking a debug button), lower layers won't receive it.
+	 * This prevents background elements from catching input meant for UI or debug controls.
+	 *
+	 * Each registered element maps to a specific rendering layer, defaulting to:
+	 *
+	 * - GUI elements (guiCanvas): Menus, HUD, interface components
+	 *
+	 * The guiCanvas is the default layer target when no explicit layer parameter is passed to registerElement()
+	 *
+	 * Elements targeting non-default layers require explicit layer specification in registerElement():
+	 *
+	 * - Debug elements (debugCanvas): Debugging tools, development overlays  [layer='debug']
+	 * - Game elements (gameCanvas): In-game objects, playfield interactions  [layer='game']
+	 *
+	 * The DEMO shows this by having elements on all three layers:
+	 * - A debug toggle button on the debug layer
+	 * - Menu buttons on the GUI layer
+	 * - Clickable game elements on the game layer
+	 *
+	 * When registering elements, developers can specify which layer they belong to:
+	 * registerElement('buttonId', element, 'gui')  // Default layer
+	 * registerElement('gameObject', element, 'game')
+	 * registerElement('debugButton', element, 'debug')
+	 *
+	 * Pointer coordinates are automatically translated between layers, so developers
+	 * don't need to handle different coordinate spaces or canvas scaling. The input
+	 * system provides consistent coordinates across all layers.
+	 */
 
-/**
- * initializeInteractiveElements()
- */
-initializeInteractiveElements() {
-	/******* BUTTON TEMPLATE SETUP *******/
-	// Create a shared template for consistent button styling
-	// The developer could have different templates for different button types
-	const buttonTemplate = {
-		width: 120, // Standard button width - you can customize these!
-		height: 40, // Standard button height
-		color: "#00f0f0", // Default button color
-		hovered: false // Tracks mouse hover state for visual feedback
-	};
+	/**
+	 * initializeInteractiveElements()
+	 */
+	initializeInteractiveElements() {
+		/******* BUTTON TEMPLATE SETUP *******/
+		// Create a shared template for consistent button styling
+		// The developer could have different templates for different button types
+		const buttonTemplate = {
+			width: 120, // Standard button width - you can customize these!
+			height: 40, // Standard button height
+			color: "#00f0f0", // Default button color
+			hovered: false // Tracks mouse hover state for visual feedback
+		};
 
-	/******* CENTERED BUTTON CREATION *******/
-	// Main button demonstrates screen-centered positioning
-	// Uses Game.WIDTH/HEIGHT for reliable positioning regardless of screen size
-	this.button1 = {
-		...buttonTemplate, // Use our template as base
-		x: (Game.WIDTH - buttonTemplate.width) / 2, // Center horizontally
-		y: (Game.HEIGHT - buttonTemplate.height) / 2, // Center vertically
-		text: "Click Me 1" // Button label
-	};
+		/******* CENTERED BUTTON CREATION *******/
+		// Main button demonstrates screen-centered positioning
+		// Uses Game.WIDTH/HEIGHT for reliable positioning regardless of screen size
+		this.button1 = {
+			...buttonTemplate, // Use our template as base
+			x: (Game.WIDTH - buttonTemplate.width) / 2, // Center horizontally
+			y: (Game.HEIGHT - buttonTemplate.height) / 2, // Center vertically
+			text: "Click Me 1" // Button label
+		};
 
-	/******* FIXED POSITION BUTTONS *******/
-	// Secondary buttons showing absolute positioning
-	this.button2 = {
-		...buttonTemplate,
-		x: 340, // Fixed x position
-		y: 180, // Fixed y position
-		text: "Click Me 2"
-	};
+		/******* FIXED POSITION BUTTONS *******/
+		// Secondary buttons showing absolute positioning
+		this.button2 = {
+			...buttonTemplate,
+			x: 340, // Fixed x position
+			y: 180, // Fixed y position
+			text: "Click Me 2"
+		};
 
-	this.button3 = {
-		...buttonTemplate,
-		x: 340,
-		y: 80,
-		text: "Click Me 3"
-	};
+		this.button3 = {
+			...buttonTemplate,
+			x: 340,
+			y: 80,
+			text: "Click Me 3"
+		};
 
-	/******* INACTIVE BUTTON CREATION *******/
-	// Create a special button to demonstrate the active/inactive element system
-	// This button starts in a disabled state and can be toggled by Button 1
-	// Uses different colors to provide clear visual feedback of its current state
-	this.inactiveButton = {
-		...buttonTemplate, // Share standard button properties
-		x: 340, // Fixed x position
-		y: 480, // Positioned below other buttons
-		text: "Inactive", // Label indicates its purpose
-		isActive: false, // Start in disabled state
-		color: "#666666" // Grayed out when inactive
-	};
+		/******* INACTIVE BUTTON CREATION *******/
+		// Create a special button to demonstrate the active/inactive element system
+		// This button starts in a disabled state and can be toggled by Button 1
+		// Uses different colors to provide clear visual feedback of its current state
+		this.inactiveButton = {
+			...buttonTemplate, // Share standard button properties
+			x: 340, // Fixed x position
+			y: 480, // Positioned below other buttons
+			text: "Inactive", // Label indicates its purpose
+			isActive: false, // Start in disabled state
+			color: "#666666" // Grayed out when inactive
+		};
 
-	/******* 3D CHARACTER SPAWN BUTTON *******/
-	// Create a button to spawn the 3D character
-	// This is a key feature of the updated demo
-	this.spawnButton = {
-		...buttonTemplate,
-		width: 200, // Wider than standard buttons
-		x: (Game.WIDTH - 200) / 2, // Center horizontally
-		y: Game.HEIGHT - 80, // Position near bottom of screen
-		text: "Spawn Character", // Clear action label
-		color: "#00f0f0" // Matching our color scheme
-	};
+		/******* 3D CHARACTER SPAWN BUTTON *******/
+		// Create a button to spawn the 3D character
+		// This is a key feature of the updated demo
+		this.spawnButton = {
+			...buttonTemplate,
+			width: 200, // Wider than standard buttons
+			x: (Game.WIDTH - 200) / 2, // Center horizontally
+			y: Game.HEIGHT - 80, // Position near bottom of screen
+			text: "Spawn Character", // Clear action label
+			color: "#00f0f0" // Matching our color scheme
+		};
 
-	/******* INPUT SYSTEM REGISTRATION *******/
-	// Register buttons with input system for interaction tracking
-	// The bounds function lets the input system know where each button is
-	// In the background, action engine has a clearly defined cascading input system
-	// Events flow from debugCanvas -> guiCanvas -> gameCanvas, in that order
+		/******* INPUT SYSTEM REGISTRATION *******/
+		// Register buttons with input system for interaction tracking
+		// The bounds function lets the input system know where each button is
+		// In the background, action engine has a clearly defined cascading input system
+		// Events flow from debugCanvas -> guiCanvas -> gameCanvas, in that order
 
-	// Register main game button
-	this.input.registerElement("button1", {
-		bounds: () => ({
-			// Bounds provided as function for dynamic updates
-			x: this.button1.x, // Current x position
-			y: this.button1.y, // Current y position
-			width: this.button1.width, // Button width
-			height: this.button1.height // Button height
-		})
-	});
-
-	// Register secondary buttons same way
-	this.input.registerElement("button2", {
-		bounds: () => ({
-			x: this.button2.x,
-			y: this.button2.y,
-			width: this.button2.width,
-			height: this.button2.height
-		})
-	});
-
-	this.input.registerElement("button3", {
-		bounds: () => ({
-			x: this.button3.x,
-			y: this.button3.y,
-			width: this.button3.width,
-			height: this.button3.height
-		})
-	});
-
-	// Add inactive button to input tracking system
-	// Even when inactive, the element's bounds are still tracked
-	this.input.registerElement("inactiveButton", {
-		bounds: () => ({
-			x: this.inactiveButton.x,
-			y: this.inactiveButton.y,
-			width: this.inactiveButton.width,
-			height: this.inactiveButton.height
-		})
-	});
-
-	// Register the spawn button
-	this.input.registerElement("spawnButton", {
-		bounds: () => ({
-			x: this.spawnButton.x,
-			y: this.spawnButton.y,
-			width: this.spawnButton.width,
-			height: this.spawnButton.height
-		})
-	});
-
-	/******* DEBUG LAYER BUTTON *******/
-	// Create a button specifically for the debug layer
-	// Shows how to work with different canvas layers
-	this.debugButton = {
-		x: Game.WIDTH - 130, // Position from right edge
-		y: Game.HEIGHT - 50, // Position from bottom
-		width: 120,
-		height: 40,
-		text: "Hide GUI", // Toggle button text
-		color: "#ff4444", // Different color for visibility
-		hovered: false,
-		guiHidden: false // Track GUI visibility state
-	};
-
-	/******* GAME LAYER ELEMENT *******/
-	// Create an interactive element in the game layer
-	this.gameElement = {
-		x: 600,
-		y: 100,
-		width: 100,
-		height: 100,
-		text: "Stop Sounds", // Careful with text rendering in 3D context!
-		color: "#44ff44",
-		hovered: false
-	};
-
-	/******* REGISTER LAYER-SPECIFIC ELEMENTS *******/
-	// Register elements to specific layers for proper interaction handling
-
-	// Debug layer button registration
-	this.input.registerElement(
-		"debugButton",
-		{
+		// Register main game button
+		this.input.registerElement("button1", {
 			bounds: () => ({
-				x: this.debugButton.x,
-				y: this.debugButton.y,
-				width: this.debugButton.width,
-				height: this.debugButton.height
+				// Bounds provided as function for dynamic updates
+				x: this.button1.x, // Current x position
+				y: this.button1.y, // Current y position
+				width: this.button1.width, // Button width
+				height: this.button1.height // Button height
 			})
-		},
-		"debug"
-	); // Specify debug layer
+		});
 
-	// Game layer element registration
-	this.input.registerElement(
-		"gameElement",
-		{
+		// Register secondary buttons same way
+		this.input.registerElement("button2", {
 			bounds: () => ({
-				x: this.gameElement.x,
-				y: this.gameElement.y,
-				width: this.gameElement.width,
-				height: this.gameElement.height
+				x: this.button2.x,
+				y: this.button2.y,
+				width: this.button2.width,
+				height: this.button2.height
 			})
-		},
-		"game"
-	); // Specify game layer
-}
+		});
 
-/*
- * update()
- * The beating heart of the DEMO! This method handles all the logic updates
- * including input handling, physics, and game state changes.
- */
-update(deltaTime) {
-	// Handle all common input interactions first
-	this.handleCommonInput();
+		this.input.registerElement("button3", {
+			bounds: () => ({
+				x: this.button3.x,
+				y: this.button3.y,
+				width: this.button3.width,
+				height: this.button3.height
+			})
+		});
 
-	// Route inputs based on debug overlay state (smart input routing)
-	if (this.showDebug) {
-		// When debug is visible, update 2D game
-		this.update2DGame(deltaTime);
-	} else {
-		// When debug is not visible, update 3D world
-		this.update3DWorld(deltaTime);
+		// Add inactive button to input tracking system
+		// Even when inactive, the element's bounds are still tracked
+		this.input.registerElement("inactiveButton", {
+			bounds: () => ({
+				x: this.inactiveButton.x,
+				y: this.inactiveButton.y,
+				width: this.inactiveButton.width,
+				height: this.inactiveButton.height
+			})
+		});
+
+		// Register the spawn button
+		this.input.registerElement("spawnButton", {
+			bounds: () => ({
+				x: this.spawnButton.x,
+				y: this.spawnButton.y,
+				width: this.spawnButton.width,
+				height: this.spawnButton.height
+			})
+		});
+
+		/******* DEBUG LAYER BUTTON *******/
+		// Create a button specifically for the debug layer
+		// Shows how to work with different canvas layers
+		this.debugButton = {
+			x: Game.WIDTH - 130, // Position from right edge
+			y: Game.HEIGHT - 50, // Position from bottom
+			width: 120,
+			height: 40,
+			text: "Hide GUI", // Toggle button text
+			color: "#ff4444", // Different color for visibility
+			hovered: false,
+			guiHidden: false // Track GUI visibility state
+		};
+
+		/******* GAME LAYER ELEMENT *******/
+		// Create an interactive element in the game layer
+		this.gameElement = {
+			x: 600,
+			y: 100,
+			width: 100,
+			height: 100,
+			text: "Stop Sounds", // Careful with text rendering in 3D context!
+			color: "#44ff44",
+			hovered: false
+		};
+
+		/******* REGISTER LAYER-SPECIFIC ELEMENTS *******/
+		// Register elements to specific layers for proper interaction handling
+
+		// Debug layer button registration
+		this.input.registerElement(
+			"debugButton",
+			{
+				bounds: () => ({
+					x: this.debugButton.x,
+					y: this.debugButton.y,
+					width: this.debugButton.width,
+					height: this.debugButton.height
+				})
+			},
+			"debug"
+		); // Specify debug layer
+
+		// Game layer element registration
+		this.input.registerElement(
+			"gameElement",
+			{
+				bounds: () => ({
+					x: this.gameElement.x,
+					y: this.gameElement.y,
+					width: this.gameElement.width,
+					height: this.gameElement.height
+				})
+			},
+			"game"
+		); // Specify game layer
 	}
 
-	// Always update button states regardless of debug state
-	this.updateButtonStates();
-}
+	/*
+	 * update()
+	 * The beating heart of the DEMO! This method handles all the logic updates
+	 * including input handling, physics, and game state changes.
+	 */
+	update(deltaTime) {
+		// Handle all common input interactions first
+		this.handleCommonInput();
 
-/**
- * Handle 3D world updates and 3D character input
- */
-
-update3DWorld(deltaTime) {
-	// Update physics engine first
-	this.physicsWorld.update(deltaTime);
-
-	// If we have a player character, update it
-	if (this.player) {
-		// Let the character controller handle inputs for movement
-		this.player.applyInput(this.input, deltaTime);
-		this.player.update(deltaTime);
-	} else {
-		// Otherwise, control the free camera directly
-		if (this.camera.isDetached) {
-			this.camera.handleDetachedInput(this.input, deltaTime);
+		// Route inputs based on debug overlay state (smart input routing)
+		if (this.showDebug) {
+			// When debug is visible, update 2D game
+			this.update2DGame(deltaTime);
+		} else {
+			// When debug is not visible, update 3D world
+			this.update3DWorld(deltaTime);
 		}
+
+		// Always update button states regardless of debug state
+		this.updateButtonStates();
 	}
 
-	// Check for Action3 to spawn random objects
-	if (this.input.isKeyJustPressed("Action3")) {
-		this.addMessage("Spawning random physics object");
-		// Random position in the scene
-		const randomX = Math.random() * 40 - 20; // -20 to 20
-		const randomZ = Math.random() * 40 - 20; // -20 to 20
-		const dropHeight = Math.random() * 10 + 20; // 20 to 30
+	/**
+	 * Handle 3D world updates and 3D character input
+	 */
 
-		const randomPos = new Vector3(randomX, dropHeight, randomZ);
-		this.createRandomObject(randomPos);
-	}
-	
-	// Action2 to reset physics objects
-	if (this.input.isKeyJustPressed("Action2")) {
-		this.addMessage("Resetting physics world");
-		this.physicsWorld.reset();
-		
-		// Re-add player if it exists
+	update3DWorld(deltaTime) {
+		// Update physics engine first
+		this.physicsWorld.update(deltaTime);
+
+		// If we have a player character, update it
 		if (this.player) {
-			this.physicsWorld.objects.add(this.player.characterModel);
-			
-			// Reposition player after reset
-			if (this.player.characterModel && this.player.characterModel.body) {
-				this.player.characterModel.body.position.set(0, 5, 0);
+			// Let the character controller handle inputs for movement
+			this.player.applyInput(this.input, deltaTime);
+			this.player.update(deltaTime);
+		} else {
+			// Otherwise, control the free camera directly
+			if (this.camera.isDetached) {
+				this.camera.handleDetachedInput(this.input, deltaTime);
 			}
 		}
-		
-		this.setupDemoObjects();
+
+		// Check for Action3 to spawn random objects
+		if (this.input.isKeyJustPressed("Action3")) {
+			this.addMessage("Spawning random physics object");
+			// Random position in the scene
+			const randomX = Math.random() * 40 - 20; // -20 to 20
+			const randomZ = Math.random() * 40 - 20; // -20 to 20
+			const dropHeight = Math.random() * 10 + 20; // 20 to 30
+
+			const randomPos = new Vector3(randomX, dropHeight, randomZ);
+			this.createRandomObject(randomPos);
+		}
+
+		// Action2 to reset physics objects
+		if (this.input.isKeyJustPressed("Action2")) {
+			this.addMessage("Resetting physics world");
+			this.physicsWorld.reset();
+
+			// Re-add player if it exists
+			if (this.player) {
+				this.physicsWorld.objects.add(this.player.characterModel);
+
+				// Reposition player after reset
+				if (this.player.characterModel && this.player.characterModel.body) {
+					this.player.characterModel.body.position.set(0, 5, 0);
+				}
+			}
+
+			this.setupDemoObjects();
+		}
+
+		// Action1 is handled by the character controller internally when jumping
 	}
 
-	// Action1 is handled by the character controller internally when jumping
-}
+	/**
+	 * Update the 2D game that runs on the debug layer
+	 */
 
-/**
- * Update the 2D game that runs on the debug layer
- */
+	update2DGame(deltaTime) {
+		/******* CONTINUOUS INPUT DETECTION *******/
+		// When debug overlay is visible, we control the 2D game
+		// These controls are similar to the original demo
 
-update2DGame(deltaTime) {
-	/******* CONTINUOUS INPUT DETECTION *******/
-	// When debug overlay is visible, we control the 2D game
-	// These controls are similar to the original demo
-	
-	// DirectionalInput for ship movement
-	if (this.input.isKeyPressed("DirUp")) {
-		this.addMessage("DirUp IS PRESSED - Ship thrusting forward");
-		const thrustVector = Vector2.create(this.shipDirection.x, this.shipDirection.y);
-		thrustVector.scale(this.thrust);
-		this.shipVelocity.add(thrustVector); // Add ship forward thrust
-	}
-	
-	if (this.input.isKeyPressed("DirDown")) {
-		this.addMessage("DirDown IS PRESSED - Ship reversing");
-		const thrustVector = Vector2.create(this.shipDirection.x, this.shipDirection.y);
-		thrustVector.scale(-this.thrust * 0.5); // Half power in reverse
-		this.shipVelocity.add(thrustVector); // Add ship reverse thrust
-	}
-	
-	if (this.input.isKeyPressed("DirLeft")) {
-		this.addMessage("DirLeft IS PRESSED - Ship turning left");
-		this.shipRotation -= this.rotationSpeed;
-		this.shipDirection.rotate(-this.rotationSpeed); // Rotate ship left
-	}
-	
-	if (this.input.isKeyPressed("DirRight")) {
-		this.addMessage("DirRight IS PRESSED - Ship turning right");
-		this.shipRotation += this.rotationSpeed;
-		this.shipDirection.rotate(this.rotationSpeed); // Rotate ship right
-	}
+		// DirectionalInput for ship movement
+		if (this.input.isKeyPressed("DirUp")) {
+			this.addMessage("DirUp IS PRESSED - Ship thrusting forward");
+			const thrustVector = Vector2.create(this.shipDirection.x, this.shipDirection.y);
+			thrustVector.scale(this.thrust);
+			this.shipVelocity.add(thrustVector); // Add ship forward thrust
+		}
 
-	// The DEMO plays sounds on isKeyJustPressed() to avoid repeated sound playback
-	if (this.input.isKeyJustPressed("DirUp")) {
-		this.addMessage("DirUp JUST pressed");
-		this.audio.play("TrumpetCall");
-	}
-	
-	if (this.input.isKeyJustPressed("DirDown")) {
-		this.addMessage("DirDown JUST pressed");
-		this.audio.play("PianoHit");
-	}
-	
-	if (this.input.isKeyJustPressed("DirLeft")) {
-		this.addMessage("DirLeft JUST pressed");
-		this.audio.play("MidiSynthMix");
-	}
-	
-	if (this.input.isKeyJustPressed("DirRight")) {
-		this.addMessage("DirRight JUST pressed");
-		this.audio.play("SimpleSong");
-	}
+		if (this.input.isKeyPressed("DirDown")) {
+			this.addMessage("DirDown IS PRESSED - Ship reversing");
+			const thrustVector = Vector2.create(this.shipDirection.x, this.shipDirection.y);
+			thrustVector.scale(-this.thrust * 0.5); // Half power in reverse
+			this.shipVelocity.add(thrustVector); // Add ship reverse thrust
+		}
 
-	// Action buttons in 2D mode
-	if (this.input.isKeyJustPressed("Action1")) {
-		this.addMessage("Button 1 JUST pressed");
-		this.audio.play("jump");
-	}
-	
-	if (this.input.isKeyJustPressed("Action2")) {
-		this.addMessage("Button 2 JUST pressed");
-		this.audio.play("sound2");
-	}
-	
-	if (this.input.isKeyJustPressed("Action3")) {
-		this.addMessage("Button 3 JUST pressed");
-		this.audio.play("sound3");
-	}
+		if (this.input.isKeyPressed("DirLeft")) {
+			this.addMessage("DirLeft IS PRESSED - Ship turning left");
+			this.shipRotation -= this.rotationSpeed;
+			this.shipDirection.rotate(-this.rotationSpeed); // Rotate ship left
+		}
 
-	// Continuous check example
-	if (this.input.isKeyPressed("Action4")) {
-		this.addMessage("Button 4 IS PRESSED");
-		this.audio.play("sound4"); // Will play repeatedly while held
-	}
+		if (this.input.isKeyPressed("DirRight")) {
+			this.addMessage("DirRight IS PRESSED - Ship turning right");
+			this.shipRotation += this.rotationSpeed;
+			this.shipDirection.rotate(this.rotationSpeed); // Rotate ship right
+		}
 
-	// Apply ship physics
-	this.shipPosition.add(this.shipVelocity);
-	this.shipVelocity.scale(this.friction);
+		// The DEMO plays sounds on isKeyJustPressed() to avoid repeated sound playback
+		if (this.input.isKeyJustPressed("DirUp")) {
+			this.addMessage("DirUp JUST pressed");
+			this.audio.play("TrumpetCall");
+		}
 
-	// Wrap ship around screen
-	if (this.shipPosition.x < 0) this.shipPosition.x = Game.WIDTH;
-	if (this.shipPosition.x > Game.WIDTH) this.shipPosition.x = 0;
-	if (this.shipPosition.y < 0) this.shipPosition.y = Game.HEIGHT;
-	if (this.shipPosition.y > Game.HEIGHT) this.shipPosition.y = 0;
+		if (this.input.isKeyJustPressed("DirDown")) {
+			this.addMessage("DirDown JUST pressed");
+			this.audio.play("PianoHit");
+		}
 
-	// Update ball position
-	this.ballPosition.add(this.ballVelocity);
-	this.ballRotation += this.ballSpinSpeed;
+		if (this.input.isKeyJustPressed("DirLeft")) {
+			this.addMessage("DirLeft JUST pressed");
+			this.audio.play("MidiSynthMix");
+		}
 
-	// Ball screen wrapping
-	if (this.ballPosition.x < -this.ballRadius) this.ballPosition.x = Game.WIDTH + this.ballRadius;
-	if (this.ballPosition.x > Game.WIDTH + this.ballRadius) this.ballPosition.x = -this.ballRadius;
-	if (this.ballPosition.y < -this.ballRadius) this.ballPosition.y = Game.HEIGHT + this.ballRadius;
-	if (this.ballPosition.y > Game.HEIGHT + this.ballRadius) this.ballPosition.y = -this.ballRadius;
+		if (this.input.isKeyJustPressed("DirRight")) {
+			this.addMessage("DirRight JUST pressed");
+			this.audio.play("SimpleSong");
+		}
 
-	// Ship-ball collision detection
-	const dx = this.shipPosition.x - this.ballPosition.x;
-	const dy = this.shipPosition.y - this.ballPosition.y;
-	const distance = Math.sqrt(dx * dx + dy * dy);
+		// Action buttons in 2D mode
+		if (this.input.isKeyJustPressed("Action1")) {
+			this.addMessage("Button 1 JUST pressed");
+			this.audio.play("jump");
+		}
 
-	if (distance < this.ballRadius + 20) { // 20 is approximate ship radius
-		// Calculate collision angle
-		const collisionAngle = Math.atan2(dy, dx);
+		if (this.input.isKeyJustPressed("Action2")) {
+			this.addMessage("Button 2 JUST pressed");
+			this.audio.play("sound2");
+		}
 
-		// Ball rebounds off ship
-		const speed = Math.sqrt(
-			this.ballVelocity.x * this.ballVelocity.x + this.ballVelocity.y * this.ballVelocity.y
-		);
-		this.ballVelocity.x = -Math.cos(collisionAngle) * speed;
-		this.ballVelocity.y = -Math.sin(collisionAngle) * speed;
+		if (this.input.isKeyJustPressed("Action3")) {
+			this.addMessage("Button 3 JUST pressed");
+			this.audio.play("sound3");
+		}
 
-		// Add ship's velocity to ball
-		this.ballVelocity.add(this.shipVelocity);
+		// Continuous check example
+		if (this.input.isKeyPressed("Action4")) {
+			this.addMessage("Button 4 IS PRESSED");
+			this.audio.play("sound4"); // Will play repeatedly while held
+		}
 
-		// Play bounce sound
-		this.audio.play("sound3");
-	}
-}
+		// Apply ship physics
+		this.shipPosition.add(this.shipVelocity);
+		this.shipVelocity.scale(this.friction);
 
-/**
- * Handle input that applies regardless of debug/game state
- */
+		// Wrap ship around screen
+		if (this.shipPosition.x < 0) this.shipPosition.x = Game.WIDTH;
+		if (this.shipPosition.x > Game.WIDTH) this.shipPosition.x = 0;
+		if (this.shipPosition.y < 0) this.shipPosition.y = Game.HEIGHT;
+		if (this.shipPosition.y > Game.HEIGHT) this.shipPosition.y = 0;
 
-handleCommonInput() {
-	/******* THE SPECIAL DEBUG KEY *******/
-	// The engine-level ActionDebugToggle key toggles the debugCanvas visibility
-	// In our updated demo, this also switches between 2D and 3D gameplay
-	if (this.input.isKeyJustPressed("ActionDebugToggle")) {
-		this.showDebug = !this.showDebug;
-		this.addMessage(this.showDebug ? "Debug mode ON - 2D game active" : "Debug mode OFF - 3D world active");
-		
-		if (!this.showDebug) {
-			this.debugCtx.clearRect(0, 0, Game.WIDTH, Game.HEIGHT);
+		// Update ball position
+		this.ballPosition.add(this.ballVelocity);
+		this.ballRotation += this.ballSpinSpeed;
+
+		// Ball screen wrapping
+		if (this.ballPosition.x < -this.ballRadius) this.ballPosition.x = Game.WIDTH + this.ballRadius;
+		if (this.ballPosition.x > Game.WIDTH + this.ballRadius) this.ballPosition.x = -this.ballRadius;
+		if (this.ballPosition.y < -this.ballRadius) this.ballPosition.y = Game.HEIGHT + this.ballRadius;
+		if (this.ballPosition.y > Game.HEIGHT + this.ballRadius) this.ballPosition.y = -this.ballRadius;
+
+		// Ship-ball collision detection
+		const dx = this.shipPosition.x - this.ballPosition.x;
+		const dy = this.shipPosition.y - this.ballPosition.y;
+		const distance = Math.sqrt(dx * dx + dy * dy);
+
+		if (distance < this.ballRadius + 20) {
+			// 20 is approximate ship radius
+			// Calculate collision angle
+			const collisionAngle = Math.atan2(dy, dx);
+
+			// Ball rebounds off ship
+			const speed = Math.sqrt(
+				this.ballVelocity.x * this.ballVelocity.x + this.ballVelocity.y * this.ballVelocity.y
+			);
+			this.ballVelocity.x = -Math.cos(collisionAngle) * speed;
+			this.ballVelocity.y = -Math.sin(collisionAngle) * speed;
+
+			// Add ship's velocity to ball
+			this.ballVelocity.add(this.shipVelocity);
+
+			// Play bounce sound
+			this.audio.play("sound3");
 		}
 	}
 
-	/******* POINTER CHECKING *******/
-	// Get precise pointer coordinates in game space
-	const pointerPos = this.input.getPointerPosition();
-	if (pointerPos.x !== this.lastPointerX || pointerPos.y !== this.lastPointerY) {
-		this.addMessage(`Pointer at: ${Math.round(pointerPos.x)}, ${Math.round(pointerPos.y)}`);
-		this.lastPointerX = pointerPos.x;
-		this.lastPointerY = pointerPos.y;
-	}
+	/**
+	 * Handle input that applies regardless of debug/game state
+	 */
 
-	// Check if the pointer is down (clicked/touched)
-	if (this.input.isPointerJustDown()) {
-		this.addMessage("Pointer JUST pressed");
-	}
+	handleCommonInput() {
+		/******* THE SPECIAL DEBUG KEY *******/
+		// The engine-level ActionDebugToggle key toggles the debugCanvas visibility
+		// In our updated demo, this also switches between 2D and 3D gameplay
+		if (this.input.isKeyJustPressed("ActionDebugToggle")) {
+			this.showDebug = !this.showDebug;
+			this.addMessage(this.showDebug ? "Debug mode ON - 2D game active" : "Debug mode OFF - 3D world active");
 
-	// Track UI Controls
-	if (this.input.isUIButtonJustPressed("soundToggle")) {
-		this.addMessage("Sound button toggled");
-	}
+			if (!this.showDebug) {
+				this.debugCtx.clearRect(0, 0, Game.WIDTH, Game.HEIGHT);
+			}
+		}
 
-	if (this.input.isUIButtonJustPressed("fullscreenToggle")) {
-		this.addMessage("Fullscreen button toggled");
-	}
+		/******* POINTER CHECKING *******/
+		// Get precise pointer coordinates in game space
+		const pointerPos = this.input.getPointerPosition();
+		if (pointerPos.x !== this.lastPointerX || pointerPos.y !== this.lastPointerY) {
+			this.addMessage(`Pointer at: ${Math.round(pointerPos.x)}, ${Math.round(pointerPos.y)}`);
+			this.lastPointerX = pointerPos.x;
+			this.lastPointerY = pointerPos.y;
+		}
 
-	if (this.input.isUIButtonJustPressed("controlsToggle")) {
-		this.addMessage("Controls button toggled");
-	}
+		// Check if the pointer is down (clicked/touched)
+		if (this.input.isPointerJustDown()) {
+			this.addMessage("Pointer JUST pressed");
+		}
 
-	if (this.input.isUIButtonJustPressed("pauseButton")) {
-		this.addMessage("Pause button toggled");
-	}
-}
+		// Track UI Controls
+		if (this.input.isUIButtonJustPressed("soundToggle")) {
+			this.addMessage("Sound button toggled");
+		}
 
-/**
- * Update button hover states and handle button interactions
- */
+		if (this.input.isUIButtonJustPressed("fullscreenToggle")) {
+			this.addMessage("Fullscreen button toggled");
+		}
 
-updateButtonStates() {
-	// Track button hover states for visual feedback
-	this.button1.hovered = this.input.isElementHovered("button1");
-	this.button2.hovered = this.input.isElementHovered("button2");
-	this.button3.hovered = this.input.isElementHovered("button3");
-	this.inactiveButton.hovered = this.input.isElementHovered("inactiveButton");
-	this.spawnButton.hovered = this.input.isElementHovered("spawnButton");
-	this.debugButton.hovered = this.input.isElementHovered("debugButton", "debug");
+		if (this.input.isUIButtonJustPressed("controlsToggle")) {
+			this.addMessage("Controls button toggled");
+		}
 
-	// Log edge-triggered hover events for demonstration
-	if (this.input.isElementJustHovered("button1")) {
-		this.addMessage("Button 1 JUST hovered");
-	}
-
-	// Handle button 1 press - toggles inactive button
-	if (this.input.isElementJustPressed("button1")) {
-		const newActiveState = !this.input.isElementActive("inactiveButton");
-		this.input.state.elements.gui.get("inactiveButton").isActive = newActiveState;
-		this.inactiveButton.color = newActiveState ? "#00f0f0" : "#666666";
-		this.addMessage(`Inactive button ${newActiveState ? "enabled" : "disabled"}`);
-		this.totalClicks++;
-	}
-
-	// Handle other button presses
-	if (this.input.isElementJustPressed("button2")) {
-		this.addMessage("Button 2 was just pressed!");
-		this.audio.play("sound5");
-		this.totalClicks++;
-	}
-
-	// Example of counting clicks vs continuous presses
-	if (this.input.isElementJustPressed("button3")) {
-		this.totalClicks++;
-	}
-
-	// Continuous press example
-	if (this.input.isElementPressed("button3")) {
-		this.addMessage("Button 3 is being held down");
-		this.audio.play("sound6");
-	}
-
-	// Inactive button status tracking
-	if (this.input.isElementPressed("inactiveButton")) {
-		if (this.input.isElementActive("inactiveButton")) {
-			this.addMessage("Clicking an active button!");
-		} else {
-			this.addMessage("Button is inactive - click Button 1 to activate it!");
+		if (this.input.isUIButtonJustPressed("pauseButton")) {
+			this.addMessage("Pause button toggled");
 		}
 	}
 
-	// Handle inactive button click when active
-	if (this.input.isElementJustPressed("inactiveButton") && this.input.isElementActive("inactiveButton")) {
-		this.audio.play("victory");
-		this.totalClicks++;
-	}
+	/**
+	 * Update button hover states and handle button interactions
+	 */
 
-	// Handle game element press (stops all sounds)
-	if (this.input.isElementJustPressed("gameElement", "game")) {
-		this.audio.stopAllSounds();
-		this.addMessage("gameCanvas element pressed! All sounds stopped.");
-		this.totalClicks++;
-	}
+	updateButtonStates() {
+		// Track button hover states for visual feedback
+		this.button1.hovered = this.input.isElementHovered("button1");
+		this.button2.hovered = this.input.isElementHovered("button2");
+		this.button3.hovered = this.input.isElementHovered("button3");
+		this.inactiveButton.hovered = this.input.isElementHovered("inactiveButton");
+		this.spawnButton.hovered = this.input.isElementHovered("spawnButton");
+		this.debugButton.hovered = this.input.isElementHovered("debugButton", "debug");
 
-	// Handle debug button to toggle GUI visibility
-	if (this.input.isElementJustPressed("debugButton", "debug")) {
-		this.debugButton.guiHidden = !this.debugButton.guiHidden;
-		this.debugButton.text = this.debugButton.guiHidden ? "Show GUI" : "Hide GUI";
-		this.guiCanvas.style.display = this.debugButton.guiHidden ? "none" : "block";
-		this.addMessage("Debug button toggled GUI visibility");
-	}
+		// Log edge-triggered hover events for demonstration
+		if (this.input.isElementJustHovered("button1")) {
+			this.addMessage("Button 1 JUST hovered");
+		}
 
-	// Handle spawn button to create 3D character
-	if (this.input.isElementJustPressed("spawnButton")) {
-		this.spawnCharacter();
-		this.totalClicks++;
-	}
-}/*-----------------
- * AUDIO INTEGRATION:
- * -----------------
- * Action Engine includes a powerful and flexible audio system for adding sound effects and music to your game.
- *
- * Sound in games is a critical part of the overall presentation, and it's often
- * overlooked or pushed onto the back-burner due to a plethora of difficulties.
- * The Action Engine audio system solves these common challenges with multiple synthesis methods:
- *
- * SYNTHESIS OPTIONS:
- * - Basic Waveforms: Create simple tones using sine, triangle, and square waves
- * - FM Synthesis: Generate rich, dynamic sounds through frequency modulation
- * - Complex Synthesis: Layer multiple oscillators for full, harmonic sounds
- * - Noise Generation: Create white, pink, or brown noise for effects
- * - Frequency Sweeps: Create dramatic pitch slides and transitions
- *
- * MIDI CAPABILITIES:
- * - Full 128-instrument library built-in
- * - High quality sampled instruments from pianos to drums
- * - Multi-channel playback support
- * - No external sound files needed
- *
- * AUDIO CONTROL:
- * - Real-time parameter control
- * - Stereo panning
- * - Volume envelopes (ADSR)
- * - Effects processing (reverb, echo, filters)
- * - Individual sound control (play(), stopSound('sound') and stopAllSounds())
- *
- * SEQUENCING:
- * - SonicPi-style scripting for complex arrangements
- * - Tempo and timing control
- * - Multiple concurrent tracks
- * - Effect chains and processing
- *
- * The DEMO maps various sounds to inputs to showcase these capabilities:
- * - One-shot sound effects for edge-triggered actions
- * - Different synthesis types for varied sound design
- * - MIDI instrument playback
- * - Complex musical arrangements
- *
- * Let's dive in and make some noise! 🎵
- * -----------------
- */
+		// Handle button 1 press - toggles inactive button
+		if (this.input.isElementJustPressed("button1")) {
+			const newActiveState = !this.input.isElementActive("inactiveButton");
+			this.input.state.elements.gui.get("inactiveButton").isActive = newActiveState;
+			this.inactiveButton.color = newActiveState ? "#00f0f0" : "#666666";
+			this.addMessage(`Inactive button ${newActiveState ? "enabled" : "disabled"}`);
+			this.totalClicks++;
+		}
 
-/*-----------------
- * createGameSounds()
- * -----------------
- */
+		// Handle other button presses
+		if (this.input.isElementJustPressed("button2")) {
+			this.addMessage("Button 2 was just pressed!");
+			this.audio.play("sound5");
+			this.totalClicks++;
+		}
 
-createGameSounds() {
-	/*-----------------
-	 * THE SOUND CREATION PLAYGROUND!
+		// Example of counting clicks vs continuous presses
+		if (this.input.isElementJustPressed("button3")) {
+			this.totalClicks++;
+		}
+
+		// Continuous press example
+		if (this.input.isElementPressed("button3")) {
+			this.addMessage("Button 3 is being held down");
+			this.audio.play("sound6");
+		}
+
+		// Inactive button status tracking
+		if (this.input.isElementPressed("inactiveButton")) {
+			if (this.input.isElementActive("inactiveButton")) {
+				this.addMessage("Clicking an active button!");
+			} else {
+				this.addMessage("Button is inactive - click Button 1 to activate it!");
+			}
+		}
+
+		// Handle inactive button click when active
+		if (this.input.isElementJustPressed("inactiveButton") && this.input.isElementActive("inactiveButton")) {
+			this.audio.play("victory");
+			this.totalClicks++;
+		}
+
+		// Handle game element press (stops all sounds)
+		if (this.input.isElementJustPressed("gameElement", "game")) {
+			this.audio.stopAllSounds();
+			this.addMessage("gameCanvas element pressed! All sounds stopped.");
+			this.totalClicks++;
+		}
+
+		// Handle debug button to toggle GUI visibility
+		if (this.input.isElementJustPressed("debugButton", "debug")) {
+			this.debugButton.guiHidden = !this.debugButton.guiHidden;
+			this.debugButton.text = this.debugButton.guiHidden ? "Show GUI" : "Hide GUI";
+			this.guiCanvas.style.display = this.debugButton.guiHidden ? "none" : "block";
+			this.addMessage("Debug button toggled GUI visibility");
+		}
+
+		// Handle spawn button to create 3D character
+		if (this.input.isElementJustPressed("spawnButton")) {
+			this.spawnCharacter();
+			this.totalClicks++;
+		}
+	} /*-----------------
+	 * AUDIO INTEGRATION:
 	 * -----------------
-	 * This method demonstrates the various ways to create and manage sounds in the engine.
-	 * We'll explore different synthesis methods and show how to build both simple effects
-	 * and complex musical arrangements.
+	 * Action Engine includes a powerful and flexible audio system for adding sound effects and music to your game.
 	 *
-	 * The examples progress from simple to complex:
-	 * 1. Basic waveform synthesis
-	 * 2. FM synthesis for dynamic sounds
-	 * 3. Multi-oscillator layered sounds
-	 * 4. Noise and sweep effects
-	 * 5. MIDI instrument playback
-	 * 6. Full musical sequences
+	 * Sound in games is a critical part of the overall presentation, and it's often
+	 * overlooked or pushed onto the back-burner due to a plethora of difficulties.
+	 * The Action Engine audio system solves these common challenges with multiple synthesis methods:
 	 *
-	 * Each sound type has its own use case:
-	 * - Basic synthesis: UI sounds, simple effects
-	 * - FM synthesis: Sci-fi sounds, complex tones
-	 * - Multi-oscillator: Rich sound effects, musical notes
-	 * - Noise/Sweeps: Environmental effects, transitions
-	 * - MIDI: High quality musical elements
-	 * - Sequences: Background music, complex events
+	 * SYNTHESIS OPTIONS:
+	 * - Basic Waveforms: Create simple tones using sine, triangle, and square waves
+	 * - FM Synthesis: Generate rich, dynamic sounds through frequency modulation
+	 * - Complex Synthesis: Layer multiple oscillators for full, harmonic sounds
+	 * - Noise Generation: Create white, pink, or brown noise for effects
+	 * - Frequency Sweeps: Create dramatic pitch slides and transitions
 	 *
-	 * !!! OPTIMIZATION NOTE !!!
-	 * Layer your sound complexity based on game needs:
-	 * - Simple synthesis is very lightweight
-	 * - MIDI instruments take more memory
-	 * - Complex sequences need more processing
-	 * Consider using simpler sounds for frequent events
-	 * and save complex sounds for important moments
+	 * MIDI CAPABILITIES:
+	 * - Full 128-instrument library built-in
+	 * - High quality sampled instruments from pianos to drums
+	 * - Multi-channel playback support
+	 * - No external sound files needed
+	 *
+	 * AUDIO CONTROL:
+	 * - Real-time parameter control
+	 * - Stereo panning
+	 * - Volume envelopes (ADSR)
+	 * - Effects processing (reverb, echo, filters)
+	 * - Individual sound control (play(), stopSound('sound') and stopAllSounds())
+	 *
+	 * SEQUENCING:
+	 * - SonicPi-style scripting for complex arrangements
+	 * - Tempo and timing control
+	 * - Multiple concurrent tracks
+	 * - Effect chains and processing
+	 *
+	 * The DEMO maps various sounds to inputs to showcase these capabilities:
+	 * - One-shot sound effects for edge-triggered actions
+	 * - Different synthesis types for varied sound design
+	 * - MIDI instrument playback
+	 * - Complex musical arrangements
+	 *
+	 * Let's dive in and make some noise! 🎵
 	 * -----------------
 	 */
 
-	/******* DIFFERENT SOUND TYPE CREATION *******/
-	// Each of these methods demonstrates a different type of sound synthesis
-	// available in the Action Engine audio system
+	/*-----------------
+	 * createGameSounds()
+	 * -----------------
+	 */
 
-	// FM (Frequency Modulation) synthesis creates rich, dynamic sounds
-	// Great for sci-fi effects or complex tones
-	this.audio.createFMSound("fmSound", {
-		carrierFreq: 440, // Base frequency
-		modulatorFreq: 100, // Modulating frequency
-		modulationIndex: 100, // How intense the modulation is
-		type: "sine", // Carrier wave type
-		duration: 0.5,
-		envelope: {
-			attack: 0.1,
-			decay: 0.2,
-			sustain: 0.6,
-			release: 0.2
-		}
-	});
+	createGameSounds() {
+		/*-----------------
+		 * THE SOUND CREATION PLAYGROUND!
+		 * -----------------
+		 * This method demonstrates the various ways to create and manage sounds in the engine.
+		 * We'll explore different synthesis methods and show how to build both simple effects
+		 * and complex musical arrangements.
+		 *
+		 * The examples progress from simple to complex:
+		 * 1. Basic waveform synthesis
+		 * 2. FM synthesis for dynamic sounds
+		 * 3. Multi-oscillator layered sounds
+		 * 4. Noise and sweep effects
+		 * 5. MIDI instrument playback
+		 * 6. Full musical sequences
+		 *
+		 * Each sound type has its own use case:
+		 * - Basic synthesis: UI sounds, simple effects
+		 * - FM synthesis: Sci-fi sounds, complex tones
+		 * - Multi-oscillator: Rich sound effects, musical notes
+		 * - Noise/Sweeps: Environmental effects, transitions
+		 * - MIDI: High quality musical elements
+		 * - Sequences: Background music, complex events
+		 *
+		 * !!! OPTIMIZATION NOTE !!!
+		 * Layer your sound complexity based on game needs:
+		 * - Simple synthesis is very lightweight
+		 * - MIDI instruments take more memory
+		 * - Complex sequences need more processing
+		 * Consider using simpler sounds for frequent events
+		 * and save complex sounds for important moments
+		 * -----------------
+		 */
 
-	// Complex sounds combine multiple oscillators for rich harmonics
-	// Perfect for creating full, layered sounds
-	this.audio.createComplexSound("complexSound", {
-		frequencies: [440, 880, 1320], // Stack of frequencies
-		types: ["sine", "triangle", "square"], // Different wave types
-		mix: [0.5, 0.3, 0.2], // Volume mix of each oscillator
-		duration: 0.8,
-		envelope: {
-			attack: 0.1,
-			decay: 0.2,
-			sustain: 0.5,
-			release: 0.3
-		}
-	});
+		/******* DIFFERENT SOUND TYPE CREATION *******/
+		// Each of these methods demonstrates a different type of sound synthesis
+		// available in the Action Engine audio system
 
-	// Noise generation for effects like wind, water, explosions
-	this.audio.createNoiseSound("noiseSound", {
-		noiseType: "white", // white, pink, or brown noise
-		duration: 0.5,
-		envelope: {
-			attack: 0.05,
-			decay: 0.1,
-			sustain: 0.7,
-			release: 0.2
-		},
-		filterOptions: {
-			frequency: 1000, // Filter cutoff frequency
-			Q: 1, // Filter resonance
-			type: "lowpass" // Filter type
-		}
-	});
+		// FM (Frequency Modulation) synthesis creates rich, dynamic sounds
+		// Great for sci-fi effects or complex tones
+		this.audio.createFMSound("fmSound", {
+			carrierFreq: 440, // Base frequency
+			modulatorFreq: 100, // Modulating frequency
+			modulationIndex: 100, // How intense the modulation is
+			type: "sine", // Carrier wave type
+			duration: 0.5,
+			envelope: {
+				attack: 0.1,
+				decay: 0.2,
+				sustain: 0.6,
+				release: 0.2
+			}
+		});
 
-	// Frequency sweeps for dramatic effects
-	this.audio.createSweepSound("sweepSound", {
-		startFreq: 200, // Starting frequency
-		endFreq: 800, // Ending frequency
-		type: "triangle", // Wave type
-		duration: 0.6,
-		envelope: {
-			attack: 0.1,
-			decay: 0.2,
-			sustain: 0.4,
-			release: 0.2
-		}
-	});
+		// Complex sounds combine multiple oscillators for rich harmonics
+		// Perfect for creating full, layered sounds
+		this.audio.createComplexSound("complexSound", {
+			frequencies: [440, 880, 1320], // Stack of frequencies
+			types: ["sine", "triangle", "square"], // Different wave types
+			mix: [0.5, 0.3, 0.2], // Volume mix of each oscillator
+			duration: 0.8,
+			envelope: {
+				attack: 0.1,
+				decay: 0.2,
+				sustain: 0.5,
+				release: 0.3
+			}
+		});
 
-	/******* SIMPLE SOUND EFFECTS *******/
-	// Let's start with a classic platformer jump!
-	// Frequency sweep from low to high = nice 'jump' feeling
-	this.audio.createSweepSound("jump", {
-		startFreq: 220, // Start at A3
-		endFreq: 880, // Sweep up to A5
-		type: "triangle", // Triangle wave sounds nice and smooth
-		duration: 0.25, // Quick and snappy
-		envelope: {
-			// Shape the sound's volume over time
-			attack: 0.05, // Quick start
-			decay: 0.1, // Fast falloff
-			sustain: 0.8, // Hold most of the volume
-			release: 0.1 // Quick end
-		}
-	});
+		// Noise generation for effects like wind, water, explosions
+		this.audio.createNoiseSound("noiseSound", {
+			noiseType: "white", // white, pink, or brown noise
+			duration: 0.5,
+			envelope: {
+				attack: 0.05,
+				decay: 0.1,
+				sustain: 0.7,
+				release: 0.2
+			},
+			filterOptions: {
+				frequency: 1000, // Filter cutoff frequency
+				Q: 1, // Filter resonance
+				type: "lowpass" // Filter type
+			}
+		});
 
-	/******* DRAMATIC POWER-UP EFFECT *******/
-	// Stack multiple oscillators for a rich, dramatic sound
-	this.audio.createComplexSound("sound2", {
-		frequencies: [440, 587, 880, 1174], // Stack of harmonious frequencies
-		types: ["triangle", "sine", "triangle", "sine"], // Mix different waves
-		mix: [0.4, 0.3, 0.2, 0.1], // Fade each higher frequency
-		duration: 0.4,
-		envelope: {
-			attack: 0.01, // Almost instant attack
-			decay: 0.2,
-			sustain: 0.6,
-			release: 0.19
-		}
-	});
+		// Frequency sweeps for dramatic effects
+		this.audio.createSweepSound("sweepSound", {
+			startFreq: 200, // Starting frequency
+			endFreq: 800, // Ending frequency
+			type: "triangle", // Wave type
+			duration: 0.6,
+			envelope: {
+				attack: 0.1,
+				decay: 0.2,
+				sustain: 0.4,
+				release: 0.2
+			}
+		});
 
-	/******* RETRO GAME SOUNDS *******/
-	// Create an SNES-style acceleration sound
-	// Multiple oscillators create that classic 16-bit feel
-	this.audio.createComplexSound("sound3", {
-		frequencies: [220, 330, 440], // Power of three
-		types: ["triangle", "square", "triangle"], // Mix of waves
-		mix: [0.5, 0.2, 0.1], // Emphasize base frequency
-		duration: 0.35,
-		envelope: {
-			attack: 0.08,
-			decay: 0.15,
-			sustain: 0.6,
-			release: 0.12
-		}
-	});
+		/******* SIMPLE SOUND EFFECTS *******/
+		// Let's start with a classic platformer jump!
+		// Frequency sweep from low to high = nice 'jump' feeling
+		this.audio.createSweepSound("jump", {
+			startFreq: 220, // Start at A3
+			endFreq: 880, // Sweep up to A5
+			type: "triangle", // Triangle wave sounds nice and smooth
+			duration: 0.25, // Quick and snappy
+			envelope: {
+				// Shape the sound's volume over time
+				attack: 0.05, // Quick start
+				decay: 0.1, // Fast falloff
+				sustain: 0.8, // Hold most of the volume
+				release: 0.1 // Quick end
+			}
+		});
 
-	/******* FM SYNTHESIS MAGIC *******/
-	// Use frequency modulation for otherworldly sounds
-	// Great for sci-fi effects or mystery reveals
-	this.audio.createFMSound("sound4", {
-		carrierFreq: 185, // Base frequency
-		modulatorFreq: 92.5, // Modulating frequency
-		modulationIndex: 100, // How 'wild' the modulation gets
-		type: "sine",
-		duration: 0.6,
-		envelope: {
-			attack: 0.15, // Slow build
-			decay: 0.25,
-			sustain: 0.6,
-			release: 0.2
-		}
-	});
+		/******* DRAMATIC POWER-UP EFFECT *******/
+		// Stack multiple oscillators for a rich, dramatic sound
+		this.audio.createComplexSound("sound2", {
+			frequencies: [440, 587, 880, 1174], // Stack of harmonious frequencies
+			types: ["triangle", "sine", "triangle", "sine"], // Mix different waves
+			mix: [0.4, 0.3, 0.2, 0.1], // Fade each higher frequency
+			duration: 0.4,
+			envelope: {
+				attack: 0.01, // Almost instant attack
+				decay: 0.2,
+				sustain: 0.6,
+				release: 0.19
+			}
+		});
 
-	/******* TRANSFORMATION EFFECT *******/
-	// Create an ethereal sound perfect for power-ups or transformations
-	this.audio.createComplexSound("sound5", {
-		frequencies: [220, 330, 440, 660], // Harmonious stack
-		types: ["sine", "sine", "triangle", "sine"],
-		mix: [0.4, 0.3, 0.2, 0.1], // Fade higher frequencies
-		duration: 0.7,
-		envelope: {
-			attack: 0.2, // Slow, majestic build
-			decay: 0.3,
-			sustain: 0.4,
-			release: 0.2
-		}
-	});
+		/******* RETRO GAME SOUNDS *******/
+		// Create an SNES-style acceleration sound
+		// Multiple oscillators create that classic 16-bit feel
+		this.audio.createComplexSound("sound3", {
+			frequencies: [220, 330, 440], // Power of three
+			types: ["triangle", "square", "triangle"], // Mix of waves
+			mix: [0.5, 0.2, 0.1], // Emphasize base frequency
+			duration: 0.35,
+			envelope: {
+				attack: 0.08,
+				decay: 0.15,
+				sustain: 0.6,
+				release: 0.12
+			}
+		});
 
-	/******* CRYSTAL SHIMMER *******/
-	// High, bright frequencies create a sparkling effect
-	this.audio.createComplexSound("sound6", {
-		frequencies: [294, 370, 440], // High, bright frequencies
-		types: ["sine", "triangle", "sine"],
-		mix: [0.45, 0.35, 0.2],
-		duration: 0.5,
-		envelope: {
-			attack: 0.1,
-			decay: 0.2,
-			sustain: 0.5,
-			release: 0.2
-		}
-	});
+		/******* FM SYNTHESIS MAGIC *******/
+		// Use frequency modulation for otherworldly sounds
+		// Great for sci-fi effects or mystery reveals
+		this.audio.createFMSound("sound4", {
+			carrierFreq: 185, // Base frequency
+			modulatorFreq: 92.5, // Modulating frequency
+			modulationIndex: 100, // How 'wild' the modulation gets
+			type: "sine",
+			duration: 0.6,
+			envelope: {
+				attack: 0.15, // Slow build
+				decay: 0.25,
+				sustain: 0.6,
+				release: 0.2
+			}
+		});
 
-	/******* VICTORY FANFARE *******/
-	// A triumphant sound using multiple harmonious frequencies
-	this.audio.createComplexSound("victory", {
-		frequencies: [330, 440, 550, 660, 880],
-		types: ["triangle", "sine", "triangle", "sine", "triangle"],
-		mix: [0.3, 0.25, 0.2, 0.15, 0.1],
-		duration: 0.7,
-		envelope: {
-			attack: 0.1,
-			decay: 0.25,
-			sustain: 0.5,
-			release: 0.3
-		}
-	});
+		/******* TRANSFORMATION EFFECT *******/
+		// Create an ethereal sound perfect for power-ups or transformations
+		this.audio.createComplexSound("sound5", {
+			frequencies: [220, 330, 440, 660], // Harmonious stack
+			types: ["sine", "sine", "triangle", "sine"],
+			mix: [0.4, 0.3, 0.2, 0.1], // Fade higher frequencies
+			duration: 0.7,
+			envelope: {
+				attack: 0.2, // Slow, majestic build
+				decay: 0.3,
+				sustain: 0.4,
+				release: 0.2
+			}
+		});
 
-	/******* MIDI INSTRUMENT SHOWCASE *******/
-	// Now let's play with some high-quality MIDI instruments!
+		/******* CRYSTAL SHIMMER *******/
+		// High, bright frequencies create a sparkling effect
+		this.audio.createComplexSound("sound6", {
+			frequencies: [294, 370, 440], // High, bright frequencies
+			types: ["sine", "triangle", "sine"],
+			mix: [0.45, 0.35, 0.2],
+			duration: 0.5,
+			envelope: {
+				attack: 0.1,
+				decay: 0.2,
+				sustain: 0.5,
+				release: 0.2
+			}
+		});
 
-	// Complex synth and pad mix
-	this.audio.createSound(
-		"MidiSynthMix",
-		{
-			script: `
+		/******* VICTORY FANFARE *******/
+		// A triumphant sound using multiple harmonious frequencies
+		this.audio.createComplexSound("victory", {
+			frequencies: [330, 440, 550, 660, 880],
+			types: ["triangle", "sine", "triangle", "sine", "triangle"],
+			mix: [0.3, 0.25, 0.2, 0.15, 0.1],
+			duration: 0.7,
+			envelope: {
+				attack: 0.1,
+				decay: 0.25,
+				sustain: 0.5,
+				release: 0.3
+			}
+		});
+
+		/******* MIDI INSTRUMENT SHOWCASE *******/
+		// Now let's play with some high-quality MIDI instruments!
+
+		// Complex synth and pad mix
+		this.audio.createSound(
+			"MidiSynthMix",
+			{
+				script: `
 			   use_bpm 120
 			   sample :pad, note: 60, amp: 0.3, duration: 4
 			   sample :soft_synth, note: 72, amp: 0.3
@@ -1100,69 +1089,69 @@ createGameSounds() {
 			   sample :soft_synth, note: 76, amp: 0.25
 			   sleep 1
 		   `,
-			samples: {
-				pad: {
-					soundType: "midi",
-					instrument: "pad_3_polysynth", // Rich, atmospheric pad
-					amp: 0.3
-				},
-				soft_synth: {
-					type: "sin", // Mix with synthetic sound
-					frequency: 440,
-					decay: 1.5,
-					amp: 0.3
+				samples: {
+					pad: {
+						soundType: "midi",
+						instrument: "pad_3_polysynth", // Rich, atmospheric pad
+						amp: 0.3
+					},
+					soft_synth: {
+						type: "sin", // Mix with synthetic sound
+						frequency: 440,
+						decay: 1.5,
+						amp: 0.3
+					}
 				}
-			}
-		},
-		"sonicpi"
-	);
+			},
+			"sonicpi"
+		);
 
-	// Clean piano hit
-	this.audio.createSound(
-		"PianoHit",
-		{
-			script: `
+		// Clean piano hit
+		this.audio.createSound(
+			"PianoHit",
+			{
+				script: `
 			   use_bpm 120
 			   sample :piano, note: 60, amp: 0.5
 		   `,
-			samples: {
-				piano: {
-					soundType: "midi",
-					instrument: "acoustic_grand_piano", // Beautiful grand piano
-					amp: 0.5
+				samples: {
+					piano: {
+						soundType: "midi",
+						instrument: "acoustic_grand_piano", // Beautiful grand piano
+						amp: 0.5
+					}
 				}
-			}
-		},
-		"sonicpi"
-	);
+			},
+			"sonicpi"
+		);
 
-	// Majestic trumpet call
-	this.audio.createSound(
-		"TrumpetCall",
-		{
-			script: `
+		// Majestic trumpet call
+		this.audio.createSound(
+			"TrumpetCall",
+			{
+				script: `
 			   use_bpm 120
 			   sample :trumpet, note: 67, amp: 0.4
 			   sleep 0.2
 			   sample :trumpet, note: 72, amp: 0.5
 		   `,
-			samples: {
-				trumpet: {
-					soundType: "midi",
-					instrument: "trumpet", // Bright, bold trumpet
-					amp: 0.4
+				samples: {
+					trumpet: {
+						soundType: "midi",
+						instrument: "trumpet", // Bright, bold trumpet
+						amp: 0.4
+					}
 				}
-			}
-		},
-		"sonicpi"
-	);
+			},
+			"sonicpi"
+		);
 
-	/******* FULL SONG DEMO *******/
-	// Bringing it all together in a complete musical arrangement!
-	this.audio.createSound(
-		"SimpleSong",
-		{
-			script: `
+		/******* FULL SONG DEMO *******/
+		// Bringing it all together in a complete musical arrangement!
+		this.audio.createSound(
+			"SimpleSong",
+			{
+				script: `
 			   use_bpm 80
 			   
 			   define :melody do
@@ -1182,141 +1171,141 @@ createGameSounds() {
 				   melody
 			   end
 		   `,
-			samples: {
-				piano: {
-					soundType: "midi",
-					instrument: "acoustic_grand_piano", // Main melody
-					amp: 0.4
-				},
-				bells: {
-					soundType: "midi",
-					instrument: "tubular_bells", // Sparkly accents
-					amp: 0.2
-				},
-				bass: {
-					soundType: "midi",
-					instrument: "acoustic_bass", // Strong bass line
-					amp: 0.4
-				},
-				strings: {
-					soundType: "midi",
-					instrument: "string_ensemble_1", // Lush backing
-					amp: 0.3
+				samples: {
+					piano: {
+						soundType: "midi",
+						instrument: "acoustic_grand_piano", // Main melody
+						amp: 0.4
+					},
+					bells: {
+						soundType: "midi",
+						instrument: "tubular_bells", // Sparkly accents
+						amp: 0.2
+					},
+					bass: {
+						soundType: "midi",
+						instrument: "acoustic_bass", // Strong bass line
+						amp: 0.4
+					},
+					strings: {
+						soundType: "midi",
+						instrument: "string_ensemble_1", // Lush backing
+						amp: 0.3
+					}
 				}
+			},
+			"sonicpi"
+		);
+
+		/******* CHARACTER SPAWN SOUND *******/
+		// Create a sound for the spawn button click
+		this.audio.createSweepSound("spawnSound", {
+			startFreq: 300,
+			endFreq: 600,
+			type: "triangle",
+			duration: 0.3,
+			envelope: {
+				attack: 0.05,
+				decay: 0.1,
+				sustain: 0.5,
+				release: 0.15
 			}
-		},
-		"sonicpi"
-	);
+		});
 
-	/******* CHARACTER SPAWN SOUND *******/
-	// Create a sound for the spawn button click
-	this.audio.createSweepSound('spawnSound', {
-		startFreq: 300,
-		endFreq: 600,
-		type: 'triangle',
-		duration: 0.3,
-		envelope: {
-			attack: 0.05,
-			decay: 0.1,
-			sustain: 0.5,
-			release: 0.15
-		}
-	});
+		/*-----------------
+		 * BONUS SOUND DESIGN GUIDE:
+		 * -----------------
+		 * Creating good game audio is both art and science. Here are some proven approaches
+		 * for different common game sound needs:
+		 *
+		 * UI SOUNDS:
+		 * - Keep them short (0.1s - 0.3s)
+		 * - Use simple waveforms (sine or triangle)
+		 * - Quick attack, minimal decay
+		 * Example for a "select" sound:
+		 */
+		this.audio.createSweepSound("selectBlip", {
+			startFreq: 440, // A4 note
+			endFreq: 880, // Up to A5
+			type: "sine", // Clean sine wave
+			duration: 0.15, // Very short
+			envelope: {
+				attack: 0.01, // Almost immediate
+				decay: 0.14, // Most of duration
+				sustain: 0, // No sustain needed
+				release: 0 // No release needed
+			}
+		});
 
-	/*-----------------
-	 * BONUS SOUND DESIGN GUIDE:
-	 * -----------------
-	 * Creating good game audio is both art and science. Here are some proven approaches
-	 * for different common game sound needs:
-	 *
-	 * UI SOUNDS:
-	 * - Keep them short (0.1s - 0.3s)
-	 * - Use simple waveforms (sine or triangle)
-	 * - Quick attack, minimal decay
-	 * Example for a "select" sound:
-	 */
-	this.audio.createSweepSound("selectBlip", {
-		startFreq: 440, // A4 note
-		endFreq: 880, // Up to A5
-		type: "sine", // Clean sine wave
-		duration: 0.15, // Very short
-		envelope: {
-			attack: 0.01, // Almost immediate
-			decay: 0.14, // Most of duration
-			sustain: 0, // No sustain needed
-			release: 0 // No release needed
-		}
-	});
+		/*
+		 * IMPACT SOUNDS:
+		 * - Start with noise for the "hit"
+		 * - Add a tonal element for character
+		 * - Quick attack, medium decay
+		 */
+		this.audio.createComplexSound("impact", {
+			frequencies: [100, 200, 300], // Low frequencies for impact
+			types: ["square", "sine", "sine"], // Square wave adds "punch"
+			mix: [0.6, 0.3, 0.1], // Emphasize lower frequencies
+			duration: 0.4,
+			envelope: {
+				attack: 0.01, // Immediate hit
+				decay: 0.2, // Quick falloff
+				sustain: 0.2, // Some body
+				release: 0.19 // Smooth end
+			}
+		});
 
-	/*
-	 * IMPACT SOUNDS:
-	 * - Start with noise for the "hit"
-	 * - Add a tonal element for character
-	 * - Quick attack, medium decay
-	 */
-	this.audio.createComplexSound("impact", {
-		frequencies: [100, 200, 300], // Low frequencies for impact
-		types: ["square", "sine", "sine"], // Square wave adds "punch"
-		mix: [0.6, 0.3, 0.1], // Emphasize lower frequencies
-		duration: 0.4,
-		envelope: {
-			attack: 0.01, // Immediate hit
-			decay: 0.2, // Quick falloff
-			sustain: 0.2, // Some body
-			release: 0.19 // Smooth end
-		}
-	});
+		/*
+		 * AMBIENT SOUNDS:
+		 * - Use noise with heavy filtering
+		 * - Longer durations
+		 * - Smooth transitions
+		 */
+		this.audio.createNoiseSound("wind", {
+			noiseType: "pink", // Pink noise sounds more natural
+			duration: 2.0,
+			envelope: {
+				attack: 0.5, // Slow fade in
+				decay: 0.5,
+				sustain: 0.7, // Maintain presence
+				release: 1.0 // Slow fade out
+			},
+			filterOptions: {
+				frequency: 800, // Remove harsh high frequencies
+				Q: 0.5, // Gentle resonance
+				type: "lowpass"
+			}
+		});
 
-	/*
-	 * AMBIENT SOUNDS:
-	 * - Use noise with heavy filtering
-	 * - Longer durations
-	 * - Smooth transitions
-	 */
-	this.audio.createNoiseSound("wind", {
-		noiseType: "pink", // Pink noise sounds more natural
-		duration: 2.0,
-		envelope: {
-			attack: 0.5, // Slow fade in
-			decay: 0.5,
-			sustain: 0.7, // Maintain presence
-			release: 1.0 // Slow fade out
-		},
-		filterOptions: {
-			frequency: 800, // Remove harsh high frequencies
-			Q: 0.5, // Gentle resonance
-			type: "lowpass"
-		}
-	});
+		/*
+		 * MUSICAL ELEMENTS:
+		 * - Use FM synthesis for rich tones
+		 * - Pay attention to musical intervals
+		 * - Longer attack/release for smoothness
+		 */
+		this.audio.createFMSound("synthPad", {
+			carrierFreq: 440, // Base note A4
+			modulatorFreq: 220, // Modulate at half frequency
+			modulationIndex: 50, // Moderate modulation
+			type: "sine",
+			duration: 1.0,
+			envelope: {
+				attack: 0.2, // Smooth fade in
+				decay: 0.3,
+				sustain: 0.6,
+				release: 0.5
+			}
+		});
 
-	/*
-	 * MUSICAL ELEMENTS:
-	 * - Use FM synthesis for rich tones
-	 * - Pay attention to musical intervals
-	 * - Longer attack/release for smoothness
-	 */
-	this.audio.createFMSound("synthPad", {
-		carrierFreq: 440, // Base note A4
-		modulatorFreq: 220, // Modulate at half frequency
-		modulationIndex: 50, // Moderate modulation
-		type: "sine",
-		duration: 1.0,
-		envelope: {
-			attack: 0.2, // Smooth fade in
-			decay: 0.3,
-			sustain: 0.6,
-			release: 0.5
-		}
-	});
-
-	/*
-	 * EFFECT CHAINS:
-	 * Action Engine supports chaining multiple effects. Some useful combinations:
-	 *
-	 * Spacious Atmosphere:
-	 */
-	const spaciousSound = {
-		script: `
+		/*
+		 * EFFECT CHAINS:
+		 * Action Engine supports chaining multiple effects. Some useful combinations:
+		 *
+		 * Spacious Atmosphere:
+		 */
+		const spaciousSound = {
+			script: `
 			use_bpm 60
 			with_fx :reverb, room: 0.8 do
 				with_fx :echo, phase: 0.5, decay: 2 do
@@ -1324,20 +1313,20 @@ createGameSounds() {
 				end
 			end
 		`,
-		samples: {
-			pad: {
-				soundType: "midi",
-				instrument: "pad_3_polysynth",
-				amp: 0.3
+			samples: {
+				pad: {
+					soundType: "midi",
+					instrument: "pad_3_polysynth",
+					amp: 0.3
+				}
 			}
-		}
-	};
+		};
 
-	/*
-	 * Power Up Effect:
-	 */
-	const powerUp = {
-		script: `
+		/*
+		 * Power Up Effect:
+		 */
+		const powerUp = {
+			script: `
 			use_bpm 120
 			with_fx :echo, phase: 0.125 do
 				with_fx :wobble, phase: 0.5 do
@@ -1347,369 +1336,373 @@ createGameSounds() {
 				end
 			end
 		`
-	};
+		};
 
-	/*
-	 * COMMON PITFALLS TO AVOID:
-	 * 1. Too much frequency overlap - space out your frequencies
-	 * 2. Harsh attacks - use at least 0.01s attack time
-	 * 3. Abrupt endings - always use some release time
-	 * 4. Overusing effects - subtlety often works better
-	 * 5. Too much low frequency content - can muddy the mix
-	 */
-}
-
-/**
- * drawButton(button)
- *
- * Renders a button with hover effects and centered text on the GUI layer
- * @param {Object} button - The button object to render
- *
- * Before we got here, we stored some information on the "hover" state of our buttons class-wide.
- * The DEMO will use the information it stores from the input state to draw the buttons in a different style when "hovered".
- */
-
-drawButton(button) {
-	// Use guiCtx instead of ctx since buttons are UI elements
-	this.guiCtx.save();
-
-	// Draw button background with "hover" effect
-	this.guiCtx.fillStyle = button.hovered ? "#00b0b0" : button.color;
-	this.guiCtx.strokeStyle = "#ffffff";
-	this.guiCtx.lineWidth = 2;
-
-	this.guiCtx.beginPath();
-	this.guiCtx.roundRect(button.x, button.y, button.width, button.height, 8);
-	this.guiCtx.fill();
-	this.guiCtx.stroke();
-
-	// Draw centered button text
-	this.guiCtx.fillStyle = "#ffffff";
-	this.guiCtx.font = "20px Orbitron";
-	this.guiCtx.textAlign = "center";
-	this.guiCtx.textBaseline = "middle";
-	this.guiCtx.fillText(button.text, button.x + button.width / 2, button.y + button.height / 2);
-
-	this.guiCtx.restore();
-}
-
-
-/**
- * draw()
- * Master drawing method that handles all rendering layers
- */
-draw() {
-	/*
-	 * Action Engine supports both 2D and 3D rendering.
-	 * The demo shows the potential of the three-layer system by separating drawing across these layers.
-	 * Each layer serves a specific purpose, and the three-layer system allows for harmony.
-	 */
-
-	/******* GAME LAYER RENDERING *******/
-	/*
-	 * GAME LAYER (this.canvas):
-	 * - This is now always 3D rendered
-	 * - Handles the 3D world, character, and physics objects
-	 */
-	this.draw3DScene();
-
-	/******* GUI LAYER RENDERING *******/
-	/*
-	 *  THE GUI LAYER (this.guiCtx):
-	 * - Always 2D for crisp UI rendering
-	 * - Intended use: Buttons, menus, HUD elements
-	 * - Stays pixel-perfect regardless of game context
-	 */
-	this.drawGUILayer();
-
-	/******* DEBUG LAYER RENDERING *******/
-	/*
-	 * THE DEBUG LAYER (this.debugCtx):
-	 * - Development tools and debug info
-	 * - Toggle with F9
-	 * - Also hosts our 2D mini-game when visible!
-	 * - Always renders on top
-	 */
-	if (this.showDebug) {
-		this.drawDebugLayer();
+		/*
+		 * COMMON PITFALLS TO AVOID:
+		 * 1. Too much frequency overlap - space out your frequencies
+		 * 2. Harsh attacks - use at least 0.01s attack time
+		 * 3. Abrupt endings - always use some release time
+		 * 4. Overusing effects - subtlety often works better
+		 * 5. Too much low frequency content - can muddy the mix
+		 */
 	}
 
-	
-	{}
-}/**
- * draw3DScene()
- * 
- * Handles rendering the 3D world with all physics objects and characters
- * Uses ActionEngine's 3D rendering system for clean, simplified 3D rendering
- */
-draw3DScene() {
-	// Clear the canvas
-	const gl = this.canvas.getContext("webgl2") || this.canvas.getContext("webgl");
-	if (gl) {
-		gl.clearColor(0.529, 0.808, 0.922, 1.0); // Sky blue background
-		gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+	/**
+	 * drawButton(button)
+	 *
+	 * Renders a button with hover effects and centered text on the GUI layer
+	 * @param {Object} button - The button object to render
+	 *
+	 * Before we got here, we stored some information on the "hover" state of our buttons class-wide.
+	 * The DEMO will use the information it stores from the input state to draw the buttons in a different style when "hovered".
+	 */
+
+	drawButton(button) {
+		// Use guiCtx instead of ctx since buttons are UI elements
+		this.guiCtx.save();
+
+		// Draw button background with "hover" effect
+		this.guiCtx.fillStyle = button.hovered ? "#00b0b0" : button.color;
+		this.guiCtx.strokeStyle = "#ffffff";
+		this.guiCtx.lineWidth = 2;
+
+		this.guiCtx.beginPath();
+		this.guiCtx.roundRect(button.x, button.y, button.width, button.height, 8);
+		this.guiCtx.fill();
+		this.guiCtx.stroke();
+
+		// Draw centered button text
+		this.guiCtx.fillStyle = "#ffffff";
+		this.guiCtx.font = "20px Orbitron";
+		this.guiCtx.textAlign = "center";
+		this.guiCtx.textBaseline = "middle";
+		this.guiCtx.fillText(button.text, button.x + button.width / 2, button.y + button.height / 2);
+
+		this.guiCtx.restore();
 	}
 
-	// Render the scene using ActionEngine's renderer
-	this.renderer3D.render({
-		renderableObjects: Array.from(this.physicsWorld.objects),
-		camera: this.camera,
-	});
-}
+	/**
+	 * draw()
+	 * Master drawing method that handles all rendering layers
+	 */
+	draw() {
+		/*
+		 * Action Engine supports both 2D and 3D rendering.
+		 * The demo shows the potential of the three-layer system by separating drawing across these layers.
+		 * Each layer serves a specific purpose, and the three-layer system allows for harmony.
+		 */
 
-/**
- * drawGUILayer()
- *
- * Renders all UI elements on the GUI layer
- * The guiCanvas is a 2D context, providing crisp UI rendering regardless of game state
- */
-drawGUILayer() {
-	// Clear the GUI canvas
-	this.guiCtx.clearRect(0, 0, this.guiCanvas.width, this.guiCanvas.height);
+		/******* GAME LAYER RENDERING *******/
+		/*
+		 * GAME LAYER (this.canvas):
+		 * - This is now always 3D rendered
+		 * - Handles the 3D world, character, and physics objects
+		 */
+		this.draw3DScene();
 
-	/******* RENDER ALL BUTTONS *******/
-	// Draw all interactive buttons including spawn character button
-	[this.button1, this.button2, this.button3, this.inactiveButton, this.spawnButton].forEach((button) => {
-		this.drawButton(button);
-	});
+		/******* GUI LAYER RENDERING *******/
+		/*
+		 *  THE GUI LAYER (this.guiCtx):
+		 * - Always 2D for crisp UI rendering
+		 * - Intended use: Buttons, menus, HUD elements
+		 * - Stays pixel-perfect regardless of game context
+		 */
+		this.drawGUILayer();
 
-	// Draw stats display
-	this.drawStatsDisplay();
+		/******* DEBUG LAYER RENDERING *******/
+		/*
+		 * THE DEBUG LAYER (this.debugCtx):
+		 * - Development tools and debug info
+		 * - Toggle with F9
+		 * - Also hosts our 2D mini-game when visible!
+		 * - Always renders on top
+		 */
+		if (this.showDebug) {
+			this.drawDebugLayer();
+		}
 
-	// Draw 3D world instructions when debug overlay is not visible
-	if (!this.showDebug) {
-		this.drawInstructions();
+		{
+		}
+	} /**
+	 * draw3DScene()
+	 *
+	 * Handles rendering the 3D world with all physics objects and characters
+	 * Uses ActionEngine's 3D rendering system for clean, simplified 3D rendering
+	 */
+	draw3DScene() {
+		// Clear the canvas
+		const gl = this.canvas.getContext("webgl2") || this.canvas.getContext("webgl");
+		if (gl) {
+			gl.clearColor(0.529, 0.808, 0.922, 1.0); // Sky blue background
+			gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+		}
+
+		// Render the scene using ActionEngine's renderer
+		this.renderer3D.render({
+			renderableObjects: Array.from(this.physicsWorld.objects),
+			camera: this.camera
+		});
 	}
-}
 
-/**
- * Draw gameplay instructions
- */
-drawInstructions() {
-	this.guiCtx.font = "16px Arial";
-	this.guiCtx.fillStyle = "white";
-	this.guiCtx.textAlign = "left";
-	this.guiCtx.textBaseline = "top";
+	/**
+	 * drawGUILayer()
+	 *
+	 * Renders all UI elements on the GUI layer
+	 * The guiCanvas is a 2D context, providing crisp UI rendering regardless of game state
+	 */
+	drawGUILayer() {
+		// Clear the GUI canvas
+		this.guiCtx.clearRect(0, 0, this.guiCanvas.width, this.guiCanvas.height);
 
-	this.guiCtx.fillText("3D World Demo with ActionEngine", 10, 10);
-	
-	if (this.player) {
-		this.guiCtx.fillText("Action1: Jump (when character is on ground)", 10, 40);
-		this.guiCtx.fillText("DirUp/Down/Left/Right: Move character", 10, 60);
-		this.guiCtx.fillText("F9: Toggle debug overlay (switches to 2D mini-game)", 10, 80);
-	} else {
-		this.guiCtx.fillText("Use Arrow Keys to move the free camera", 10, 40);
-		this.guiCtx.fillText("Click the 'Spawn Character' button to create a playable character", 10, 60);
-		this.guiCtx.fillText("F9: Toggle debug overlay (switches to 2D mini-game)", 10, 80);
+		/******* RENDER ALL BUTTONS *******/
+		// Draw all interactive buttons including spawn character button
+		[this.button1, this.button2, this.button3, this.inactiveButton, this.spawnButton].forEach((button) => {
+			this.drawButton(button);
+		});
+
+		// Draw stats display
+		this.drawStatsDisplay();
+
+		// Draw 3D world instructions when debug overlay is not visible
+		if (!this.showDebug) {
+			this.drawInstructions();
+		}
 	}
-	
-	this.guiCtx.fillText("Action2: Reset all physics objects", 10, 100);
-	this.guiCtx.fillText("Action3: Spawn random physics object", 10, 120);
-	this.guiCtx.fillText(`Objects in world: ${this.physicsWorld.objects.size}`, 10, 140);
-	
-	// Display character debug info if available
-	if (this.player && this.player.debugInfo) {
-		const debugInfo = this.player.debugInfo;
-		this.guiCtx.fillText(`Character state: ${debugInfo.state.current}`, 10, 170);
-		this.guiCtx.fillText(`Position: (${debugInfo.physics.position.x.toFixed(2)}, ${debugInfo.physics.position.y.toFixed(2)}, ${debugInfo.physics.position.z.toFixed(2)})`, 10, 190);
-		this.guiCtx.fillText(`Velocity: (${debugInfo.physics.velocity.x.toFixed(2)}, ${debugInfo.physics.velocity.y.toFixed(2)}, ${debugInfo.physics.velocity.z.toFixed(2)})`, 10, 210);
+
+	/**
+	 * Draw gameplay instructions
+	 */
+	drawInstructions() {
+		this.guiCtx.font = "16px Arial";
+		this.guiCtx.fillStyle = "white";
+		this.guiCtx.textAlign = "left";
+		this.guiCtx.textBaseline = "top";
+
+		this.guiCtx.fillText("3D World Demo with ActionEngine", 10, 10);
+
+		if (this.player) {
+			this.guiCtx.fillText("Action1: Jump (when character is on ground)", 10, 40);
+			this.guiCtx.fillText("DirUp/Down/Left/Right: Move character", 10, 60);
+			this.guiCtx.fillText("F9: Toggle debug overlay (switches to 2D mini-game)", 10, 80);
+		} else {
+			this.guiCtx.fillText("Use Arrow Keys to move the free camera", 10, 40);
+			this.guiCtx.fillText("Click the 'Spawn Character' button to create a playable character", 10, 60);
+			this.guiCtx.fillText("F9: Toggle debug overlay (switches to 2D mini-game)", 10, 80);
+		}
+
+		this.guiCtx.fillText("Action2: Reset all physics objects", 10, 100);
+		this.guiCtx.fillText("Action3: Spawn random physics object", 10, 120);
+		this.guiCtx.fillText(`Objects in world: ${this.physicsWorld.objects.size}`, 10, 140);
+
+		// Display character debug info if available
+		if (this.player && this.player.debugInfo) {
+			const debugInfo = this.player.debugInfo;
+			this.guiCtx.fillText(`Character state: ${debugInfo.state.current}`, 10, 170);
+			this.guiCtx.fillText(
+				`Position: (${debugInfo.physics.position.x.toFixed(2)}, ${debugInfo.physics.position.y.toFixed(2)}, ${debugInfo.physics.position.z.toFixed(2)})`,
+				10,
+				190
+			);
+			this.guiCtx.fillText(
+				`Velocity: (${debugInfo.physics.velocity.x.toFixed(2)}, ${debugInfo.physics.velocity.y.toFixed(2)}, ${debugInfo.physics.velocity.z.toFixed(2)})`,
+				10,
+				210
+			);
+		}
 	}
-}
 
-/**
- * drawDebugLayer()
- *
- * Renders the debug overlay and 2D game when the debug mode is active
- * The debugCanvas hosts both debugging tools and our playable 2D mini-game
- */
-drawDebugLayer() {
-	// Clear the debug canvas
-	this.debugCtx.clearRect(0, 0, this.debugCanvas.width, this.debugCanvas.height);
+	/**
+	 * drawDebugLayer()
+	 *
+	 * Renders the debug overlay and 2D game when the debug mode is active
+	 * The debugCanvas hosts both debugging tools and our playable 2D mini-game
+	 */
+	drawDebugLayer() {
+		// Clear the debug canvas
+		this.debugCtx.clearRect(0, 0, this.debugCanvas.width, this.debugCanvas.height);
 
-	// Draw debug background
-	this.debugCtx.fillStyle = "rgba(0, 0, 0, 0.7)";
-	this.debugCtx.fillRect(0, 0, this.debugCanvas.width, this.debugCanvas.height);
+		// Draw debug background
+		this.debugCtx.fillStyle = "rgba(0, 0, 0, 0.7)";
+		this.debugCtx.fillRect(0, 0, this.debugCanvas.width, this.debugCanvas.height);
 
-	// Draw the 2D game on the debug layer when debug is active
-	this.draw2DGame();
+		// Draw the 2D game on the debug layer when debug is active
+		this.draw2DGame();
 
-	// Draw debug button
-	this.drawDebugButton();
+		// Draw debug button
+		this.drawDebugButton();
 
-	// Draw message log
-	this.drawDebugMessages();
-}
+		// Draw message log
+		this.drawDebugMessages();
+	}
 
-/**
- * draw2DGame()
- *
- * Renders the 2D space game on the debug layer when debug is toggled on
- * This is the original 2D game from the demo, now running on the debug layer
- */
-draw2DGame() {
-	// Use the debug context for rendering
-	const ctx = this.debugCtx;
-	
-	// Add a space-like background (semi-transparent to show debug layer)
-	ctx.fillStyle = "rgba(0, 0, 51, 0.5)";
-	ctx.fillRect(0, 0, this.debugCanvas.width, this.debugCanvas.height);
+	/**
+	 * draw2DGame()
+	 *
+	 * Renders the 2D space game on the debug layer when debug is toggled on
+	 * This is the original 2D game from the demo, now running on the debug layer
+	 */
+	draw2DGame() {
+		// Use the debug context for rendering
+		const ctx = this.debugCtx;
 
-	// Draw ship
-	ctx.save();
-	ctx.translate(this.shipPosition.x, this.shipPosition.y);
-	ctx.rotate(this.shipRotation);
+		// Add a space-like background (semi-transparent to show debug layer)
+		ctx.fillStyle = "rgba(0, 0, 51, 0.5)";
+		ctx.fillRect(0, 0, this.debugCanvas.width, this.debugCanvas.height);
 
-	// Draw triangular ship
-	ctx.beginPath();
-	ctx.moveTo(0, -20); // nose
-	ctx.lineTo(-15, 20); // left wing
-	ctx.lineTo(15, 20); // right wing
-	ctx.closePath();
+		// Draw ship
+		ctx.save();
+		ctx.translate(this.shipPosition.x, this.shipPosition.y);
+		ctx.rotate(this.shipRotation);
 
-	ctx.strokeStyle = "#00ff00";
-	ctx.lineWidth = 2;
-	ctx.stroke();
-
-	// Draw thrust if moving forward
-	if (this.input.isKeyPressed("DirUp") && this.showDebug) {
+		// Draw triangular ship
 		ctx.beginPath();
-		ctx.moveTo(-8, 20);
-		ctx.lineTo(0, 30);
-		ctx.lineTo(8, 20);
-		ctx.strokeStyle = "#ff0000";
-		ctx.stroke();
-	}
-
-	ctx.restore();
-
-	// Draw soccer ball
-	ctx.save();
-	ctx.translate(this.ballPosition.x, this.ballPosition.y);
-	ctx.rotate(this.ballRotation);
-
-	// Create pseudo-3D effect with gradient
-	const gradient = ctx.createRadialGradient(-5, -5, 1, -5, -5, this.ballRadius * 2);
-	gradient.addColorStop(0, "#ffffff");
-	gradient.addColorStop(1, "#cccccc");
-
-	// Draw main ball circle
-	ctx.beginPath();
-	ctx.arc(0, 0, this.ballRadius, 0, Math.PI * 2);
-	ctx.fillStyle = gradient;
-	ctx.fill();
-
-	// Draw pentagon pattern
-	const segments = 5;
-	const angleStep = (Math.PI * 2) / segments;
-	for (let i = 0; i < segments; i++) {
-		const angle = i * angleStep;
-
-		ctx.beginPath();
-		ctx.moveTo(0, 0);
-		ctx.lineTo(Math.cos(angle) * this.ballRadius, Math.sin(angle) * this.ballRadius);
-		ctx.lineTo(
-			Math.cos(angle + angleStep) * this.ballRadius,
-			Math.sin(angle + angleStep) * this.ballRadius
-		);
+		ctx.moveTo(0, -20); // nose
+		ctx.lineTo(-15, 20); // left wing
+		ctx.lineTo(15, 20); // right wing
 		ctx.closePath();
-		ctx.fillStyle = i % 2 === 0 ? "#000000" : "#ffffff";
-		ctx.globalAlpha = 0.3;
+
+		ctx.strokeStyle = "#00ff00";
+		ctx.lineWidth = 2;
+		ctx.stroke();
+
+		// Draw thrust if moving forward
+		if (this.input.isKeyPressed("DirUp") && this.showDebug) {
+			ctx.beginPath();
+			ctx.moveTo(-8, 20);
+			ctx.lineTo(0, 30);
+			ctx.lineTo(8, 20);
+			ctx.strokeStyle = "#ff0000";
+			ctx.stroke();
+		}
+
+		ctx.restore();
+
+		// Draw soccer ball
+		ctx.save();
+		ctx.translate(this.ballPosition.x, this.ballPosition.y);
+		ctx.rotate(this.ballRotation);
+
+		// Create pseudo-3D effect with gradient
+		const gradient = ctx.createRadialGradient(-5, -5, 1, -5, -5, this.ballRadius * 2);
+		gradient.addColorStop(0, "#ffffff");
+		gradient.addColorStop(1, "#cccccc");
+
+		// Draw main ball circle
+		ctx.beginPath();
+		ctx.arc(0, 0, this.ballRadius, 0, Math.PI * 2);
+		ctx.fillStyle = gradient;
 		ctx.fill();
+
+		// Draw pentagon pattern
+		const segments = 5;
+		const angleStep = (Math.PI * 2) / segments;
+		for (let i = 0; i < segments; i++) {
+			const angle = i * angleStep;
+
+			ctx.beginPath();
+			ctx.moveTo(0, 0);
+			ctx.lineTo(Math.cos(angle) * this.ballRadius, Math.sin(angle) * this.ballRadius);
+			ctx.lineTo(Math.cos(angle + angleStep) * this.ballRadius, Math.sin(angle + angleStep) * this.ballRadius);
+			ctx.closePath();
+			ctx.fillStyle = i % 2 === 0 ? "#000000" : "#ffffff";
+			ctx.globalAlpha = 0.3;
+			ctx.fill();
+		}
+
+		// Draw highlight
+		ctx.beginPath();
+		ctx.arc(-5, -5, this.ballRadius / 3, 0, Math.PI * 2);
+		ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
+		ctx.fill();
+
+		ctx.restore();
+
+		// Add 2D game info
+		ctx.fillStyle = "#00ff00";
+		ctx.font = "14px monospace";
+		ctx.fillText("Debug Mode Active - 2D Mini-Game Running", this.padding, this.padding + 50);
+		ctx.fillText("Use Arrow Keys to control the ship", this.padding, this.padding + 70);
+		ctx.fillText("Try to hit the ball with your ship!", this.padding, this.padding + 90);
 	}
 
-	// Draw highlight
-	ctx.beginPath();
-	ctx.arc(-5, -5, this.ballRadius / 3, 0, Math.PI * 2);
-	ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
-	ctx.fill();
-
-	ctx.restore();
-
-	// Add 2D game info
-	ctx.fillStyle = "#00ff00";
-	ctx.font = "14px monospace";
-	ctx.fillText("Debug Mode Active - 2D Mini-Game Running", this.padding, this.padding + 50);
-	ctx.fillText("Use Arrow Keys to control the ship", this.padding, this.padding + 70);
-	ctx.fillText("Try to hit the ball with your ship!", this.padding, this.padding + 90);
-}
-
-/**
- * drawDebugButton()
- * 
- * Renders the debug layer toggle button
- */
-drawDebugButton() {
-	this.debugCtx.save();
-	this.debugCtx.fillStyle = this.debugButton.color;
-	if (this.input.isElementHovered("debugButton", "debug")) {
-		this.debugCtx.fillStyle = "#ff6666";
+	/**
+	 * drawDebugButton()
+	 *
+	 * Renders the debug layer toggle button
+	 */
+	drawDebugButton() {
+		this.debugCtx.save();
+		this.debugCtx.fillStyle = this.debugButton.color;
+		if (this.input.isElementHovered("debugButton", "debug")) {
+			this.debugCtx.fillStyle = "#ff6666";
+		}
+		this.debugCtx.fillRect(this.debugButton.x, this.debugButton.y, this.debugButton.width, this.debugButton.height);
+		this.debugCtx.fillStyle = "#ffffff";
+		this.debugCtx.font = "16px Orbitron";
+		this.debugCtx.textAlign = "center";
+		this.debugCtx.fillText(
+			this.debugButton.text,
+			this.debugButton.x + this.debugButton.width / 2,
+			this.debugButton.y + this.debugButton.height / 2
+		);
+		this.debugCtx.restore();
 	}
-	this.debugCtx.fillRect(this.debugButton.x, this.debugButton.y, this.debugButton.width, this.debugButton.height);
-	this.debugCtx.fillStyle = "#ffffff";
-	this.debugCtx.font = "16px Orbitron";
-	this.debugCtx.textAlign = "center";
-	this.debugCtx.fillText(
-		this.debugButton.text,
-		this.debugButton.x + this.debugButton.width / 2,
-		this.debugButton.y + this.debugButton.height / 2
-	);
-	this.debugCtx.restore();
-}
 
-/**
- * drawDebugMessages()
- * 
- * Renders the debug message log on the debug layer
- */
-drawDebugMessages() {
-	this.debugCtx.font = "14px monospace";
-	this.debugCtx.fillStyle = "#00ff00";
+	/**
+	 * drawDebugMessages()
+	 *
+	 * Renders the debug message log on the debug layer
+	 */
+	drawDebugMessages() {
+		this.debugCtx.font = "14px monospace";
+		this.debugCtx.fillStyle = "#00ff00";
 
-	this.messages.forEach((msg, i) => {
-		this.debugCtx.fillText(msg, this.padding, this.debugCanvas.height - (this.padding + i * this.lineHeight));
-	});
+		this.messages.forEach((msg, i) => {
+			this.debugCtx.fillText(msg, this.padding, this.debugCanvas.height - (this.padding + i * this.lineHeight));
+		});
 
-	// Draw debug header
-	this.debugCtx.fillText(`Debug Mode (F9 to toggle)`, this.padding, this.padding + 20);
-}
+		// Draw debug header
+		this.debugCtx.fillText(`Debug Mode (F9 to toggle)`, this.padding, this.padding + 20);
+	}
 
-/**
- * drawStatsDisplay()
- * 
- * Renders a stats display on the GUI layer showing click count and buttons
- */
-drawStatsDisplay() {
-	this.guiCtx.save();
-	this.guiCtx.font = "20px Orbitron";
+	/**
+	 * drawStatsDisplay()
+	 *
+	 * Renders a stats display on the GUI layer showing click count and buttons
+	 */
+	drawStatsDisplay() {
+		this.guiCtx.save();
+		this.guiCtx.font = "20px Orbitron";
 
-	// Calculate stats box dimensions
-	const statsText = `Total Clicks: ${this.totalClicks}`;
-	const buttonText = `Buttons: ${this.totalButtons}`;
-	const textWidth = Math.max(this.guiCtx.measureText(statsText).width, this.guiCtx.measureText(buttonText).width);
+		// Calculate stats box dimensions
+		const statsText = `Total Clicks: ${this.totalClicks}`;
+		const buttonText = `Buttons: ${this.totalButtons}`;
+		const textWidth = Math.max(this.guiCtx.measureText(statsText).width, this.guiCtx.measureText(buttonText).width);
 
-	const padding = 15;
-	const boxHeight = 70;
-	const boxWidth = textWidth + padding * 2;
-	const boxX = this.guiCanvas.width - boxWidth - 20;
-	const boxY = 20;
+		const padding = 15;
+		const boxHeight = 70;
+		const boxWidth = textWidth + padding * 2;
+		const boxX = this.guiCanvas.width - boxWidth - 20;
+		const boxY = 20;
 
-	// Create a semi-transparent box
-	this.guiCtx.fillStyle = "rgba(10, 10, 42, 0.85)";
-	this.guiCtx.beginPath();
-	this.guiCtx.roundRect(boxX, boxY, boxWidth, boxHeight, 8);
-	this.guiCtx.fill();
+		// Create a semi-transparent box
+		this.guiCtx.fillStyle = "rgba(10, 10, 42, 0.85)";
+		this.guiCtx.beginPath();
+		this.guiCtx.roundRect(boxX, boxY, boxWidth, boxHeight, 8);
+		this.guiCtx.fill();
 
-	// Add a subtle border
-	this.guiCtx.strokeStyle = "rgba(0, 240, 240, 0.3)";
-	this.guiCtx.lineWidth = 2;
-	this.guiCtx.stroke();
+		// Add a subtle border
+		this.guiCtx.strokeStyle = "rgba(0, 240, 240, 0.3)";
+		this.guiCtx.lineWidth = 2;
+		this.guiCtx.stroke();
 
-	// Draw stats text
-	this.guiCtx.fillStyle = "#00f0f0";
-	this.guiCtx.textAlign = "left";
-	this.guiCtx.fillText(statsText, boxX + padding, boxY + 30);
-	this.guiCtx.fillText(buttonText, boxX + padding, boxY + 55);
+		// Draw stats text
+		this.guiCtx.fillStyle = "#00f0f0";
+		this.guiCtx.textAlign = "left";
+		this.guiCtx.fillText(statsText, boxX + padding, boxY + 30);
+		this.guiCtx.fillText(buttonText, boxX + padding, boxY + 55);
 
-	this.guiCtx.restore();
-}
+		this.guiCtx.restore();
+	}
 }
