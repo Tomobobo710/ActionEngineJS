@@ -5,7 +5,7 @@ class App {
         const canvases = this.threelayersystem.getCanvases();
         
         this.audio = new ActionAudioManager();
-        this.input = new ActionInputHandler(this.audio, canvases);  // Pass canvases here
+        this.input = new ActionInputHandler(this.audio, canvases);
         
         this.game = new Game(canvases, this.input, this.audio);
         
@@ -14,8 +14,8 @@ class App {
         this.loop();
     }
     
+    // Engine-driven loop
     loop() {
-        // Engine-driven loop
         
         // Pre-update phase
         if (typeof this.game.action_pre_update === 'function') {
@@ -46,9 +46,6 @@ class App {
         if (typeof this.game.action_post_draw === 'function') {
             this.game.action_post_draw();
         }
-        
-        // We'll implement input state updates later
-        // Currently there's no input.update() method
         
         // Schedule the next frame
         requestAnimationFrame(() => this.loop());
