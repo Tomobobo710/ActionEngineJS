@@ -1,4 +1,6 @@
 // game/character/basecharacter/actioncharacter.js
+// @import ../camera/cameracollisionhandler.js
+
 class ActionCharacter extends RenderableObject {
     constructor(camera, game) {
         super();
@@ -199,6 +201,11 @@ class ActionCharacter extends RenderableObject {
             this.updateFacingDirection();
 
             if (!this.camera.isDetached) {
+                // Initialize camera collision handler if needed
+                if (!this.cameraCollisionHandler && this.game && this.game.physicsWorld) {
+                    this.cameraCollisionHandler = new CameraCollisionHandler(this.game.physicsWorld);
+                }
+                
                 if (this.isFirstPerson) {
                     this.camera.position = this.position.add(new Vector3(0, this.firstPersonHeight, 0));
 
@@ -215,12 +222,25 @@ class ActionCharacter extends RenderableObject {
                         Math.cos(this.cameraYaw) * Math.cos(this.cameraPitch) * this.cameraDistance
                     );
 
-                    this.camera.position = this.position.add(cameraOffset);
+                    // Calculate desired camera position without collision
+                    const desiredCameraPosition = this.position.add(cameraOffset);
+                    
+                    // Apply camera collision if handler exists
+                    if (this.cameraCollisionHandler) {
+                        // Adjust camera position for collisions - no smoothing
+                        this.camera.position = this.cameraCollisionHandler.adjustCameraPosition(
+                            this.position, 
+                            desiredCameraPosition,
+                            1.0 // Camera collision radius
+                        );
+                    } else {
+                        // Fall back to original behavior if no collision handler
+                        this.camera.position = desiredCameraPosition;
+                    }
+                    
                     this.camera.target = this.position.add(new Vector3(0, this.height / 2, 0));
                 }
             }
-            
-            
         }
 
         // Store debug info

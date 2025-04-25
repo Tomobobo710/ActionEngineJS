@@ -1,4 +1,5 @@
 // game/mode/dungeon/dungeonmode.js
+
 class DungeonMode {
     constructor(canvases, input, audio, gameModeManager) {
         this.canvases = canvases;
