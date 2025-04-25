@@ -1,5 +1,12 @@
 // actionengine/display/graphics/renderers/actionrenderer3D/actionrenderer3D.js
-class ActionRenderer3D {
+class ActionRenderer3D {    // Add a method to clear caches
+    clearCaches() {
+        if (this.objectRenderer) {
+            // Clear the texture cache using the proper method
+            this.objectRenderer.clearTextureCaches();
+            console.log("[ActionRenderer3D] Caches cleared");
+        }
+    }
     constructor(canvas) {
         // Initialize canvas manager
         this.canvasManager = new CanvasManager3D(canvas);
@@ -12,6 +19,7 @@ class ActionRenderer3D {
         this.lightingManager = new LightingManager(this.gl, this.canvasManager.isWebGL2());
         this.debugRenderer = new DebugRenderer3D(this.gl, this.programManager, this.lightingManager);
         this.weatherRenderer = new WeatherRenderer3D(this.gl, this.programManager);
+        this.sunRenderer = new SunRenderer3D(this.gl, this.programManager);
         // Create texture array before other renderers
         this.textureManager = new TextureManager(this.gl);
         this.textureArray = this.textureManager.textureArray;
@@ -105,6 +113,11 @@ class ActionRenderer3D {
             this.weatherRenderer.render(weatherSystem, camera);
         }
 
+        // Draw the sun
+        const lightPos = this.lightingManager.lightPos;
+        const isVirtualBoyShader = (this._cachedShaderSet === this.programRegistry.shaders.get("virtualboy"));
+        this.sunRenderer.render(camera, lightPos, isVirtualBoyShader);
+        
         // Debug visualization if enabled
         if (showDebugPanel && camera) {
             // Find character in renderableObjects for debug visualization
