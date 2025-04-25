@@ -15,7 +15,7 @@ class Game {
        console.log("[Game] Initialization completed");
    }
    
-   action_update() {
+   action_update(dt) {
        this.gameMaster.update();
    }
    
