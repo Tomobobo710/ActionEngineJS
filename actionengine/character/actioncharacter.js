@@ -231,7 +231,7 @@ class ActionCharacter extends RenderableObject {
                         this.camera.position = this.cameraCollisionHandler.adjustCameraPosition(
                             this.position, 
                             desiredCameraPosition,
-                            1.0 // Camera collision radius
+                            1.6 // Camera collision radius
                         );
                     } else {
                         // Fall back to original behavior if no collision handler
