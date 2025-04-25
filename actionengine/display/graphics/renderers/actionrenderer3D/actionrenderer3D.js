@@ -1,12 +1,5 @@
 // actionengine/display/graphics/renderers/actionrenderer3D/actionrenderer3D.js
-class ActionRenderer3D {    // Add a method to clear caches
-    clearCaches() {
-        if (this.objectRenderer) {
-            // Clear the texture cache using the proper method
-            this.objectRenderer.clearTextureCaches();
-            console.log("[ActionRenderer3D] Caches cleared");
-        }
-    }
+class ActionRenderer3D {
     constructor(canvas) {
         // Initialize canvas manager
         this.canvasManager = new CanvasManager3D(canvas);

@@ -1,11 +1,5 @@
 // actionengine/display/graphics/renderers/actionrenderer3D/objectrenderer3D.js
-class ObjectRenderer3D {    // Add a method to clear texture caches
-    clearTextureCaches() {
-        this._textureCache = new Map();
-        this._textureIndexCache = null;
-        this._lastCacheUpdate = null;
-        console.log("[ObjectRenderer3D] Texture caches cleared");
-    }
+class ObjectRenderer3D {
     constructor(renderer, gl, programManager, lightingManager) {
         this.renderer = renderer;
         this.gl = gl;
@@ -504,10 +498,8 @@ class ObjectRenderer3D {    // Add a method to clear texture caches
         
         // If not found in cache, check if we need to refresh cache
         // This handles cases where texture registry was updated since cache creation
-        // Always refresh when texture is not found in cache
         if (!this._lastCacheUpdate || 
-            performance.now() - this._lastCacheUpdate > 100 || // Much more frequent update 
-            indexFromCache === undefined) { // Always refresh if texture not found
+            performance.now() - this._lastCacheUpdate > 1000) {
             
             textureRegistry.textureList.forEach((name, index) => {
                 const texture = textureRegistry.get(name);

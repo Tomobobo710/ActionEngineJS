@@ -141,20 +141,12 @@ class WorldMode {
             this.physicsWorld.reset();
         }
 
-                // Clear renderer cache to ensure textures are properly updated
-        if (this.renderer3D) {
-            this.renderer3D.clearCaches();
-        }
         const baseConfig = {
             seed: this.seed
         };
 
         this.terrain = new Terrain(baseConfig);
         this.physicsWorld.addObject(this.terrain);
-        // Force terrain to update its visual representation
-        if (this.terrain && this.terrain.updateVisual) {
-            this.terrain.updateVisual();
-        }
 
         if (this.poiManager) {
             this.poiManager.cleanup();

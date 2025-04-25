@@ -238,14 +238,5 @@ class Terrain {
     }
     
     // Physics world requires this
-    updateVisual() {
-        // Force triangles to update their textures by clearing cached colors
-        if (this.triangles) {
-            for (const triangle of this.triangles) {
-                // Reset cached color to force texture recalculation
-                triangle.lastColor = null;
-                triangle.cachedColor = null;
-            }
-        }
-    }
+    updateVisual(){}
 }
