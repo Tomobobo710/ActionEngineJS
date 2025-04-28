@@ -1,155 +1,6 @@
 // actionengine/display/gl/shaders/shadowshader.js
 class ShadowShader {
     /**
-     * Standard vertex shader implementation (required by ShaderManager)
-     */
-    getStandardVertexShader(isWebGL2) {
-        return `${isWebGL2 ? "#version 300 es\n" : ""}
-        precision mediump float;
-        
-        ${isWebGL2 ? "in" : "attribute"} vec3 aPosition;
-        ${isWebGL2 ? "in" : "attribute"} vec3 aNormal;
-        ${isWebGL2 ? "in" : "attribute"} vec3 aColor;
-        ${isWebGL2 ? "in" : "attribute"} vec2 aTexCoord;
-        ${isWebGL2 ? "in" : "attribute"} float aTextureIndex;
-        ${isWebGL2 ? "in" : "attribute"} float aUseTexture;
-        
-        uniform mat4 uProjectionMatrix;
-        uniform mat4 uViewMatrix;
-        uniform mat4 uModelMatrix;
-        uniform mat4 uLightSpaceMatrix;
-        uniform vec3 uLightDir;
-        
-        ${isWebGL2 ? "out" : "varying"} vec3 vColor;
-        ${isWebGL2 ? "out" : "varying"} vec2 vTexCoord;
-        ${isWebGL2 ? "out" : "varying"} float vLighting;
-        ${isWebGL2 ? "flat out" : "varying"} float vTextureIndex;
-        ${isWebGL2 ? "flat out" : "varying"} float vUseTexture;
-        ${isWebGL2 ? "out" : "varying"} vec4 vFragPosLightSpace;
-        ${isWebGL2 ? "out" : "varying"} vec3 vNormal;
-        ${isWebGL2 ? "out" : "varying"} vec3 vFragPos;
-        
-        void main() {
-            vec4 worldPos = uModelMatrix * vec4(aPosition, 1.0);
-            vFragPos = worldPos.xyz;
-            gl_Position = uProjectionMatrix * uViewMatrix * worldPos;
-            
-            // Position in light space for shadow mapping
-            vFragPosLightSpace = uLightSpaceMatrix * worldPos;
-            
-            // Pass world-space normal
-            vNormal = mat3(uModelMatrix) * aNormal;
-            
-            // Calculate basic diffuse lighting
-            vec3 worldNormal = normalize(vNormal);
-            vLighting = max(0.3, min(1.0, dot(worldNormal, normalize(uLightDir))));
-            
-            // Pass other variables to fragment shader
-            vColor = aColor;
-            vTexCoord = aTexCoord;
-            vTextureIndex = aTextureIndex;
-            vUseTexture = aUseTexture;
-        }`;
-    }
-    
-    /**
-     * Standard fragment shader implementation (required by ShaderManager)
-     */
-    getStandardFragmentShader(isWebGL2) {
-        return `${isWebGL2 ? "#version 300 es\n" : ""}
-        precision mediump float;
-        ${isWebGL2 ? "precision mediump sampler2DArray;\n" : ""}
-        
-        ${isWebGL2 ? "in" : "varying"} vec3 vColor;
-        ${isWebGL2 ? "in" : "varying"} vec2 vTexCoord;
-        ${isWebGL2 ? "in" : "varying"} float vLighting;
-        ${isWebGL2 ? "flat in" : "varying"} float vTextureIndex;
-        ${isWebGL2 ? "flat in" : "varying"} float vUseTexture;
-        ${isWebGL2 ? "in" : "varying"} vec4 vFragPosLightSpace;
-        ${isWebGL2 ? "in" : "varying"} vec3 vNormal;
-        ${isWebGL2 ? "in" : "varying"} vec3 vFragPos;
-        
-        // Texture array for albedo textures (unit 0)
-        ${isWebGL2 ? "uniform sampler2DArray uTextureArray;" : "uniform sampler2D uTexture;"}
-        
-        // Shadow map on separate texture unit (unit 7) - always sampler2D
-        uniform sampler2D uShadowMap;
-        uniform vec3 uLightPos;
-        uniform vec3 uLightDir;
-        uniform bool uShadowsEnabled;
-        uniform float uShadowBias; // Shadow bias uniform for controlling shadow acne
-        
-        ${isWebGL2 ? "out vec4 fragColor;" : ""}
-        
-        // Shadow mapping functions
-        ${this.getShadowSamplingFunctions(isWebGL2)}
-        
-        void main() {
-            // Base color calculation
-            vec4 baseColor;
-            if (vUseTexture > 0.5) {  // Check if this fragment uses texture
-                ${isWebGL2 ? 
-                "baseColor = texture(uTextureArray, vec3(vTexCoord, vTextureIndex));" : 
-                "baseColor = texture2D(uTexture, vTexCoord);"}
-            } else {
-                baseColor = vec4(vColor, 1.0);
-            }
-            
-            // Apply ambient and diffuse lighting
-            float ambient = 0.2;
-            float diffuse = max(0.0, dot(normalize(vNormal), normalize(uLightDir)));
-            
-            // Calculate shadow factor
-            float shadow = 1.0;
-            if (uShadowsEnabled) {
-                // Get shadow factor with PCF
-                float shadowFactor = shadowCalculationPCF(vFragPosLightSpace, uShadowMap);
-                // Process shadow factor same way as the other shaders
-                shadow = 1.0 - (1.0 - shadowFactor) * 0.8;
-            }
-            
-            // Final lighting calculation with shadow
-            float lighting = ambient + (diffuse * shadow);
-            
-            // Apply lighting to color
-            vec3 result = baseColor.rgb * lighting;
-            
-            ${isWebGL2 ? "fragColor" : "gl_FragColor"} = vec4(result, baseColor.a);
-        }`;
-    }
-    
-    /**
-     * Line vertex shader implementation (required by ShaderManager)
-     */
-    getLineVertexShader(isWebGL2) {
-        return `${isWebGL2 ? "#version 300 es\n" : ""}
-        precision mediump float;
-        
-        ${isWebGL2 ? "in" : "attribute"} vec3 aPosition;
-        uniform mat4 uProjectionMatrix;
-        uniform mat4 uViewMatrix;
-        
-        void main() {
-            gl_Position = uProjectionMatrix * uViewMatrix * vec4(aPosition, 1.0);
-        }`;
-    }
-    
-    /**
-     * Line fragment shader implementation (required by ShaderManager)
-     */
-    getLineFragmentShader(isWebGL2) {
-        return `${isWebGL2 ? "#version 300 es\n" : ""}
-        precision mediump float;
-        
-        uniform vec3 uColor;
-        ${isWebGL2 ? "out vec4 fragColor;" : ""}
-        
-        void main() {
-            ${isWebGL2 ? "fragColor" : "gl_FragColor"} = vec4(1.0, 0.0, 0.0, 1.0);
-        }`;
-    }
-    
-    /**
      * Vertex shader for the shadow mapping pass
      * This shader simply transforms vertices to light space
      */
@@ -170,8 +21,8 @@ class ShadowShader {
      * This shader outputs depth values to the shadow map
      */
     getShadowFragmentShader(isWebGL2) {
-    if (isWebGL2) {
-        return `#version 300 es
+        if (isWebGL2) {
+            return `#version 300 es
         precision mediump float;
         
         // Debug uniforms
@@ -205,9 +56,9 @@ class ShadowShader {
     
     fragColor = encodedDepth;
 }`;
-    } else {
-        // WebGL1 version
-        return `precision highp float;
+        } else {
+            // WebGL1 version
+            return `precision highp float;
         
         // Debug uniforms
         uniform bool uDebugShadowMap;
@@ -257,15 +108,13 @@ class ShadowShader {
                 gl_FragColor = color;
             }
         }`;
+        }
     }
-
-    }
-    
 
     /**
      * Helper methods to include shadow maps in standard rendering shaders
-     * 
-     * SHADOW CONVENTION: 
+     *
+     * SHADOW CONVENTION:
      * - shadowCalculationPCF() returns 1.0 for lit areas and 0.0 for shadowed areas
      * - In all shaders, we process this raw value with: shadow = 1.0 - (1.0 - shadowFactor) * 0.8;
      * - This gives shadowed areas a value of 0.2 and lit areas a value of 1.0
