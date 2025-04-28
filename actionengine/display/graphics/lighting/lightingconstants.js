@@ -52,12 +52,12 @@ class LightingConstants {
         // Shadow map settings
         this.SHADOW_MAP = {
             SIZE: {
-                value: 2048,   // Power of 2 for best performance
+                value: 16384,   // Power of 2 for best performance
                 options: [512, 1024, 2048, 4096, 8192, 16384, 24576],
                 label: "Shadow Resolution"
             },
             BIAS: {
-                value: 0.002,   // Bias to prevent shadow acne - fine-tuned for testing
+                value: 0.0341,   // Bias to prevent shadow acne - fine-tuned for testing
                 min: -0.001,      // Narrower range focused on useful values
                 max: 0.04,     // Maximum bias value for testing
                 step: 0.0001    // Very small step for fine-grained control
@@ -98,12 +98,12 @@ class LightingConstants {
                 step: 0.1
             },
             FAR: {
-                value: 3200,
+                value: 7900,
                 min: 0.1,
                 max: 50000,
                 step: 100
             },
-            AUTO_FIT: true,  // Automatically fit shadow frustum to visible scene
+            AUTO_FIT: false,  // Automatically fit shadow frustum to visible scene
             DISTANCE_MULTIPLIER: {
                 value: 100,  // Multiplier for light target distance
                 min: 10,
@@ -114,17 +114,17 @@ class LightingConstants {
         
         // Shadow filtering settings
         this.SHADOW_FILTERING = {
-            ENABLED: true,
+            ENABLED: false,
             PCF: { // Percentage Closer Filtering
                 ENABLED: true,
                 SIZE: {
-                    value: 3,  // Size of PCF kernel (3 = 3x3 sampling)
+                    value: 1,  // Size of PCF kernel (3 = 3x3 sampling)
                     options: [1, 3, 5, 7, 9],
                     label: "PCF Kernel Size"
                 }
             },
             SOFTNESS: {
-                value: 0.8,  // Shadow softness (0 = hard, 1 = very soft)
+                value: -9.25,  // Shadow softness (0 = hard, 1 = very soft)
                 min: -10.0,
                 max: 10.0,
                 step: 0.01

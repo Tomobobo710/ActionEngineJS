@@ -309,8 +309,8 @@ class LightingDebugPanel {
         
         // Toggle button to show/hide the panel
         this.toggleButton = {
-            x: 10,
-            y: 10,
+            x: (this.canvas.width - 120) / 2 + 140, // Place to right of weather button
+            y: 10, // Top of screen with small padding
             width: 150,
             height: 30,
             text: "Lighting Settings"
