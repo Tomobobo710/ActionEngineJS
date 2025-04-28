@@ -73,15 +73,17 @@ class ProgramManager {
         const defaultShader = new DefaultShader();
 
         const defaultStandardProgram = this.programRegistry.createShaderProgram(
-            defaultShader.getStandardVertexShader(),
-            defaultShader.getStandardFragmentShader()
+            defaultShader.getStandardVertexShader(this.isWebGL2),
+            defaultShader.getStandardFragmentShader(this.isWebGL2),
+            'default_standard'
         );
 
         // Character shader initialization removed - characters now use standard shader
 
         const defaultLineProgram = this.programRegistry.createShaderProgram(
-            defaultShader.getLineVertexShader(),
-            defaultShader.getLineFragmentShader()
+            defaultShader.getLineVertexShader(this.isWebGL2),
+            defaultShader.getLineFragmentShader(this.isWebGL2),
+            'default_lines'
         );
 
         // Add default shader set to registry

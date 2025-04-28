@@ -1,4 +1,6 @@
 // actionengine/display/gl/shadermanager.js
+
+
 class ShaderManager {
     constructor(renderer3D, initialSize = 500) {
         this.gl = renderer3D.gl;
@@ -16,20 +18,71 @@ class ShaderManager {
     }
 
     registerAllShaders(renderer) {
+        console.log(`[ShaderManager] Registering all shaders, WebGL2: ${this.isWebGL2}`);
         // Register each shader with the renderer
         ShaderRegistry.getAllShaderNames().forEach((name) => {
-            const shader = ShaderRegistry.getShader(name);
-            const shaderSet = {
-                standard: {
-                    vertex: shader.getStandardVertexShader?.(this.isWebGL2),
-                    fragment: shader.getStandardFragmentShader?.(this.isWebGL2)
-                },
-                lines: {
-                    vertex: shader.getLineVertexShader?.(this.isWebGL2),
-                    fragment: shader.getLineFragmentShader?.(this.isWebGL2)
+            console.log(`[ShaderManager] Registering shader set: ${name}`);
+            try {
+                const shader = ShaderRegistry.getShader(name);
+                if (!shader) {
+                    console.error(`[ShaderManager] Error: Shader '${name}' not found in registry`);
+                    return;
                 }
-            };
-            renderer.programRegistry.registerShaderSet(name, shaderSet);
+                
+                // Print info to debug method calls
+                console.log(`[ShaderManager] Shader class: ${shader.constructor.name}`);
+                console.log(`[ShaderManager] Has getStandardVertexShader: ${!!shader.getStandardVertexShader}`);
+                console.log(`[ShaderManager] Has getStandardFragmentShader: ${!!shader.getStandardFragmentShader}`);
+                
+                // Get shader source with error checking
+                let standardVertex = null;
+                try {
+                    standardVertex = shader.getStandardVertexShader?.(this.isWebGL2);
+                } catch (e) {
+                    console.error(`[ShaderManager] Error getting standard vertex shader for '${name}': ${e.message}`);
+                }
+                
+                let standardFragment = null;
+                try {
+                    standardFragment = shader.getStandardFragmentShader?.(this.isWebGL2);
+                } catch (e) {
+                    console.error(`[ShaderManager] Error getting standard fragment shader for '${name}': ${e.message}`);
+                }
+                
+                let lineVertex = null;
+                try {
+                    lineVertex = shader.getLineVertexShader?.(this.isWebGL2);
+                } catch (e) {
+                    console.error(`[ShaderManager] Error getting line vertex shader for '${name}': ${e.message}`);
+                }
+                
+                let lineFragment = null;
+                try {
+                    lineFragment = shader.getLineFragmentShader?.(this.isWebGL2);
+                } catch (e) {
+                    console.error(`[ShaderManager] Error getting line fragment shader for '${name}': ${e.message}`);
+                }
+                
+                const shaderSet = {
+                    standard: {
+                        vertex: standardVertex,
+                        fragment: standardFragment
+                    },
+                    lines: {
+                        vertex: lineVertex,
+                        fragment: lineFragment
+                    }
+                };
+                
+                try {
+                    renderer.programRegistry.registerShaderSet(name, shaderSet);
+                    console.log(`[ShaderManager] Successfully registered shader set: ${name}`);
+                } catch (e) {
+                    console.error(`[ShaderManager] Error registering shader set '${name}': ${e.message}`);
+                }
+            } catch (e) {
+                console.error(`[ShaderManager] Fatal error processing shader '${name}': ${e.message}`);
+            }
         });
     }
 

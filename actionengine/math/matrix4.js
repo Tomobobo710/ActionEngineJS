@@ -23,6 +23,27 @@ class Matrix4 {
         out[15] = 1;
         return out;
     }
+    /**
+     * Multiply a vector by a matrix
+     * @param {Array} out - Output vector (will be modified)
+     * @param {Array|Float32Array} matrix - 4x4 matrix
+     * @param {Array} vec - Input vector [x, y, z, w]
+     * @returns {Array} - The output vector
+     */
+    static multiplyVector(out, matrix, vec) {
+        const x = vec[0];
+        const y = vec[1];
+        const z = vec[2];
+        const w = vec[3] || 1.0;
+        
+        out[0] = matrix[0] * x + matrix[4] * y + matrix[8] * z + matrix[12] * w;
+        out[1] = matrix[1] * x + matrix[5] * y + matrix[9] * z + matrix[13] * w;
+        out[2] = matrix[2] * x + matrix[6] * y + matrix[10] * z + matrix[14] * w;
+        out[3] = matrix[3] * x + matrix[7] * y + matrix[11] * z + matrix[15] * w;
+        
+        return out;
+    }
+    
     static transformVector(vector, viewMatrix, projectionMatrix) {
         // First multiply by view matrix
         const viewResult = [0, 0, 0, 0];

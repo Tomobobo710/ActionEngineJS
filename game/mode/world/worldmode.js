@@ -107,7 +107,11 @@ class WorldMode {
 
         this.lastTime = performance.now();
         this.deltaTime = 0;
+        
+        // Create debug panels
         this.debugPanel = new DebugPanel(this.debugCanvas, this);
+        this.lightingDebugPanel = new LightingDebugPanel(this.debugCanvas, this);
+        
         this.showDebugPanel = false;
         this.use2DRenderer = false;
 
@@ -360,11 +364,16 @@ class WorldMode {
             });
         }
 
+        // Update and draw debug panels
         if (this.showDebugPanel) {
             this.debugPanel.draw();
         } else {
             this.debugPanel.clear();
         }
+        
+        // Update lighting debug panel only when debug panel is visible
+        this.lightingDebugPanel.update();
+        this.lightingDebugPanel.draw();
 
         // Draw gui
         if (this.guiCtx) {
@@ -476,10 +485,16 @@ class WorldMode {
             this.camera = null;
         }
 
-        // Clean up debug panel
+        // Clean up debug panels
         if (this.debugPanel) {
             // Need to add proper cleanup
             this.debugPanel = null;
+        }
+        
+        // Clean up lighting debug panel
+        if (this.lightingDebugPanel) {
+            // Need to add proper cleanup
+            this.lightingDebugPanel = null;
         }
 
         // Remove 2D canvas

@@ -1,6 +1,6 @@
 // game/display/gl/shaders/pbrshader.js
 class PBRShader {
-    getStandardVertexShader(isWebGL2) { // Renamed from getTerrainVertexShader
+    getStandardVertexShader(isWebGL2) {
         return `${isWebGL2 ? "#version 300 es\n" : ""}
     // Attributes - data coming in per vertex
     ${isWebGL2 ? "in" : "attribute"} vec3 aPosition;
@@ -14,6 +14,7 @@ class PBRShader {
     uniform mat4 uProjectionMatrix;
     uniform mat4 uViewMatrix;
     uniform mat4 uModelMatrix;
+    uniform mat4 uLightSpaceMatrix;  // Added for shadow mapping
 
     uniform vec3 uLightDir;
     uniform vec3 uCameraPos;
@@ -21,6 +22,7 @@ class PBRShader {
     // Outputs to fragment shader
     ${isWebGL2 ? "out" : "varying"} vec3 vNormal;        // Surface normal
     ${isWebGL2 ? "out" : "varying"} vec3 vWorldPos;      // Position in world space
+    ${isWebGL2 ? "out" : "varying"} vec4 vFragPosLightSpace;  // Added for shadow mapping
 
     ${isWebGL2 ? "out" : "varying"} vec3 vColor;
     ${isWebGL2 ? "out" : "varying"} vec3 vViewDir;       // Direction to camera
@@ -39,7 +41,8 @@ class PBRShader {
         // Calculate view direction
         vViewDir = normalize(uCameraPos - worldPos.xyz);
         
-
+        // Position in light space for shadow mapping
+        vFragPosLightSpace = uLightSpaceMatrix * worldPos;
         
         // Pass color and texture info to fragment shader
         vColor = aColor;
@@ -52,7 +55,10 @@ class PBRShader {
     }`;
     }
 
-    getStandardFragmentShader(isWebGL2) { // Renamed from getTerrainFragmentShader
+    getStandardFragmentShader(isWebGL2) {
+        // Include shadow calculation functions from ShadowShader
+        const shadowFunctions = new ShadowShader().getShadowSamplingFunctions(isWebGL2);
+        
         return `${isWebGL2 ? "#version 300 es\n" : ""}
 precision highp float;
 ${isWebGL2 ? "precision mediump sampler2DArray;\n" : ""}
@@ -60,6 +66,7 @@ ${isWebGL2 ? "precision mediump sampler2DArray;\n" : ""}
 // Inputs from vertex shader
 ${isWebGL2 ? "in" : "varying"} vec3 vNormal;
 ${isWebGL2 ? "in" : "varying"} vec3 vWorldPos;
+${isWebGL2 ? "in" : "varying"} vec4 vFragPosLightSpace;  // Added for shadow mapping
 
 ${isWebGL2 ? "in" : "varying"} vec3 vColor;
 ${isWebGL2 ? "in" : "varying"} vec3 vViewDir;
@@ -76,8 +83,16 @@ uniform float uBaseReflectivity;
 uniform vec3 uLightPos;
 uniform vec3 uLightDir;
 uniform vec3 uCameraPos;
-
 uniform float uLightIntensity;
+
+// Shadow mapping (always on texture unit 7)
+uniform sampler2D uShadowMap;
+uniform bool uShadowsEnabled;
+uniform float uShadowBias; // Shadow bias uniform for controlling shadow acne
+uniform float uShadowMapSize; // Shadow map size for texture calculations
+uniform float uShadowSoftness; // Controls shadow edge softness (0-1)
+uniform int uPCFSize; // Controls PCF kernel size (1, 3, 5, 7, 9)
+uniform bool uPCFEnabled; // Controls whether PCF filtering is enabled
 
 // Texture sampler
 uniform sampler2DArray uPBRTextureArray;
@@ -87,6 +102,9 @@ ${isWebGL2 ? "out vec4 fragColor;" : ""}
 // Constants for performance
 const float PI = 3.14159265359;
 const float RECIPROCAL_PI = 0.31830988618;
+
+// Shadow mapping functions
+${shadowFunctions}
 
 // Optimized PBR function that combines GGX and Fresnel calculations
 // This is faster than separate function calls
@@ -122,7 +140,8 @@ vec3 specularBRDF(vec3 N, vec3 L, vec3 V, vec3 F0, float roughness) {
 void main() {
     vec3 N = normalize(vNormal);
     vec3 V = normalize(vViewDir);
-    vec3 L = normalize(uLightDir);  // Light direction
+    // Negate light direction to be consistent with shadow mapping convention
+    vec3 L = normalize(-uLightDir);  // Light direction (negated for consistency)
     float NdotL = max(dot(N, L), 0.0);
 
     // Fast path for distance attenuation calculation
@@ -138,13 +157,24 @@ void main() {
     vec3 baseF0 = mix(vec3(uBaseReflectivity), albedo, uMetallic);
 
     // Calculate specular using our optimized function
+    // Note: L is already negated above for consistency with shadow mapping
     vec3 specular = specularBRDF(N, L, V, baseF0, uRoughness);
 
     // Efficient diffuse calculation
     vec3 kD = (vec3(1.0) - specular) * (1.0 - uMetallic);
     
-    // Combined lighting equation - multiply terms together for fewer operations
-    vec3 color = (kD * albedo * RECIPROCAL_PI + specular) * NdotL * uLightIntensity * distanceAttenuation;
+    // Calculate shadow factor if shadows are enabled
+    float shadow = 1.0;
+    if (uShadowsEnabled) {
+        // Use the PCF shadow calculation for soft shadows
+        // The shadow map is bound to texture unit 7
+        float shadowFactor = shadowCalculationPCF(vFragPosLightSpace, uShadowMap);
+        // Adjust shadow intensity for PBR - not completely black shadows
+        shadow = 1.0 - (1.0 - shadowFactor) * 0.8;
+    }
+    
+    // Combined lighting equation with shadow
+    vec3 color = (kD * albedo * RECIPROCAL_PI + specular) * NdotL * uLightIntensity * distanceAttenuation * shadow;
 
     // Add ambient light (pre-computed constant)
     color += vec3(0.03) * albedo;
@@ -180,5 +210,4 @@ void main() {
 }
 
 // Register the shader
-//console.log("[PBRShader] Registering PBR shader..");
 ShaderRegistry.register("pbr", PBRShader);

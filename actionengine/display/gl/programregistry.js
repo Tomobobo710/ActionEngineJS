@@ -4,30 +4,45 @@ class ProgramRegistry {
         this.gl = gl;
         this.shaders = new Map();
         this.currentShaderIndex = 0;
+        this.isWebGL2 = gl.getParameter(gl.VERSION).includes("WebGL 2.0");
     }
 
-    createShaderProgram(vsSource, fsSource) {
-        const vertexShader = this.compileShader(this.gl.VERTEX_SHADER, vsSource);
-        const fragmentShader = this.compileShader(this.gl.FRAGMENT_SHADER, fsSource);
-
-        const program = this.gl.createProgram();
-        this.gl.attachShader(program, vertexShader);
-        this.gl.attachShader(program, fragmentShader);
-        this.gl.linkProgram(program);
-
-        if (!this.gl.getProgramParameter(program, this.gl.LINK_STATUS)) {
-            const info = this.gl.getProgramInfoLog(program);
-            throw new Error("Shader program failed to link: " + info);
+    createShaderProgram(vsSource, fsSource, shaderName = 'unknown') {
+        try {
+            // Try to compile the vertex shader
+            const vertexShader = this.compileShader(this.gl.VERTEX_SHADER, vsSource, `${shaderName} vertex`);
+            
+            // Try to compile the fragment shader
+            const fragmentShader = this.compileShader(this.gl.FRAGMENT_SHADER, fsSource, `${shaderName} fragment`);
+    
+            const program = this.gl.createProgram();
+            this.gl.attachShader(program, vertexShader);
+            this.gl.attachShader(program, fragmentShader);
+            this.gl.linkProgram(program);
+    
+            if (!this.gl.getProgramParameter(program, this.gl.LINK_STATUS)) {
+                const info = this.gl.getProgramInfoLog(program);
+                console.error(`==== SHADER LINK ERROR FOR '${shaderName}' ====`);
+                console.error(info);
+                console.error('==== VERTEX SHADER SOURCE ====');
+                console.error(vsSource);
+                console.error('==== FRAGMENT SHADER SOURCE ====');
+                console.error(fsSource);
+                throw new Error(`Shader program '${shaderName}' failed to link: ${info}`);
+            }
+    
+            // Clean up shaders after linking
+            this.gl.deleteShader(vertexShader);
+            this.gl.deleteShader(fragmentShader);
+    
+            return program;
+        } catch (error) {
+            console.error(`Error creating shader program '${shaderName}': ${error.message}`);
+            throw error;
         }
-
-        // Clean up shaders after linking
-        this.gl.deleteShader(vertexShader);
-        this.gl.deleteShader(fragmentShader);
-
-        return program;
     }
 
-    compileShader(type, source) {
+    compileShader(type, source, shaderLabel = 'unknown') {
         const shader = this.gl.createShader(type);
         this.gl.shaderSource(shader, source);
         this.gl.compileShader(shader);
@@ -35,7 +50,39 @@ class ProgramRegistry {
         if (!this.gl.getShaderParameter(shader, this.gl.COMPILE_STATUS)) {
             const info = this.gl.getShaderInfoLog(shader);
             this.gl.deleteShader(shader);
-            throw new Error("Shader compile error: " + info);
+            
+            // Print detailed error information
+            console.error(`==== SHADER COMPILE ERROR FOR '${shaderLabel}' ====`);
+            console.error(info);
+            
+            // Print the source code with line numbers
+            const sourceLines = source.split('\n');
+            console.error('==== SHADER SOURCE ====');
+            sourceLines.forEach((line, index) => {
+                console.error(`${index + 1}: ${line}`);
+            });
+            
+            // Analyze error message for line numbers
+            let lineNumber = -1;
+            const lineMatch = info.match(/\d+:(\d+)/);
+            if (lineMatch && lineMatch[1]) {
+                lineNumber = parseInt(lineMatch[1]);
+                if (lineNumber > 0 && lineNumber <= sourceLines.length) {
+                    console.error('==== PROBLEMATIC LINE ====');
+                    console.error(`${lineNumber}: ${sourceLines[lineNumber - 1]}`);
+                    
+                    // Show context (lines before and after)
+                    console.error('==== CONTEXT ====');
+                    const startLine = Math.max(0, lineNumber - 3);
+                    const endLine = Math.min(sourceLines.length, lineNumber + 2);
+                    for (let i = startLine; i < endLine; i++) {
+                        const prefix = i === lineNumber - 1 ? '> ' : '  ';
+                        console.error(`${prefix}${i + 1}: ${sourceLines[i]}`);
+                    }
+                }
+            }
+            
+            throw new Error(`Shader compile error in '${shaderLabel}': ${info}`);
         }
 
         return shader;
@@ -48,14 +95,14 @@ class ProgramRegistry {
         const newSet = {
             standard: {
                 program: shaders.standard
-                    ? this.createShaderProgram(shaders.standard.vertex, shaders.standard.fragment)
+                    ? this.createShaderProgram(shaders.standard.vertex, shaders.standard.fragment, `${name}_standard`)
                     : defaultSet.standard.program,
                 locations: null // Will set after program creation
             },
             // 'character' shader removed - characters now use 'standard' shader
             lines: {
                 program: shaders.lines
-                    ? this.createShaderProgram(shaders.lines.vertex, shaders.lines.fragment)
+                    ? this.createShaderProgram(shaders.lines.vertex, shaders.lines.fragment, `${name}_lines`)
                     : defaultSet.lines.program,
                 locations: null
             }
@@ -91,12 +138,24 @@ class ProgramRegistry {
                 metallic: 'uMetallic',
                 baseReflectivity: 'uBaseReflectivity',
                 cameraPos: 'uCameraPos',
-                time: 'uTime'
+                time: 'uTime',
+                // Add shadow mapping uniforms
+                lightSpaceMatrix: 'uLightSpaceMatrix',
+                shadowMap: 'uShadowMap',
+                shadowsEnabled: 'uShadowsEnabled'
             };
             
             this._textureUniforms = {
-                standard: 'uTextureArray',
-                pbr: 'uPBRTextureArray'
+                standard: this.isWebGL2 ? 'uTextureArray' : 'uTexture',
+                pbr: 'uPBRTextureArray',
+                shadowMap: 'uShadowMap'  // Keep this as a separate texture type
+            };
+            
+            // Pre-determined texture unit assignments to avoid conflicts
+            this._textureUnits = {
+                standard: 0,  // Texture array or standard texture uses unit 0
+                pbr: 1,      // PBR textures use unit 1
+                shadowMap: 7  // Shadow map uses unit 7 to avoid conflicts with all other textures
             };
         }
         
@@ -129,6 +188,11 @@ class ProgramRegistry {
                 cameraPos: gl.getUniformLocation(program, unif.cameraPos),
                 time: gl.getUniformLocation(program, unif.time),
                 
+                // Shadow mapping uniforms
+                lightSpaceMatrix: gl.getUniformLocation(program, unif.lightSpaceMatrix),
+                shadowMap: gl.getUniformLocation(program, unif.shadowMap),
+                shadowsEnabled: gl.getUniformLocation(program, unif.shadowsEnabled),
+                
                 // Texture uniform
                 textureArray: gl.getUniformLocation(program, isPBR ? tex.pbr : tex.standard)
             };
@@ -138,13 +202,11 @@ class ProgramRegistry {
 
         // Set up locations for standard object shader
         if (shaders.standard) {
-            const isPBR = shaders.name === 'pbr';
+            const isPBR = name === 'pbr';
             newSet.standard.locations = getLocations(newSet.standard.program, isPBR);
         } else {
             newSet.standard.locations = defaultSet.standard.locations;
         }
-
-        // Character shader locations removed - characters now use standard shader
 
         // Set up locations for line shader (simpler, no textures)
         if (shaders.lines) {
@@ -167,8 +229,6 @@ class ProgramRegistry {
             }
         }
 
-        // Character shader time uniform removed - characters now use standard shader
-
         if (shaders.lines) {
             const timeLocation = this.gl.getUniformLocation(newSet.lines.program, "uTime");
             if (timeLocation !== null) {
@@ -186,5 +246,14 @@ class ProgramRegistry {
     getCurrentShaderSet() {
         const shaderNames = Array.from(this.shaders.keys());
         return this.shaders.get(shaderNames[this.currentShaderIndex]);
+    }
+    
+    /**
+     * Get name of the current shader set
+     * @returns {string} - The name of the current shader set
+     */
+    getCurrentShaderName() {
+        const shaderNames = Array.from(this.shaders.keys());
+        return shaderNames[this.currentShaderIndex];
     }
 }

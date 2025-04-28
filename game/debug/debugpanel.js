@@ -7,6 +7,9 @@ class DebugPanel {
         this.lastFrameTime = performance.now();
         this.frameCount = 0;
         this.currentFPS = 0;
+        
+        // Add reference to check if the lighting panel is visible
+        this.lightingPanelVisible = false;
 
         this.weatherButtons = [
             { id: "stopWeather", text: "Stop", color: "#ff4444" },
@@ -63,129 +66,9 @@ class DebugPanel {
             "debug"
         );
 
-        this.showLightingDebug = false;
 
-        // Add lighting toggle button properties
-        this.lightingToggleButton = {
-            x: (this.canvas.width - 120) / 2, // Center horizontally
-            y: 50, // Position below weather toggle
-            width: 120,
-            height: 30,
-            text: "Lighting Debug",
-            color: "#444444",
-            hovered: false
-        };
-        // Register the lighting toggle button
-        this.game.input.registerElement(
-            "lightingDebugToggle",
-            {
-                bounds: () => ({
-                    x: this.lightingToggleButton.x,
-                    y: this.lightingToggleButton.y,
-                    width: this.lightingToggleButton.width,
-                    height: this.lightingToggleButton.height
-                })
-            },
-            "debug"
-        );
 
-        // Add slider states
-        this.lightingSliders = {
-            "Position X": {
-                value: 0,
-                min: -5000,
-                max: 5000,
-                dragging: false,
-                id: "lightingSliderPosX",
-                path: ["POSITION", "x"]
-            },
-            "Position Y": {
-                value: 10000,
-                min: 0,
-                max: 16384,
-                dragging: false,
-                id: "lightingSliderPosY",
-                path: ["POSITION", "y"]
-            },
-            "Position Z": {
-                value: 0,
-                min: -5000,
-                max: 5000,
-                dragging: false,
-                id: "lightingSliderPosZ",
-                path: ["POSITION", "z"]
-            },
-            "Direction X": {
-                value: 0.5,
-                min: -1,
-                max: 1,
-                dragging: false,
-                id: "lightingSliderDirX",
-                path: ["DIRECTION", "x"]
-            },
-            "Direction Y": {
-                value: 1.0,
-                min: -1,
-                max: 1,
-                dragging: false,
-                id: "lightingSliderDirY",
-                path: ["DIRECTION", "y"]
-            },
-            "Direction Z": {
-                value: 0.5,
-                min: -1,
-                max: 1,
-                dragging: false,
-                id: "lightingSliderDirZ",
-                path: ["DIRECTION", "z"]
-            },
-            Intensity: {
-                value: 50000,
-                min: 0,
-                max: 100000,
-                dragging: false,
-                id: "lightingSliderIntensity",
-                path: ["INTENSITY"]
-            },
-            "Material Roughness": {
-                value: 0.2,
-                min: 0,
-                max: 1,
-                dragging: false,
-                id: "lightingSliderRoughness",
-                path: ["MATERIAL", "ROUGHNESS"]
-            },
-            "Material Metallic": {
-                value: 0.1,
-                min: 0,
-                max: 1,
-                dragging: false,
-                id: "lightingSliderMetallic",
-                path: ["MATERIAL", "METALLIC"]
-            },
-            "Base Reflectivity": {
-                value: 0.5,
-                min: 0,
-                max: 1,
-                dragging: false,
-                id: "lightingSliderBaseReflectivity",
-                path: ["MATERIAL", "BASE_REFLECTIVITY"]
-            },
-        };
-        Object.entries(this.lightingSliders).forEach(([name, slider]) => {
-            this.game.input.registerElement(
-                slider.id,
-                {
-                    bounds: () => ({
-                        x: 150,
-                        y: Object.keys(this.lightingSliders).indexOf(name) * 30 + 22,
-                        width: 130,
-                        height: 16
-                    })
-                },
-                "debug"
-            );
-        });
+
     }
 
     // Add method to draw the toggle button
@@ -308,87 +191,9 @@ class DebugPanel {
         });
     }
 
-    drawLightingToggleButton() {
-        this.ctx.save();
 
-        // Update hover state
-        this.lightingToggleButton.hovered = this.game.input.isElementHovered("lightingDebugToggle", "debug");
 
-        // Change base color based on active panel
-        let baseColor = this.showLightingDebug ? "#00f038" : "#666666";
-        let hoverColor = this.showLightingDebug ? "rgba(136, 136, 136, 0.75)" : "rgba(136, 136, 136, 0.75)";
 
-        // Draw button background
-        this.ctx.fillStyle = this.lightingToggleButton.hovered ? hoverColor : baseColor;
-        this.ctx.fillRect(
-            this.lightingToggleButton.x,
-            this.lightingToggleButton.y,
-            this.lightingToggleButton.width,
-            this.lightingToggleButton.height
-        );
-
-        // Draw button text
-        this.ctx.fillStyle = "#ffffff";
-        this.ctx.font = "14px monospace";
-        this.ctx.textAlign = "center";
-        this.ctx.textBaseline = "middle";
-        this.ctx.fillText(
-            this.lightingToggleButton.text,
-            this.lightingToggleButton.x + this.lightingToggleButton.width / 2,
-            this.lightingToggleButton.y + this.lightingToggleButton.height / 2
-        );
-
-        this.ctx.restore();
-    }
-
-    drawLightingPanel() {
-        // Draw semi-transparent black background
-        this.ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-        this.ctx.fillRect(10, 10, 300, Object.keys(this.lightingSliders).length * 30 + 20);
-
-        let y = 30;
-        for (const [name, slider] of Object.entries(this.lightingSliders)) {
-            // Handle dragging
-            if (this.game.input.isElementPressed(slider.id, "debug")) {
-                const pointerX = this.game.input.getPointerPosition().x;
-                const percentage = Math.max(0, Math.min(1, (pointerX - 150) / 130));
-                slider.value = slider.min + (slider.max - slider.min) * percentage;
-
-                // Update LightingManager config through the renderer3D reference
-                let config = this.game.renderer3D.lightingManager.getLightConfig();
-                let target = config;
-                for (let i = 0; i < slider.path.length - 1; i++) {
-                    target = target[slider.path[i]];
-                }
-                target[slider.path[slider.path.length - 1]] = slider.value;
-
-                // Force lighting update
-                this.game.renderer3D.lightingManager.updateLightMatrix();
-            }
-
-            // Draw slider label
-            this.ctx.fillStyle = "#ffffff";
-            this.ctx.font = "12px monospace";
-            this.ctx.textAlign = "left";
-            this.ctx.fillText(name, 20, y);
-
-            // Draw slider background
-            this.ctx.fillStyle = "#444444";
-            this.ctx.fillRect(150, y - 8, 130, 16);
-
-            // Draw slider value
-            const percentage = (slider.value - slider.min) / (slider.max - slider.min);
-            this.ctx.fillStyle = "#00ff00";
-            this.ctx.fillRect(150, y - 8, 130 * percentage, 16);
-
-            // Draw value text
-            this.ctx.fillStyle = "#ffffff";
-            this.ctx.textAlign = "right";
-            this.ctx.fillText(slider.value.toFixed(2), 290, y);
-
-            y += 30;
-        }
-    }
 
     // Helper color functions
     lightenColor(color) {
@@ -420,7 +225,7 @@ class DebugPanel {
     }
 
     formatVector(vec) {
-        return `${Math.round(vec.x || 0)},${Math.round(vec.y || 0)},${Math.round(vec.z || 0)}`;
+        return `${this.roundTo(vec.x || 0, this.roundingConfig.positionPrecision)},${this.roundTo(vec.y || 0, this.roundingConfig.positionPrecision)},${this.roundTo(vec.z || 0, this.roundingConfig.positionPrecision)}`;
     }
 
     clear() {
@@ -441,7 +246,16 @@ class DebugPanel {
         return this.currentFPS;
     }
 
-    roundTo(num, decimals) {
+    // Configuration for number formatting
+    roundingConfig = {
+        defaultPrecision: 2,  // Default decimal places
+        fpsPrecision: 1,     // FPS decimal places
+        positionPrecision: 2, // Position decimal places
+        anglePrecision: 4,    // Normal/angle decimal places
+        timePrecision: 1      // Time/ms decimal places
+    };
+    
+    roundTo(num, decimals = this.roundingConfig.defaultPrecision) {
         const multiplier = Math.pow(10, decimals);
         return Math.round(num * multiplier) / multiplier;
     }
@@ -457,25 +271,18 @@ class DebugPanel {
         // Always draw the toggle button
         this.drawWeatherToggleButton();
 
-        // Draw the lighting toggle button
-        this.drawLightingToggleButton();
-
         // Check for button press
         if (this.game.input.isElementJustPressed("weatherDebugToggle", "debug")) {
             this.showWeatherDebug = !this.showWeatherDebug;
         }
-
-        // Check for lighting button press
-        if (this.game.input.isElementJustPressed("lightingDebugToggle", "debug")) {
-            this.showLightingDebug = !this.showLightingDebug;
-            this.showWeatherDebug = false; // Turn off weather debug when lighting is enabled
-        }
+        
+        // Check if lighting panel is visible
+        this.lightingPanelVisible = this.game.lightingDebugPanel && this.game.lightingDebugPanel.visible;
 
         // Draw appropriate panel based on toggle state
         if (this.showWeatherDebug) {
             this.drawWeatherPanel();
-        } else if (this.showLightingDebug) {
-            this.drawLightingPanel();
+        
         } else {
             const addLine = (label, value) => {
                 if (value === undefined || value === null) {
@@ -488,7 +295,7 @@ class DebugPanel {
             const addVector = (label, vector) => {
                 addLine(
                     label,
-                    `${this.roundTo(vector.x, 2)}, ${this.roundTo(vector.y, 2)}, ${this.roundTo(vector.z, 2)}`
+                    `${this.roundTo(vector.x, this.roundingConfig.positionPrecision)}, ${this.roundTo(vector.y, this.roundingConfig.positionPrecision)}, ${this.roundTo(vector.z, this.roundingConfig.positionPrecision)}`
                 );
             };
 
@@ -497,20 +304,23 @@ class DebugPanel {
             // Always draw the toggle button
             this.drawWeatherToggleButton();
 
-            // Only draw the regular debug panel if weather debug is not active
-            if (!this.showWeatherDebug) {
+            // Only draw the regular debug panel if weather debug and lighting panel are not active
+            if (!this.showWeatherDebug && !this.lightingPanelVisible) {
                 this.ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
                 this.ctx.fillRect(startX - padding, 0, 220, 560);
 
+                // Save context state before drawing text to ensure proper state management
+                this.ctx.save();
                 this.ctx.fillStyle = "#ffffff";
                 this.ctx.font = "11px monospace";
+                this.ctx.textAlign = "left";
 
                 // Performance metrics
                 this.ctx.fillStyle = "#00ff00";
                 addLine("Use 2D Renderer", this.game.use2DRenderer ? "Enabled" : "Disabled");
                 this.ctx.fillStyle = "#ffffff";
-                addLine("FPS", this.roundTo(this.getFPS(), 1));
-                addLine("Delta Time", this.roundTo(this.game.deltaTime * 1000, 1) + "ms");
+                addLine("FPS", this.roundTo(this.getFPS(), this.roundingConfig.fpsPrecision));
+                addLine("Delta Time", this.roundTo(this.game.deltaTime * 1000, this.roundingConfig.timePrecision) + "ms");
 
                 // Get the character's debug info
                 const characterDebug = this.game.character.getDebugInfo();
@@ -585,16 +395,16 @@ class DebugPanel {
                 );
                 const maxHeight = this.game.terrain.generator.getBaseWorldHeight();
                 const heightPercent = Math.round((terrainHeight / maxHeight) * 100);
-                addLine("Ground Height", `${this.roundTo(terrainHeight, 2)} (${this.roundTo(heightPercent, 1)}%)`);
+                addLine("Ground Height", `${this.roundTo(terrainHeight, this.roundingConfig.positionPrecision)} (${this.roundTo(heightPercent, this.roundingConfig.fpsPrecision)}%)`);
                 addVector("Cam Pos", {
-                    x: this.roundTo(this.game.camera.position.x, 2),
-                    y: this.roundTo(this.game.camera.position.y, 2),
-                    z: this.roundTo(this.game.camera.position.z, 2)
+                    x: this.roundTo(this.game.camera.position.x, this.roundingConfig.positionPrecision),
+                    y: this.roundTo(this.game.camera.position.y, this.roundingConfig.positionPrecision),
+                    z: this.roundTo(this.game.camera.position.z, this.roundingConfig.positionPrecision)
                 });
                 addVector("Cam Target", {
-                    x: this.roundTo(this.game.camera.target.x, 2),
-                    y: this.roundTo(this.game.camera.target.y, 2),
-                    z: this.roundTo(this.game.camera.target.z, 2)
+                    x: this.roundTo(this.game.camera.target.x, this.roundingConfig.positionPrecision),
+                    y: this.roundTo(this.game.camera.target.y, this.roundingConfig.positionPrecision),
+                    z: this.roundTo(this.game.camera.target.z, this.roundingConfig.positionPrecision)
                 });
 
                 // Camera angles and distance
@@ -603,8 +413,8 @@ class DebugPanel {
                 const dz = this.game.camera.position.z - this.game.camera.target.z;
                 const camDist = Math.sqrt(dx * dx + dy * dy + dz * dz);
                 const camHeight = this.game.camera.position.y - this.game.character.position.y;
-                addLine("Cam Distance", this.roundTo(camDist, 2));
-                addLine("Cam Height", this.roundTo(camHeight, 2));
+                addLine("Cam Distance", this.roundTo(camDist, this.roundingConfig.positionPrecision));
+                addLine("Cam Height", this.roundTo(camHeight, this.roundingConfig.positionPrecision));
                 addLine("Camera Mode", this.game.character.camera.isDetached ? "Detached" : "Following");
                 // Current terrain/biome
                 const characterBase = this.game.character.position.y - this.game.character.size / 2;
@@ -615,18 +425,21 @@ class DebugPanel {
 
                 const triangle = this.game.character.getCurrentTriangle();
                 if (triangle) {
-                    addLine("Min Height", this.roundTo(triangle.minY, 2));
-                    addLine("Max Height", this.roundTo(triangle.maxY, 2));
-                    addLine("Avg Height", this.roundTo(triangle.avgY, 2));
+                    addLine("Min Height", this.roundTo(triangle.minY, this.roundingConfig.positionPrecision));
+                    addLine("Max Height", this.roundTo(triangle.maxY, this.roundingConfig.positionPrecision));
+                    addLine("Avg Height", this.roundTo(triangle.avgY, this.roundingConfig.positionPrecision));
                     addLine(
                         "Normal",
-                        `${this.roundTo(triangle.normal.x, 4)}, ${this.roundTo(triangle.normal.y, 4)}, ${this.roundTo(triangle.normal.z, 4)}`
+                        `${this.roundTo(triangle.normal.x, this.roundingConfig.anglePrecision)}, ${this.roundTo(triangle.normal.y, this.roundingConfig.anglePrecision)}, ${this.roundTo(triangle.normal.z, this.roundingConfig.anglePrecision)}`
                     );
                     addLine("Vertex Indices", triangle.indices.join(", "));
                     addLine("Biome", triangle.biome);
                 } else {
                     addLine("Triangle", "None found");
                 }
+                
+                // Restore context state
+                this.ctx.restore();
             }
         }
     }

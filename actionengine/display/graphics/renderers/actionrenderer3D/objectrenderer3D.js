@@ -385,6 +385,21 @@ class ObjectRenderer3D {
         if (locations.baseReflectivity !== -1 && locations.baseReflectivity !== null) {
             this.gl.uniform1f(locations.baseReflectivity, config.MATERIAL.BASE_REFLECTIVITY);
         }
+        
+        // Set shadow map uniforms if they exist in the shader
+        if (locations.shadowsEnabled !== -1 && locations.shadowsEnabled !== null) {
+            // Set by renderer during shadow map binding
+            const shadowsEnabled = this.renderer.shadowsEnabled ? 1 : 0;
+            this.gl.uniform1i(locations.shadowsEnabled, shadowsEnabled);
+        }
+        
+        // Set shadow bias if available
+        if (locations.shadowBias !== -1 && locations.shadowBias !== null) {
+            const shadowBias = this.renderer.shadowManager ? this.renderer.shadowManager.shadowBias : 0.05;
+            this.gl.uniform1f(locations.shadowBias, shadowBias);
+        }
+        
+        // Light space matrix for shadow mapping is set by the renderer before rendering
     }
 
     drawObject(locations, indexCount) {
@@ -449,6 +464,7 @@ class ObjectRenderer3D {
                     this._currentShaderType = this.programRegistry?.shaders.get("pbr") === currentShaderSet ? "pbr" : "other";
                 }
                 
+                // Make sure we're using texture units that won't conflict with shadow map (unit 7)
                 if (this._currentShaderType === "pbr") {
                     // Use texture unit 1 for PBR shader
                     gl.activeTexture(gl.TEXTURE1);
