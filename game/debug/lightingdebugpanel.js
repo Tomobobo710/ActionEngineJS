@@ -1,16 +1,34 @@
 // game/debug/lightingdebugpanel.js
-class LightingDebugPanel {
+class LightingDebugPanel extends BaseDebugPanel {
     constructor(debugCanvas, game) {
-        this.canvas = debugCanvas;
-        this.ctx = debugCanvas.getContext("2d");
-        this.game = game;
+        // Configure panel options
+        const options = {
+            panelId: 'lighting',
+            toggleId: 'lightingToggleButton',
+            defaultTab: 'light',
+            toggleText: 'Lighting Settings',
+            toggleX: 280, // Position to the left for better visibility
+            toggleY: 10,
+            toggleWidth: 150,
+            toggleHeight: 30,
+            panelWidth: 450,
+            panelHeight: 500,
+            panelX: 20, // Position on left side // Center horizontally
+            panelY: 50,
+            tabs: [
+                { id: 'light', label: 'Light' },
+                { id: 'shadow', label: 'Shadows' },
+                { id: 'material', label: 'Material' },
+                { id: 'debug', label: 'Debug' },
+                { id: 'settings', label: 'Config' }
+            ]
+        };
         
-        // Get reference to lighting constants
+        // Call parent constructor before accessing this
+        super(debugCanvas, game, options);
+        
+        // Get reference to lighting constants - AFTER super() call
         this.constants = lightingConstants;
-        
-        // Panel state
-        this.visible = false;
-        this.activeTab = 'light';  // 'light', 'shadow', 'material', 'debug', 'settings'
         
         // Initialize debug panel state if available
         if (this.game.debugPanel) {
@@ -19,21 +37,6 @@ class LightingDebugPanel {
         
         // Reference to check if the main debug panel is visible
         this.debugPanelVisible = false;
-        
-        // UI settings
-        this.panelWidth = 400;
-        this.panelHeight = 500;
-        this.panelX = 20; // Move panel to the left side of the screen
-        this.panelY = (this.canvas.height - this.panelHeight) / 2;
-        
-        // Tab settings
-        this.tabs = [
-            { id: 'light', label: 'Light' },
-            { id: 'shadow', label: 'Shadows' },
-            { id: 'material', label: 'Material' },
-            { id: 'debug', label: 'Debug' },
-            { id: 'settings', label: 'Config' }
-        ];
         
         // Set up light sliders
         this.lightSliders = {
@@ -307,14 +310,8 @@ class LightingDebugPanel {
             }
         ];
         
-        // Toggle button to show/hide the panel
-        this.toggleButton = {
-            x: (this.canvas.width - 120) / 2 + 140, // Place to right of weather button
-            y: 10, // Top of screen with small padding
-            width: 150,
-            height: 30,
-            text: "Lighting Settings"
-        };
+        // NOTE: We don't need to define toggleButton here as it's already set in BaseDebugPanel constructor
+        // based on the options we provided (toggleX, toggleY, etc.)
         
         // Register toggle button with input system
         this.game.input.registerElement(
@@ -414,25 +411,8 @@ class LightingDebugPanel {
         this.ctx.font = "14px Arial";
         this.ctx.fillText("Save, load, or reset lighting configuration", this.panelX + this.panelWidth / 2, this.panelY + 70);
         
-        // Draw buttons
-        this.configButtons.forEach(button => {
-            const isHovered = this.game.input.isElementHovered(button.id, "debug");
-            
-            // Draw button background
-            this.ctx.fillStyle = isHovered ? this.lightenColor(button.color) : button.color;
-            this.ctx.fillRect(button.x, button.y, button.width, button.height);
-            
-            // Draw button border
-            this.ctx.strokeStyle = "#ffffff";
-            this.ctx.lineWidth = 2;
-            this.ctx.strokeRect(button.x, button.y, button.width, button.height);
-            
-            // Draw button text
-            this.ctx.fillStyle = "#ffffff";
-            this.ctx.textAlign = "center";
-            this.ctx.textBaseline = "middle";
-            this.ctx.fillText(button.label, button.x + button.width / 2, button.y + button.height / 2);
-        });
+        // Draw buttons using base class method
+        this.drawButtons(this.configButtons);
         
         // Display note about file saving
         this.ctx.fillStyle = "#aaaaaa";
@@ -440,16 +420,6 @@ class LightingDebugPanel {
         this.ctx.textAlign = "center";
         this.ctx.fillText("Configuration files are saved as JSON", this.panelX + this.panelWidth / 2, this.panelY + 220);
         this.ctx.fillText("and can be edited manually if needed", this.panelX + this.panelWidth / 2, this.panelY + 240);
-    }
-    
-    lightenColor(color) {
-        // Simple color lightening function
-        const r = parseInt(color.substr(1, 2), 16);
-        const g = parseInt(color.substr(3, 2), 16);
-        const b = parseInt(color.substr(5, 2), 16);
-        const factor = 1.3; // Lighten by 30%
-        
-        return `#${Math.min(255, Math.floor(r * factor)).toString(16).padStart(2, '0')}${Math.min(255, Math.floor(g * factor)).toString(16).padStart(2, '0')}${Math.min(255, Math.floor(b * factor)).toString(16).padStart(2, '0')}`;
     }
     
     registerSliders(sliders, tabName) {
@@ -611,28 +581,43 @@ class LightingDebugPanel {
         console.log("Lighting configuration reset to defaults");
     }
     
+    // Override from BaseDebugPanel
+    onShow() {
+        // Update the debug panel with our visibility state if available
+        if (this.game.debugPanel) {
+            this.game.debugPanel.lightingPanelVisible = true;
+        }
+        
+        // Re-register sliders for active tab
+        switch (this.activeTab) {
+            case 'light': this.registerSliders(this.lightSliders, "light"); break;
+            case 'shadow': this.registerSliders(this.shadowSliders, "shadow"); break;
+            case 'material': this.registerSliders(this.materialSliders, "material"); break;
+        }
+    }
+    
+    // Override from BaseDebugPanel
+    onHide() {
+        // Update the debug panel with our visibility state if available
+        if (this.game.debugPanel) {
+            this.game.debugPanel.lightingPanelVisible = false;
+        }
+    }
+    
+    // Override from BaseDebugPanel
+    onTabChange(tabId) {
+        // Re-register sliders for new active tab
+        switch (tabId) {
+            case 'light': this.registerSliders(this.lightSliders, "light"); break;
+            case 'shadow': this.registerSliders(this.shadowSliders, "shadow"); break;
+            case 'material': this.registerSliders(this.materialSliders, "material"); break;
+        }
+    }
+    
+    // Override from BaseDebugPanel
     update() {
         // Update debug panel visibility state (we only show our button when the debug panel is open)
         this.debugPanelVisible = this.game.showDebugPanel || false;
-        
-        // Check toggle button state - only process if debug panel is visible
-        if (this.debugPanelVisible && this.game.input.isElementJustPressed("lightingToggleButton", "debug")) {
-            this.visible = !this.visible;
-            
-            // Update the debug panel with our visibility state if available
-            if (this.game.debugPanel) {
-                this.game.debugPanel.lightingPanelVisible = this.visible;
-            }
-            
-            // If panel is becoming visible, re-register sliders for active tab
-            if (this.visible) {
-                switch (this.activeTab) {
-                    case 'light': this.registerSliders(this.lightSliders, "light"); break;
-                    case 'shadow': this.registerSliders(this.shadowSliders, "shadow"); break;
-                    case 'material': this.registerSliders(this.materialSliders, "material"); break;
-                }
-            }
-        }
         
         // If debug panel is closed, ensure our panel is also closed
         if (!this.debugPanelVisible && this.visible) {
@@ -644,23 +629,15 @@ class LightingDebugPanel {
             }
         }
         
+        // Only process input if debug panel is visible
+        if (this.debugPanelVisible) {
+            // Call parent update which handles toggle button and tabs
+            super.update();
+        }
+        
         // If panel isn't visible, no need to check other inputs
         if (!this.visible) return;
         
-        // Check tab selection
-        this.tabs.forEach(tab => {
-            if (this.game.input.isElementJustPressed(`lightingTab_${tab.id}`, "debug")) {
-                this.activeTab = tab.id;
-                
-                // Re-register sliders for new active tab
-                switch (this.activeTab) {
-                    case 'light': this.registerSliders(this.lightSliders, "light"); break;
-                    case 'shadow': this.registerSliders(this.shadowSliders, "shadow"); break;
-                    case 'material': this.registerSliders(this.materialSliders, "material"); break;
-                }
-            }
-        });
-
         // Handle shadow quality preset buttons
         if (this.activeTab === 'shadow') {
             this.shadowQualityPresets.forEach(preset => {
@@ -701,15 +678,7 @@ class LightingDebugPanel {
             }
         }
 
-        // Handle option sliders
-        this.handleOptionSliders();
-
-        // Update game systems with any changes
-        this.updateGameSystems();
-    }
-
-    handleOptionSliders() {
-        // Get current active sliders based on tab
+        // Handle option sliders based on current tab
         let sliders = null;
         switch (this.activeTab) {
             case 'light': sliders = this.lightSliders; break;
@@ -717,52 +686,16 @@ class LightingDebugPanel {
             case 'material': sliders = this.materialSliders; break;
             default: sliders = null;
         }
+        
+        if (sliders) {
+            this.handleOptionSliders(sliders);
+        }
 
-        if (!sliders) return;
-
-        Object.entries(sliders).forEach(([name, slider]) => {
-            // Handle discrete option sliders (with left/right buttons)
-            if (slider.options) {
-                // Left button (decrease)
-                if (this.game.input.isElementJustPressed(`${slider.id}_left`, "debug")) {
-                    slider.currentOption = Math.max(0, slider.currentOption - 1);
-                    slider.value = slider.options[slider.currentOption];
-                    slider.updateProperty(slider.value);
-                }
-                
-                // Right button (increase)
-                if (this.game.input.isElementJustPressed(`${slider.id}_right`, "debug")) {
-                    slider.currentOption = Math.min(slider.options.length - 1, slider.currentOption + 1);
-                    slider.value = slider.options[slider.currentOption];
-                    slider.updateProperty(slider.value);
-                }
-            } 
-            // Handle continuous sliders
-            else {
-                // Direct method similar to debugpanel.js
-                if (this.game.input.isElementPressed(slider.id, "debug")) {
-                    const pointerX = this.game.input.getPointerPosition().x;
-                    const sliderStartX = this.panelX + 160;
-                    const sliderWidth = 180;
-                    
-                    // Calculate normalized position (0-1)
-                    const percentage = Math.max(0, Math.min(1, (pointerX - sliderStartX) / sliderWidth));
-                    
-                    // Calculate actual value based on min/max
-                    let newValue = slider.min + (slider.max - slider.min) * percentage;
-                    
-                    // Apply step if defined
-                    if (slider.step) {
-                        newValue = Math.round(newValue / slider.step) * slider.step;
-                    }
-                    
-                    // Update slider value
-                    slider.value = newValue;
-                    slider.updateProperty(newValue);
-                }
-            }
-        });
+        // Update game systems with any changes
+        this.updateGameSystems();
     }
+
+    // This method is now handled in the base class and referenced directly in updateContent
     
     updateGameSystems() {
         // Update lighting manager
@@ -776,22 +709,17 @@ class LightingDebugPanel {
         }
     }
     
+    // Override from BaseDebugPanel
     draw() {
-        // Only draw toggle button if debug panel is visible
-        if (this.debugPanelVisible) {
-            this.drawToggleButton();
-        }
+        // Only draw if debug panel is visible
+        if (!this.debugPanelVisible) return;
         
-        // If panel isn't visible, don't draw it
-        if (!this.visible) return;
-        
-        // Draw panel background
-        this.ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
-        this.ctx.fillRect(this.panelX, this.panelY, this.panelWidth, this.panelHeight);
-        
-        // Draw tabs
-        this.drawTabs();
-        
+        // Call parent draw which handles background, tabs, etc.
+        super.draw();
+    }
+    
+    // Override from BaseDebugPanel
+    drawContent() {
         // Draw content based on active tab
         switch (this.activeTab) {
             case 'light': this.drawLightControls(); break;
@@ -802,51 +730,7 @@ class LightingDebugPanel {
         }
     }
     
-    drawToggleButton() {
-        const isHovered = this.game.input.isElementHovered("lightingToggleButton", "debug");
-        const baseColor = this.visible ? "#00aa00" : "#666666";
-        const hoverColor = this.visible ? "#00cc00" : "#888888";
-        
-        // Draw button background
-        this.ctx.fillStyle = isHovered ? hoverColor : baseColor;
-        this.ctx.fillRect(
-            this.toggleButton.x,
-            this.toggleButton.y,
-            this.toggleButton.width,
-            this.toggleButton.height
-        );
-        
-        // Draw button text
-        this.ctx.fillStyle = "#ffffff";
-        this.ctx.font = "14px Arial";
-        this.ctx.textAlign = "center";
-        this.ctx.textBaseline = "middle";
-        this.ctx.fillText(
-            this.toggleButton.text,
-            this.toggleButton.x + this.toggleButton.width / 2,
-            this.toggleButton.y + this.toggleButton.height / 2
-        );
-    }
-    
-    drawTabs() {
-        this.tabs.forEach((tab, index) => {
-            const tabX = this.panelX + (index * (this.panelWidth / this.tabs.length));
-            const tabWidth = this.panelWidth / this.tabs.length;
-            const isActive = this.activeTab === tab.id;
-            const isHovered = this.game.input.isElementHovered(`lightingTab_${tab.id}`, "debug");
-            
-            // Tab background
-            this.ctx.fillStyle = isActive ? "#559955" : (isHovered ? "#557755" : "#444444");
-            this.ctx.fillRect(tabX, this.panelY, tabWidth, 30);
-            
-            // Tab label
-            this.ctx.fillStyle = "#ffffff";
-            this.ctx.font = "14px Arial";
-            this.ctx.textAlign = "center";
-            this.ctx.textBaseline = "middle";
-            this.ctx.fillText(tab.label, tabX + tabWidth / 2, this.panelY + 15);
-        });
-    }
+    // These methods are now in the base class and can be removed
     
     drawLightControls() {
         // Title
@@ -855,8 +739,8 @@ class LightingDebugPanel {
         this.ctx.textAlign = "center";
         this.ctx.fillText("Light Settings", this.panelX + this.panelWidth / 2, this.panelY + 50);
         
-        // Draw sliders
-        this.drawSliders(this.lightSliders);
+        // Draw sliders using base class method
+        super.drawSliders(this.lightSliders);
     }
     
     drawShadowControls() {
@@ -886,8 +770,8 @@ class LightingDebugPanel {
             this.ctx.fillText(preset.name, btnX + 30, btnY + 14);
         });
         
-        // Draw sliders
-        this.drawSliders(this.shadowSliders);
+        // Draw sliders using base class method
+        super.drawSliders(this.shadowSliders);
     }
     
     drawMaterialControls() {
@@ -897,8 +781,8 @@ class LightingDebugPanel {
         this.ctx.textAlign = "center";
         this.ctx.fillText("Material Settings", this.panelX + this.panelWidth / 2, this.panelY + 50);
         
-        // Draw sliders
-        this.drawSliders(this.materialSliders);
+        // Draw sliders using base class method
+        super.drawSliders(this.materialSliders);
     }
     
     drawDebugControls() {
@@ -908,29 +792,8 @@ class LightingDebugPanel {
         this.ctx.textAlign = "center";
         this.ctx.fillText("Debug Settings", this.panelX + this.panelWidth / 2, this.panelY + 50);
         
-        // Draw toggles
-        this.ctx.textAlign = "left";
-        this.ctx.font = "14px Arial";
-        
-        this.debugToggles.forEach((toggle, index) => {
-            const toggleX = this.panelX + 20;
-            const toggleY = this.panelY + 100 + (index * 30);
-            
-            // Draw checkbox
-            this.ctx.strokeStyle = "#ffffff";
-            this.ctx.lineWidth = 2;
-            this.ctx.strokeRect(toggleX, toggleY, 20, 20);
-            
-            // Draw check if enabled
-            if (toggle.checked) {
-                this.ctx.fillStyle = "#55ff55";
-                this.ctx.fillRect(toggleX + 4, toggleY + 4, 12, 12);
-            }
-            
-            // Draw label
-            this.ctx.fillStyle = "#ffffff";
-            this.ctx.fillText(toggle.label, toggleX + 30, toggleY + 14);
-        });
+        // Draw toggles using base class method
+        this.drawToggles(this.debugToggles);
         
         // Display shadow map analysis results if available
         if (this.shadowMapAnalysisResults) {
@@ -974,69 +837,5 @@ class LightingDebugPanel {
         }
     }
     
-    drawSliders(sliders) {
-        Object.entries(sliders).forEach(([name, slider], index) => {
-            const sliderY = this.panelY + 100 + (index * 40);
-            
-            // Draw label
-            this.ctx.fillStyle = "#ffffff";
-            this.ctx.font = "14px Arial";
-            this.ctx.textAlign = "right";
-            this.ctx.fillText(name, this.panelX + 150, sliderY + 10);
-            
-            // For sliders with discrete options
-            if (slider.options) {
-                // Draw left/right buttons
-                this.drawOptionButtons(slider, sliderY);
-                
-                // Draw current value
-                this.ctx.textAlign = "center";
-                this.ctx.fillText(slider.value.toString(), this.panelX + 250, sliderY + 10);
-            } 
-            // For continuous sliders
-            else {
-                // Draw slider background track
-                this.ctx.fillStyle = "#444444";
-                this.ctx.fillRect(this.panelX + 160, sliderY, 180, 20);
-                
-                // Calculate position based on value
-                const percentage = (slider.value - slider.min) / (slider.max - slider.min);
-                
-                // Draw slider value fill
-                this.ctx.fillStyle = this.game.input.isElementPressed(slider.id, "debug") ? "#00ff00" : "#00aa00";
-                this.ctx.fillRect(this.panelX + 160, sliderY, 180 * percentage, 20);
-                
-                // Draw slider handle
-                this.ctx.fillStyle = "#ffffff";
-                this.ctx.fillRect(this.panelX + 160 + (180 * percentage) - 2, sliderY - 2, 4, 24);
-                
-                // Draw value text
-                this.ctx.textAlign = "right";
-                const valueText = Number.isInteger(slider.value) ? slider.value.toString() : slider.value.toFixed(3);
-                this.ctx.fillText(valueText, this.panelX + 380, sliderY + 10);
-            }
-        });
-    }
-    
-    drawOptionButtons(slider, sliderY) {
-        // Draw left button
-        const leftButtonX = this.panelX + 160 - 30;
-        const isLeftHovered = this.game.input.isElementHovered(`${slider.id}_left`, "debug");
-        this.ctx.fillStyle = isLeftHovered ? "#666666" : "#444444";
-        this.ctx.fillRect(leftButtonX, sliderY, 20, 20);
-        
-        this.ctx.fillStyle = "#ffffff";
-        this.ctx.textAlign = "center";
-        this.ctx.fillText("<", leftButtonX + 10, sliderY + 10);
-        
-        // Draw right button
-        const rightButtonX = this.panelX + 160 + 190;
-        const isRightHovered = this.game.input.isElementHovered(`${slider.id}_right`, "debug");
-        this.ctx.fillStyle = isRightHovered ? "#666666" : "#444444";
-        this.ctx.fillRect(rightButtonX, sliderY, 20, 20);
-        
-        this.ctx.fillStyle = "#ffffff";
-        this.ctx.textAlign = "center";
-        this.ctx.fillText(">", rightButtonX + 10, sliderY + 10);
-    }
+    // These methods are now in the base class and can be removed
 }

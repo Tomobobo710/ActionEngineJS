@@ -1,155 +1,310 @@
 // game/debug/weatherdebugpanel.js
-class WeatherDebugPanel {
+class WeatherDebugPanel extends BaseDebugPanel {
     constructor(debugCanvas, game) {
-        this.canvas = debugCanvas;
-        this.ctx = debugCanvas.getContext("2d");
-        this.game = game;
+        // Configure panel options with tabs and consistent positioning
+        const options = {
+            panelId: 'weather',
+            toggleId: 'weatherDebugToggle',
+            defaultTab: 'controls',
+            toggleText: 'Weather Debug',
+            toggleX: 150, // Position next to Scene Debug button
+            toggleY: 10,
+            toggleWidth: 120,
+            toggleHeight: 30,
+            panelWidth: 450,
+            panelHeight: 500,
+            panelX: 20, // Position on left side // Center horizontally
+            panelY: 50,
+            tabs: [
+                { id: 'controls', label: 'Controls' },
+                { id: 'settings', label: 'Settings' },
+                { id: 'info', label: 'Info' }
+            ]
+        };
         
-        // Weather button definitions
+        // Call parent constructor
+        super(debugCanvas, game, options);
+        
+        // Weather button definitions - standard style and consistent positioning
         this.weatherButtons = [
-            { id: "stopWeather", text: "Stop", color: "#ff4444" },
-            { id: "rain", text: "Rain", color: "#4444ff" },
-            { id: "heavyRain", text: "Heavy Rain", color: "#2222ff" },
-            { id: "snow", text: "Snow", color: "#cccccc" },
-            { id: "wind", text: "Wind", color: "#88ccff" },
-            { id: "hurricane", text: "Hurricane", color: "#2244ff" },
-            { id: "poison", text: "Poison", color: "#44ff44" },
-            { id: "fire", text: "Fire", color: "#ff8844" }
+            { 
+                id: "stopWeather", 
+                label: "Stop", 
+                x: this.panelX + 125, 
+                y: this.panelY + 100, 
+                width: 200, 
+                height: 40, 
+                color: "#444444" 
+            },
+            { 
+                id: "rain", 
+                label: "Rain", 
+                x: this.panelX + 125, 
+                y: this.panelY + 150, 
+                width: 200, 
+                height: 40, 
+                color: "#444444" 
+            },
+            { 
+                id: "heavyRain", 
+                label: "Heavy Rain", 
+                x: this.panelX + 125, 
+                y: this.panelY + 200, 
+                width: 200, 
+                height: 40, 
+                color: "#444444" 
+            },
+            { 
+                id: "snow", 
+                label: "Snow", 
+                x: this.panelX + 125, 
+                y: this.panelY + 250, 
+                width: 200, 
+                height: 40, 
+                color: "#444444" 
+            },
+            { 
+                id: "wind", 
+                label: "Wind", 
+                x: this.panelX + 125, 
+                y: this.panelY + 300, 
+                width: 200, 
+                height: 40, 
+                color: "#444444" 
+            },
+            { 
+                id: "hurricane", 
+                label: "Hurricane", 
+                x: this.panelX + 125, 
+                y: this.panelY + 350, 
+                width: 200, 
+                height: 40, 
+                color: "#444444" 
+            },
+            { 
+                id: "poison", 
+                label: "Poison", 
+                x: this.panelX + 125, 
+                y: this.panelY + 400, 
+                width: 200, 
+                height: 40, 
+                color: "#444444" 
+            },
+            { 
+                id: "fire", 
+                label: "Fire", 
+                x: this.panelX + 125, 
+                y: this.panelY + 450, 
+                width: 200, 
+                height: 40, 
+                color: "#444444" 
+            }
         ];
         
-        // Register all weather buttons with input system
-        this.weatherButtons.forEach((button, index) => {
-            this.game.input.registerElement(
-                button.id,
-                {
-                    bounds: () => ({
-                        x: 20,
-                        y: index * 60 + 20,
-                        width: 180,
-                        height: 50
-                    })
-                },
-                "debug"
-            );
-        });
-    }
-    
-    // Helper color functions
-    lightenColor(color) {
-        const r = parseInt(color.substr(1, 2), 16);
-        const g = parseInt(color.substr(3, 2), 16);
-        const b = parseInt(color.substr(5, 2), 16);
-        const factor = 1.2;
-        return `#${Math.min(255, Math.floor(r * factor))
-            .toString(16)
-            .padStart(2, "0")}${Math.min(255, Math.floor(g * factor))
-            .toString(16)
-            .padStart(2, "0")}${Math.min(255, Math.floor(b * factor))
-            .toString(16)
-            .padStart(2, "0")}`;
-    }
-
-    darkenColor(color) {
-        const r = parseInt(color.substr(1, 2), 16);
-        const g = parseInt(color.substr(3, 2), 16);
-        const b = parseInt(color.substr(5, 2), 16);
-        const factor = 0.8;
-        return `#${Math.floor(r * factor)
-            .toString(16)
-            .padStart(2, "0")}${Math.floor(g * factor)
-            .toString(16)
-            .padStart(2, "0")}${Math.floor(b * factor)
-            .toString(16)
-            .padStart(2, "0")}`;
-    }
-    
-    formatVector(vec) {
-        if (!vec) return "0,0,0";
-        return `${vec.x || 0},${vec.y || 0},${vec.z || 0}`;
-    }
-    
-    draw() {
-        // Draw semi-transparent black background
-        this.ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-        this.ctx.fillRect(10, 10, 200, this.weatherButtons.length * 60 + 10);
-
-        // Draw weather buttons
-        this.weatherButtons.forEach((button, index) => {
-            const y = index * 60 + 20;
-            const isHovered = this.game.input.isElementHovered(button.id, "weather");
-            const isPressed = this.game.input.isElementPressed(button.id, "weather");
-            const isActive = this.game.weatherSystem?.current === button.id;
-
-            // Draw button background
-            let buttonColor = button.color;
-            if (isPressed) buttonColor = this.darkenColor(button.color);
-            else if (isHovered) buttonColor = this.lightenColor(button.color);
-            this.ctx.fillStyle = buttonColor;
-
-            this.ctx.beginPath();
-            this.ctx.roundRect(20, y, 180, 50, 8);
-            this.ctx.fill();
-
-            if (isActive) {
-                this.ctx.strokeStyle = "#ffffff";
-                this.ctx.lineWidth = 2;
-                this.ctx.stroke();
-            }
-
-            // Draw button text
-            this.ctx.fillStyle = "#ffffff";
-            this.ctx.font = "20px Arial";
-            this.ctx.textAlign = "center";
-            this.ctx.textBaseline = "middle";
-            this.ctx.fillText(button.text, 110, y + 25);
-
-            // Handle button clicks
-            if (this.game.input.isElementJustPressed(button.id, "debug")) {
-                console.log(`[WeatherDebugPanel] Weather button clicked: ${button.id}`);
-                if (this.game.weatherSystem) {
-                    this.game.weatherSystem.current = button.id;
+        // Register weather buttons
+        this.registerButtons(this.weatherButtons);
+        
+        // Create weather settings sliders with default values and null checks
+        const hasWeatherSystem = !!this.game.weatherSystem;
+        
+        this.weatherSliders = {
+            "Particle Count": {
+                value: hasWeatherSystem && this.game.weatherSystem.maxParticles !== undefined ? 
+                       this.game.weatherSystem.maxParticles : 1000,
+                min: 100,
+                max: 5000,
+                step: 100,
+                id: "weatherParticleCount",
+                updateProperty: (value) => { 
+                    if (this.game.weatherSystem) {
+                        this.game.weatherSystem.maxParticles = value; 
+                    }
+                }
+            },
+            "Emission Rate": {
+                value: hasWeatherSystem && this.game.weatherSystem.emissionRate !== undefined ? 
+                       this.game.weatherSystem.emissionRate : 100,
+                min: 10,
+                max: 500,
+                step: 10,
+                id: "weatherEmissionRate",
+                updateProperty: (value) => { 
+                    if (this.game.weatherSystem) {
+                        this.game.weatherSystem.emissionRate = value; 
+                    }
+                }
+            },
+            "Wind Power": {
+                value: hasWeatherSystem && this.game.weatherSystem.windPower !== undefined ? 
+                       this.game.weatherSystem.windPower : 1,
+                min: 0,
+                max: 10,
+                step: 0.1,
+                id: "weatherWindPower",
+                updateProperty: (value) => { 
+                    if (this.game.weatherSystem) {
+                        this.game.weatherSystem.windPower = value; 
+                    }
+                }
+            },
+            "Gravity": {
+                value: hasWeatherSystem && this.game.weatherSystem.gravity !== undefined ? 
+                       this.game.weatherSystem.gravity : 9.8,
+                min: 0,
+                max: 20,
+                step: 0.1,
+                id: "weatherGravity",
+                updateProperty: (value) => { 
+                    if (this.game.weatherSystem) {
+                        this.game.weatherSystem.gravity = value; 
+                    }
                 }
             }
-        });
-
-        // Draw weather info panel
-        this.drawWeatherInfo();
+        };
+        
+        // Register sliders
+        this.registerSliders(this.weatherSliders, "main");
     }
-
-    drawWeatherInfo() {
-        const startX = this.canvas.width - 250;
-        const startY = 10;
-        const padding = 10;
-
-        // Background
-        this.ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-        this.ctx.fillRect(startX - padding, startY, 240, 150);
-
-        // Text settings
-        this.ctx.font = "14px monospace";
+    
+    // Update method, called each frame
+    updateContent() {
+        // Handle tab-specific updates
+        switch (this.activeTab) {
+            case 'controls':
+                // Handle weather buttons
+                this.weatherButtons.forEach(button => {
+                    if (this.game.input.isElementJustPressed(button.id, "debug")) {
+                        console.log(`[WeatherDebugPanel] Weather button clicked: ${button.id}`);
+                        if (this.game.weatherSystem) {
+                            this.game.weatherSystem.current = button.id;
+                            
+                            // Highlight the active weather button
+                            this.weatherButtons.forEach(btn => {
+                                if (btn.id === button.id) {
+                                    btn.color = "#00aa00"; // Green for active
+                                } else {
+                                    btn.color = "#444444"; // Default for inactive
+                                }
+                            });
+                        }
+                    }
+                });
+                break;
+                
+            case 'settings':
+                // Handle weather parameter sliders
+                this.handleOptionSliders(this.weatherSliders);
+                break;
+                
+            case 'info':
+                // Just display info, no interaction needed
+                break;
+        }
+    }
+    
+    // Draw method for the debug panel content
+    drawContent() {
+        // Draw content based on active tab
+        switch (this.activeTab) {
+            case 'controls':
+                this.drawWeatherControls();
+                break;
+            case 'settings':
+                this.drawWeatherSettings();
+                break;
+            case 'info':
+                this.drawWeatherInfo();
+                break;
+        }
+    }
+    
+    // Draw the weather controls tab content
+    drawWeatherControls() {
+        // Title
         this.ctx.fillStyle = "#ffffff";
-        this.ctx.textAlign = "left";
-
+        this.ctx.font = "16px Arial";
+        this.ctx.textAlign = "center";
+        this.ctx.fillText("Weather Control", this.panelX + this.panelWidth / 2, this.panelY + 50);
+        
+        // Draw all weather type buttons
+        this.drawButtons(this.weatherButtons);
+    }
+    
+    // Draw the weather settings tab content
+    drawWeatherSettings() {
+        // Title
+        this.ctx.fillStyle = "#ffffff";
+        this.ctx.font = "16px Arial";
+        this.ctx.textAlign = "center";
+        this.ctx.fillText("Weather Parameters", this.panelX + this.panelWidth / 2, this.panelY + 50);
+        
+        // Draw weather sliders
+        super.drawSliders(this.weatherSliders);
+    }
+    
+    // Draw weather status information
+    drawWeatherInfo() {
+        // Title
+        this.ctx.fillStyle = "#ffffff";
+        this.ctx.font = "16px Arial";
+        this.ctx.textAlign = "center";
+        this.ctx.fillText("Weather Status", this.panelX + this.panelWidth / 2, this.panelY + 50);
+        
         // Get weather params from weather system
-        const weatherParams = this.game.weatherSystem?.getWeatherParams() || {
+        let weatherParams;
+        if (this.game.weatherSystem && typeof this.game.weatherSystem.getWeatherParams === 'function') {
+            try {
+                weatherParams = this.game.weatherSystem.getWeatherParams();
+            } catch (error) {
+                weatherParams = null;
+            }
+        }
+        
+        // Default values if weatherParams is not available
+        weatherParams = weatherParams || {
             type: "N/A",
             activeParticles: 0,
             maxParticles: 0,
             emissionRate: 0
         };
-
-        // Info lines
-        const info = [
-            [`Camera: ${this.formatVector(this.game.camera?.position)}`],
-            [`Rotation: ${this.game.camera?.rotation || "undefined"}°`],
-            [`Weather: ${weatherParams.type}`],
-            [`Active Particles: ${weatherParams.activeParticles}`],
-            [`Max Particles: ${weatherParams.maxParticles}`],
-            [`Emission Rate: ${weatherParams.emissionRate}/sec`]
-        ];
-
-        info.forEach((line, index) => {
-            this.ctx.fillText(line, startX, startY + 20 + index * 20);
-        });
+        
+        // Info panel position
+        const infoX = this.panelX + 40;
+        const infoY = this.panelY + 80;
+        const lineHeight = 30;
+        
+        // Format camera info safely
+        const cameraPos = this.game.camera ? this.formatVector(this.game.camera.position) : "N/A";
+        const cameraRot = this.game.camera && this.game.camera.rotation !== undefined ? 
+                          `${this.game.camera.rotation}°` : "N/A";
+        
+        // Section headings and data
+        this.ctx.textAlign = "left";
+        let currentY = infoY;
+        
+        // Weather status section
+        this.ctx.fillStyle = "#00ff00";
+        this.ctx.font = "14px Arial";
+        this.ctx.fillText("Weather Parameters", infoX, currentY);
+        currentY += 25;
+        
+        this.ctx.fillStyle = "#ffffff";
+        this.ctx.font = "12px Arial";
+        this.ctx.fillText(`Weather Type: ${weatherParams.type}`, infoX, currentY); currentY += lineHeight;
+        this.ctx.fillText(`Active Particles: ${weatherParams.activeParticles}`, infoX, currentY); currentY += lineHeight;
+        this.ctx.fillText(`Max Particles: ${weatherParams.maxParticles}`, infoX, currentY); currentY += lineHeight;
+        this.ctx.fillText(`Emission Rate: ${weatherParams.emissionRate}/sec`, infoX, currentY); currentY += lineHeight;
+        
+        // Camera info section
+        currentY += 10;
+        this.ctx.fillStyle = "#00ff00";
+        this.ctx.font = "14px Arial";
+        this.ctx.fillText("Camera Info", infoX, currentY);
+        currentY += 25;
+        
+        this.ctx.fillStyle = "#ffffff";
+        this.ctx.font = "12px Arial";
+        this.ctx.fillText(`Camera Position: ${cameraPos}`, infoX, currentY); currentY += lineHeight;
+        this.ctx.fillText(`Camera Rotation: ${cameraRot}`, infoX, currentY); currentY += lineHeight;
     }
 }

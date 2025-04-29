@@ -109,7 +109,7 @@ class WorldMode {
         this.deltaTime = 0;
         
         // Create debug panels
-        this.debugPanel = new DebugPanel(this.debugCanvas, this);
+        this.debugPanel = new DebugGui(this.debugCanvas, this);
         this.lightingDebugPanel = new LightingDebugPanel(this.debugCanvas, this);
         
         this.showDebugPanel = false;
@@ -366,14 +366,12 @@ class WorldMode {
 
         // Update and draw debug panels
         if (this.showDebugPanel) {
+            // Update debug gui panels
+            this.debugPanel.update();
             this.debugPanel.draw();
         } else {
             this.debugPanel.clear();
         }
-        
-        // Update lighting debug panel only when debug panel is visible
-        this.lightingDebugPanel.update();
-        this.lightingDebugPanel.draw();
 
         // Draw gui
         if (this.guiCtx) {
