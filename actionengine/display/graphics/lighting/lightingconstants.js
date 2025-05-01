@@ -59,7 +59,7 @@ class LightingConstants {
             BIAS: {
                 value: 0.0341,   // Bias to prevent shadow acne - fine-tuned for testing
                 min: -0.001,      // Narrower range focused on useful values
-                max: 0.04,     // Maximum bias value for testing
+                max: 0.1,     // Maximum bias value for testing
                 step: 0.0001    // Very small step for fine-grained control
             },
             TEXTURE_UNIT: 7   // WebGL texture unit used for shadow map

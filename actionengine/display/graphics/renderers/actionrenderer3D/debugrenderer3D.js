@@ -333,7 +333,7 @@ class DebugRenderer3D {
             
             // Position in bottom right corner
             const quadX = 1.0 - quadSizeX * 2.0; // Right side 
-            const quadY = -1.0 + quadSizeY * 2.0; // Bottom side
+            const quadY = -1.0 + quadSizeY * 0; // Bottom side
             
             console.log(`Creating shadow map visualization quad: ${quadSizeX}x${quadSizeY}, aspect ratio: ${aspectRatio}`);
             
