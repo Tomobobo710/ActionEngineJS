@@ -162,8 +162,11 @@ class ThirdPersonActionCharacter extends ActionCharacter {
                 // Reset timer and generate new threshold
                 this.movementTimer = 0;
                 this.battleThreshold = this.generateNewBattleThreshold();
-                // Set pending battle transition
-                this.game.pendingBattleTransition = true;
+                // Set pending battle transition only if random battles are enabled
+                // (the WorldMode will also check this flag, but we avoid setting it unnecessarily)
+                if (this.game.enableRandomBattles !== false) {
+                    this.game.pendingBattleTransition = true;
+                }
             }
         }
         

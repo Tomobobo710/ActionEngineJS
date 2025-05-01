@@ -11,6 +11,7 @@ class WorldMode {
         // Initialize the core world components first
         this.initializeMode();
         this.pendingBattleTransition = false;
+        this.enableRandomBattles = true; // Default setting for random battles
         this.pendingMenuTransition = false; // Add this new flag
 
         // Create character after world initialization
@@ -249,10 +250,13 @@ class WorldMode {
             }
 
             // Check for pending transitions after all updates are complete
-            if (this.pendingBattleTransition) {
+            if (this.pendingBattleTransition && this.enableRandomBattles) {
                 this.pendingBattleTransition = false;
                 this.gameModeManager.switchMode("battle");
                 return;
+            } else if (this.pendingBattleTransition && !this.enableRandomBattles) {
+                // Just clear the flag and don't trigger the battle if battles are disabled
+                this.pendingBattleTransition = false;
             }
 
             if (this.pendingMenuTransition) {

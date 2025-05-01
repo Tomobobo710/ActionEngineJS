@@ -134,6 +134,16 @@ class SceneDebugPanel extends BaseDebugPanel {
                         this.game.character.camera.isDetached = value; 
                     }
                 }
+            },
+            {
+                id: "toggleRandomBattles",
+                label: "Enable Random Battles",
+                checked: this.game.enableRandomBattles !== false, // Default to true if not set
+                updateProperty: (value) => { 
+                    if (this.game) {
+                        this.game.enableRandomBattles = value; 
+                    }
+                }
             }
         ];
         
