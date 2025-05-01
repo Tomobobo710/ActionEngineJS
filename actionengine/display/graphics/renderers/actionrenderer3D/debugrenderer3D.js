@@ -12,13 +12,14 @@ class DebugRenderer3D {
         // Create buffer for direction indicators
         this.directionBuffer = this.gl.createBuffer();
         
-        
         // Line buffer for drawing
         this.directionBuffer = this.gl.createBuffer();
         
         // Enable shadow map debug labels
         this._shadowDebugLabels = true;
         
+        // Track shadow map visualization state
+        this._wasVisualizingShadowMap = false;
     }
     
     
@@ -209,8 +210,20 @@ class DebugRenderer3D {
      */
     drawShadowMapDebug(camera) {
         
-        // Only render if shadow visualization is enabled and we have a shadow manager
-        if (!this.shadowManager || !this.constants.DEBUG.VISUALIZE_SHADOW_MAP) return;
+        // Handle toggling visualization on/off
+        if (!this.constants.DEBUG.VISUALIZE_SHADOW_MAP) {
+            // If visualization was on but is now off, clean up
+            if (this._wasVisualizingShadowMap) {
+                this._wasVisualizingShadowMap = false;
+            }
+            return;
+        }
+        
+        // Only render if we have a shadow manager
+        if (!this.shadowManager) return;
+        
+        // Track that we're visualizing the shadow map
+        this._wasVisualizingShadowMap = true;
         
         const gl = this.gl;
         
@@ -246,7 +259,16 @@ class DebugRenderer3D {
                 }
                 
                 void main() {
+                    // First set a black background for areas outside the valid shadow map
+                    gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+                    
+                    // Get the shadow map depth value
                     float depth = texture2D(uShadowMap, vTexCoord).r;
+                    
+                    // Skip processing if depth is essentially zero (not part of the shadow map)
+                    if (depth < 0.00001) {
+                        return;
+                    }
                     
                     // Different visualization modes
                     if (uVisualizeMode == 0) {
@@ -298,17 +320,28 @@ class DebugRenderer3D {
             this._quadPositionBuffer = gl.createBuffer();
             this._quadTexCoordBuffer = gl.createBuffer();
             
-            // Quad vertices in normalized device coordinates (full screen quad)
-            // This creates a quad in the bottom right corner of the screen
-            const quadSize = 0.3; // 30% of the screen
-            const quadX = 1.0 - quadSize * 2.0; // Right side 
-            const quadY = -1.0 + quadSize * 2.0; // Bottom side
+            // Create a square visualization quad adjusted for screen aspect ratio
+            // Get the canvas dimensions to calculate aspect ratio
+            const canvasWidth = gl.canvas.width;
+            const canvasHeight = gl.canvas.height;
+            const aspectRatio = canvasWidth / canvasHeight;
+            
+            // Size of the square as a percentage of screen height
+            const quadSizeY = 0.3; // 30% of screen height
+            // Adjust width based on aspect ratio to maintain square shape
+            const quadSizeX = quadSizeY / aspectRatio;
+            
+            // Position in bottom right corner
+            const quadX = 1.0 - quadSizeX * 2.0; // Right side 
+            const quadY = -1.0 + quadSizeY * 2.0; // Bottom side
+            
+            console.log(`Creating shadow map visualization quad: ${quadSizeX}x${quadSizeY}, aspect ratio: ${aspectRatio}`);
             
             const quadPositions = new Float32Array([
-                quadX, quadY,                    // Bottom-left
-                quadX + quadSize * 2.0, quadY,   // Bottom-right
-                quadX, quadY + quadSize * 2.0,   // Top-left
-                quadX + quadSize * 2.0, quadY + quadSize * 2.0  // Top-right
+                quadX, quadY,                   // Bottom-left
+                quadX + quadSizeX * 2.0, quadY,  // Bottom-right
+                quadX, quadY + quadSizeY * 2.0,  // Top-left
+                quadX + quadSizeX * 2.0, quadY + quadSizeY * 2.0  // Top-right
             ]);
             
             const quadTexCoords = new Float32Array([
@@ -332,8 +365,11 @@ class DebugRenderer3D {
         // Use the debug shader program
         gl.useProgram(this._shadowDebugProgram);
         
-        // Bind shadow map texture
+        // Unbind any existing texture first to clear state
         gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, null);
+        
+        // Now bind the shadow map texture
         gl.bindTexture(gl.TEXTURE_2D, this.shadowManager.shadowTexture);
         gl.uniform1i(this._shadowDebugLocations.shadowMap, 0);
         

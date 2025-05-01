@@ -239,12 +239,10 @@ class ShadowManager {
             // Skip shadow rendering
             return;
         }
-        // Clear the depth buffer (and color buffer for WebGL1)
-        if (this.isWebGL2) {
-            gl.clear(gl.DEPTH_BUFFER_BIT);
-        } else {
-            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-        }
+        // Always clear both color and depth buffers regardless of WebGL version
+        // This is critical to prevent old shadow data from persisting
+        gl.clearColor(0.0, 0.0, 0.0, 1.0);  // Clear to black (far depth)
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
         // Use shadow mapping program
         gl.useProgram(this.shadowProgram);
