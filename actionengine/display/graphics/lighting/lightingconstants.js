@@ -9,16 +9,16 @@ class LightingConstants {
         // Light position and direction
         this.LIGHT_POSITION = {
             x: 0,
-            y: 1864.1537925706566,
+            y: 700.0,
             z: 0,
             max: 50000,  // Maximum height/position
             min: -50000   // Minimum height/position
         };
         
         this.LIGHT_DIRECTION = {
-            x: 0.004798686263919549,
-            y: -0.18346266001630218,
-            z: -0.06164649477615913,
+            x: 0.0,
+            y: -1.0,
+            z: -0.0,
             min: -1.0,   // Direction component minimum
             max: 1.0,     // Direction component maximum
             step: 0.1
@@ -26,7 +26,7 @@ class LightingConstants {
         
         // Light properties
         this.LIGHT_INTENSITY = {
-            value: 406.0485331374113,
+            value: 100.0,
             min: 0,
             max: 100000
         };
@@ -54,11 +54,11 @@ class LightingConstants {
         this.SHADOW_MAP = {
             SIZE: {
                 value: 16384,   // Power of 2 for best performance
-                options: [512, 1024, 2048, 4096, 8192, 16384, 24576],
+                options: [512, 1024, 2048, 4096, 8192, 16384],
                 label: "Shadow Resolution"
             },
             BIAS: {
-                value: 0.0341,   // Bias to prevent shadow acne - fine-tuned for testing
+                value: 0.0732,   // Bias to prevent shadow acne - fine-tuned for testing
                 min: -0.001,      // Narrower range focused on useful values
                 max: 0.1,     // Maximum bias value for testing
                 step: 0.0001    // Very small step for fine-grained control
@@ -69,25 +69,25 @@ class LightingConstants {
         // Shadow projection settings - orthographic frustum for directional light
         this.SHADOW_PROJECTION = {
             LEFT: {
-                value: -6520,
+                value: -4096,
                 min: -20000,
                 max: 0,
                 step: 10
             },
             RIGHT: {
-                value: 6060,
+                value: 4096,
                 min: 0,
                 max: 20000,
                 step: 10
             },
             BOTTOM: {
-                value: -4750,
+                value: -4096,
                 min: -20000,
                 max: 0,
                 step: 10
             },
             TOP: {
-                value: 3850,
+                value: 4096,
                 min: 0,
                 max: 20000,
                 step: 10
@@ -99,7 +99,7 @@ class LightingConstants {
                 step: 0.1
             },
             FAR: {
-                value: 7900,
+                value: 701,
                 min: 0.1,
                 max: 50000,
                 step: 100
@@ -119,13 +119,13 @@ class LightingConstants {
             PCF: { // Percentage Closer Filtering
                 ENABLED: true,
                 SIZE: {
-                    value: 1,  // Size of PCF kernel (3 = 3x3 sampling)
+                    value: 9,  // Size of PCF kernel (3 = 3x3 sampling)
                     options: [1, 3, 5, 7, 9],
                     label: "PCF Kernel Size"
                 }
             },
             SOFTNESS: {
-                value: -9.25,  // Shadow softness (0 = hard, 1 = very soft)
+                value: -0.7,  // Shadow softness (0 = hard, 1 = very soft)
                 min: -60.0,
                 max: 0.0,
                 step: 0.01

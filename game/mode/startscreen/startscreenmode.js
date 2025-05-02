@@ -34,17 +34,13 @@ class StartScreenMode {
 
         // Debug mode menu options
         if (this.debugMode) {
-            this.gameModeManager.modes.forEach((mode, index) => {
-                // Highlight the shadow test mode with a different color
-                const color = mode === "shadowtest" ? "rgba(0, 255, 0, 0.8)" : "rgba(255, 100, 100, 0.3)";
-                
+            this.gameModeManager.modes.forEach((mode, index) => {                
                 this.menuOptions.push({
                     text: mode.toUpperCase(),
                     x: Game.WIDTH - 400,
                     y: 50 + index * 60,
                     width: 300,
                     height: 40,
-                    color: color,
                     hovered: false,
                     borderGlow: 0
                 });
