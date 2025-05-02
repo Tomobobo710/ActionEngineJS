@@ -62,11 +62,21 @@ class LightingManager {
     }
 
     getLightDir() {
-        return  new Vector3(
+        // Create direction vector
+        const dir = new Vector3(
             this.currentLightConfig.DIRECTION.x,
             this.currentLightConfig.DIRECTION.y,
             this.currentLightConfig.DIRECTION.z
-        ).normalize();
+        );
+        
+        // Safety check: ensure the direction is not zero
+        if (Math.abs(dir.x) < 0.0001 && Math.abs(dir.y) < 0.0001 && Math.abs(dir.z) < 0.0001) {
+            console.warn('Light direction vector is near zero, defaulting to (0,-1,-0.0001)');
+            return new Vector3(0, -1, -0.0001).normalize();
+        }
+        
+        // Normalize the direction vector
+        return dir.normalize();
     }
 
     // Sync lighting configuration with constants

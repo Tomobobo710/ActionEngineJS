@@ -11,7 +11,7 @@ class WorldMode {
         // Initialize the core world components first
         this.initializeMode();
         this.pendingBattleTransition = false;
-        this.enableRandomBattles = true; // Default setting for random battles
+        this.enableRandomBattles = false; // Default setting for random battles
         this.pendingMenuTransition = false; // Add this new flag
 
         // Create character after world initialization

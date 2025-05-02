@@ -20,7 +20,8 @@ class LightingConstants {
             y: -0.18346266001630218,
             z: -0.06164649477615913,
             min: -1.0,   // Direction component minimum
-            max: 1.0     // Direction component maximum
+            max: 1.0,     // Direction component maximum
+            step: 0.1
         };
         
         // Light properties
@@ -125,8 +126,8 @@ class LightingConstants {
             },
             SOFTNESS: {
                 value: -9.25,  // Shadow softness (0 = hard, 1 = very soft)
-                min: -10.0,
-                max: 10.0,
+                min: -60.0,
+                max: 0.0,
                 step: 0.01
             }
         };

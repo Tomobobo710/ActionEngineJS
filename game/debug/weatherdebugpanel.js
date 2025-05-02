@@ -307,4 +307,13 @@ class WeatherDebugPanel extends BaseDebugPanel {
         this.ctx.fillText(`Camera Position: ${cameraPos}`, infoX, currentY); currentY += lineHeight;
         this.ctx.fillText(`Camera Rotation: ${cameraRot}`, infoX, currentY); currentY += lineHeight;
     }
-}
+
+    // Override from BaseDebugPanel - Return the active sliders based on current tab
+    getActiveSliders() {
+        if (this.activeTab === 'settings') {
+            return this.weatherSliders;
+        }
+        return {};
+    }
+  }
+  

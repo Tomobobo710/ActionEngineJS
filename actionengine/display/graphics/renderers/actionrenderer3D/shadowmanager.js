@@ -174,11 +174,21 @@ class ShadowManager {
             lightTarget.z = lightPos.z + lightDir.z * distanceMult;
         }
 
+        // Choose an appropriate up vector that avoids collinearity with light direction
+        let upVector = [0, 1, 0]; // Default up vector
+        
+        // Check if light direction is too closely aligned with the default up vector
+        // This avoids numerical issues when the light is pointing straight up or down
+        if (Math.abs(lightDir.y) > 0.99) {
+            // If pointing almost straight up/down, use Z axis as up vector instead
+            upVector = [0, 0, 1];
+        }
+        
         Matrix4.lookAt(
             this.lightViewMatrix,
             lightPos.toArray(),
             lightTarget.toArray(),
-            [0, 1, 0] // up vector
+            upVector
         );
 
         // Combine into light space matrix

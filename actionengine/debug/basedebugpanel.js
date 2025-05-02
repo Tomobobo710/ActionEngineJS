@@ -71,6 +71,9 @@ class BaseDebugPanel {
             anglePrecision: 4,    // Normal/angle decimal places
             timePrecision: 1      // Time/ms decimal places
         };
+        
+        // Initialize Map to store input field registrations
+        this.inputFields = new Map();
     }
     
     // Utility function to round a number to specified decimals
@@ -202,6 +205,15 @@ class BaseDebugPanel {
     // Handle slider interactions
     handleOptionSliders(sliders) {
         if (!sliders) return;
+        
+        // Check for edit button clicks
+        this.inputFields.forEach((info, editBtnId) => {
+            if (this.game.input.isElementJustPressed(editBtnId, "debug")) {
+                console.log(`Edit button clicked for ${info.name}`);
+                this.showInputDialog(info.name, info.slider);
+                return; // Exit early if we found a clicked button
+            }
+        });
 
         Object.entries(sliders).forEach(([name, slider]) => {
             // Handle discrete option sliders (with left/right buttons)
@@ -253,8 +265,22 @@ class BaseDebugPanel {
         });
     }
     
+    // Initialize input dialog if needed
+    initializeInputDialog() {
+        if (!this.inputDialog) {
+            this.createInputDialog();
+        }
+    }
+    
     // Draw sliders on the panel
     drawSliders(sliders) {
+        // Make sure input dialog is created
+        this.initializeInputDialog();
+        
+        // Register edit buttons if they haven't been registered yet
+        if (Object.keys(sliders).length > 0 && this.inputFields.size === 0) {
+            this.registerEditButtons(sliders);
+        }
         Object.entries(sliders).forEach(([name, slider], index) => {
             const sliderY = this.panelY + 100 + (index * 40);
             
@@ -279,21 +305,71 @@ class BaseDebugPanel {
                 this.ctx.fillStyle = "#444444";
                 this.ctx.fillRect(this.panelX + 160, sliderY, 180, 20);
                 
-                // Calculate position based on value
-                const percentage = (slider.value - slider.min) / (slider.max - slider.min);
+                // Calculate position based on value (clamped for display purposes)
+                let displayPercentage = 0;
+                if (slider.min !== undefined && slider.max !== undefined) {
+                    // Clamp the display percentage between 0 and 1
+                    displayPercentage = Math.max(0, Math.min(1, (slider.value - slider.min) / (slider.max - slider.min)));
+                }
                 
                 // Draw slider value fill
-                this.ctx.fillStyle = this.game.input.isElementPressed(slider.id, "debug") ? "#00ff00" : "#00aa00";
-                this.ctx.fillRect(this.panelX + 160, sliderY, 180 * percentage, 20);
+                if (slider.outOfRange) {
+                    // Use a special color for out-of-range values
+                    this.ctx.fillStyle = (slider.value < slider.min) ? "#aa5500" : "#aa0055";
+                } else {
+                    this.ctx.fillStyle = this.game.input.isElementPressed(slider.id, "debug") ? "#00ff00" : "#00aa00";
+                }
+                this.ctx.fillRect(this.panelX + 160, sliderY, 180 * displayPercentage, 20);
                 
                 // Draw slider handle
-                this.ctx.fillStyle = "#ffffff";
-                this.ctx.fillRect(this.panelX + 160 + (180 * percentage) - 2, sliderY - 2, 4, 24);
+                this.ctx.fillStyle = slider.outOfRange ? "#ffaa00" : "#ffffff";
+                this.ctx.fillRect(this.panelX + 160 + (180 * displayPercentage) - 2, sliderY - 2, 4, 24);
                 
                 // Draw value text
                 this.ctx.textAlign = "right";
-                const valueText = Number.isInteger(slider.value) ? slider.value.toString() : slider.value.toFixed(3);
-                this.ctx.fillText(valueText, this.panelX + 380, sliderY + 10);
+                const valueText = Number.isInteger(slider.value) ? slider.value.toString() : slider.value.toFixed(6);
+                
+                // Use different text color for out-of-range values
+                if (slider.outOfRange) {
+                    this.ctx.fillStyle = "#ffaa00";
+                    // Add indicator for out-of-range values
+                    if (slider.value < slider.min) {
+                        this.ctx.fillText(`${valueText} (< min)`, this.panelX + 380, sliderY + 10);
+                    } else {
+                        this.ctx.fillText(`${valueText} (> max)`, this.panelX + 380, sliderY + 10);
+                    }
+                } else {
+                    this.ctx.fillStyle = "#ffffff";
+                    this.ctx.fillText(valueText, this.panelX + 380, sliderY + 10);
+                }
+                
+                // Draw "Edit" button for precise value input
+                const hoverId = `${slider.id}_edit`;
+                const btnInfo = this.inputFields.get(hoverId);
+                
+                if (btnInfo) {
+                    const btnX = btnInfo.x;
+                    const btnY = btnInfo.y;
+                    const btnWidth = btnInfo.width;
+                    const btnHeight = btnInfo.height;
+                    
+                    // Check if mouse is hovering over the edit button
+                    const isHovered = this.game.input.isElementHovered(hoverId, "debug");
+                    
+                    // Draw edit button
+                    this.ctx.fillStyle = isHovered ? "#5555ff" : "#3333aa";
+                    this.ctx.fillRect(btnX, btnY, btnWidth, btnHeight);
+                    this.ctx.strokeStyle = "#ffffff";
+                    this.ctx.lineWidth = 1;
+                    this.ctx.strokeRect(btnX, btnY, btnWidth, btnHeight);
+                    
+                    // Draw edit button text
+                    this.ctx.fillStyle = "#ffffff";
+                    this.ctx.textAlign = "center";
+                    this.ctx.textBaseline = "middle";
+                    this.ctx.fillText("Edit", btnX + btnWidth/2, btnY + btnHeight/2);
+                    this.ctx.textBaseline = "alphabetic";
+                }
             }
         });
     }
@@ -483,13 +559,6 @@ class BaseDebugPanel {
         this.lastActivatedTime = Date.now();
     }
     
-    onHide() {
-        // Called when panel becomes hidden
-    }
-    
-    onTabChange(tabId) {
-        // Called when tab changes
-    }
     
     updateContent() {
         // Update panel content, handle input, etc.
@@ -521,5 +590,269 @@ class BaseDebugPanel {
     // Override this method in child classes
     drawContent() {
         // Draw panel content based on active tab
+    }
+    
+    // Show an input dialog for precise value editing
+    showInputDialog(sliderName, slider) {
+        console.log(`Showing input dialog for ${sliderName}, current value: ${slider.value}`);
+        // Create modal dialog elements if they don't exist
+        if (!this.inputDialog) {
+            this.createInputDialog();
+        }
+        
+        // Set dialog title and current value
+        this.dialogTitle.textContent = `Edit ${sliderName}`;
+        this.dialogInput.value = slider.value.toString();
+        this.currentSlider = slider;
+        
+        // Show the dialog
+        this.inputDialogOverlay.style.display = 'block';
+        this.inputDialog.style.display = 'block';
+        
+        // Focus the input field
+        setTimeout(() => {
+            this.dialogInput.focus();
+            this.dialogInput.select();
+        }, 10);
+    }
+    
+    // Create the input dialog DOM elements
+    createInputDialog() {
+        // Create overlay for modal effect
+        this.inputDialogOverlay = document.createElement('div');
+        this.inputDialogOverlay.style.position = 'fixed';
+        this.inputDialogOverlay.style.top = '0';
+        this.inputDialogOverlay.style.left = '0';
+        this.inputDialogOverlay.style.width = '100%';
+        this.inputDialogOverlay.style.height = '100%';
+        this.inputDialogOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+        this.inputDialogOverlay.style.zIndex = '999';
+        this.inputDialogOverlay.style.display = 'none';
+        
+        // Create dialog container
+        this.inputDialog = document.createElement('div');
+        this.inputDialog.style.position = 'fixed';
+        this.inputDialog.style.top = '50%';
+        this.inputDialog.style.left = '50%';
+        this.inputDialog.style.transform = 'translate(-50%, -50%)';
+        this.inputDialog.style.backgroundColor = '#333';
+        this.inputDialog.style.border = '2px solid #555';
+        this.inputDialog.style.borderRadius = '5px';
+        this.inputDialog.style.padding = '15px';
+        this.inputDialog.style.zIndex = '1000';
+        this.inputDialog.style.minWidth = '250px';
+        this.inputDialog.style.color = '#fff';
+        this.inputDialog.style.display = 'none';
+        
+        // Create dialog title
+        this.dialogTitle = document.createElement('div');
+        this.dialogTitle.style.fontSize = '16px';
+        this.dialogTitle.style.fontWeight = 'bold';
+        this.dialogTitle.style.marginBottom = '10px';
+        this.dialogTitle.textContent = 'Edit Value';
+        
+        // Create input field
+        this.dialogInput = document.createElement('input');
+        this.dialogInput.type = 'text';
+        this.dialogInput.style.width = '100%';
+        this.dialogInput.style.padding = '5px';
+        this.dialogInput.style.marginBottom = '15px';
+        this.dialogInput.style.backgroundColor = '#222288';
+        this.dialogInput.style.color = '#fff';
+        this.dialogInput.style.border = '1px solid #555';
+        this.dialogInput.style.borderRadius = '3px';
+        
+        // Create button container
+        const buttonContainer = document.createElement('div');
+        buttonContainer.style.display = 'flex';
+        buttonContainer.style.justifyContent = 'space-between';
+        
+        // Create OK button
+        this.dialogOkButton = document.createElement('button');
+        this.dialogOkButton.textContent = 'OK';
+        this.dialogOkButton.style.padding = '5px 15px';
+        this.dialogOkButton.style.backgroundColor = '#00aa00';
+        this.dialogOkButton.style.color = '#fff';
+        this.dialogOkButton.style.border = 'none';
+        this.dialogOkButton.style.borderRadius = '3px';
+        this.dialogOkButton.style.cursor = 'pointer';
+        
+        // Create Cancel button
+        this.dialogCancelButton = document.createElement('button');
+        this.dialogCancelButton.textContent = 'Cancel';
+        this.dialogCancelButton.style.padding = '5px 15px';
+        this.dialogCancelButton.style.backgroundColor = '#aa0000';
+        this.dialogCancelButton.style.color = '#fff';
+        this.dialogCancelButton.style.border = 'none';
+        this.dialogCancelButton.style.borderRadius = '3px';
+        this.dialogCancelButton.style.cursor = 'pointer';
+        
+        // Add buttons to container
+        buttonContainer.appendChild(this.dialogOkButton);
+        buttonContainer.appendChild(this.dialogCancelButton);
+        
+        // Add elements to dialog
+        this.inputDialog.appendChild(this.dialogTitle);
+        this.inputDialog.appendChild(this.dialogInput);
+        this.inputDialog.appendChild(buttonContainer);
+        
+        // Add dialog to document
+        document.body.appendChild(this.inputDialogOverlay);
+        document.body.appendChild(this.inputDialog);
+        
+        // Add event listeners
+        const self = this;
+        
+        // OK button confirms input
+        this.dialogOkButton.addEventListener('click', function() {
+            self.confirmInputDialog();
+        });
+        
+        // Cancel button closes dialog without changes
+        this.dialogCancelButton.addEventListener('click', function() {
+            self.closeInputDialog();
+        });
+        
+        // Enter key confirms input
+        this.dialogInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                self.confirmInputDialog();
+                e.preventDefault();
+            } else if (e.key === 'Escape') {
+                self.closeInputDialog();
+                e.preventDefault();
+            }
+        });
+        
+        // Allow clicks on the overlay to close the dialog
+        this.inputDialogOverlay.addEventListener('click', function(e) {
+            self.closeInputDialog();
+        });
+        
+        // But prevent clicks on the dialog from bubbling to the overlay
+        this.inputDialog.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+    }
+    
+    // Confirm the input and update the slider value
+    confirmInputDialog() {
+        if (!this.currentSlider) return;
+        
+        try {
+            const numValue = parseFloat(this.dialogInput.value);
+            if (!isNaN(numValue)) {
+                // Don't clamp values - allow any input value to be used
+                let finalValue = numValue;
+                
+                // Flag if the value is outside the slider's normal range
+                if (this.currentSlider.min !== undefined && this.currentSlider.max !== undefined) {
+                    if (numValue < this.currentSlider.min || numValue > this.currentSlider.max) {
+                        // Mark the slider as having an out-of-range value
+                        this.currentSlider.outOfRange = true;
+                    } else {
+                        // Reset the flag if value is back in range
+                        this.currentSlider.outOfRange = false;
+                    }
+                }
+                
+                // Update slider value (no clamping)
+                this.currentSlider.value = finalValue;
+                if (this.currentSlider.updateProperty) {
+                    this.currentSlider.updateProperty(finalValue);
+                }
+            }
+        } catch (e) {
+            console.error("Error parsing number input:", e);
+        }
+        
+        this.closeInputDialog();
+    }
+    
+    // Close the input dialog without saving changes
+    closeInputDialog() {
+        if (this.inputDialog) {
+            this.inputDialog.style.display = 'none';
+        }
+        if (this.inputDialogOverlay) {
+            this.inputDialogOverlay.style.display = 'none';
+        }
+        this.currentSlider = null;
+    }
+    
+    // Handle tab or panel visibility changes
+    onHide() {
+        // Close input dialog if open
+        this.closeInputDialog();
+        
+        // Clear edit buttons when panel is hidden
+        this.clearEditButtons();
+    }
+    
+    onTabChange(tabId) {
+        // Close input dialog if open
+        this.closeInputDialog();
+        
+        // Re-register edit buttons for the new tab
+        const sliders = this.getActiveSliders();
+        if (sliders && Object.keys(sliders).length > 0) {
+            this.registerEditButtons(sliders);
+        }
+    }
+
+
+    
+    // Register edit buttons for sliders
+    registerEditButtons(sliders) {
+        // First, clear any existing edit buttons
+        this.clearEditButtons();
+        
+        Object.entries(sliders).forEach(([name, slider], index) => {
+            if (!slider.options) { // Only for numeric sliders
+                const sliderY = this.panelY + 100 + (index * 40);
+                const btnX = this.panelX + 400;
+                const btnY = sliderY - 2;
+                const btnWidth = 45; // Wider button
+                const btnHeight = 26; // Taller button
+                
+                const hoverId = `${slider.id}_edit`;
+                
+                // Register the edit button with input system
+                this.game.input.registerElement(
+                    hoverId,
+                    {
+                        bounds: () => ({
+                            x: btnX - 2, // Add a bit more hit area
+                            y: btnY - 2, // Add a bit more hit area
+                            width: btnWidth + 4, // Add a bit more hit area
+                            height: btnHeight + 4 // Add a bit more hit area
+                        })
+                    },
+                    "debug"
+                );
+                
+                this.inputFields.set(hoverId, { 
+                    slider: slider, 
+                    name: name,
+                    x: btnX,
+                    y: btnY,
+                    width: btnWidth,
+                    height: btnHeight
+                });
+            }
+        });
+    }
+
+
+    
+    // Clear all registered edit buttons
+    clearEditButtons() {
+        // Remove all buttons from the input system
+        this.inputFields.forEach((info, id) => {
+            this.game.input.removeElement(id, "debug");
+        });
+        
+        // Clear the inputFields map
+        this.inputFields.clear();
     }
 }

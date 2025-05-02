@@ -563,15 +563,34 @@ class Matrix4 {
         z1 *= len;
         z2 *= len;
 
+        // Cross product of up and z
         x0 = upy * z2 - upz * z1;
         x1 = upz * z0 - upx * z2;
         x2 = upx * z1 - upy * z0;
         len = Math.hypot(x0, x1, x2);
-        if (!len) {
-            x0 = 0;
-            x1 = 0;
-            x2 = 0;
+        
+        // Handle the case where up and z are colinear (or nearly so)
+        if (len < 0.000001) {
+            // Find a perpendicular vector to z
+            // Try cross product with (1,0,0) first
+            if (Math.abs(z0) < 0.9) {
+                // Cross with X axis
+                x0 = 0;
+                x1 = z2;
+                x2 = -z1;
+            } else {
+                // Cross with Z axis if Z is near X
+                x0 = z1;
+                x1 = -z0;
+                x2 = 0;
+            }
+            len = Math.hypot(x0, x1, x2);
+            len = 1 / len;
+            x0 *= len;
+            x1 *= len;
+            x2 *= len;
         } else {
+            // Normal case - normalize the computed cross product
             len = 1 / len;
             x0 *= len;
             x1 *= len;

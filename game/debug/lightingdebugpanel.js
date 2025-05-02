@@ -612,6 +612,9 @@ class LightingDebugPanel extends BaseDebugPanel {
             case 'shadow': this.registerSliders(this.shadowSliders, "shadow"); break;
             case 'material': this.registerSliders(this.materialSliders, "material"); break;
         }
+        
+        // Call parent method to handle edit buttons
+        super.onTabChange(tabId);
     }
     
     // Override from BaseDebugPanel
@@ -838,4 +841,16 @@ class LightingDebugPanel extends BaseDebugPanel {
     }
     
     // These methods are now in the base class and can be removed
-}
+
+
+    
+    // Override from BaseDebugPanel - Return the active sliders based on current tab
+    getActiveSliders() {
+        switch (this.activeTab) {
+            case 'light': return this.lightSliders;
+            case 'shadow': return this.shadowSliders;
+            case 'material': return this.materialSliders;
+            default: return {};
+        }
+    }
+    }

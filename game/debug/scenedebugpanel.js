@@ -658,4 +658,14 @@ class SceneDebugPanel extends BaseDebugPanel {
             }
         }
     }
-}
+
+
+    // Override from BaseDebugPanel - Return the active sliders based on current tab
+    getActiveSliders() {
+        switch (this.activeTab) {
+            case 'character': return this.characterSliders;
+            case 'camera': return this.cameraSliders;
+            default: return {};
+        }
+    }
+  }  

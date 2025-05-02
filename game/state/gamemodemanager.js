@@ -5,7 +5,7 @@ class GameModeManager {
         this.currentMode = null;
         this.activeMode = null;
 
-        this.modes = ["start", "battle", "world", "fishing", "rpgmenu", "dungeon"];
+        this.modes = ["start", "battle", "world", "fishing", "rpgmenu", "dungeon", "shadowtest"];
         this.currentModeIndex = 0;
     }
 
@@ -51,6 +51,14 @@ class GameModeManager {
 
         // Create new mode
         switch (modeName) {
+            case "shadowtest":
+                this.activeMode = new ShadowTestMode(
+                    this.gameMaster.canvases,
+                    this.gameMaster.input,
+                    this.gameMaster.audio,
+                    this
+                );
+                break;
             case "dungeon":
                 this.activeMode = new DungeonMode(
                     this.gameMaster.canvases,
