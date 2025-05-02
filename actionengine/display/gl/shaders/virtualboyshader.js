@@ -17,7 +17,8 @@ class VirtualBoyShader {
         void main() {
             gl_Position = uProjectionMatrix * uViewMatrix * uModelMatrix * vec4(aPosition, 1.0);
             vec3 worldNormal = normalize(mat3(uModelMatrix) * aNormal);
-            vLighting = max(0.3, min(1.0, dot(worldNormal, normalize(uLightDir))));
+            // Negate light direction to be consistent with other shaders
+            vLighting = max(0.3, min(1.0, dot(worldNormal, normalize(-uLightDir))));
             
             float id = float(gl_VertexID % 3);
             vBarycentricCoord = vec3(id == 0.0, id == 1.0, id == 2.0);

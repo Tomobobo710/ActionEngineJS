@@ -134,6 +134,7 @@ class LightingManager {
 
     update() {
         this.frameCount++;
+        let changed = false;
         
         // Check if light position or direction has changed
         if (this._lastPosition === undefined || 
@@ -161,10 +162,18 @@ class LightingManager {
                 z: this.currentLightConfig.DIRECTION.z
             };
             
-            return true; // Light changed
+            changed = true; // Light changed
         }
         
-        return false; // No change
+        // Track intensity for debugging purposes only
+        if (this._lastIntensity === undefined ||
+            Math.abs(this._lastIntensity - this.currentLightConfig.INTENSITY) > 1000) {
+            
+            this._lastIntensity = this.currentLightConfig.INTENSITY;
+            changed = true; // Light changed
+        }
+        
+        return changed;
     }
     
     // Debug helper to visualize light position and direction

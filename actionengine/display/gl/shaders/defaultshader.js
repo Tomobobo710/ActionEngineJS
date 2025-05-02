@@ -262,6 +262,8 @@ class DefaultShader {
     uniform sampler2D uShadowMap;
     uniform vec3 uLightPos;
     uniform vec3 uLightDir;
+    uniform float uLightIntensity; // Light intensity uniform
+    uniform float uIntensityFactor; // Factor controlling intensity effect in default shader
     uniform bool uShadowsEnabled;
     uniform float uShadowBias; // Shadow bias uniform for controlling shadow acne
     uniform float uShadowMapSize; // Shadow map size for texture calculations
@@ -288,6 +290,11 @@ class DefaultShader {
         // Negate light direction to be consistent with shadow mapping convention
         float diffuse = max(0.0, dot(normalize(vNormal), normalize(-uLightDir)));
         
+        // Apply light intensity directly - use a more dramatic effect
+        // Scale from 0 (no light) to very bright at high intensity values
+        float intensity = uLightIntensity / 100.0; // More aggressive scaling
+        diffuse = diffuse * clamp(intensity, 0.1, 10.0); // Allow for dramatically brighter light
+        
         // Calculate shadow factor
         float shadow = 1.0;
         if (uShadowsEnabled) {
@@ -298,10 +305,11 @@ class DefaultShader {
             shadow = 1.0 - (1.0 - shadowFactor) * 0.8;
         }
         
-        // Final lighting calculation with shadow
-        float lighting = ambient + (diffuse * shadow);
+        // Apply light intensity with configurable intensity factor
+        // This allows tuning the relationship between PBR and default shader intensity
+        float lighting = ambient + (diffuse * shadow * uLightIntensity * uIntensityFactor);
         
-        // Apply lighting to color
+        // Apply lighting to color with a natural effect
         vec3 result = baseColor.rgb * lighting;
         
         ${isWebGL2 ? "fragColor" : "gl_FragColor"} = vec4(result, baseColor.a);

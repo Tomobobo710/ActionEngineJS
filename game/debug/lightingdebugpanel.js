@@ -156,13 +156,13 @@ class LightingDebugPanel extends BaseDebugPanel {
                 id: "shadowFar",
                 updateProperty: (value) => { this.constants.SHADOW_PROJECTION.FAR.value = value; }
             },
-            "Target Distance": {
-                value: this.constants.SHADOW_PROJECTION.DISTANCE_MULTIPLIER.value,
-                min: this.constants.SHADOW_PROJECTION.DISTANCE_MULTIPLIER.min,
-                max: this.constants.SHADOW_PROJECTION.DISTANCE_MULTIPLIER.max,
-                step: this.constants.SHADOW_PROJECTION.DISTANCE_MULTIPLIER.step,
-                id: "shadowTargetDistance",
-                updateProperty: (value) => { this.constants.SHADOW_PROJECTION.DISTANCE_MULTIPLIER.value = value; }
+            "Default Shader Intensity Factor": {
+                value: this.constants.DEFAULT_SHADER_INTENSITY_FACTOR.value,
+                min: this.constants.DEFAULT_SHADER_INTENSITY_FACTOR.min,
+                max: this.constants.DEFAULT_SHADER_INTENSITY_FACTOR.max,
+                step: this.constants.DEFAULT_SHADER_INTENSITY_FACTOR.step,
+                id: "defaultShaderIntensityFactor",
+                updateProperty: (value) => { this.constants.DEFAULT_SHADER_INTENSITY_FACTOR.value = value; }
             },
             "Softness": {
                 value: this.constants.SHADOW_FILTERING.SOFTNESS.value,
@@ -704,6 +704,9 @@ class LightingDebugPanel extends BaseDebugPanel {
         // Update lighting manager
         if (this.game.renderer3D && this.game.renderer3D.lightingManager) {
             this.game.renderer3D.lightingManager.syncWithConstants();
+            
+            // Log light intensity changes for debugging
+            console.log(`Light intensity updated: ${this.constants.LIGHT_INTENSITY.value}`);
         }
         
         // Update shadow manager

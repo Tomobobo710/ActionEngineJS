@@ -165,13 +165,13 @@ class ShadowManager {
         // Create light view matrix - looking from light position toward center
         const lightTarget = new Vector3(0, 0, 0);
         if (lightDir) {
-            // Use the distance multiplier from constants
-            const distanceMult = this.constants.SHADOW_PROJECTION.DISTANCE_MULTIPLIER.value;
+            // Use a fixed distance value instead of a configurable one
+            const fixedDistance = 100.0;
 
             // If light direction is provided, use it to calculate target position
-            lightTarget.x = lightPos.x + lightDir.x * distanceMult;
-            lightTarget.y = lightPos.y + lightDir.y * distanceMult;
-            lightTarget.z = lightPos.z + lightDir.z * distanceMult;
+            lightTarget.x = lightPos.x + lightDir.x * fixedDistance;
+            lightTarget.y = lightPos.y + lightDir.y * fixedDistance;
+            lightTarget.z = lightPos.z + lightDir.z * fixedDistance;
         }
 
         // Choose an appropriate up vector that avoids collinearity with light direction

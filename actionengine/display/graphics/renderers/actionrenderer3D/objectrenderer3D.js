@@ -374,6 +374,21 @@ class ObjectRenderer3D {
         if (locations.lightIntensity !== -1 && locations.lightIntensity !== null) {
             this.gl.uniform1f(locations.lightIntensity, config.INTENSITY);
         }
+        
+        // Set intensity factor for default shader
+        if (locations.intensityFactor !== -1 && locations.intensityFactor !== null) {
+            // Get the current shader name
+            const currentShader = this.programRegistry.getCurrentShaderName();
+            
+            // Only apply the factor to the default shader
+            if (currentShader === "default") {
+                const factor = this.lightingManager.constants.DEFAULT_SHADER_INTENSITY_FACTOR.value;
+                this.gl.uniform1f(locations.intensityFactor, factor);
+            } else {
+                // For non-default shaders, use 1.0 (no scaling)
+                this.gl.uniform1f(locations.intensityFactor, 1.0);
+            }
+        }
 
         // Set PBR material properties if they are defined in the shader
         if (locations.roughness !== -1 && locations.roughness !== null) {
