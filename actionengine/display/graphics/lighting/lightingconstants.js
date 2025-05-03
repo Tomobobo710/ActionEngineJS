@@ -9,7 +9,7 @@ class LightingConstants {
         // Light position and direction
         this.LIGHT_POSITION = {
             x: 0,
-            y: 700.0,
+            y: 5000.0,
             z: 0,
             max: 50000,  // Maximum height/position
             min: -50000   // Minimum height/position
@@ -26,17 +26,17 @@ class LightingConstants {
         
         // Light properties
         this.LIGHT_INTENSITY = {
-            value: 100.0,
+            value: 7500.0,
             min: 0,
             max: 100000
         };
         
         // Default shader intensity factor - controls how intensity affects non-PBR shaders
         this.DEFAULT_SHADER_INTENSITY_FACTOR = {
-            value: 0.01,  // Scale factor for default shader (smaller values = less dramatic effect)
-            min: 0.0001,
+            value: 0.00001,  // Scale factor for default shader (smaller values = less dramatic effect)
+            min: 0.000000000000001,
             max: 1.0,
-            step: 0.0001
+            step: 0.00000000000001
         };
         
         // Material properties
@@ -101,13 +101,13 @@ class LightingConstants {
                 step: 10
             },
             NEAR: {
-                value: 0.1,
+                value: 4300,
                 min: 0.01,
-                max: 10,
-                step: 0.1
+                max: 50000,
+                step: 1
             },
             FAR: {
-                value: 701,
+                value: 5001,
                 min: 0.1,
                 max: 50000,
                 step: 100
