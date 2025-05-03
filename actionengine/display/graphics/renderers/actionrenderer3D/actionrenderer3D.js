@@ -17,7 +17,7 @@ class ActionRenderer3D {
         this.debugRenderer = new DebugRenderer3D(this.gl, this.programManager, this.lightingManager, this.shadowManager);
         this.weatherRenderer = new WeatherRenderer3D(this.gl, this.programManager);
         this.sunRenderer = new SunRenderer3D(this.gl, this.programManager);
-        // Create texture array before other renderers
+        // Create texture manager and texture array before other renderers
         this.textureManager = new TextureManager(this.gl);
         this.textureArray = this.textureManager.textureArray;
         

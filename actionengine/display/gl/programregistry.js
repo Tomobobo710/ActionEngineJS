@@ -148,13 +148,15 @@ class ProgramRegistry {
             this._textureUniforms = {
                 standard: this.isWebGL2 ? 'uTextureArray' : 'uTexture',
                 pbr: 'uPBRTextureArray',
-                shadowMap: 'uShadowMap'  // Keep this as a separate texture type
+                shadowMap: 'uShadowMap',  // Keep this as a separate texture type
+                materialProps: 'uMaterialPropertiesTexture' // Material properties texture
             };
             
             // Pre-determined texture unit assignments to avoid conflicts
             this._textureUnits = {
                 standard: 0,  // Texture array or standard texture uses unit 0
                 pbr: 1,      // PBR textures use unit 1
+                materialProps: 2, // Material properties texture uses unit 2
                 shadowMap: 7  // Shadow map uses unit 7 to avoid conflicts with all other textures
             };
         }
@@ -185,6 +187,8 @@ class ProgramRegistry {
                 roughness: gl.getUniformLocation(program, unif.roughness),
                 metallic: gl.getUniformLocation(program, unif.metallic),
                 baseReflectivity: gl.getUniformLocation(program, unif.baseReflectivity),
+                usePerTextureMaterials: gl.getUniformLocation(program, 'uUsePerTextureMaterials'),
+                materialPropertiesTexture: gl.getUniformLocation(program, tex.materialProps),
                 cameraPos: gl.getUniformLocation(program, unif.cameraPos),
                 time: gl.getUniformLocation(program, unif.time),
                 

@@ -4,6 +4,12 @@ class TextureManager {
         this.gl = gl;
         this.isWebGL2 = gl.getParameter(gl.VERSION).includes("WebGL 2.0");
         this.textureArray = this.createTextureArray();
+        
+        // Create material properties texture
+        this.materialPropertiesTexture = this.createMaterialPropertiesTexture();
+        
+        // Flag to control per-texture material usage
+        this.usePerTextureMaterials = true;
     }
 
     createTextureArray() {
@@ -107,5 +113,116 @@ class TextureManager {
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.REPEAT);
         
         return array;
+    }
+    
+    // Create a texture to store material properties for each texture
+    createMaterialPropertiesTexture() {
+        const gl = this.gl;
+        console.log('[TextureManager] Creating material properties texture');
+        
+        // Create a texture for material properties
+        // Each texel contains [roughness, metallic, baseReflectivity, reserved]
+        const texture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        
+        // Get material properties data from texture registry
+        const textureCount = textureRegistry.getTextureCount();
+        const data = textureRegistry.getMaterialPropertiesArray();
+        
+        // Create and set texture data based on WebGL version
+        if (this.isWebGL2) {
+            gl.texImage2D(
+                gl.TEXTURE_2D, 
+                0, // mip level
+                gl.RGBA32F, // internal format - use float format for WebGL2
+                textureCount, // width (one texel per texture)
+                1, // height
+                0, // border
+                gl.RGBA, // format
+                gl.FLOAT, // type
+                data // data
+            );
+        } else {
+            // WebGL 1.0 fallback - try to use OES_texture_float extension
+            const ext = gl.getExtension('OES_texture_float');
+            if (ext) {
+                gl.texImage2D(
+                    gl.TEXTURE_2D, 
+                    0, // mip level
+                    gl.RGBA, // internal format
+                    textureCount, // width (one texel per texture)
+                    1, // height
+                    0, // border
+                    gl.RGBA, // format
+                    gl.FLOAT, // type
+                    data // data
+                );
+            } else {
+                console.warn('[TextureManager] Float textures not supported by this device. Falling back to global material properties.');
+                this.usePerTextureMaterials = false;
+                return null;
+            }
+        }
+        
+        // Set texture parameters - we need NEAREST filter for exact sampling
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        
+        return texture;
+    }
+    
+    // Update the material properties texture with current values from the registry
+    updateMaterialPropertiesTexture() {
+        if (!this.materialPropertiesTexture || !this.usePerTextureMaterials) {
+            return;
+        }
+        
+        const gl = this.gl;
+        
+        // Update the texture with current material properties
+        const textureCount = textureRegistry.getTextureCount();
+        const data = textureRegistry.getMaterialPropertiesArray();
+        
+        // Bind and update the texture
+        gl.bindTexture(gl.TEXTURE_2D, this.materialPropertiesTexture);
+        
+        if (this.isWebGL2) {
+            gl.texSubImage2D(
+                gl.TEXTURE_2D, 
+                0, // mip level
+                0, // x offset
+                0, // y offset
+                textureCount, // width
+                1, // height
+                gl.RGBA, // format
+                gl.FLOAT, // type
+                data // data
+            );
+        } else {
+            // For WebGL1, we need to re-specify the entire texture
+            gl.texImage2D(
+                gl.TEXTURE_2D, 
+                0, // mip level
+                gl.RGBA, // internal format
+                textureCount, // width
+                1, // height
+                0, // border
+                gl.RGBA, // format
+                gl.FLOAT, // type
+                data // data
+            );
+        }
+    }
+    
+    // Toggle per-texture material usage
+    togglePerTextureMaterials(enabled) {
+        this.usePerTextureMaterials = enabled;
+        
+        // If enabling and we don't have a material texture, create one
+        if (enabled && !this.materialPropertiesTexture) {
+            this.materialPropertiesTexture = this.createMaterialPropertiesTexture();
+        }
     }
 }

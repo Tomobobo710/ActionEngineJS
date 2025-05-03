@@ -391,14 +391,33 @@ class ObjectRenderer3D {
         }
 
         // Set PBR material properties if they are defined in the shader
-        if (locations.roughness !== -1 && locations.roughness !== null) {
-            this.gl.uniform1f(locations.roughness, config.MATERIAL.ROUGHNESS);
+        const materialConfig = this.lightingManager.constants.MATERIAL;
+if (locations.roughness !== -1 && locations.roughness !== null) {
+    this.gl.uniform1f(locations.roughness, materialConfig.ROUGHNESS.value); // Add .value
+}
+if (locations.metallic !== -1 && locations.metallic !== null) {
+    this.gl.uniform1f(locations.metallic, materialConfig.METALLIC.value); // Add .value  
+}
+if (locations.baseReflectivity !== -1 && locations.baseReflectivity !== null) {
+    this.gl.uniform1f(locations.baseReflectivity, materialConfig.BASE_REFLECTIVITY.value); // Add .value
+}
+        
+        // Set per-texture material properties uniform
+        if (locations.usePerTextureMaterials !== -1 && locations.usePerTextureMaterials !== null) {
+            // Get material settings from texture manager
+            const usePerTextureMaterials = this.renderer.textureManager?.usePerTextureMaterials || false;
+            this.gl.uniform1i(locations.usePerTextureMaterials, usePerTextureMaterials ? 1 : 0);
         }
-        if (locations.metallic !== -1 && locations.metallic !== null) {
-            this.gl.uniform1f(locations.metallic, config.MATERIAL.METALLIC);
-        }
-        if (locations.baseReflectivity !== -1 && locations.baseReflectivity !== null) {
-            this.gl.uniform1f(locations.baseReflectivity, config.MATERIAL.BASE_REFLECTIVITY);
+        
+        // Bind material properties texture if available
+        if (locations.materialPropertiesTexture !== -1 && locations.materialPropertiesTexture !== null) {
+            const materialPropertiesTexture = this.renderer.textureManager?.materialPropertiesTexture;
+            if (materialPropertiesTexture) {
+                // Use texture unit 2 for material properties
+                this.gl.activeTexture(this.gl.TEXTURE2);
+                this.gl.bindTexture(this.gl.TEXTURE_2D, materialPropertiesTexture);
+                this.gl.uniform1i(locations.materialPropertiesTexture, 2);
+            }
         }
         
         // Set shadow map uniforms if they exist in the shader
@@ -480,11 +499,17 @@ class ObjectRenderer3D {
                 }
                 
                 // Make sure we're using texture units that won't conflict with shadow map (unit 7)
+                // or material properties texture (unit 2)
                 if (this._currentShaderType === "pbr") {
                     // Use texture unit 1 for PBR shader
                     gl.activeTexture(gl.TEXTURE1);
                     gl.bindTexture(gl.TEXTURE_2D_ARRAY, textureArray);
                     gl.uniform1i(locations.textureArray, 1);
+                    
+                    // Make sure material properties texture is up to date
+                    if (this.renderer?.textureManager) {
+                        this.renderer.textureManager.updateMaterialPropertiesTexture();
+                    }
                 } else {
                     // Use texture unit 0 for other shaders
                     gl.activeTexture(gl.TEXTURE0);

@@ -260,10 +260,14 @@ ${isWebGL2 ? "flat in" : "varying"} float vTextureIndex;
 ${isWebGL2 ? "in" : "varying"} vec2 vTexCoord;
 ${isWebGL2 ? "flat in" : "varying"} float vUseTexture;
 
-// Material properties
+// Material properties - global defaults
 uniform float uRoughness;
 uniform float uMetallic;
 uniform float uBaseReflectivity;
+
+// Material properties texture (each texel contains roughness, metallic, baseReflectivity)
+uniform sampler2D uMaterialPropertiesTexture;
+uniform bool uUsePerTextureMaterials;
 
 // Light properties
 uniform vec3 uLightPos;
@@ -339,15 +343,32 @@ void main() {
         texture(uPBRTextureArray, vec3(vTexCoord, vTextureIndex)).rgb : 
         vColor;
 
-    // Base reflectivity with pre-computed metallic mix
-    vec3 baseF0 = mix(vec3(uBaseReflectivity), albedo, uMetallic);
+    // Get material properties based on texture index if using textures
+    float roughness = uRoughness;
+    float metallic = uMetallic;
+    float baseReflectivity = uBaseReflectivity;
+    
+    if (uUsePerTextureMaterials && vUseTexture > 0.5) {
+        // Sample material properties from the material texture
+        // Convert texture index to texture coordinates (0-1 range)
+        float textureCoord = (vTextureIndex + 0.5) / float(textureSize(uMaterialPropertiesTexture, 0).x);
+        vec4 materialProps = texture(uMaterialPropertiesTexture, vec2(textureCoord, 0.5));
+        
+        // Extract material properties
+        roughness = materialProps.r;
+        metallic = materialProps.g;
+        baseReflectivity = materialProps.b;
+    }
 
-    // Calculate specular using our optimized function
+    // Base reflectivity with per-texture material mix
+    vec3 baseF0 = mix(vec3(baseReflectivity), albedo, metallic);
+
+    // Calculate specular using our optimized function with per-texture roughness
     // Note: L is already negated above for consistency with shadow mapping
-    vec3 specular = specularBRDF(N, L, V, baseF0, uRoughness);
+    vec3 specular = specularBRDF(N, L, V, baseF0, roughness);
 
-    // Efficient diffuse calculation
-    vec3 kD = (vec3(1.0) - specular) * (1.0 - uMetallic);
+    // Efficient diffuse calculation with per-texture metallic
+    vec3 kD = (vec3(1.0) - specular) * (1.0 - metallic);
     
     // Calculate shadow factor if shadows are enabled
     float shadow = 1.0;

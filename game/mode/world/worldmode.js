@@ -111,7 +111,6 @@ class WorldMode {
         
         // Create debug panels
         this.debugPanel = new DebugGui(this.debugCanvas, this);
-        this.lightingDebugPanel = new LightingDebugPanel(this.debugCanvas, this);
         
         this.showDebugPanel = false;
         this.use2DRenderer = false;
@@ -498,7 +497,7 @@ class WorldMode {
             // Need to add proper cleanup
             this.lightingDebugPanel = null;
         }
-
+        
         // Remove 2D canvas
         if (this.gameCanvas2D) {
             document.body.removeChild(this.gameCanvas2D);

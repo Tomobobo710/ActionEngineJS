@@ -2,6 +2,17 @@ class TextureRegistry {
 	constructor() {
 		this.textures = new Map();
 		this.textureList = []; // Array to maintain texture order
+		
+		// Add material properties storage for each texture
+		this.materialProperties = new Map();
+		
+		// Default material properties (used when not specified for a texture)
+		this.defaultMaterialProperties = {
+			roughness: 0.2,
+			metallic: 0.1,
+			baseReflectivity: 0.5
+		};
+		
 		this.generateTextures();
 	}
 
@@ -42,11 +53,23 @@ class TextureRegistry {
 		const snow = new ProceduralTexture(256, 256);
 		snow.generateSnow();
 		this.addTexture("snow", snow);
+		
+		// Set some example material properties for different textures
+		this.setMaterialProperties("water", { roughness: 0.05, metallic: 0.0, baseReflectivity: 0.8 });
+		this.setMaterialProperties("deepwater", { roughness: 0.05, metallic: 0.0, baseReflectivity: 0.8 });
+		this.setMaterialProperties("rock", { roughness: 0.7, metallic: 0.05, baseReflectivity: 0.3 });
+		this.setMaterialProperties("sand", { roughness: 0.8, metallic: 0.0, baseReflectivity: 0.2 });
+		this.setMaterialProperties("snow", { roughness: 0.4, metallic: 0.0, baseReflectivity: 0.7 });
 	}
 
 	addTexture(name, texture) {
 		this.textures.set(name, texture);
 		this.textureList.push(name);
+		
+		// Initialize material properties with defaults
+		if (!this.materialProperties.has(name)) {
+			this.materialProperties.set(name, { ...this.defaultMaterialProperties });
+		}
 	}
 
 	get(type) {
@@ -63,6 +86,67 @@ class TextureRegistry {
 
 	getTextureCount() {
 		return this.textureList.length;
+	}
+	
+	// Get material properties for a texture
+	getMaterialProperties(textureName) {
+		if (this.materialProperties.has(textureName)) {
+			return this.materialProperties.get(textureName);
+		}
+		return { ...this.defaultMaterialProperties };
+	}
+	
+	// Get material properties by texture index
+	getMaterialPropertiesByIndex(index) {
+		if (index >= 0 && index < this.textureList.length) {
+			const textureName = this.textureList[index];
+			return this.getMaterialProperties(textureName);
+		}
+		return { ...this.defaultMaterialProperties };
+	}
+	
+	// Set material properties for a texture
+	setMaterialProperties(textureName, properties) {
+		if (!this.textures.has(textureName)) {
+			console.warn(`Texture '${textureName}' does not exist.`);
+			return;
+		}
+		
+		// Get existing properties or default ones
+		const existing = this.materialProperties.get(textureName) || { ...this.defaultMaterialProperties };
+		
+		// Update with new properties
+		this.materialProperties.set(textureName, {
+			...existing,
+			...properties
+		});
+	}
+	
+	// Update default material properties (global settings)
+	setDefaultMaterialProperties(properties) {
+		this.defaultMaterialProperties = {
+			...this.defaultMaterialProperties,
+			...properties
+		};
+	}
+	
+	// Get all material properties as a flat array for use in a texture
+	getMaterialPropertiesArray() {
+		const textureCount = this.textureList.length;
+		const data = new Float32Array(textureCount * 4); // 4 components per texture (roughness, metallic, baseReflectivity, reserved)
+		
+		for (let i = 0; i < textureCount; i++) {
+			const textureName = this.textureList[i];
+			const props = this.getMaterialProperties(textureName);
+			
+			// Set values in the array
+			data[i * 4] = props.roughness;
+			data[i * 4 + 1] = props.metallic;
+			data[i * 4 + 2] = props.baseReflectivity;
+			data[i * 4 + 3] = 0; // Reserved for future use
+		}
+		
+		return data;
 	}
 }
 const textureRegistry = new TextureRegistry(); // global

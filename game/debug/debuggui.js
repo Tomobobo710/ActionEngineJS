@@ -39,6 +39,19 @@ class DebugGui {
             instance: this.game.lightingDebugPanel,
             toggleId: 'lightingToggleButton'
         };
+        
+        // Create MaterialDebugPanel instance - FIX THE CONSTRUCTOR PARAMETERS
+    // Check for renderer3D first, then renderer
+    const renderer = this.game.renderer3D || this.game.renderer;
+    if (renderer && renderer.textureManager) {
+        this.materialDebugPanel = new MaterialDebugPanel(this.canvas, this.game);
+        this.panels.material = {
+            instance: this.materialDebugPanel,
+            toggleId: 'materialDebugToggle'
+        };
+    } else {
+        console.log("[DebugGui] Material Debug Panel not created - no texture manager found");
+    }
     }
     
     // Clear the canvas

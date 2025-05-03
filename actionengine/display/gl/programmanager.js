@@ -147,32 +147,4 @@ class ProgramManager {
     cycleShaders() {
         this.programRegistry.cycleShaders();
     }
-    
-    // Force recompilation of the default shader
-    // Useful when debugging or when shader code changes
-    reinitializeDefaultShaders() {
-        console.log("Reinitializing default shaders");
-        
-        // First, delete any existing default shader programs
-        const defaultSet = this.programRegistry.shaders.get("default");
-        if (defaultSet) {
-            if (defaultSet.standard && defaultSet.standard.program) {
-                this.gl.deleteProgram(defaultSet.standard.program);
-            }
-            if (defaultSet.lines && defaultSet.lines.program) {
-                this.gl.deleteProgram(defaultSet.lines.program);
-            }
-        }
-        
-        // Reinitialize default shaders
-        this.initializeDefaultShaders();
-        
-        // If the current shader is default, make sure we update references
-        if (this.programRegistry.getCurrentShaderName() === "default") {
-            console.log("Current shader is default, updating references");
-        }
-        
-        console.log("Default shaders reinitialized");
-        return this.programRegistry.shaders.get("default");
-    }
 }
