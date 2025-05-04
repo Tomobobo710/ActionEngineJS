@@ -326,7 +326,7 @@ class ActionRenderer3D {
                 if (shadowMapLoc !== null) {
                     this.gl.uniform1i(shadowMapLoc, SHADOW_MAP_TEXTURE_UNIT);
                 }
-                }
+                
                 
                 // Set shadow enabled flag (on by default)
                 if (shadowEnabledLoc !== null) {
@@ -376,7 +376,7 @@ class ActionRenderer3D {
                 }
             }
         }
-    
+    }
     
     /**
      * Debug shadow uniform locations in all shaders
