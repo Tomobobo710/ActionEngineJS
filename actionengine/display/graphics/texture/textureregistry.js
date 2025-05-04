@@ -1,4 +1,15 @@
-class TextureRegistry {
+class TextureRegistry {	// Helper method to mark the texture manager's material properties as dirty
+	_markMaterialPropertiesDirty() {
+		// Find the game instance to access the renderer
+		if (typeof Game !== 'undefined' && 
+			Game.instance && 
+			Game.instance.renderer3D && 
+			Game.instance.renderer3D.textureManager) {
+			// Mark the texture manager's material properties as dirty
+			Game.instance.renderer3D.textureManager.materialPropertiesDirty = true;
+		}
+	}
+
 	constructor() {
 		this.textures = new Map();
 		this.textureList = []; // Array to maintain texture order
@@ -117,20 +128,52 @@ class TextureRegistry {
 
 		// Get existing properties or default ones
 		const existing = this.materialProperties.get(textureName) || { ...this.defaultMaterialProperties };
+		
+		// Check if any property is actually changing
+		let hasChanges = false;
+		Object.keys(properties).forEach(key => {
+			if (properties[key] !== existing[key]) {
+				hasChanges = true;
+			}
+		});
+		
+		// If nothing is changing, don't update
+		if (!hasChanges) {
+			return;
+		}
 
 		// Update with new properties
 		this.materialProperties.set(textureName, {
 			...existing,
 			...properties
 		});
+		
+		// Mark the texture manager's material properties as dirty
+		this._markMaterialPropertiesDirty();
 	}
 
 	// Update default material properties (global settings)
 	setDefaultMaterialProperties(properties) {
+		// Check if any property is actually changing
+		let hasChanges = false;
+		Object.keys(properties).forEach(key => {
+			if (properties[key] !== this.defaultMaterialProperties[key]) {
+				hasChanges = true;
+			}
+		});
+		
+		// If nothing is changing, don't update
+		if (!hasChanges) {
+			return;
+		}
+		
 		this.defaultMaterialProperties = {
 			...this.defaultMaterialProperties,
 			...properties
 		};
+		
+		// Mark the texture manager's material properties as dirty
+		this._markMaterialPropertiesDirty();
 	}
 
 	// Get all material properties as a flat array for use in a texture

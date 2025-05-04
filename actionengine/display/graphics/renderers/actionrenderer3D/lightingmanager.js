@@ -42,7 +42,7 @@ class LightingManager {
         // Frame counter for light updates
         this.frameCount = 0;
         
-        console.log("LightingManager initialized with constants");
+        // Console log removed for performance
     }
 
     getLightConfig() {

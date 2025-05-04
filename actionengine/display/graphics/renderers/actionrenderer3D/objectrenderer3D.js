@@ -30,10 +30,30 @@ class ObjectRenderer3D {
         // Frustum culling is enabled by default
         this.enableFrustumCulling = true;
         
+        // Add state tracking to avoid redundant texture bindings
+        this._currentTextureUnit = -1;
+        this._currentBoundTexture = null;
+        this._currentBoundTextureType = null;
+        
+        // Cache for pre-computed uniform values
+        this._uniformCache = {
+            frame: -1,           // Current frame number for cache validation
+            shaderProgram: null, // Current shader program
+            camera: null,        // Current camera reference
+            lightConfig: null,   // Cached light configuration
+            matrices: {          // Cached matrices
+                projection: Matrix4.create(),
+                view: Matrix4.create(),
+                model: Matrix4.create(),
+                lightSpace: null
+            }
+        };
+        
         // Simple statistics
         this.stats = {
             objectsTotal: 0,
-            objectsCulled: 0
+            objectsCulled: 0,
+            uniformSetCount: 0   // Track how many uniform sets we perform
         };
     }
 
@@ -49,6 +69,7 @@ class ObjectRenderer3D {
             // Reset stats
             this.stats.objectsTotal = 0;
             this.stats.objectsCulled = 0;
+            this.stats.uniformSetCount = 0;
             
             // Track all objects in the current frame
             this._frameObjects = [];
@@ -67,6 +88,9 @@ class ObjectRenderer3D {
             
             // Update the view frustum with the current camera
             this.viewFrustum.updateFromCamera(camera);
+            
+            // Reset the frame counter for uniform cache
+            this._frameCount = (this._frameCount || 0) + 1;
         }
         
         // Update statistics
@@ -326,24 +350,13 @@ class ObjectRenderer3D {
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.buffers.indices);
         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, DYNAMIC_DRAW);
 
-        // Cache matrix operations
-        const projection = Matrix4.perspective(
-            this.cachedProjection || (this.cachedProjection = Matrix4.create()),
-            camera.fov,
-            Game.WIDTH / Game.HEIGHT,
-            0.1,
-            10000.0
-        );
-
-        const view = this.cachedView || (this.cachedView = Matrix4.create());
-        Matrix4.lookAt(view, camera.position.toArray(), camera.target.toArray(), camera.up.toArray());
-
-        const model = this.cachedModel || (this.cachedModel = Matrix4.create());
+        // PRE-COMPUTE ALL MATRICES AND UNIFORMS ONCE PER FRAME
+        this.updateUniformCache(camera, shaderSet);
 
         // Setup shader and draw - use the standard object shader
         const program = shaderSet.standard;
         gl.useProgram(program.program);
-        this.setupObjectShader(program.locations, projection, view, model, camera);
+        this.setupObjectShader(program.locations, camera);
 
         // Draw all objects in one batch
         this.drawObject(program.locations, totalIndexCount);
@@ -353,26 +366,86 @@ class ObjectRenderer3D {
         this._frameObjects = [];
         this._totalTriangles = 0;
     }
+    
+    // New method to pre-compute all uniform values once per frame
+    updateUniformCache(camera, shaderSet) {
+        // Check if we already computed values for this frame
+        if (this._uniformCache.frame === this._frameCount && 
+            this._uniformCache.shaderProgram === shaderSet.standard.program &&
+            this._uniformCache.camera === camera) {
+            return; // Cache is valid, no need to update
+        }
+        
+        // Update cache validation
+        this._uniformCache.frame = this._frameCount;
+        this._uniformCache.shaderProgram = shaderSet.standard.program;
+        this._uniformCache.camera = camera;
+        
+        // Pre-compute projection matrix
+        Matrix4.perspective(
+            this._uniformCache.matrices.projection,
+            camera.fov,
+            Game.WIDTH / Game.HEIGHT,
+            0.1,
+            10000.0
+        );
 
-    setupObjectShader(locations, projection, view, model, camera) {
-        this.gl.uniformMatrix4fv(locations.projectionMatrix, false, projection);
-        this.gl.uniformMatrix4fv(locations.viewMatrix, false, view);
-        this.gl.uniformMatrix4fv(locations.modelMatrix, false, model);
+        // Pre-compute view matrix
+        Matrix4.lookAt(
+            this._uniformCache.matrices.view,
+            camera.position.toArray(), 
+            camera.target.toArray(), 
+            camera.up.toArray()
+        );
+
+        // Identity model matrix
+        Matrix4.identity(this._uniformCache.matrices.model);
+        
+        // Cache the light configuration
+        this._uniformCache.lightConfig = this.lightingManager.getLightConfig();
+        
+        // Cache the light direction vector
+        this._uniformCache.lightDir = this.lightingManager.getLightDir();
+        
+        // Cache the light space matrix if shadow mapping is enabled
+        if (this.renderer.shadowsEnabled && this.renderer.shadowManager) {
+            this._uniformCache.matrices.lightSpace = this.renderer.shadowManager.getLightSpaceMatrix();
+            this._uniformCache.shadowBias = this.renderer.shadowManager.shadowBias;
+        }
+        
+        // Cache other commonly used values
+        const materialConfig = this.lightingManager.constants.MATERIAL;
+        this._uniformCache.roughness = materialConfig.ROUGHNESS.value;
+        this._uniformCache.metallic = materialConfig.METALLIC.value;
+        this._uniformCache.baseReflectivity = materialConfig.BASE_REFLECTIVITY.value;
+        
+        // Save that we've updated the cache
+        this._cacheUpdated = true;
+    }
+
+    setupObjectShader(locations, camera) {
+        const gl = this.gl;
+        
+        // Use pre-computed values from the uniform cache
+        gl.uniformMatrix4fv(locations.projectionMatrix, false, this._uniformCache.matrices.projection);
+        gl.uniformMatrix4fv(locations.viewMatrix, false, this._uniformCache.matrices.view);
+        gl.uniformMatrix4fv(locations.modelMatrix, false, this._uniformCache.matrices.model);
 
         // Set camera position if the shader uses it
         if (locations.cameraPos !== -1 && locations.cameraPos !== null) {
-            this.gl.uniform3fv(locations.cameraPos, camera.position.toArray());
+            gl.uniform3fv(locations.cameraPos, camera.position.toArray());
         }
 
-        const config = this.lightingManager.getLightConfig();
+        // Use cached light configuration
+        const config = this._uniformCache.lightConfig;
         if (locations.lightPos !== -1 && locations.lightPos !== null) {
-            this.gl.uniform3fv(locations.lightPos, [config.POSITION.x, config.POSITION.y, config.POSITION.z]);
+            gl.uniform3fv(locations.lightPos, [config.POSITION.x, config.POSITION.y, config.POSITION.z]);
         }
         if (locations.lightDir !== -1 && locations.lightDir !== null) {
-            this.gl.uniform3fv(locations.lightDir, this.lightingManager.getLightDir().toArray());
+            gl.uniform3fv(locations.lightDir, this._uniformCache.lightDir.toArray());
         }
         if (locations.lightIntensity !== -1 && locations.lightIntensity !== null) {
-            this.gl.uniform1f(locations.lightIntensity, config.INTENSITY);
+            gl.uniform1f(locations.lightIntensity, config.INTENSITY);
         }
         
         // Set intensity factor for default shader
@@ -383,40 +456,50 @@ class ObjectRenderer3D {
             // Only apply the factor to the default shader
             if (currentShader === "default") {
                 const factor = this.lightingManager.constants.DEFAULT_SHADER_INTENSITY_FACTOR.value;
-                this.gl.uniform1f(locations.intensityFactor, factor);
+                gl.uniform1f(locations.intensityFactor, factor);
             } else {
                 // For non-default shaders, use 1.0 (no scaling)
-                this.gl.uniform1f(locations.intensityFactor, 1.0);
+                gl.uniform1f(locations.intensityFactor, 1.0);
             }
         }
 
         // Set PBR material properties if they are defined in the shader
-        const materialConfig = this.lightingManager.constants.MATERIAL;
-if (locations.roughness !== -1 && locations.roughness !== null) {
-    this.gl.uniform1f(locations.roughness, materialConfig.ROUGHNESS.value); // Add .value
-}
-if (locations.metallic !== -1 && locations.metallic !== null) {
-    this.gl.uniform1f(locations.metallic, materialConfig.METALLIC.value); // Add .value  
-}
-if (locations.baseReflectivity !== -1 && locations.baseReflectivity !== null) {
-    this.gl.uniform1f(locations.baseReflectivity, materialConfig.BASE_REFLECTIVITY.value); // Add .value
-}
+        if (locations.roughness !== -1 && locations.roughness !== null) {
+            gl.uniform1f(locations.roughness, this._uniformCache.roughness);
+        }
+        if (locations.metallic !== -1 && locations.metallic !== null) {
+            gl.uniform1f(locations.metallic, this._uniformCache.metallic);
+        }
+        if (locations.baseReflectivity !== -1 && locations.baseReflectivity !== null) {
+            gl.uniform1f(locations.baseReflectivity, this._uniformCache.baseReflectivity);
+        }
         
         // Set per-texture material properties uniform
         if (locations.usePerTextureMaterials !== -1 && locations.usePerTextureMaterials !== null) {
             // Get material settings from texture manager
             const usePerTextureMaterials = this.renderer.textureManager?.usePerTextureMaterials || false;
-            this.gl.uniform1i(locations.usePerTextureMaterials, usePerTextureMaterials ? 1 : 0);
+            gl.uniform1i(locations.usePerTextureMaterials, usePerTextureMaterials ? 1 : 0);
         }
         
         // Bind material properties texture if available
         if (locations.materialPropertiesTexture !== -1 && locations.materialPropertiesTexture !== null) {
             const materialPropertiesTexture = this.renderer.textureManager?.materialPropertiesTexture;
             if (materialPropertiesTexture) {
-                // Use texture unit 2 for material properties
-                this.gl.activeTexture(this.gl.TEXTURE2);
-                this.gl.bindTexture(this.gl.TEXTURE_2D, materialPropertiesTexture);
-                this.gl.uniform1i(locations.materialPropertiesTexture, 2);
+                // Only change texture binding if needed (texture unit 2 for material properties)
+                if (this._currentTextureUnit !== 2 || 
+                    this._currentBoundTexture !== materialPropertiesTexture || 
+                    this._currentBoundTextureType !== this.gl.TEXTURE_2D) {
+                    
+                    // Use texture unit 2 for material properties
+                    this.gl.activeTexture(this.gl.TEXTURE2);
+                    this.gl.bindTexture(this.gl.TEXTURE_2D, materialPropertiesTexture);
+                    this.gl.uniform1i(locations.materialPropertiesTexture, 2);
+                    
+                    // Update state tracking
+                    this._currentTextureUnit = 2;
+                    this._currentBoundTexture = materialPropertiesTexture;
+                    this._currentBoundTextureType = this.gl.TEXTURE_2D;
+                }
             }
         }
         
@@ -424,16 +507,23 @@ if (locations.baseReflectivity !== -1 && locations.baseReflectivity !== null) {
         if (locations.shadowsEnabled !== -1 && locations.shadowsEnabled !== null) {
             // Set by renderer during shadow map binding
             const shadowsEnabled = this.renderer.shadowsEnabled ? 1 : 0;
-            this.gl.uniform1i(locations.shadowsEnabled, shadowsEnabled);
+            gl.uniform1i(locations.shadowsEnabled, shadowsEnabled);
         }
         
         // Set shadow bias if available
         if (locations.shadowBias !== -1 && locations.shadowBias !== null) {
-            const shadowBias = this.renderer.shadowManager ? this.renderer.shadowManager.shadowBias : 0.05;
-            this.gl.uniform1f(locations.shadowBias, shadowBias);
+            const shadowBias = this._uniformCache.shadowBias || 0.05;
+            gl.uniform1f(locations.shadowBias, shadowBias);
         }
         
-        // Light space matrix for shadow mapping is set by the renderer before rendering
+        // Set light space matrix if available
+        if (locations.lightSpaceMatrix !== -1 && locations.lightSpaceMatrix !== null && 
+            this._uniformCache.matrices.lightSpace) {
+            gl.uniformMatrix4fv(locations.lightSpaceMatrix, false, this._uniformCache.matrices.lightSpace);
+        }
+        
+        // Track how many uniform sets we've performed
+        this.stats.uniformSetCount++;
     }
 
     drawObject(locations, indexCount) {
@@ -491,33 +581,43 @@ if (locations.baseReflectivity !== -1 && locations.baseReflectivity !== null) {
             const textureArray = this.renderer?.textureArray;
             
             if (textureArray) {
-                // Determine which shader we're using - only do this check once per frame
+                // Determine which shader we're using - only do this check when shader changes
                 if (!this._lastCheckedShader || this._lastCheckedShader !== this.programRegistry.getCurrentShaderSet()) {
                     const currentShaderSet = this.programRegistry.getCurrentShaderSet();
                     this._lastCheckedShader = currentShaderSet;
                     this._currentShaderType = this.programRegistry?.shaders.get("pbr") === currentShaderSet ? "pbr" : "other";
                 }
                 
-                // Make sure we're using texture units that won't conflict with shadow map (unit 7)
-                // or material properties texture (unit 2)
-                if (this._currentShaderType === "pbr") {
-                    // Use texture unit 1 for PBR shader
-                    gl.activeTexture(gl.TEXTURE1);
-                    gl.bindTexture(gl.TEXTURE_2D_ARRAY, textureArray);
-                    gl.uniform1i(locations.textureArray, 1);
+                // Determine which texture unit to use - use 1 for PBR shader, 0 for others
+                // This avoids conflicts with shadow map (unit 7) or material properties texture (unit 2)
+                const targetUnit = this._currentShaderType === "pbr" ? 1 : 0;
+                
+                // Only change texture unit binding if needed
+                if (this._currentTextureUnit !== targetUnit || 
+                    this._currentBoundTexture !== textureArray || 
+                    this._currentBoundTextureType !== gl.TEXTURE_2D_ARRAY) {
                     
-                    // Make sure material properties texture is up to date
-                    if (this.renderer?.textureManager) {
-                        this.renderer.textureManager.updateMaterialPropertiesTexture();
-                    }
-                } else {
-                    // Use texture unit 0 for other shaders
-                    gl.activeTexture(gl.TEXTURE0);
+                    // Activate the texture unit
+                    gl.activeTexture(gl.TEXTURE0 + targetUnit);
+                    
+                    // Bind the texture array to this unit
                     gl.bindTexture(gl.TEXTURE_2D_ARRAY, textureArray);
-                    gl.uniform1i(locations.textureArray, 0);
+                    
+                    // Tell the shader which unit has the texture array
+                    gl.uniform1i(locations.textureArray, targetUnit);
+                    
+                    // Update state tracking
+                    this._currentTextureUnit = targetUnit;
+                    this._currentBoundTexture = textureArray;
+                    this._currentBoundTextureType = gl.TEXTURE_2D_ARRAY;
                 }
-            } else {
-                console.warn('Texture array is not available but textures are required by shader');
+                
+                // Make sure material properties texture is up to date
+                // Only do the update if using PBR shader AND the properties are dirty
+                if (this._currentShaderType === "pbr" && 
+                    this.renderer?.textureManager?.materialPropertiesDirty) {
+                    this.renderer.textureManager.updateMaterialPropertiesTexture();
+                }
             }
         }
 
@@ -533,17 +633,20 @@ if (locations.baseReflectivity !== -1 && locations.baseReflectivity !== null) {
             return 0;
         }
         
-        // Optimize texture cache with WeakMap to handle garbage collection better
+        // Initialize the texture cache once if needed
         if (!this._textureIndexCache) {
             this._textureIndexCache = new WeakMap();
             
-            // Pre-populate cache with texture information
+            // Pre-populate cache with texture information - only need to do this once since textures don't change
             textureRegistry.textureList.forEach((name, index) => {
                 const texture = textureRegistry.get(name);
                 if (texture) {
                     this._textureIndexCache.set(texture, index);
                 }
             });
+            
+            // Set lastCacheUpdate to infinity to prevent unnecessary refreshes
+            this._lastCacheUpdate = Infinity;
         }
         
         // Get from cache with O(1) lookup
@@ -552,24 +655,15 @@ if (locations.baseReflectivity !== -1 && locations.baseReflectivity !== null) {
             return indexFromCache;
         }
         
-        // If not found in cache, check if we need to refresh cache
-        // This handles cases where texture registry was updated since cache creation
-        if (!this._lastCacheUpdate || 
-            performance.now() - this._lastCacheUpdate > 1000) {
-            
-            textureRegistry.textureList.forEach((name, index) => {
-                const texture = textureRegistry.get(name);
-                if (texture) {
-                    this._textureIndexCache.set(texture, index);
-                }
-            });
-            
-            this._lastCacheUpdate = performance.now();
-            
-            // Try lookup again after refresh
-            const indexAfterRefresh = this._textureIndexCache.get(proceduralTexture);
-            if (indexAfterRefresh !== undefined) {
-                return indexAfterRefresh;
+        // If texture wasn't in cache, this is a texture we haven't seen before
+        // Instead of refreshing the whole cache, just add this one texture
+        const textureName = proceduralTexture.name;
+        if (textureName) {
+            const textureIndex = textureRegistry.textureList.indexOf(textureName);
+            if (textureIndex !== -1) {
+                // Add to cache for future lookups
+                this._textureIndexCache.set(proceduralTexture, textureIndex);
+                return textureIndex;
             }
         }
         

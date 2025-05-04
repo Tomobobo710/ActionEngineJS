@@ -10,6 +10,12 @@ class TextureManager {
         
         // Flag to control per-texture material usage
         this.usePerTextureMaterials = true;
+        
+        // Add a flag to track if material properties need updating
+        this.materialPropertiesDirty = true;
+        
+        // Store a hash of the last material properties to detect changes
+        this._lastMaterialPropertiesHash = 0;
     }
 
     createTextureArray() {
@@ -179,41 +185,62 @@ class TextureManager {
             return;
         }
         
+        // Skip update if properties haven't changed
+        if (!this.materialPropertiesDirty) {
+            return;
+        }
+        
         const gl = this.gl;
         
-        // Update the texture with current material properties
+        // Get the current material properties data
         const textureCount = textureRegistry.getTextureCount();
         const data = textureRegistry.getMaterialPropertiesArray();
         
-        // Bind and update the texture
-        gl.bindTexture(gl.TEXTURE_2D, this.materialPropertiesTexture);
-        
-        if (this.isWebGL2) {
-            gl.texSubImage2D(
-                gl.TEXTURE_2D, 
-                0, // mip level
-                0, // x offset
-                0, // y offset
-                textureCount, // width
-                1, // height
-                gl.RGBA, // format
-                gl.FLOAT, // type
-                data // data
-            );
-        } else {
-            // For WebGL1, we need to re-specify the entire texture
-            gl.texImage2D(
-                gl.TEXTURE_2D, 
-                0, // mip level
-                gl.RGBA, // internal format
-                textureCount, // width
-                1, // height
-                0, // border
-                gl.RGBA, // format
-                gl.FLOAT, // type
-                data // data
-            );
+        // Do a simple hash check of the first few values to detect changes
+        // This avoids unnecessary texture updates
+        let currentHash = 0;
+        for (let i = 0; i < Math.min(12, data.length); i++) {
+            currentHash = (currentHash * 31 + data[i] * 10000) | 0; // Simple hash function
         }
+        
+        // Only update the texture if the hash has changed
+        if (currentHash !== this._lastMaterialPropertiesHash) {
+            // Bind and update the texture
+            gl.bindTexture(gl.TEXTURE_2D, this.materialPropertiesTexture);
+            
+            if (this.isWebGL2) {
+                gl.texSubImage2D(
+                    gl.TEXTURE_2D, 
+                    0, // mip level
+                    0, // x offset
+                    0, // y offset
+                    textureCount, // width
+                    1, // height
+                    gl.RGBA, // format
+                    gl.FLOAT, // type
+                    data // data
+                );
+            } else {
+                // For WebGL1, we need to re-specify the entire texture
+                gl.texImage2D(
+                    gl.TEXTURE_2D, 
+                    0, // mip level
+                    gl.RGBA, // internal format
+                    textureCount, // width
+                    1, // height
+                    0, // border
+                    gl.RGBA, // format
+                    gl.FLOAT, // type
+                    data // data
+                );
+            }
+            
+            // Update the hash value
+            this._lastMaterialPropertiesHash = currentHash;
+        }
+        
+        // Reset the dirty flag after the update (or decision to skip)
+        this.materialPropertiesDirty = false;
     }
     
     // Toggle per-texture material usage

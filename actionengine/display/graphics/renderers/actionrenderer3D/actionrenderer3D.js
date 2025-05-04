@@ -57,7 +57,15 @@ class ActionRenderer3D {
         this._frameCounter++;
         
         if (this._frameCounter % 5 === 0) { // Update every 5 frames
-            this.lightingManager.update();
+            const lightingChanged = this.lightingManager.update();
+            
+            // If lighting changed, update the shadow mapping
+            if (lightingChanged && this.shadowsEnabled && this.shadowManager) {
+                // Update light space matrix based on current light position and direction
+                const lightPos = this.lightingManager.lightPos;
+                const lightDir = this.lightingManager.getLightDir();
+                this.shadowManager.updateLightSpaceMatrix(lightPos, lightDir);
+            }
         }
         
         this.currentTime = (performance.now() - this.startTime) / 1000.0;
@@ -104,11 +112,7 @@ class ActionRenderer3D {
         
         // SHADOW MAP PASS (only if shadows are enabled)
         if (this.shadowsEnabled && nonWaterObjects.length > 0) {
-            // Update light space matrix based on current light position and direction
-            const lightPos = this.lightingManager.lightPos;
-            const lightDir = this.lightingManager.getLightDir();
-            this.shadowManager.updateLightSpaceMatrix(lightPos, lightDir);
-            
+            // Light space matrix is now updated during lighting updates when needed
             // Begin shadow pass
             this.shadowManager.beginShadowPass();
             
@@ -303,7 +307,7 @@ class ActionRenderer3D {
             const shaderSet = this.programRegistry.shaders.get(shaderType);
             
             if (shaderSet && shaderSet.standard && shaderSet.standard.program) {
-                console.log(`Initializing shadows for shader type: ${shaderType}`);
+                // Console log removed for performance
                 
                 // Use this shader program
                 this.gl.useProgram(shaderSet.standard.program);
@@ -321,9 +325,7 @@ class ActionRenderer3D {
                 // Set shadow map texture unit
                 if (shadowMapLoc !== null) {
                     this.gl.uniform1i(shadowMapLoc, SHADOW_MAP_TEXTURE_UNIT);
-                    console.log(`  - Set shadow map uniform for ${shaderType} to texture unit ${SHADOW_MAP_TEXTURE_UNIT}`);
-                } else {
-                    console.warn(`  - Shadow map uniform not found in ${shaderType} shader`);
+                }
                 }
                 
                 // Set shadow enabled flag (on by default)
@@ -343,20 +345,20 @@ class ActionRenderer3D {
                 // Set shadow bias if available
                 if (shadowBiasLoc !== null && this.shadowManager) {
                     this.gl.uniform1f(shadowBiasLoc, this.shadowManager.shadowBias);
-                    console.log(`  - Set shadow bias uniform for ${shaderType} to ${this.shadowManager.shadowBias}`);
+                    // Console log removed for performance
                 }
                 
                 // Set shadow map size if available
                 if (shadowMapSizeLoc !== null && this.shadowManager) {
                     this.gl.uniform1f(shadowMapSizeLoc, this.shadowManager.shadowMapSize);
-                    console.log(`  - Set shadow map size uniform for ${shaderType} to ${this.shadowManager.shadowMapSize}`);
+                    // Console log removed for performance
                 }
                 
                 // Set shadow softness
                 if (shadowSoftnessLoc !== null && this.lightingManager) {
                     const softness = this.lightingManager.constants.SHADOW_FILTERING.SOFTNESS.value;
                     this.gl.uniform1f(shadowSoftnessLoc, softness);
-                    console.log(`  - Set shadow softness uniform for ${shaderType} to ${softness}`);
+                    // Console log removed for performance
                 }
                 
                 // Set PCF size
@@ -374,7 +376,7 @@ class ActionRenderer3D {
                 }
             }
         }
-    }
+    
     
     /**
      * Debug shadow uniform locations in all shaders

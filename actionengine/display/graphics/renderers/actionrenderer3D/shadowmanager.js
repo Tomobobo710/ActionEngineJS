@@ -23,6 +23,9 @@ class ShadowManager {
 
         // Create shadow shader program
         this.setupShadowShaderProgram();
+        
+        // Create reusable buffers for shadow rendering
+        this.createReusableBuffers();
     }
 
     /**
@@ -94,6 +97,15 @@ class ShadowManager {
     /**
      * Set up shadow shader program and get all necessary locations
      */
+    // Create reusable buffers for shadow rendering
+    createReusableBuffers() {
+        // Create persistent buffers instead of per-object temporary ones
+        this.shadowBuffers = {
+            position: this.gl.createBuffer(),
+            index: this.gl.createBuffer()
+        };
+    }
+
     setupShadowShaderProgram() {
         const shadowShader = new ShadowShader();
 
@@ -311,15 +323,17 @@ class ShadowManager {
         // For now using identity matrix to debug the basic case
         gl.uniformMatrix4fv(this.shadowLocations.modelMatrix, false, modelMatrix);
 
-        // Create buffers for position data
-        const positionBuffer = gl.createBuffer();
-        const indexBuffer = gl.createBuffer();
-
         // Calculate total vertices and indices
         const totalVertices = triangles.length * 3;
-        const positions = new Float32Array(totalVertices * 3);
-        const indices = new Uint16Array(totalVertices);
-
+        
+        // Only allocate new arrays if needed or if size has changed
+        if (!this._positionsArray || this._positionsArray.length < totalVertices * 3) {
+            this._positionsArray = new Float32Array(totalVertices * 3);
+        }
+        if (!this._indicesArray || this._indicesArray.length < totalVertices) {
+            this._indicesArray = new Uint16Array(totalVertices);
+        }
+        
         // For debugging, track the min/max values of vertices
         const minBounds = { x: Infinity, y: Infinity, z: Infinity };
         const maxBounds = { x: -Infinity, y: -Infinity, z: -Infinity };
@@ -333,9 +347,9 @@ class ShadowManager {
                 const vertex = triangle.vertices[j];
                 const baseIndex = (i * 3 + j) * 3;
 
-                positions[baseIndex] = vertex.x;
-                positions[baseIndex + 1] = vertex.y;
-                positions[baseIndex + 2] = vertex.z;
+                this._positionsArray[baseIndex] = vertex.x;
+                this._positionsArray[baseIndex + 1] = vertex.y;
+                this._positionsArray[baseIndex + 2] = vertex.z;
 
                 // Update min/max bounds
                 minBounds.x = Math.min(minBounds.x, vertex.x);
@@ -347,52 +361,32 @@ class ShadowManager {
                 maxBounds.z = Math.max(maxBounds.z, vertex.z);
 
                 // Set up indices
-                indices[i * 3 + j] = i * 3 + j;
+                this._indicesArray[i * 3 + j] = i * 3 + j;
             }
         }
 
         // Debug output for object bounds
         if (lightingConstants.DEBUG.VISUALIZE_SHADOW_MAP && !this._boundsLogged) {
-            console.log(`Object bounds in shadow map:`, {
-                min: minBounds,
-                max: maxBounds,
-                triangles: triangles.length
-            });
-
-            // Also log light space matrix for debugging
-            console.log(`Light space matrix:`, {
-                matrix: Array.from(this.lightSpaceMatrix),
-                shadowProjection: {
-                    left: lightingConstants.SHADOW_PROJECTION.LEFT.value,
-                    right: lightingConstants.SHADOW_PROJECTION.RIGHT.value,
-                    bottom: lightingConstants.SHADOW_PROJECTION.BOTTOM.value,
-                    top: lightingConstants.SHADOW_PROJECTION.TOP.value,
-                    near: lightingConstants.SHADOW_PROJECTION.NEAR.value,
-                    far: lightingConstants.SHADOW_PROJECTION.FAR.value
-                }
-            });
-
+            // Removed console.log for performance
             this._boundsLogged = true;
         }
 
-        // Bind and upload position data
-        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+        // Bind and upload position data to our reusable buffer
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.shadowBuffers.position);
+        gl.bufferData(gl.ARRAY_BUFFER, this._positionsArray, gl.DYNAMIC_DRAW);
 
         // Set up position attribute
         gl.vertexAttribPointer(this.shadowLocations.position, 3, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(this.shadowLocations.position);
 
-        // Bind and upload index data
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
-        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
+        // Bind and upload index data to our reusable buffer
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.shadowBuffers.index);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, this._indicesArray, gl.DYNAMIC_DRAW);
 
         // Draw object
-        gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
-
-        // Clean up temporary buffers
-        gl.deleteBuffer(positionBuffer);
-        gl.deleteBuffer(indexBuffer);
+        gl.drawElements(gl.TRIANGLES, totalVertices, gl.UNSIGNED_SHORT, 0);
+        
+        // No need to delete buffers since we're reusing them
     }
 
     /**
