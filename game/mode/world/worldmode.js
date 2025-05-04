@@ -150,6 +150,7 @@ class WorldMode {
         };
 
         this.terrain = new Terrain(baseConfig);
+        
         this.physicsWorld.addObject(this.terrain);
 
         if (this.poiManager) {
