@@ -7,12 +7,12 @@ class Terrain {
         // Core parameters
         this.gridResolution = config.gridResolution || 128;
         this.baseWorldScale = config.baseWorldScale || 128;
-        
+
         // Calculate an appropriate bounding sphere for frustum culling
         // This is based on the terrain size which is gridResolution * baseWorldScale
         this.position = new Vector3(0, 0, 0); // Terrain is typically centered at origin
         // A conservative estimate of terrain radius
-        this.boundingSphereRadius = Math.sqrt(2) * this.gridResolution * this.baseWorldScale / 2;
+        this.boundingSphereRadius = (Math.sqrt(2) * this.gridResolution * this.baseWorldScale) / 2;
 
         // Determine generator type
         if (config.generator === undefined) {
@@ -161,20 +161,20 @@ class Terrain {
         return BIOME_TYPES.SNOW.base; // Default fallback
     }
     getTextureForHeight(height) {
-    // Handle extremes first - match the same absolute height checks as getColorForHeight
-    if (height <= 0) return textureRegistry.get("water");
-    if (height >= 400) return textureRegistry.get("snow");
+        // Handle extremes first - match the same absolute height checks as getColorForHeight
+        if (height <= 0) return textureRegistry.get("water");
+        if (height >= 400) return textureRegistry.get("snow");
 
-    // Then do percentage-based for others (keeping existing logic)
-    const heightPercent = (height / this.generator.getBaseWorldHeight()) * 100;
-    
-    for (const biome of Object.values(BIOME_TYPES)) {
-        if (heightPercent >= biome.heightRange[0] && heightPercent <= biome.heightRange[1]) {
-            return biome.texture ? textureRegistry.get(biome.texture) : null;
+        // Then do percentage-based for others (keeping existing logic)
+        const heightPercent = (height / this.generator.getBaseWorldHeight()) * 100;
+
+        for (const biome of Object.values(BIOME_TYPES)) {
+            if (heightPercent >= biome.heightRange[0] && heightPercent <= biome.heightRange[1]) {
+                return biome.texture ? textureRegistry.get(biome.texture) : null;
+            }
         }
+        return textureRegistry.get("null");
     }
-    return textureRegistry.get("null");
-}
     // Debug info for the panel
     getDebugInfo() {
         return {
@@ -234,14 +234,14 @@ class Terrain {
         // Add debug tracking
         terrainBody.debugName = `TerrainBody_${Date.now()}`;
         terrainBody.createdAt = Date.now();
-        
+
         return terrainBody;
     }
-    
+
     getTriangles() {
         return this.triangles;
     }
-    
+
     // Physics world requires this
-    updateVisual(){}
+    updateVisual() {}
 }
