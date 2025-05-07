@@ -44,14 +44,15 @@ class ActionInputHandler {
 
         this.state = {
             keys: new Map(),
-            keyPressTimestamps: new Map(),
+            keyReported: new Map(), // NEW: tracks if key's "just pressed" was reported
             pointer: {
                 x: 0,
                 y: 0,
                 movementX: 0,
                 movementY: 0,
                 isDown: false,
-                downTimestamp: null
+                downTimestamp: null, // Keep for API compatibility
+                wasReported: true   // NEW: initially true (not "just down")
             },
             elements: {
                 gui: new Map(),
@@ -59,11 +60,12 @@ class ActionInputHandler {
                 debug: new Map()
             },
             uiButtons: new Map([
-                ["soundToggle", { isPressed: false, pressTimestamp: null }],
-                ["controlsToggle", { isPressed: false, pressTimestamp: null }],
-                ["fullscreenToggle", { isPressed: false, pressTimestamp: null }],
-                ["pauseButton", { isPressed: false, pressTimestamp: null }]
-            ])
+                ["soundToggle", { isPressed: false, wasReported: true }],
+                ["controlsToggle", { isPressed: false, wasReported: true }],
+                ["fullscreenToggle", { isPressed: false, wasReported: true }],
+                ["pauseButton", { isPressed: false, wasReported: true }]
+            ]),
+            virtualControlsVisible: false
         };
 
         this.createUIControls();
@@ -198,7 +200,7 @@ class ActionInputHandler {
                 e.preventDefault();
                 this.state.uiButtons.set(id, {
                     isPressed: true,
-                    pressTimestamp: performance.now()
+                    wasReported: false // Mark as not reported yet (for "just pressed" detection)
                 });
             };
 
@@ -206,7 +208,7 @@ class ActionInputHandler {
                 e.preventDefault();
                 this.state.uiButtons.set(id, {
                     isPressed: false,
-                    pressTimestamp: null
+                    wasReported: true
                 });
                 config.upCallback();
             };
@@ -215,7 +217,7 @@ class ActionInputHandler {
                 e.preventDefault();
                 this.state.uiButtons.set(id, {
                     isPressed: false,
-                    pressTimestamp: null
+                    wasReported: true
                 });
             };
 
@@ -229,15 +231,18 @@ class ActionInputHandler {
 
     setupKeyboardListeners() {
         window.addEventListener("keydown", (e) => {
-            if (!this.state.keys.get(e.code)) {
-                this.state.keyPressTimestamps.set(e.code, performance.now());
+            const wasAlreadyPressed = this.state.keys.get(e.code);
+            
+            // Only update if key wasn't already pressed (prevents key repeat)
+            if (!wasAlreadyPressed) {
+                this.state.keys.set(e.code, true);
+                this.state.keyReported.set(e.code, false); // Mark as not reported yet
             }
-            this.state.keys.set(e.code, true);
         });
 
         window.addEventListener("keyup", (e) => {
             this.state.keys.set(e.code, false);
-            this.state.keyPressTimestamps.delete(e.code);
+            // No need to update reported state on key up
         });
     }
 
@@ -272,13 +277,14 @@ class ActionInputHandler {
             this.state.pointer.x = pos.x;
             this.state.pointer.y = pos.y;
             this.state.pointer.isDown = true;
-            this.state.pointer.downTimestamp = performance.now();
+            this.state.pointer.downTimestamp = performance.now(); // Keep for compatibility
+            this.state.pointer.wasReported = false; // Mark as not reported yet
 
             let handledByDebug = false;
             this.state.elements.debug.forEach((element) => {
                 if (element.isHovered) {
                     element.isPressed = true;
-                    element.pressTimestamp = performance.now();
+                    element.wasReported = false; // Mark as not reported yet
                     handledByDebug = true;
                 }
             });
@@ -318,13 +324,14 @@ class ActionInputHandler {
                 this.state.pointer.x = pos.x;
                 this.state.pointer.y = pos.y;
                 this.state.pointer.isDown = true;
-                this.state.pointer.downTimestamp = performance.now();
+                this.state.pointer.downTimestamp = performance.now(); // Keep for compatibility
+                this.state.pointer.wasReported = false; // Mark as not reported yet
 
                 let handledByDebug = false;
                 this.state.elements.debug.forEach((element) => {
                     if (this.isPointInBounds(pos.x, pos.y, element.bounds())) {
                         element.isPressed = true;
-                        element.pressTimestamp = performance.now();
+                        element.wasReported = false; // Mark as not reported yet
                         handledByDebug = true;
                     }
                 });
@@ -417,13 +424,14 @@ class ActionInputHandler {
             this.state.pointer.x = pos.x;
             this.state.pointer.y = pos.y;
             this.state.pointer.isDown = true;
-            this.state.pointer.downTimestamp = performance.now();
+            this.state.pointer.downTimestamp = performance.now(); // Keep for compatibility
+            this.state.pointer.wasReported = false; // Mark as not reported yet
 
             let handledByGui = false;
             this.state.elements.gui.forEach((element) => {
                 if (element.isHovered) {
                     element.isPressed = true;
-                    element.pressTimestamp = performance.now();
+                    element.wasReported = false; // Mark as not reported yet
                     handledByGui = true;
                 }
             });
@@ -463,13 +471,14 @@ class ActionInputHandler {
                 this.state.pointer.x = pos.x;
                 this.state.pointer.y = pos.y;
                 this.state.pointer.isDown = true;
-                this.state.pointer.downTimestamp = performance.now();
+                this.state.pointer.downTimestamp = performance.now(); // Keep for compatibility
+                this.state.pointer.wasReported = false; // Mark as not reported yet
 
                 let handledByGui = false;
                 this.state.elements.gui.forEach((element) => {
                     if (this.isPointInBounds(pos.x, pos.y, element.bounds())) {
                         element.isPressed = true;
-                        element.pressTimestamp = performance.now();
+                        element.wasReported = false; // Mark as not reported yet
                         handledByGui = true;
                     }
                 });
@@ -555,12 +564,13 @@ class ActionInputHandler {
             this.state.pointer.x = pos.x;
             this.state.pointer.y = pos.y;
             this.state.pointer.isDown = true;
-            this.state.pointer.downTimestamp = performance.now();
+            this.state.pointer.downTimestamp = performance.now(); // Keep for compatibility
+            this.state.pointer.wasReported = false; // Mark as not reported yet
 
             this.state.elements.game.forEach((element) => {
                 if (element.isHovered) {
                     element.isPressed = true;
-                    element.pressTimestamp = performance.now();
+                    element.wasReported = false; // Mark as not reported yet
                 }
             });
         });
@@ -587,12 +597,13 @@ class ActionInputHandler {
                 this.state.pointer.x = pos.x;
                 this.state.pointer.y = pos.y;
                 this.state.pointer.isDown = true;
-                this.state.pointer.downTimestamp = performance.now();
+                this.state.pointer.downTimestamp = performance.now(); // Keep for compatibility
+                this.state.pointer.wasReported = false; // Mark as not reported yet
 
                 this.state.elements.game.forEach((element) => {
                     if (this.isPointInBounds(pos.x, pos.y, element.bounds())) {
                         element.isPressed = true;
-                        element.pressTimestamp = performance.now();
+                        element.wasReported = false; // Mark as not reported yet
                     }
                 });
             },
@@ -634,6 +645,7 @@ class ActionInputHandler {
             },
             { passive: false }
         );
+        
         document.addEventListener("mousemove", (e) => {
             if (document.pointerLockElement) {
                 this.state.pointer.movementX = e.movementX;
@@ -678,16 +690,18 @@ class ActionInputHandler {
 
             const handleStart = (e) => {
                 e.preventDefault();
+                
+                // Only update if key wasn't already pressed
                 if (!this.state.keys.get(key)) {
-                    this.state.keyPressTimestamps.set(key, performance.now());
+                    this.state.keys.set(key, true);
+                    this.state.keyReported.set(key, false); // Mark as not reported yet
                 }
-                this.state.keys.set(key, true);
             };
 
             const handleEnd = (e) => {
                 e.preventDefault();
                 this.state.keys.set(key, false);
-                this.state.keyPressTimestamps.delete(key);
+                // No need to update reported state on key up
             };
 
             button.addEventListener("touchstart", handleStart, { passive: false });
@@ -707,18 +721,19 @@ class ActionInputHandler {
         this.state.elements[layer].set(id, {
             bounds: element.bounds,
             isHovered: false,
-            hoverTimestamp: null,
+            hoverTimestamp: null, // Keep for compatibility
             isPressed: false,
-            pressTimestamp: null,
+            wasReported: true, // NEW: initially true (not "just pressed")
             isActive: false,
             activeTimestamp: null
         });
     }
 
-    isElementJustPressed(id, layer = "gui", threshold = 16) {
+    // UPDATED: Now uses state transitions instead of timestamps
+    isElementJustPressed(id, layer = "gui", threshold = 16) { // Keep threshold param for API compatibility
         const element = this.state.elements[layer]?.get(id);
-        if (element?.pressTimestamp && performance.now() - element.pressTimestamp < threshold) {
-            element.pressTimestamp = null;
+        if (element?.isPressed && !element.wasReported) {
+            element.wasReported = true;
             return true;
         }
         return false;
@@ -748,10 +763,10 @@ class ActionInputHandler {
         return element ? element.isActive : false;
     }
 
-    isPointerJustDown(threshold = 16) {
-        const timestamp = this.state.pointer.downTimestamp;
-        if (timestamp && performance.now() - timestamp < threshold) {
-            this.state.pointer.downTimestamp = null;
+    // UPDATED: Now uses state transitions instead of timestamps
+    isPointerJustDown(threshold = 16) { // Keep threshold param for API compatibility
+        if (this.state.pointer.isDown && !this.state.pointer.wasReported) {
+            this.state.pointer.wasReported = true;
             return true;
         }
         return false;
@@ -762,12 +777,13 @@ class ActionInputHandler {
         return buttonState ? buttonState.isPressed : false;
     }
 
-    isUIButtonJustPressed(buttonId, threshold = 16) {
+    // UPDATED: Now uses state transitions instead of timestamps
+    isUIButtonJustPressed(buttonId, threshold = 16) { // Keep threshold param for API compatibility
         const buttonState = this.state.uiButtons.get(buttonId);
-        if (buttonState?.pressTimestamp && performance.now() - buttonState.pressTimestamp < threshold) {
+        if (buttonState?.isPressed && !buttonState.wasReported) {
             this.state.uiButtons.set(buttonId, {
                 ...buttonState,
-                pressTimestamp: null
+                wasReported: true
             });
             return true;
         }
@@ -794,12 +810,15 @@ class ActionInputHandler {
         return false;
     }
 
-    isKeyJustPressed(action, threshold = 16) {
+    // UPDATED: Now uses state transitions instead of timestamps
+    isKeyJustPressed(action, threshold = 16) { // Keep threshold param for API compatibility
         for (const [key, actions] of this.actionMap) {
             if (actions.includes(action)) {
-                const timestamp = this.state.keyPressTimestamps.get(key);
-                if (timestamp && performance.now() - timestamp < threshold) {
-                    this.state.keyPressTimestamps.delete(key);
+                const isPressed = this.state.keys.get(key) || false;
+                const wasReported = this.state.keyReported.get(key) !== false; // Default to true if undefined
+                
+                if (isPressed && !wasReported) {
+                    this.state.keyReported.set(key, true);
                     return true;
                 }
             }
