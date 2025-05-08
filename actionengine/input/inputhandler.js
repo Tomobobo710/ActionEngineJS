@@ -51,7 +51,7 @@ class ActionInputHandler {
         }
 
         // Add additional browser keys we want to block
-        const additionalBlockedKeys = ['F12', 'F5'];
+        const additionalBlockedKeys = ['F5'];
         additionalBlockedKeys.forEach(key => this.gameKeyCodes.add(key));
 
         this.state = {
@@ -61,8 +61,13 @@ class ActionInputHandler {
                 y: 0,
                 movementX: 0,
                 movementY: 0,
-                isDown: false,
-                downTimestamp: null
+                isDown: false,              // Keep for backwards compatibility (left click)
+                downTimestamp: null,        // Keep for backwards compatibility
+                buttons: {                  // New structure for multi-button support
+                    left: false,
+                    right: false,
+                    middle: false
+                }
             },
             elements: {
                 gui: new Map(),
@@ -82,9 +87,21 @@ class ActionInputHandler {
         this.currentFramePressed = new Map(); // Keys pressed this frame
         this.previousFramePressed = new Map(); // Keys pressed last frame
         
-        // Similar frame tracking for pointer
+        // Legacy pointer tracking (for backward compatibility)
         this.currentPointerDown = false;
         this.previousPointerDown = false;
+        
+        // New mouse button tracking
+        this.currentMouseButtonsDown = {
+            left: false,
+            right: false,
+            middle: false
+        };
+        this.previousMouseButtonsDown = {
+            left: false,
+            right: false,
+            middle: false
+        };
         
         // Elements frame tracking
         this.currentElementsPressed = {
@@ -110,8 +127,7 @@ class ActionInputHandler {
             this.state.keys.set(e.code, true);
             
             // Prevent default browser behavior for any keys we care about
-            if (this.actionMap.has(e.code) || 
-                e.code === 'F12' || 
+            if (this.actionMap.has(e.code) ||
                 e.code === 'F5' ||
                 (e.ctrlKey && (e.code === 'KeyS' || e.code === 'KeyP' || e.code === 'KeyR')) ||
                 (e.altKey && e.code === 'ArrowLeft')) {
@@ -127,15 +143,15 @@ class ActionInputHandler {
             this.state.keys.set(e.code, false);
             
             // Prevent default browser behavior
-            if (this.actionMap.has(e.code) || 
-                e.code === 'F12' || 
+            if (this.actionMap.has(e.code) ||
                 e.code === 'F5') {
                 //console.log("Preventing default for:", e.code);
                 e.preventDefault();
             }
         }, false);
         
-        // Prevent right-click context menu
+        // Only block context menu when we actually want to use right click
+        // Comment this out if you want context menu functionality
         document.addEventListener('contextmenu', (e) => e.preventDefault());
 
         this.createUIControls();
@@ -165,9 +181,18 @@ class ActionInputHandler {
             }
         }
         
-        // Handle pointer state
+        // Handle legacy pointer state (left click only)
         this.previousPointerDown = this.currentPointerDown;
         this.currentPointerDown = this.state.pointer.isDown;
+        
+        // Handle multi-button mouse state
+        this.previousMouseButtonsDown.left = this.currentMouseButtonsDown.left;
+        this.previousMouseButtonsDown.right = this.currentMouseButtonsDown.right;
+        this.previousMouseButtonsDown.middle = this.currentMouseButtonsDown.middle;
+        
+        this.currentMouseButtonsDown.left = this.state.pointer.buttons.left;
+        this.currentMouseButtonsDown.right = this.state.pointer.buttons.right;
+        this.currentMouseButtonsDown.middle = this.state.pointer.buttons.middle;
         
         // Handle elements state
         for (const layer of Object.keys(this.state.elements)) {
@@ -355,8 +380,19 @@ class ActionInputHandler {
             const pos = this.getCanvasPosition(e);
             this.state.pointer.x = pos.x;
             this.state.pointer.y = pos.y;
-            this.state.pointer.isDown = true;
-            this.state.pointer.downTimestamp = performance.now(); // Keep for compatibility
+            
+            // Track the specific button pressed
+            const button = e.button; // 0: left, 1: middle, 2: right
+            
+            // Update button-specific state
+            if (button === 0) {
+                this.state.pointer.buttons.left = true;
+                // Maintain backward compatibility
+                this.state.pointer.isDown = true;
+                this.state.pointer.downTimestamp = performance.now();
+            }
+            if (button === 1) this.state.pointer.buttons.middle = true;
+            if (button === 2) this.state.pointer.buttons.right = true;
 
             let handledByDebug = false;
             this.state.elements.debug.forEach((element) => {
@@ -376,8 +412,19 @@ class ActionInputHandler {
             const pos = this.getCanvasPosition(e);
             this.state.pointer.x = pos.x;
             this.state.pointer.y = pos.y;
-            this.state.pointer.isDown = false;
-            this.state.pointer.downTimestamp = null;
+            
+            // Track the specific button released
+            const button = e.button; // 0: left, 1: middle, 2: right
+            
+            // Update button-specific state
+            if (button === 0) {
+                this.state.pointer.buttons.left = false;
+                // Maintain backward compatibility
+                this.state.pointer.isDown = false;
+                this.state.pointer.downTimestamp = null;
+            }
+            if (button === 1) this.state.pointer.buttons.middle = false;
+            if (button === 2) this.state.pointer.buttons.right = false;
 
             let handledByDebug = false;
             this.state.elements.debug.forEach((element) => {
@@ -400,8 +447,11 @@ class ActionInputHandler {
                 const pos = this.getCanvasPosition(e.touches[0]);
                 this.state.pointer.x = pos.x;
                 this.state.pointer.y = pos.y;
+                
+                // For touch, always treat as left button
+                this.state.pointer.buttons.left = true;
                 this.state.pointer.isDown = true;
-                this.state.pointer.downTimestamp = performance.now(); // Keep for compatibility
+                this.state.pointer.downTimestamp = performance.now();
 
                 let handledByDebug = false;
                 this.state.elements.debug.forEach((element) => {
@@ -423,6 +473,9 @@ class ActionInputHandler {
             "touchend",
             (e) => {
                 e.preventDefault();
+                
+                // For touch, always treat as left button
+                this.state.pointer.buttons.left = false;
                 this.state.pointer.isDown = false;
                 this.state.pointer.downTimestamp = null;
 
@@ -498,8 +551,19 @@ class ActionInputHandler {
             const pos = this.getCanvasPosition(e);
             this.state.pointer.x = pos.x;
             this.state.pointer.y = pos.y;
-            this.state.pointer.isDown = true;
-            this.state.pointer.downTimestamp = performance.now(); // Keep for compatibility
+            
+            // Track the specific button pressed
+            const button = e.button; // 0: left, 1: middle, 2: right
+            
+            // Update button-specific state
+            if (button === 0) {
+                this.state.pointer.buttons.left = true;
+                // Maintain backward compatibility
+                this.state.pointer.isDown = true;
+                this.state.pointer.downTimestamp = performance.now();
+            }
+            if (button === 1) this.state.pointer.buttons.middle = true;
+            if (button === 2) this.state.pointer.buttons.right = true;
 
             let handledByGui = false;
             this.state.elements.gui.forEach((element) => {
@@ -519,8 +583,19 @@ class ActionInputHandler {
             const pos = this.getCanvasPosition(e);
             this.state.pointer.x = pos.x;
             this.state.pointer.y = pos.y;
-            this.state.pointer.isDown = false;
-            this.state.pointer.downTimestamp = null;
+            
+            // Track the specific button released
+            const button = e.button; // 0: left, 1: middle, 2: right
+            
+            // Update button-specific state
+            if (button === 0) {
+                this.state.pointer.buttons.left = false;
+                // Maintain backward compatibility
+                this.state.pointer.isDown = false;
+                this.state.pointer.downTimestamp = null;
+            }
+            if (button === 1) this.state.pointer.buttons.middle = false;
+            if (button === 2) this.state.pointer.buttons.right = false;
 
             let handledByGui = false;
             this.state.elements.gui.forEach((element) => {
@@ -543,8 +618,11 @@ class ActionInputHandler {
                 const pos = this.getCanvasPosition(e.touches[0]);
                 this.state.pointer.x = pos.x;
                 this.state.pointer.y = pos.y;
+                
+                // For touch, always treat as left button
+                this.state.pointer.buttons.left = true;
                 this.state.pointer.isDown = true;
-                this.state.pointer.downTimestamp = performance.now(); // Keep for compatibility
+                this.state.pointer.downTimestamp = performance.now();
 
                 let handledByGui = false;
                 this.state.elements.gui.forEach((element) => {
@@ -566,6 +644,9 @@ class ActionInputHandler {
             "touchend",
             (e) => {
                 e.preventDefault();
+                
+                // For touch, always treat as left button
+                this.state.pointer.buttons.left = false;
                 this.state.pointer.isDown = false;
                 this.state.pointer.downTimestamp = null;
 
@@ -634,8 +715,19 @@ class ActionInputHandler {
             const pos = this.getCanvasPosition(e);
             this.state.pointer.x = pos.x;
             this.state.pointer.y = pos.y;
-            this.state.pointer.isDown = true;
-            this.state.pointer.downTimestamp = performance.now(); // Keep for compatibility
+            
+            // Track the specific button pressed
+            const button = e.button; // 0: left, 1: middle, 2: right
+            
+            // Update button-specific state
+            if (button === 0) {
+                this.state.pointer.buttons.left = true;
+                // Maintain backward compatibility
+                this.state.pointer.isDown = true;
+                this.state.pointer.downTimestamp = performance.now();
+            }
+            if (button === 1) this.state.pointer.buttons.middle = true;
+            if (button === 2) this.state.pointer.buttons.right = true;
 
             this.state.elements.game.forEach((element) => {
                 if (element.isHovered) {
@@ -648,8 +740,19 @@ class ActionInputHandler {
             const pos = this.getCanvasPosition(e);
             this.state.pointer.x = pos.x;
             this.state.pointer.y = pos.y;
-            this.state.pointer.isDown = false;
-            this.state.pointer.downTimestamp = null;
+            
+            // Track the specific button released
+            const button = e.button; // 0: left, 1: middle, 2: right
+            
+            // Update button-specific state
+            if (button === 0) {
+                this.state.pointer.buttons.left = false;
+                // Maintain backward compatibility
+                this.state.pointer.isDown = false;
+                this.state.pointer.downTimestamp = null;
+            }
+            if (button === 1) this.state.pointer.buttons.middle = false;
+            if (button === 2) this.state.pointer.buttons.right = false;
 
             this.state.elements.game.forEach((element) => {
                 if (element.isPressed) {
@@ -665,8 +768,11 @@ class ActionInputHandler {
                 const pos = this.getCanvasPosition(e.touches[0]);
                 this.state.pointer.x = pos.x;
                 this.state.pointer.y = pos.y;
+                
+                // For touch, always treat as left button
+                this.state.pointer.buttons.left = true;
                 this.state.pointer.isDown = true;
-                this.state.pointer.downTimestamp = performance.now(); // Keep for compatibility
+                this.state.pointer.downTimestamp = performance.now();
 
                 this.state.elements.game.forEach((element) => {
                     if (this.isPointInBounds(pos.x, pos.y, element.bounds())) {
@@ -681,6 +787,9 @@ class ActionInputHandler {
             "touchend",
             (e) => {
                 e.preventDefault();
+                
+                // For touch, always treat as left button
+                this.state.pointer.buttons.left = false;
                 this.state.pointer.isDown = false;
                 this.state.pointer.downTimestamp = null;
 
@@ -821,9 +930,56 @@ class ActionInputHandler {
         return element ? element.isActive : false;
     }
 
+    // Keep existing pointer methods for backward compatibility
+    isPointerDown() {
+        return this.state.pointer.isDown;
+    }
+
     isPointerJustDown() {
         // Pointer is down now but wasn't in the previous frame
         return this.currentPointerDown && !this.previousPointerDown;
+    }
+
+    // New mouse button methods
+    isLeftMouseButtonDown() {
+        return this.state.pointer.buttons.left;
+    }
+
+    isRightMouseButtonDown() {
+        return this.state.pointer.buttons.right;
+    }
+
+    isMiddleMouseButtonDown() {
+        return this.state.pointer.buttons.middle;
+    }
+
+    isLeftMouseButtonJustPressed() {
+        return this.currentMouseButtonsDown.left && !this.previousMouseButtonsDown.left;
+    }
+
+    isRightMouseButtonJustPressed() {
+        return this.currentMouseButtonsDown.right && !this.previousMouseButtonsDown.right;
+    }
+
+    isMiddleMouseButtonJustPressed() {
+        return this.currentMouseButtonsDown.middle && !this.previousMouseButtonsDown.middle;
+    }
+
+    // Generic method that takes a button parameter
+    isMouseButtonDown(button) {
+        // button: 0=left, 1=middle, 2=right
+        if (button === 0) return this.state.pointer.buttons.left;
+        if (button === 1) return this.state.pointer.buttons.middle;
+        if (button === 2) return this.state.pointer.buttons.right;
+        return false;
+    }
+
+    isMouseButtonJustPressed(button) {
+        // button: 0=left, 1=middle, 2=right
+        if (button === 0) return this.currentMouseButtonsDown.left && !this.previousMouseButtonsDown.left;
+        if (button === 1) return this.currentMouseButtonsDown.middle && !this.previousMouseButtonsDown.middle;
+        if (button === 2) return this.currentMouseButtonsDown.right && !this.previousMouseButtonsDown.right;
+        return false;
     }
 
     isUIButtonPressed(buttonId) {
@@ -882,10 +1038,6 @@ class ActionInputHandler {
             movementX: this.state.pointer.movementX,
             movementY: this.state.pointer.movementY
         };
-    }
-
-    isPointerDown() {
-        return this.state.pointer.isDown;
     }
 
     removeElement(id, layer = "gui") {
