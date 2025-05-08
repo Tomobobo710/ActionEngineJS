@@ -52,7 +52,9 @@ class App {
         }
 
         // Schedule the next frame
-        requestAnimationFrame((timestamp) => this.loop(timestamp));
+        // Schedule the next frame
+        //requestAnimationFrame((timestamp) => this.loop(timestamp));
+        requestAnimationFrame(() => this.loop()); // Trying this for now
     }
 }
 

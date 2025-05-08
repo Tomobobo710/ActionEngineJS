@@ -63,7 +63,7 @@ class POIManager {
     }
     generateForests() {
         this.forests = [];
-        const forestLocations = this.forestGenerator.findForestLocations(20); // Generate 20 forests
+        const forestLocations = this.forestGenerator.findForestLocations(2000); // Generate 20 forests
         forestLocations.forEach((triangle) => {
             const center = this.calculateTriangleCenter(triangle);
             const width = 12 + Math.random() * 6; // Slightly larger for forests
