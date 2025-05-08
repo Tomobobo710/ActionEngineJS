@@ -688,7 +688,6 @@ class Game {
 	/**
 	 * Handle input that applies regardless of debug/game state
 	 */
-
 	handleCommonInput() {
 		/******* THE SPECIAL DEBUG KEY *******/
 		// The engine-level ActionDebugToggle key toggles the debugCanvas visibility
@@ -696,13 +695,12 @@ class Game {
 		if (this.input.isKeyJustPressed("ActionDebugToggle")) {
 			this.showDebug = !this.showDebug;
 			this.addMessage(this.showDebug ? "Debug mode ON - 2D game active" : "Debug mode OFF - 3D world active");
-
 			if (!this.showDebug) {
 				this.debugCtx.clearRect(0, 0, Game.WIDTH, Game.HEIGHT);
 			}
 		}
 
-		/******* POINTER CHECKING *******/
+		/******* POINTER CHECKING (Legacy & New Methods) *******/
 		// Get precise pointer coordinates in game space
 		const pointerPos = this.input.getPointerPosition();
 		if (pointerPos.x !== this.lastPointerX || pointerPos.y !== this.lastPointerY) {
@@ -711,24 +709,56 @@ class Game {
 			this.lastPointerY = pointerPos.y;
 		}
 
-		// Check if the pointer is down (clicked/touched)
+		// --- LEGACY POINTER METHODS (Left click only) ---
+		// Check if the pointer is down (clicked/touched) - LEGACY METHOD
 		if (this.input.isPointerJustDown()) {
-			this.addMessage("Pointer JUST pressed");
+			this.addMessage("Left button JUST clicked (legacy method)");
 		}
 
+		// --- NEW MOUSE BUTTON METHODS ---
+		// Check specific mouse buttons (just pressed this frame)
+		if (this.input.isLeftMouseButtonJustPressed()) {
+			this.addMessage("LEFT mouse button JUST pressed");
+		}
+		if (this.input.isRightMouseButtonJustPressed()) {
+			this.addMessage("RIGHT mouse button JUST pressed");
+		}
+		if (this.input.isMiddleMouseButtonJustPressed()) {
+			this.addMessage("MIDDLE mouse button JUST pressed");
+		}
+
+		// Check if specific mouse buttons are held down
+		if (this.input.isLeftMouseButtonDown()) {
+			// Only log occasionally to avoid spam
+			if (this.frameCount % 30 === 0) {
+				this.addMessage("LEFT mouse button is held down");
+			}
+		}
+
+		if (this.input.isRightMouseButtonDown()) {
+			// Only log occasionally to avoid spam
+			if (this.frameCount % 30 === 0) {
+				this.addMessage("RIGHT mouse button is held down");
+			}
+		}
+
+		// Generic button check (useful for configurable controls)
+		// button: 0=left, 1=middle, 2=right
+		if (this.input.isMouseButtonJustPressed(2)) {
+			this.addMessage("Generic right button check (button 2) JUST pressed");
+		}
+
+		/******* UI CONTROLS *******/
 		// Track UI Controls
 		if (this.input.isUIButtonJustPressed("soundToggle")) {
 			this.addMessage("Sound button toggled");
 		}
-
 		if (this.input.isUIButtonJustPressed("fullscreenToggle")) {
 			this.addMessage("Fullscreen button toggled");
 		}
-
 		if (this.input.isUIButtonJustPressed("controlsToggle")) {
 			this.addMessage("Controls button toggled");
 		}
-
 		if (this.input.isUIButtonJustPressed("pauseButton")) {
 			this.addMessage("Pause button toggled");
 		}
