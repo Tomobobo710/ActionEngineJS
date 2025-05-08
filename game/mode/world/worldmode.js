@@ -324,7 +324,7 @@ class WorldMode {
             this.renderer3D.programRegistry.cycleShaders();
         }
 
-        if (this.input.isKeyJustPressed("Action4")) {
+        if (this.input.isKeyJustPressed("ActionDebugToggle")) {
             this.showDebugPanel = !this.showDebugPanel;
         }
 

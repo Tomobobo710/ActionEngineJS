@@ -23,7 +23,9 @@ class ActionInputHandler {
             ["KeyX", ["Action6"]], // Right Bumper
             ["KeyC", ["Action7"]], // Back Button
             ["KeyF", ["Action8"]], // Start Button
-            ["F9", ["ActionDebugToggle"]], // Add this line
+            ["F9", ["ActionDebugToggle"]],
+            ["F3", ["ActionDebugToggle"]],
+            ["Tab", ["ActionDebugToggle"]],
 
             // Numpad keys
             ["Numpad0", ["Numpad0"]],
@@ -42,17 +44,25 @@ class ActionInputHandler {
             ["NumpadSubtract", ["NumpadSubtract"]] // Numpad minus
         ]);
 
+        // Extract all key codes the game uses from actionMap
+        this.gameKeyCodes = new Set();
+        for (const [keyCode, _] of this.actionMap) {
+            this.gameKeyCodes.add(keyCode);
+        }
+
+        // Add additional browser keys we want to block
+        const additionalBlockedKeys = ['F12', 'F5'];
+        additionalBlockedKeys.forEach(key => this.gameKeyCodes.add(key));
+
         this.state = {
             keys: new Map(),
-            keyReported: new Map(), // NEW: tracks if key's "just pressed" was reported
             pointer: {
                 x: 0,
                 y: 0,
                 movementX: 0,
                 movementY: 0,
                 isDown: false,
-                downTimestamp: null, // Keep for API compatibility
-                wasReported: true   // NEW: initially true (not "just down")
+                downTimestamp: null
             },
             elements: {
                 gui: new Map(),
@@ -60,25 +70,126 @@ class ActionInputHandler {
                 debug: new Map()
             },
             uiButtons: new Map([
-                ["soundToggle", { isPressed: false, wasReported: true }],
-                ["controlsToggle", { isPressed: false, wasReported: true }],
-                ["fullscreenToggle", { isPressed: false, wasReported: true }],
-                ["pauseButton", { isPressed: false, wasReported: true }]
+                ["soundToggle", { isPressed: false }],
+                ["controlsToggle", { isPressed: false }],
+                ["fullscreenToggle", { isPressed: false }],
+                ["pauseButton", { isPressed: false }]
             ]),
             virtualControlsVisible: false
         };
 
+        // Frame tracking for proper "just pressed" detection
+        this.currentFramePressed = new Map(); // Keys pressed this frame
+        this.previousFramePressed = new Map(); // Keys pressed last frame
+        
+        // Similar frame tracking for pointer
+        this.currentPointerDown = false;
+        this.previousPointerDown = false;
+        
+        // Elements frame tracking
+        this.currentElementsPressed = {
+            gui: new Map(),
+            game: new Map(),
+            debug: new Map()
+        };
+        this.previousElementsPressed = {
+            gui: new Map(),
+            game: new Map(), 
+            debug: new Map()
+        };
+        
+        // UI button frame tracking
+        this.currentUIButtonsPressed = new Map();
+        this.previousUIButtonsPressed = new Map();
+
+        // Block browser defaults for game keys
+        window.addEventListener("keydown", (e) => {
+            //console.log("Keydown captured:", e.code);
+            
+            // Update key state
+            this.state.keys.set(e.code, true);
+            
+            // Prevent default browser behavior for any keys we care about
+            if (this.actionMap.has(e.code) || 
+                e.code === 'F12' || 
+                e.code === 'F5' ||
+                (e.ctrlKey && (e.code === 'KeyS' || e.code === 'KeyP' || e.code === 'KeyR')) ||
+                (e.altKey && e.code === 'ArrowLeft')) {
+                //console.log("Preventing default for:", e.code);
+                e.preventDefault();
+            }
+        }, false);
+
+        window.addEventListener("keyup", (e) => {
+            //console.log("Keyup captured:", e.code);
+            
+            // Update key state
+            this.state.keys.set(e.code, false);
+            
+            // Prevent default browser behavior
+            if (this.actionMap.has(e.code) || 
+                e.code === 'F12' || 
+                e.code === 'F5') {
+                //console.log("Preventing default for:", e.code);
+                e.preventDefault();
+            }
+        }, false);
+        
+        // Prevent right-click context menu
+        document.addEventListener('contextmenu', (e) => e.preventDefault());
+
         this.createUIControls();
         this.createVirtualControls();
-
-        this.setupKeyboardListeners();
+        
         this.setupPointerListeners();
         this.setupVirtualButtons();
         this.setupUIButtons();
 
-        // default mute
-        //const audioEnabled = this.audio.toggle();
-        //document.getElementById('soundToggle').textContent = audioEnabled ? '🔊' : '🔇';
+        // Make game canvas focusable
+        if (this.canvases.gameCanvas) {
+            this.canvases.gameCanvas.tabIndex = 1;
+            this.canvases.gameCanvas.focus();
+        }
+    }
+
+    // Called by the engine at the start of each frame
+    resetFrameState() {
+        // Move current to previous for keys
+        this.previousFramePressed = new Map(this.currentFramePressed);
+        
+        // Update current with the latest key state
+        this.currentFramePressed = new Map();
+        for (const [key, isPressed] of this.state.keys.entries()) {
+            if (isPressed) {
+                this.currentFramePressed.set(key, true);
+            }
+        }
+        
+        // Handle pointer state
+        this.previousPointerDown = this.currentPointerDown;
+        this.currentPointerDown = this.state.pointer.isDown;
+        
+        // Handle elements state
+        for (const layer of Object.keys(this.state.elements)) {
+            this.previousElementsPressed[layer] = new Map(this.currentElementsPressed[layer]);
+            this.currentElementsPressed[layer] = new Map();
+            
+            this.state.elements[layer].forEach((element, id) => {
+                if (element.isPressed) {
+                    this.currentElementsPressed[layer].set(id, true);
+                }
+            });
+        }
+        
+        // Handle UI buttons state
+        this.previousUIButtonsPressed = new Map(this.currentUIButtonsPressed);
+        this.currentUIButtonsPressed = new Map();
+        
+        for (const [id, buttonState] of this.state.uiButtons.entries()) {
+            if (buttonState.isPressed) {
+                this.currentUIButtonsPressed.set(id, true);
+            }
+        }
     }
 
     createVirtualControlsContainer() {
@@ -198,51 +309,19 @@ class ActionInputHandler {
         Object.entries(buttons).forEach(([id, config]) => {
             const handleStart = (e) => {
                 e.preventDefault();
-                this.state.uiButtons.set(id, {
-                    isPressed: true,
-                    wasReported: false // Mark as not reported yet (for "just pressed" detection)
-                });
+                this.state.uiButtons.set(id, { isPressed: true });
             };
 
             const handleEnd = (e) => {
                 e.preventDefault();
-                this.state.uiButtons.set(id, {
-                    isPressed: false,
-                    wasReported: true
-                });
+                this.state.uiButtons.set(id, { isPressed: false });
                 config.upCallback();
-            };
-
-            const handleLeave = (e) => {
-                e.preventDefault();
-                this.state.uiButtons.set(id, {
-                    isPressed: false,
-                    wasReported: true
-                });
             };
 
             config.element.addEventListener("touchstart", handleStart, { passive: false });
             config.element.addEventListener("touchend", handleEnd, { passive: false });
             config.element.addEventListener("mousedown", handleStart);
             config.element.addEventListener("mouseup", handleEnd);
-            //config.element.addEventListener('mouseleave', handleLeave);  // Now uses separate handler
-        });
-    }
-
-    setupKeyboardListeners() {
-        window.addEventListener("keydown", (e) => {
-            const wasAlreadyPressed = this.state.keys.get(e.code);
-            
-            // Only update if key wasn't already pressed (prevents key repeat)
-            if (!wasAlreadyPressed) {
-                this.state.keys.set(e.code, true);
-                this.state.keyReported.set(e.code, false); // Mark as not reported yet
-            }
-        });
-
-        window.addEventListener("keyup", (e) => {
-            this.state.keys.set(e.code, false);
-            // No need to update reported state on key up
         });
     }
 
@@ -278,13 +357,11 @@ class ActionInputHandler {
             this.state.pointer.y = pos.y;
             this.state.pointer.isDown = true;
             this.state.pointer.downTimestamp = performance.now(); // Keep for compatibility
-            this.state.pointer.wasReported = false; // Mark as not reported yet
 
             let handledByDebug = false;
             this.state.elements.debug.forEach((element) => {
                 if (element.isHovered) {
                     element.isPressed = true;
-                    element.wasReported = false; // Mark as not reported yet
                     handledByDebug = true;
                 }
             });
@@ -325,13 +402,11 @@ class ActionInputHandler {
                 this.state.pointer.y = pos.y;
                 this.state.pointer.isDown = true;
                 this.state.pointer.downTimestamp = performance.now(); // Keep for compatibility
-                this.state.pointer.wasReported = false; // Mark as not reported yet
 
                 let handledByDebug = false;
                 this.state.elements.debug.forEach((element) => {
                     if (this.isPointInBounds(pos.x, pos.y, element.bounds())) {
                         element.isPressed = true;
-                        element.wasReported = false; // Mark as not reported yet
                         handledByDebug = true;
                     }
                 });
@@ -425,13 +500,11 @@ class ActionInputHandler {
             this.state.pointer.y = pos.y;
             this.state.pointer.isDown = true;
             this.state.pointer.downTimestamp = performance.now(); // Keep for compatibility
-            this.state.pointer.wasReported = false; // Mark as not reported yet
 
             let handledByGui = false;
             this.state.elements.gui.forEach((element) => {
                 if (element.isHovered) {
                     element.isPressed = true;
-                    element.wasReported = false; // Mark as not reported yet
                     handledByGui = true;
                 }
             });
@@ -472,13 +545,11 @@ class ActionInputHandler {
                 this.state.pointer.y = pos.y;
                 this.state.pointer.isDown = true;
                 this.state.pointer.downTimestamp = performance.now(); // Keep for compatibility
-                this.state.pointer.wasReported = false; // Mark as not reported yet
 
                 let handledByGui = false;
                 this.state.elements.gui.forEach((element) => {
                     if (this.isPointInBounds(pos.x, pos.y, element.bounds())) {
                         element.isPressed = true;
-                        element.wasReported = false; // Mark as not reported yet
                         handledByGui = true;
                     }
                 });
@@ -565,12 +636,10 @@ class ActionInputHandler {
             this.state.pointer.y = pos.y;
             this.state.pointer.isDown = true;
             this.state.pointer.downTimestamp = performance.now(); // Keep for compatibility
-            this.state.pointer.wasReported = false; // Mark as not reported yet
 
             this.state.elements.game.forEach((element) => {
                 if (element.isHovered) {
                     element.isPressed = true;
-                    element.wasReported = false; // Mark as not reported yet
                 }
             });
         });
@@ -598,12 +667,10 @@ class ActionInputHandler {
                 this.state.pointer.y = pos.y;
                 this.state.pointer.isDown = true;
                 this.state.pointer.downTimestamp = performance.now(); // Keep for compatibility
-                this.state.pointer.wasReported = false; // Mark as not reported yet
 
                 this.state.elements.game.forEach((element) => {
                     if (this.isPointInBounds(pos.x, pos.y, element.bounds())) {
                         element.isPressed = true;
-                        element.wasReported = false; // Mark as not reported yet
                     }
                 });
             },
@@ -690,18 +757,12 @@ class ActionInputHandler {
 
             const handleStart = (e) => {
                 e.preventDefault();
-                
-                // Only update if key wasn't already pressed
-                if (!this.state.keys.get(key)) {
-                    this.state.keys.set(key, true);
-                    this.state.keyReported.set(key, false); // Mark as not reported yet
-                }
+                this.state.keys.set(key, true);
             };
 
             const handleEnd = (e) => {
                 e.preventDefault();
                 this.state.keys.set(key, false);
-                // No need to update reported state on key up
             };
 
             button.addEventListener("touchstart", handleStart, { passive: false });
@@ -723,20 +784,17 @@ class ActionInputHandler {
             isHovered: false,
             hoverTimestamp: null, // Keep for compatibility
             isPressed: false,
-            wasReported: true, // NEW: initially true (not "just pressed")
             isActive: false,
             activeTimestamp: null
         });
     }
 
-    // UPDATED: Now uses state transitions instead of timestamps
-    isElementJustPressed(id, layer = "gui", threshold = 16) { // Keep threshold param for API compatibility
-        const element = this.state.elements[layer]?.get(id);
-        if (element?.isPressed && !element.wasReported) {
-            element.wasReported = true;
-            return true;
-        }
-        return false;
+    isElementJustPressed(id, layer = "gui") {
+        const isCurrentlyPressed = this.currentElementsPressed[layer].has(id);
+        const wasPreviouslyPressed = this.previousElementsPressed[layer].has(id);
+        
+        // Element is pressed now but wasn't in the previous frame
+        return isCurrentlyPressed && !wasPreviouslyPressed;
     }
 
     isElementPressed(id, layer = "gui") {
@@ -763,13 +821,9 @@ class ActionInputHandler {
         return element ? element.isActive : false;
     }
 
-    // UPDATED: Now uses state transitions instead of timestamps
-    isPointerJustDown(threshold = 16) { // Keep threshold param for API compatibility
-        if (this.state.pointer.isDown && !this.state.pointer.wasReported) {
-            this.state.pointer.wasReported = true;
-            return true;
-        }
-        return false;
+    isPointerJustDown() {
+        // Pointer is down now but wasn't in the previous frame
+        return this.currentPointerDown && !this.previousPointerDown;
     }
 
     isUIButtonPressed(buttonId) {
@@ -777,17 +831,12 @@ class ActionInputHandler {
         return buttonState ? buttonState.isPressed : false;
     }
 
-    // UPDATED: Now uses state transitions instead of timestamps
-    isUIButtonJustPressed(buttonId, threshold = 16) { // Keep threshold param for API compatibility
-        const buttonState = this.state.uiButtons.get(buttonId);
-        if (buttonState?.isPressed && !buttonState.wasReported) {
-            this.state.uiButtons.set(buttonId, {
-                ...buttonState,
-                wasReported: true
-            });
-            return true;
-        }
-        return false;
+    isUIButtonJustPressed(buttonId) {
+        const isCurrentlyPressed = this.currentUIButtonsPressed.has(buttonId);
+        const wasPreviouslyPressed = this.previousUIButtonsPressed.has(buttonId);
+        
+        // Button is pressed now but wasn't in the previous frame
+        return isCurrentlyPressed && !wasPreviouslyPressed;
     }
 
     togglePause() {
@@ -810,15 +859,15 @@ class ActionInputHandler {
         return false;
     }
 
-    // UPDATED: Now uses state transitions instead of timestamps
-    isKeyJustPressed(action, threshold = 16) { // Keep threshold param for API compatibility
+    isKeyJustPressed(action) {
         for (const [key, actions] of this.actionMap) {
             if (actions.includes(action)) {
-                const isPressed = this.state.keys.get(key) || false;
-                const wasReported = this.state.keyReported.get(key) !== false; // Default to true if undefined
+                // Check if key was just pressed this frame
+                const isCurrentlyPressed = this.currentFramePressed.has(key);
+                const wasPreviouslyPressed = this.previousFramePressed.has(key);
                 
-                if (isPressed && !wasReported) {
-                    this.state.keyReported.set(key, true);
+                // Key is pressed now but wasn't in the previous frame
+                if (isCurrentlyPressed && !wasPreviouslyPressed) {
                     return true;
                 }
             }
@@ -839,7 +888,6 @@ class ActionInputHandler {
         return this.state.pointer.isDown;
     }
 
-    // Remove a single element
     removeElement(id, layer = "gui") {
         if (!this.state.elements[layer]) {
             console.warn(`[ActionInputHandler] Layer ${layer} doesn't exist`);
@@ -848,7 +896,6 @@ class ActionInputHandler {
         return this.state.elements[layer].delete(id);
     }
 
-    // Clear all elements from a specific layer
     clearLayerElements(layer = "gui") {
         if (!this.state.elements[layer]) {
             console.warn(`[ActionInputHandler] Layer ${layer} doesn't exist`);
@@ -858,7 +905,6 @@ class ActionInputHandler {
         return true;
     }
 
-    // Clear all elements from all layers
     clearAllElements() {
         Object.keys(this.state.elements).forEach((layer) => {
             this.state.elements[layer].clear();

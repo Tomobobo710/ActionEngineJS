@@ -20,7 +20,7 @@ class App {
         const now = timestamp || performance.now();
         const deltaTime = this.lastTime ? (now - this.lastTime) / 1000 : 0;
         this.lastTime = now;
-
+        this.input.resetFrameState();
         // Pre-update phase
         if (typeof this.game.action_pre_update === "function") {
             this.game.action_pre_update();
