@@ -114,7 +114,16 @@ class ActionInputHandler {
             game: new Map(), 
             debug: new Map()
         };
-        
+        this.currentElementsHovered = {
+            gui: new Map(),
+            game: new Map(),
+            debug: new Map()
+        };
+        this.previousElementsHovered = {
+            gui: new Map(),
+            game: new Map(), 
+            debug: new Map()
+        };
         // UI button frame tracking
         this.currentUIButtonsPressed = new Map();
         this.previousUIButtonsPressed = new Map();
@@ -205,7 +214,23 @@ class ActionInputHandler {
                 }
             });
         }
-        
+        // Handle elements hover state
+        for (const layer of Object.keys(this.state.elements)) {
+            // Existing pressed state tracking...
+
+            // New hover state tracking
+            this.previousElementsHovered[layer] = new Map(this.currentElementsHovered[layer]);
+            this.currentElementsHovered[layer] = new Map();
+
+            this.state.elements[layer].forEach((element, id) => {
+                // Existing pressed check...
+
+                // Add hover check
+                if (element.isHovered) {
+                    this.currentElementsHovered[layer].set(id, true);
+                }
+            });
+        }
         // Handle UI buttons state
         this.previousUIButtonsPressed = new Map(this.currentUIButtonsPressed);
         this.currentUIButtonsPressed = new Map();
