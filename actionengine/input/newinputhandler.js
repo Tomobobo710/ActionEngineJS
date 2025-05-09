@@ -934,12 +934,7 @@
     }
 
     // API METHODS FOR GAME CODE
-	setElementActive(id, layer, isActive) {
-		const element = this.rawState.elements[layer]?.get(id);
-		if (element) {
-			element.isActive = isActive;
-		}
-	}
+
     isElementJustPressed(id, layer = "gui") {
         const isCurrentlyPressed = this.currentSnapshot.elements[layer]?.has(id);
         const wasPreviouslyPressed = this.previousSnapshot.elements[layer]?.has(id);

@@ -215,17 +215,16 @@ class RPGMenuMode {
     }
 
     deactivateMainMenu() {
-        this.menuOptions.forEach((_, index) => {
-            this.input.state.elements.gui.get(`menu_option_${index}`).isActive = false;
-        });
-    }
+		this.menuOptions.forEach((_, index) => {
+			this.input.setElementActive(`menu_option_${index}`, "gui", false);
+		});
+	}
 
-    activateMainMenu() {
-        this.menuOptions.forEach((_, index) => {
-            this.input.state.elements.gui.get(`menu_option_${index}`).isActive = true;
-        });
-    }
-
+	activateMainMenu() {
+		this.menuOptions.forEach((_, index) => {
+			this.input.setElementActive(`menu_option_${index}`, "gui", true);
+		});
+	}
     draw() {
         // Clear canvas
         this.ctx.clearRect(0, 0, Game.WIDTH, Game.HEIGHT);
