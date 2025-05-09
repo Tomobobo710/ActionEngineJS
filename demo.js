@@ -785,7 +785,7 @@ class Game {
 		// Handle button 1 press - toggles inactive button
 		if (this.input.isElementJustPressed("button1")) {
 			const newActiveState = !this.input.isElementActive("inactiveButton");
-			this.input.state.elements.gui.get("inactiveButton").isActive = newActiveState;
+			this.input.setElementActive("inactiveButton", "gui", newActiveState);
 			this.inactiveButton.color = newActiveState ? "#00f0f0" : "#666666";
 			this.addMessage(`Inactive button ${newActiveState ? "enabled" : "disabled"}`);
 			this.totalClicks++;
