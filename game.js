@@ -20,7 +20,7 @@ class Game {
     }
     
    action_update(dt) {
-       this.gameMaster.update();
+       this.gameMaster.update(dt);
    }
    
    action_draw() {

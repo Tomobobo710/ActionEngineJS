@@ -260,6 +260,26 @@ class Game {
 		// Call our update method with the calculated delta time
 		this.update(deltaTime);
 	}
+	/**
+	 * action_fixed_update(fixedDeltaTime) - Hook called by the App class at fixed intervals
+	 * 
+	 * This method is called at a fixed timestep (typically 1/60 second) regardless of frame rate.
+	 * Physics simulations and consistent-timing logic should be placed here for best results.
+	 * 
+	 * @param {number} fixedDeltaTime - The fixed time step duration in seconds (typically 1/60)
+	 */
+	action_fixed_update(fixedDeltaTime) {
+		// Physics update at fixed timestep
+		if (!this.showDebug && this.physicsWorld) {
+			// Update physics system
+			this.physicsWorld.fixed_update(fixedDeltaTime);
+			
+			// Update player character physics if it exists
+			if (this.player && typeof this.player.fixed_update === 'function') {
+				this.player.fixed_update(fixedDeltaTime);
+			}
+		}
+	}
 
 	/**
 	 * action_draw() - Hook called by the App class each frame after update
@@ -486,7 +506,9 @@ class Game {
 		); // Specify game layer
 	}
 
-	/*
+
+
+/*
 	 * update()
 	 * The beating heart of the DEMO! This method handles all the logic updates
 	 * including input handling, physics, and game state changes.
@@ -513,8 +535,7 @@ class Game {
 	 */
 
 	update3DWorld(deltaTime) {
-		// Update physics engine first
-		this.physicsWorld.update(deltaTime);
+		// Physics is now handled in fixed_update
 
 		// If we have a player character, update it
 		if (this.player) {

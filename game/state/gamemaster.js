@@ -123,10 +123,9 @@ class GameMaster {
         this.modeManager.fixed_update(fixedDeltaTime);
     }
     
-    update() {
-        const currentTime = performance.now();
-        this.deltaTime = Math.min((currentTime - this.lastTime) / 1000, 0.25);
-        this.lastTime = currentTime;
+    update(deltaTime) {
+        // Use the provided deltaTime instead of calculating our own
+        this.deltaTime = deltaTime;
         this.modeManager.update(this.deltaTime);
     }
 
