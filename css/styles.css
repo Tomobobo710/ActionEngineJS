@@ -69,6 +69,21 @@ html, body {
     }
 }
 
+/* Remove browser focus outline */
+canvas {
+  outline: none !important; 
+}
+
+/* For extra certainty, also add other canvases*/ 
+/*
+#gameCanvas:focus, #guiCanvas:focus, #debugCanvas:focus {
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+*/
+
+
 /* Keep the original button styles exactly as they were */
 .dpad-button {
     width: 60px;

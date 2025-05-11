@@ -33,7 +33,7 @@ class App {
         this.accumulatedTime = Math.min(this.accumulatedTime, this.maxAccumulatedTime);
         
         // Capture input state for this frame (for regular updates)
-        this.input.captureFrameState();
+        this.input.captureKeyState();
         this.input.setContext('update');
         
         // Pre-update phase (variable timestep, good for input handling)
@@ -45,8 +45,8 @@ class App {
         if (typeof this.game.action_fixed_update === "function") {
             // Check if we're going to do any physics updates this frame
             if (this.accumulatedTime >= this.fixedTimeStep) {
-                // Capture physics state ONCE before the physics loop starts
-                this.input.capturePhysicsState();
+                // Capture fixed state ONCE before the physics loop starts
+                this.input.captureFixedKeyState();
                 this.input.setContext('fixed_update');
                 
                 // Run as many fixed updates as needed based on accumulated time
