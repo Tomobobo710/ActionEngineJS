@@ -1,29 +1,29 @@
 // game.js
 class Game {
-   static get WIDTH() {
-       return 800;
-   }
-   
-   static get HEIGHT() {
-       return 600;
-   }
-   
-   constructor(canvases, input, audio) {
-       // Create game master
-       this.gameMaster = new GameMaster(canvases, input, audio);
-       
-       console.log("[Game] Initialization completed");
-   }
-   
-    action_fixed_update(dt){
-        this.gameMaster.fixed_update(dt);
+    static get WIDTH() {
+        return 800;
     }
-    
-   action_update(dt) {
-       this.gameMaster.update(dt);
-   }
-   
-   action_draw() {
-       this.gameMaster.draw();
-   }
+
+    static get HEIGHT() {
+        return 600;
+    }
+
+    constructor(canvases, input, audio) {
+        // Create game master
+        this.gameMaster = new GameMaster(canvases, input, audio);
+
+        console.log("[Game] Initialization completed");
+    }
+
+    action_fixed_update(deltaTime) {
+        this.gameMaster.fixed_update(deltaTime);
+    }
+
+    action_update(deltaTime) {
+        this.gameMaster.update(deltaTime);
+    }
+
+    action_draw() {
+        this.gameMaster.draw();
+    }
 }

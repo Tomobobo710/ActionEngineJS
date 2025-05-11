@@ -12,7 +12,7 @@ class WorldMode {
         this.initializeMode();
         this.pendingBattleTransition = false;
         this.enableRandomBattles = false; // Default setting for random battles
-        this.pendingMenuTransition = false; // Add this new flag
+        this.pendingMenuTransition = false;
 
         // Create character after world initialization
         if (this.createCharacter) {
