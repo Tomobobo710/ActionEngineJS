@@ -29,6 +29,11 @@ class ActionCharacter3D extends ActionCharacter {
         console.log("[ActionCharacter3D] Initialized");
     }
     
+    fixed_update(fixedDeltaTime) {
+        // Call parent's fixed_update for physics
+        super.fixed_update(fixedDeltaTime);
+    }
+    
     update(deltaTime) {
         super.update(deltaTime);
         

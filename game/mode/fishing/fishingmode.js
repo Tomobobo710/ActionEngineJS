@@ -99,7 +99,7 @@ class FishingMode {
         }
     }
 
-    this.physicsWorld.update(deltaTime);
+    // Physics is now handled in fixed_update
 
     if (this.input.isKeyJustPressed("Numpad0")) {
         this.camera.isDetached = !this.camera.isDetached;
@@ -206,6 +206,29 @@ class FishingMode {
 
     resume() {
         this.physicsWorld.resume();
+    }
+    fixed_update(fixedDeltaTime) {
+        // Physics simulation in fixed update
+        this.physicsWorld.fixed_update(fixedDeltaTime);
+        
+        // Lure physics update
+        if (this.lure) {
+            this.lure.fixed_update(fixedDeltaTime);
+        }
+        
+        // Fisher model physics update (if needed)
+        if (this.fisher && this.fisher.model && typeof this.fisher.model.fixed_update === 'function') {
+            this.fisher.model.fixed_update(fixedDeltaTime);
+        }
+        
+        // Update all fish physics
+        if (this.fishingArea && this.fishingArea.fish) {
+            this.fishingArea.fish.forEach((fishAI, fish) => {
+                if (fish && typeof fish.fixed_update === 'function') {
+                    fish.fixed_update(fixedDeltaTime);
+                }
+            });
+        }
     }
 
     draw() {

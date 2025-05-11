@@ -217,11 +217,21 @@ class DungeonMode {
         this.lastTime = performance.now();
         this.physicsWorld.resume();
     }
+    fixed_update(fixedDeltaTime) {
+        if (this.isPaused) return;
+        
+        // Physics simulation belongs in fixed update
+        this.physicsWorld.fixed_update(fixedDeltaTime);
+        
+        // Character physics-related updates
+        if (this.character && typeof this.character.fixed_update === 'function') {
+            this.character.fixed_update(fixedDeltaTime);
+        }
+    }
     
-    update() {
-        const currentTime = performance.now();
-        this.deltaTime = Math.min((currentTime - this.lastTime) / 1000, 0.25);
-        this.lastTime = currentTime;
+    update(deltaTime) {
+        // Store deltaTime for components that need it
+        this.deltaTime = deltaTime;
 
         if (!this.isPaused) {
             this.handleInput();
@@ -233,7 +243,7 @@ class DungeonMode {
                 }
             }
             
-            this.physicsWorld.update(this.deltaTime);
+            // Non-physics updates only (physics now in fixed_update)
             this.updateDoorAnimations(this.deltaTime);
             // No need to call checkTriggers() anymore - using contact detection
         }
@@ -242,6 +252,8 @@ class DungeonMode {
     handleInput() {
         if (this.character) {
             this.character.applyInput(this.input, this.deltaTime);
+            // Visual updates only (physics now in fixed_update)
+            // We'll still call update for compatibility with non-physics aspects
             this.character.update(this.deltaTime);
         }
         

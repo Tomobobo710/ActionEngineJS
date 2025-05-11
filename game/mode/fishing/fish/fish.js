@@ -464,7 +464,12 @@ class Fish extends ActionPhysicsObject3D {
         return animatedVertex;
     }
     
+    fixed_update(fixedDeltaTime) {
+        // Physics-based updates for the fish
+    }
+    
     update(deltaTime) {
+        // Animation updates
         this.animationTime += deltaTime;
     }
 }

@@ -114,6 +114,13 @@ barycentricInterpolation(px, pz, triangle) {
         }
     }
 
+    fixed_update(fixedDeltaTime) {
+        // Physics-related updates for the lure
+        if (this.hookedFish && typeof this.hookedFish.fixed_update === 'function') {
+            this.hookedFish.fixed_update(fixedDeltaTime);
+        }
+    }
+    
     update(deltaTime) {
     // Initialize position if null
     if (!this.position) {
