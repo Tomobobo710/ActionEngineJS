@@ -32,9 +32,9 @@ class App {
         this.accumulatedTime += deltaTime;
         this.accumulatedTime = Math.min(this.accumulatedTime, this.maxAccumulatedTime);
         
-        // Capture input state for this frame
-        // This happens once per visual frame, like in Unity
+        // Capture input state for this frame (for regular updates)
         this.input.captureFrameState();
+        this.input.setContext('update');
         
         // Pre-update phase (variable timestep, good for input handling)
         if (typeof this.game.action_pre_update === "function") {
@@ -42,13 +42,21 @@ class App {
         }
         
         // Process fixed updates for physics and consistent game logic
-        let fixedUpdateOccurred = false;
         if (typeof this.game.action_fixed_update === "function") {
-            // Run as many fixed updates as needed based on accumulated time
-            while (this.accumulatedTime >= this.fixedTimeStep) {
-                this.game.action_fixed_update(this.fixedTimeStep);
-                this.accumulatedTime -= this.fixedTimeStep;
-                fixedUpdateOccurred = true;
+            // Check if we're going to do any physics updates this frame
+            if (this.accumulatedTime >= this.fixedTimeStep) {
+                // Capture physics state ONCE before the physics loop starts
+                this.input.capturePhysicsState();
+                this.input.setContext('fixed_update');
+                
+                // Run as many fixed updates as needed based on accumulated time
+                while (this.accumulatedTime >= this.fixedTimeStep) {
+                    this.game.action_fixed_update(this.fixedTimeStep);
+                    this.accumulatedTime -= this.fixedTimeStep;
+                }
+                
+                // Reset context back to update after physics is done
+                this.input.setContext('update');
             }
         }
         

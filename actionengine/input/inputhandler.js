@@ -1,9 +1,12 @@
-    class ActionInputHandler {
+class ActionInputHandler {
     constructor(audio, canvases) {
         this.audio = audio;
-        this.canvases = canvases; // Store all canvas references
+        this.canvases = canvases;
         this.virtualControls = false;
         this.isPaused = false;
+
+        // Track which context we're in (update or fixed_update)
+        this.currentContext = 'update';
 
         // Create containers
         this.virtualControlsContainer = this.createVirtualControlsContainer();
@@ -42,7 +45,7 @@
             virtualControlsVisible: false
         };
         
-        // Frame snapshots - only updated at frame boundaries
+        // Frame snapshots - updated at frame boundaries
         this.currentSnapshot = {
             keys: new Map(),
             mouseButtons: {
@@ -88,6 +91,53 @@
             },
             uiButtons: new Map()
         };
+        
+        // Physics snapshots - updated at physics steps
+        this.currentPhysicsSnapshot = {
+            keys: new Map(),
+            mouseButtons: {
+                left: false,
+                right: false,
+                middle: false
+            },
+            pointer: {
+                isDown: false
+            },
+            elements: {
+                gui: new Map(),
+                game: new Map(),
+                debug: new Map()
+            },
+            elementsHovered: {
+                gui: new Map(),
+                game: new Map(),
+                debug: new Map()
+            },
+            uiButtons: new Map()
+        };
+        
+        this.previousPhysicsSnapshot = {
+            keys: new Map(),
+            mouseButtons: {
+                left: false,
+                right: false,
+                middle: false
+            },
+            pointer: {
+                isDown: false
+            },
+            elements: {
+                gui: new Map(),
+                game: new Map(),
+                debug: new Map()
+            },
+            elementsHovered: {
+                gui: new Map(),
+                game: new Map(),
+                debug: new Map()
+            },
+            uiButtons: new Map()
+        };
 
         // Setup keyboard event listeners
         this.setupEventListeners();
@@ -106,6 +156,11 @@
             this.canvases.gameCanvas.tabIndex = 1;
             this.canvases.gameCanvas.focus();
         }
+    }
+
+    // Set the current execution context (update or fixed_update)
+    setContext(context) {
+        this.currentContext = context;
     }
 
     setupActionMap() {
@@ -185,7 +240,6 @@
     }
 
     // Called by the engine at the start of each frame
-    // Replaces the old resetFrameState()
     captureFrameState() {
         // Save current as previous - properly preserving Map objects
         // Create deep copies of each component
@@ -249,6 +303,87 @@
             if (buttonState.isPressed) {
                 this.currentSnapshot.uiButtons.set(id, true);
             }
+        }
+    }
+
+    // Called by the engine before fixed updates begin
+    capturePhysicsState() {
+        // Save current physics as previous physics - properly preserving Map objects
+        
+        // Copy key maps
+        this.previousPhysicsSnapshot.keys = new Map(this.currentPhysicsSnapshot.keys);
+        
+        // Copy mouse button state
+        this.previousPhysicsSnapshot.mouseButtons.left = this.currentPhysicsSnapshot.mouseButtons.left;
+        this.previousPhysicsSnapshot.mouseButtons.right = this.currentPhysicsSnapshot.mouseButtons.right;
+        this.previousPhysicsSnapshot.mouseButtons.middle = this.currentPhysicsSnapshot.mouseButtons.middle;
+        
+        // Copy pointer state
+        this.previousPhysicsSnapshot.pointer.isDown = this.currentPhysicsSnapshot.pointer.isDown;
+        
+        // Copy element maps
+        for (const layer of Object.keys(this.currentPhysicsSnapshot.elements)) {
+            this.previousPhysicsSnapshot.elements[layer] = new Map(this.currentPhysicsSnapshot.elements[layer]);
+            this.previousPhysicsSnapshot.elementsHovered[layer] = new Map(this.currentPhysicsSnapshot.elementsHovered[layer]);
+        }
+        
+        // Copy UI button map
+        this.previousPhysicsSnapshot.uiButtons = new Map(this.currentPhysicsSnapshot.uiButtons);
+        
+        // Capture current raw key state for physics
+        this.currentPhysicsSnapshot.keys = new Map();
+        for (const [key, isPressed] of this.rawState.keys.entries()) {
+            if (isPressed) {
+                this.currentPhysicsSnapshot.keys.set(key, true);
+            }
+        }
+        
+        // Capture current mouse state for physics
+        this.currentPhysicsSnapshot.pointer.isDown = this.rawState.pointer.isDown;
+        this.currentPhysicsSnapshot.mouseButtons.left = this.rawState.pointer.buttons.left;
+        this.currentPhysicsSnapshot.mouseButtons.right = this.rawState.pointer.buttons.right;
+        this.currentPhysicsSnapshot.mouseButtons.middle = this.rawState.pointer.buttons.middle;
+        
+        // Capture elements state for physics
+        for (const layer of Object.keys(this.rawState.elements)) {
+            // Pressed state
+            this.currentPhysicsSnapshot.elements[layer] = new Map();
+            this.rawState.elements[layer].forEach((element, id) => {
+                if (element.isPressed) {
+                    this.currentPhysicsSnapshot.elements[layer].set(id, true);
+                }
+            });
+            
+            // Hover state
+            this.currentPhysicsSnapshot.elementsHovered[layer] = new Map();
+            this.rawState.elements[layer].forEach((element, id) => {
+                if (element.isHovered) {
+                    this.currentPhysicsSnapshot.elementsHovered[layer].set(id, true);
+                }
+            });
+        }
+        
+        // Capture UI button state for physics
+        this.currentPhysicsSnapshot.uiButtons = new Map();
+        for (const [id, buttonState] of this.rawState.uiButtons.entries()) {
+            if (buttonState.isPressed) {
+                this.currentPhysicsSnapshot.uiButtons.set(id, true);
+            }
+        }
+    }
+
+    // Helper method to get the right snapshots based on context
+    getSnapshots() {
+        if (this.currentContext === 'fixed_update') {
+            return {
+                current: this.currentPhysicsSnapshot,
+                previous: this.previousPhysicsSnapshot
+            };
+        } else {
+            return {
+                current: this.currentSnapshot,
+                previous: this.previousSnapshot
+            };
         }
     }
 
@@ -933,35 +1068,43 @@
         });
     }
 
-    // API METHODS FOR GAME CODE
-	setElementActive(id, layer, isActive) {
-		const element = this.rawState.elements[layer]?.get(id);
-		if (element) {
-			element.isActive = isActive;
-		}
-	}
+    // CONTEXT-AWARE API METHODS FOR GAME CODE
+    
+    setElementActive(id, layer, isActive) {
+        const element = this.rawState.elements[layer]?.get(id);
+        if (element) {
+            element.isActive = isActive;
+        }
+    }
+    
     isElementJustPressed(id, layer = "gui") {
-        const isCurrentlyPressed = this.currentSnapshot.elements[layer]?.has(id);
-        const wasPreviouslyPressed = this.previousSnapshot.elements[layer]?.has(id);
+        const { current, previous } = this.getSnapshots();
         
-        // Element is pressed now but wasn't in the previous frame
+        const isCurrentlyPressed = current.elements[layer]?.has(id);
+        const wasPreviouslyPressed = previous.elements[layer]?.has(id);
+        
+        // Element is pressed now but wasn't in the previous frame/physics step
         return isCurrentlyPressed && !wasPreviouslyPressed;
     }
 
     isElementPressed(id, layer = "gui") {
-        return this.currentSnapshot.elements[layer]?.has(id) || false;
+        const { current } = this.getSnapshots();
+        return current.elements[layer]?.has(id) || false;
     }
 
     isElementJustHovered(id, layer = "gui") {
-        const isCurrentlyHovered = this.currentSnapshot.elementsHovered[layer]?.has(id);
-        const wasPreviouslyHovered = this.previousSnapshot.elementsHovered[layer]?.has(id);
+        const { current, previous } = this.getSnapshots();
         
-        // Element is hovered now but wasn't in the previous frame
+        const isCurrentlyHovered = current.elementsHovered[layer]?.has(id);
+        const wasPreviouslyHovered = previous.elementsHovered[layer]?.has(id);
+        
+        // Element is hovered now but wasn't in the previous frame/physics step
         return isCurrentlyHovered && !wasPreviouslyHovered;
     }
 
     isElementHovered(id, layer = "gui") {
-        return this.currentSnapshot.elementsHovered[layer]?.has(id) || false;
+        const { current } = this.getSnapshots();
+        return current.elementsHovered[layer]?.has(id) || false;
     }
 
     isElementActive(id, layer = "gui") {
@@ -971,66 +1114,79 @@
 
     // Legacy pointer methods for backward compatibility
     isPointerDown() {
-        return this.currentSnapshot.pointer.isDown;
+        const { current } = this.getSnapshots();
+        return current.pointer.isDown;
     }
 
     isPointerJustDown() {
-        // Pointer is down now but wasn't in the previous frame
-        return this.currentSnapshot.pointer.isDown && !this.previousSnapshot.pointer.isDown;
+        const { current, previous } = this.getSnapshots();
+        // Pointer is down now but wasn't in the previous frame/physics step
+        return current.pointer.isDown && !previous.pointer.isDown;
     }
 
     // Mouse button methods
     isLeftMouseButtonDown() {
-        return this.currentSnapshot.mouseButtons.left;
+        const { current } = this.getSnapshots();
+        return current.mouseButtons.left;
     }
 
     isRightMouseButtonDown() {
-        return this.currentSnapshot.mouseButtons.right;
+        const { current } = this.getSnapshots();
+        return current.mouseButtons.right;
     }
 
     isMiddleMouseButtonDown() {
-        return this.currentSnapshot.mouseButtons.middle;
+        const { current } = this.getSnapshots();
+        return current.mouseButtons.middle;
     }
 
     isLeftMouseButtonJustPressed() {
-        return this.currentSnapshot.mouseButtons.left && !this.previousSnapshot.mouseButtons.left;
+        const { current, previous } = this.getSnapshots();
+        return current.mouseButtons.left && !previous.mouseButtons.left;
     }
 
     isRightMouseButtonJustPressed() {
-        return this.currentSnapshot.mouseButtons.right && !this.previousSnapshot.mouseButtons.right;
+        const { current, previous } = this.getSnapshots();
+        return current.mouseButtons.right && !previous.mouseButtons.right;
     }
 
     isMiddleMouseButtonJustPressed() {
-        return this.currentSnapshot.mouseButtons.middle && !this.previousSnapshot.mouseButtons.middle;
+        const { current, previous } = this.getSnapshots();
+        return current.mouseButtons.middle && !previous.mouseButtons.middle;
     }
 
     // Generic mouse button method
     isMouseButtonDown(button) {
+        const { current } = this.getSnapshots();
         // button: 0=left, 1=middle, 2=right
-        if (button === 0) return this.currentSnapshot.mouseButtons.left;
-        if (button === 1) return this.currentSnapshot.mouseButtons.middle;
-        if (button === 2) return this.currentSnapshot.mouseButtons.right;
+        if (button === 0) return current.mouseButtons.left;
+        if (button === 1) return current.mouseButtons.middle;
+        if (button === 2) return current.mouseButtons.right;
         return false;
     }
 
     isMouseButtonJustPressed(button) {
+        const { current, previous } = this.getSnapshots();
         // button: 0=left, 1=middle, 2=right
-        if (button === 0) return this.currentSnapshot.mouseButtons.left && !this.previousSnapshot.mouseButtons.left;
-        if (button === 1) return this.currentSnapshot.mouseButtons.middle && !this.previousSnapshot.mouseButtons.middle;
-        if (button === 2) return this.currentSnapshot.mouseButtons.right && !this.previousSnapshot.mouseButtons.right;
+        if (button === 0) return current.mouseButtons.left && !previous.mouseButtons.left;
+        if (button === 1) return current.mouseButtons.middle && !previous.mouseButtons.middle;
+        if (button === 2) return current.mouseButtons.right && !previous.mouseButtons.right;
         return false;
     }
 
     // UI Button methods
     isUIButtonPressed(buttonId) {
-        return this.currentSnapshot.uiButtons.has(buttonId);
+        const { current } = this.getSnapshots();
+        return current.uiButtons.has(buttonId);
     }
 
     isUIButtonJustPressed(buttonId) {
-        const isCurrentlyPressed = this.currentSnapshot.uiButtons.has(buttonId);
-        const wasPreviouslyPressed = this.previousSnapshot.uiButtons.has(buttonId);
+        const { current, previous } = this.getSnapshots();
         
-        // Button is pressed now but wasn't in the previous frame
+        const isCurrentlyPressed = current.uiButtons.has(buttonId);
+        const wasPreviouslyPressed = previous.uiButtons.has(buttonId);
+        
+        // Button is pressed now but wasn't in the previous frame/physics step
         return isCurrentlyPressed && !wasPreviouslyPressed;
     }
 
@@ -1048,22 +1204,26 @@
 
     // Key check methods
     isKeyPressed(action) {
+        const { current } = this.getSnapshots();
+        
         for (const [key, actions] of this.actionMap) {
             if (actions.includes(action)) {
-                return this.currentSnapshot.keys.has(key);
+                return current.keys.has(key);
             }
         }
         return false;
     }
 
     isKeyJustPressed(action) {
+        const { current, previous } = this.getSnapshots();
+        
         for (const [key, actions] of this.actionMap) {
             if (actions.includes(action)) {
-                // Check if key was just pressed this frame
-                const isCurrentlyPressed = this.currentSnapshot.keys.has(key);
-                const wasPreviouslyPressed = this.previousSnapshot.keys.has(key);
+                // Check if key was just pressed this frame/physics step
+                const isCurrentlyPressed = current.keys.has(key);
+                const wasPreviouslyPressed = previous.keys.has(key);
                 
-                // Key is pressed now but wasn't in the previous frame
+                // Key is pressed now but wasn't in the previous frame/physics step
                 if (isCurrentlyPressed && !wasPreviouslyPressed) {
                     return true;
                 }
@@ -1103,6 +1263,13 @@
             this.rawState.elements[layer].clear();
         });
     }
+
+    // Method to get all registered actions
+    getRegisteredActions() {
+        const actions = new Set();
+        for (const [_, actionsList] of this.actionMap) {
+            actionsList.forEach(action => actions.add(action));
+        }
+        return Array.from(actions);
+    }
 }
-
-
