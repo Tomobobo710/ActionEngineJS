@@ -6,6 +6,20 @@ class SceneLayout {
         this.position = position;
         this.dimensions = dimensions;
         
+        // Type color mapping
+        this.typeColors = {
+            "floor": "#8B4513",          // Brown
+            "ceiling": "#696969",        // Dim Gray
+            "wall": "#A9A9A9",           // Dark Gray
+            "portal": "#0000FF80",       // Semi-transparent Blue
+            "world_portal": "#00FF0080", // Semi-transparent Green
+            "trigger": "#FFD70080",      // Semi-transparent Gold
+            "decoration": "#FF6347",     // Tomato
+            "chest": "#CD853F",          // Peru
+            "chair": "#DEB887",          // Burlywood
+            "table": "#D2B48C"           // Tan
+        };
+        
         // Entry point for characters coming into this scene
         this.entrancePosition = null;
         
@@ -28,104 +42,117 @@ class SceneLayout {
     }
     
     createBasicStructure() {
-        const {width, height, depth} = this.dimensions;
-        const {x, y, z} = this.position;
-        const wallThickness = this.wallThickness;
-        
-        // Create floor
-        this.objects.floor = new SceneCustomObject(
-            this.physicsWorld,
-            width + wallThickness * 2,
-            wallThickness,
-            depth + wallThickness * 2,
-            0,
-            new Vector3(x, y - wallThickness/2, z),
-            "floor"
-        );
-        this.physicsWorld.addObject(this.objects.floor);
-        
-        // Create ceiling
-        this.objects.ceiling = new SceneCustomObject(
-            this.physicsWorld,
-            width + wallThickness * 2,
-            wallThickness,
-            depth + wallThickness * 2,
-            0,
-            new Vector3(x, y + height + wallThickness/2, z),
-            "ceiling"
-        );
-        this.physicsWorld.addObject(this.objects.ceiling);
-        
-        // Create walls
-        //this.createFullWall("north");
-        //this.createFullWall("south");
-        this.createFullWall("east");
-        this.createFullWall("west");
-        
-        return this;
+    const {width, height, depth} = this.dimensions;
+    const {x, y, z} = this.position;
+    const wallThickness = this.wallThickness;
+    
+    // Create floor
+    this.objects.floor = new ActionPhysicsBox3D(
+        this.physicsWorld,
+        width + wallThickness * 2,
+        wallThickness,
+        depth + wallThickness * 2,
+        0,
+        new Vector3(x, y - wallThickness/2, z),
+        this.typeColors["floor"]
+    );
+    this.objects.floor.objectType = "floor";
+    this.objects.floor.body.friction = 0.8;
+    this.physicsWorld.addObject(this.objects.floor);
+    
+    // Create ceiling
+    this.objects.ceiling = new ActionPhysicsBox3D(
+        this.physicsWorld,
+        width + wallThickness * 2,
+        wallThickness,
+        depth + wallThickness * 2,
+        0,
+        new Vector3(x, y + height + wallThickness/2, z),
+        this.typeColors["ceiling"]
+    );
+    this.objects.ceiling.objectType = "ceiling";
+    this.physicsWorld.addObject(this.objects.ceiling);
+    
+    // Create visible walls
+    this.createFullWall("east");
+    this.createFullWall("west");
+    
+    // Create invisible walls for north/south (for collision but not blocking camera)
+    this.createFullWall("north", true);
+    //this.createFullWall("south", true);
+    
+    return this;
+}
+
+createFullWall(direction, invisible = false) {
+    const {width, height, depth} = this.dimensions;
+    const {x, y, z} = this.position;
+    const wallThickness = this.wallThickness;
+    
+    let wall;
+    let options = { isVisible: !invisible };
+    
+    switch(direction) {
+        case "north":
+            wall = new ActionPhysicsBox3D(
+                this.physicsWorld,
+                width + wallThickness * 2,
+                height,
+                wallThickness,
+                0,
+                new Vector3(x, y + height/2, z + depth/2 + wallThickness/2),
+                this.typeColors["wall"],
+                options
+            );
+            break;
+        case "south":
+            wall = new ActionPhysicsBox3D(
+                this.physicsWorld,
+                width + wallThickness * 2,
+                height,
+                wallThickness,
+                0,
+                new Vector3(x, y + height/2, z - depth/2 - wallThickness/2),
+                this.typeColors["wall"],
+                options
+            );
+            break;
+        // Other cases remain the same...
+        case "east":
+            wall = new ActionPhysicsBox3D(
+                this.physicsWorld,
+                wallThickness,
+                height,
+                depth,
+                0,
+                new Vector3(x + width/2 + wallThickness/2, y + height/2, z),
+                this.typeColors["wall"],
+                options
+            );
+            break;
+        case "west":
+            wall = new ActionPhysicsBox3D(
+                this.physicsWorld,
+                wallThickness,
+                height,
+                depth,
+                0,
+                new Vector3(x - width/2 - wallThickness/2, y + height/2, z),
+                this.typeColors["wall"],
+                options
+            );
+            break;
     }
     
-    createFullWall(direction) {
-        const {width, height, depth} = this.dimensions;
-        const {x, y, z} = this.position;
-        const wallThickness = this.wallThickness;
-        
-        let wall;
-        
-        switch(direction) {
-            case "north":
-                wall = new SceneCustomObject(
-                    this.physicsWorld,
-                    width + wallThickness * 2,
-                    height,
-                    wallThickness,
-                    0,
-                    new Vector3(x, y + height/2, z + depth/2 + wallThickness/2),
-                    "wall"
-                );
-                break;
-            case "south":
-                wall = new SceneCustomObject(
-                    this.physicsWorld,
-                    width + wallThickness * 2,
-                    height,
-                    wallThickness,
-                    0,
-                    new Vector3(x, y + height/2, z - depth/2 - wallThickness/2),
-                    "wall"
-                );
-                break;
-            case "east":
-                wall = new SceneCustomObject(
-                    this.physicsWorld,
-                    wallThickness,
-                    height,
-                    depth,
-                    0,
-                    new Vector3(x + width/2 + wallThickness/2, y + height/2, z),
-                    "wall"
-                );
-                break;
-            case "west":
-                wall = new SceneCustomObject(
-                    this.physicsWorld,
-                    wallThickness,
-                    height,
-                    depth,
-                    0,
-                    new Vector3(x - width/2 - wallThickness/2, y + height/2, z),
-                    "wall"
-                );
-                break;
-        }
-        
-        if (wall) {
-            this.physicsWorld.addObject(wall);
-            this.objects.walls[direction].push(wall);
-        }
-        
-        return wall;
+    if (wall) {
+        wall.objectType = "wall";
+        wall.isInvisible = invisible; // Store for reference
+        this.physicsWorld.addObject(wall);
+        this.objects.walls[direction].push(wall);
     }
+    
+    return wall;
+}
     
     createWallOpening(direction, openingWidth = 12, openingHeight = 16) {
         const {width, height, depth} = this.dimensions;
@@ -151,34 +178,34 @@ class SceneLayout {
             case "north": {
                 const sideWallWidth = (width + wallThickness * 2 - openingWidth) / 2;
                 
-                leftWall = new SceneCustomObject(
+                leftWall = new ActionPhysicsBox3D(
                     this.physicsWorld,
                     sideWallWidth,
                     height,
                     wallThickness,
                     0,
                     new Vector3(x - openingWidth/2 - sideWallWidth/2, y + height/2, z + depth/2 + wallThickness/2),
-                    "wall"
+                    this.typeColors["wall"]
                 );
                 
-                rightWall = new SceneCustomObject(
+                rightWall = new ActionPhysicsBox3D(
                     this.physicsWorld,
                     sideWallWidth,
                     height,
                     wallThickness,
                     0,
                     new Vector3(x + openingWidth/2 + sideWallWidth/2, y + height/2, z + depth/2 + wallThickness/2),
-                    "wall"
+                    this.typeColors["wall"]
                 );
                 
-                header = new SceneCustomObject(
+                header = new ActionPhysicsBox3D(
                     this.physicsWorld,
                     openingWidth,
                     height - openingHeight,
                     wallThickness,
                     0,
                     new Vector3(x, y + openingHeight + (height - openingHeight)/2, z + depth/2 + wallThickness/2),
-                    "wall"
+                    this.typeColors["wall"]
                 );
                 
                 openingPosition = new Vector3(x, y + openingHeight/2, z + depth/2 + wallThickness/2);
@@ -186,36 +213,37 @@ class SceneLayout {
                 break;
             }
             case "south": {
+                // Similar pattern for south direction
                 const sideWallWidth = (width + wallThickness * 2 - openingWidth) / 2;
                 
-                leftWall = new SceneCustomObject(
+                leftWall = new ActionPhysicsBox3D(
                     this.physicsWorld,
                     sideWallWidth,
                     height,
                     wallThickness,
                     0,
                     new Vector3(x + openingWidth/2 + sideWallWidth/2, y + height/2, z - depth/2 - wallThickness/2),
-                    "wall"
+                    this.typeColors["wall"]
                 );
                 
-                rightWall = new SceneCustomObject(
+                rightWall = new ActionPhysicsBox3D(
                     this.physicsWorld,
                     sideWallWidth,
                     height,
                     wallThickness,
                     0,
                     new Vector3(x - openingWidth/2 - sideWallWidth/2, y + height/2, z - depth/2 - wallThickness/2),
-                    "wall"
+                    this.typeColors["wall"]
                 );
                 
-                header = new SceneCustomObject(
+                header = new ActionPhysicsBox3D(
                     this.physicsWorld,
                     openingWidth,
                     height - openingHeight,
                     wallThickness,
                     0,
                     new Vector3(x, y + openingHeight + (height - openingHeight)/2, z - depth/2 - wallThickness/2),
-                    "wall"
+                    this.typeColors["wall"]
                 );
                 
                 openingPosition = new Vector3(x, y + openingHeight/2, z - depth/2 - wallThickness/2);
@@ -223,36 +251,37 @@ class SceneLayout {
                 break;
             }
             case "east": {
+                // East opening
                 const sideWallDepth = (depth - openingWidth) / 2;
                 
-                leftWall = new SceneCustomObject(
+                leftWall = new ActionPhysicsBox3D(
                     this.physicsWorld,
                     wallThickness,
                     height,
                     sideWallDepth,
                     0,
                     new Vector3(x + width/2 + wallThickness/2, y + height/2, z + openingWidth/2 + sideWallDepth/2),
-                    "wall"
+                    this.typeColors["wall"]
                 );
                 
-                rightWall = new SceneCustomObject(
+                rightWall = new ActionPhysicsBox3D(
                     this.physicsWorld,
                     wallThickness,
                     height,
                     sideWallDepth,
                     0,
                     new Vector3(x + width/2 + wallThickness/2, y + height/2, z - openingWidth/2 - sideWallDepth/2),
-                    "wall"
+                    this.typeColors["wall"]
                 );
                 
-                header = new SceneCustomObject(
+                header = new ActionPhysicsBox3D(
                     this.physicsWorld,
                     wallThickness,
                     height - openingHeight,
                     openingWidth,
                     0,
                     new Vector3(x + width/2 + wallThickness/2, y + openingHeight + (height - openingHeight)/2, z),
-                    "wall"
+                    this.typeColors["wall"]
                 );
                 
                 openingPosition = new Vector3(x + width/2 + wallThickness/2, y + openingHeight/2, z);
@@ -260,36 +289,37 @@ class SceneLayout {
                 break;
             }
             case "west": {
+                // West opening
                 const sideWallDepth = (depth - openingWidth) / 2;
                 
-                leftWall = new SceneCustomObject(
+                leftWall = new ActionPhysicsBox3D(
                     this.physicsWorld,
                     wallThickness,
                     height,
                     sideWallDepth,
                     0,
                     new Vector3(x - width/2 - wallThickness/2, y + height/2, z - openingWidth/2 - sideWallDepth/2),
-                    "wall"
+                    this.typeColors["wall"]
                 );
                 
-                rightWall = new SceneCustomObject(
+                rightWall = new ActionPhysicsBox3D(
                     this.physicsWorld,
                     wallThickness,
                     height,
                     sideWallDepth,
                     0,
                     new Vector3(x - width/2 - wallThickness/2, y + height/2, z + openingWidth/2 + sideWallDepth/2),
-                    "wall"
+                    this.typeColors["wall"]
                 );
                 
-                header = new SceneCustomObject(
+                header = new ActionPhysicsBox3D(
                     this.physicsWorld,
                     wallThickness,
                     height - openingHeight,
                     openingWidth,
                     0,
                     new Vector3(x - width/2 - wallThickness/2, y + openingHeight + (height - openingHeight)/2, z),
-                    "wall"
+                    this.typeColors["wall"]
                 );
                 
                 openingPosition = new Vector3(x - width/2 - wallThickness/2, y + openingHeight/2, z);
@@ -300,6 +330,10 @@ class SceneLayout {
                 console.error(`Invalid direction: ${direction}`);
                 return null;
         }
+        
+        leftWall.objectType = "wall";
+        rightWall.objectType = "wall";
+        header.objectType = "wall";
         
         this.physicsWorld.addObject(leftWall);
         this.physicsWorld.addObject(rightWall);
@@ -318,33 +352,44 @@ class SceneLayout {
         let portal;
         
         if (direction === "north" || direction === "south") {
-            portal = new SceneCustomObject(
+            portal = new ActionPhysicsBox3D(
                 this.physicsWorld,
                 portalWidth,
                 portalHeight,
                 wallThickness / 4,
                 0,
                 portalPosition,
-                "portal"
+                this.typeColors["portal"]
             );
         } else {
-            portal = new SceneCustomObject(
+            portal = new ActionPhysicsBox3D(
                 this.physicsWorld,
                 wallThickness / 4,
                 portalHeight,
                 portalWidth,
                 0,
                 portalPosition,
-                "portal"
+                this.typeColors["portal"]
             );
         }
         
+        portal.objectType = "portal";
         portal.targetSceneId = targetSceneId;
         portal.entryDirection = entryDirection;
         portal.cameraPosition = cameraPosition;
         
         // Add contact listener for player collision
         portal.body.debugName = `ScenePortal_${targetSceneId}`;
+        
+        // Allow character to pass through
+        portal.body.addListener('preContact', (body, contact) => {
+            if (body.debugName && body.debugName.includes('Character')) {
+                contact.restitution = 0;
+                contact.friction = 0;
+                contact.disabled = true;
+            }
+        });
+        
         portal.body.addListener(
             'contact',
             (other_body, contact) => {
@@ -375,26 +420,37 @@ class SceneLayout {
         let portal;
         
         if (direction === "north" || direction === "south") {
-            portal = new SceneCustomObject(
+            portal = new ActionPhysicsBox3D(
                 this.physicsWorld,
                 portalWidth,
                 portalHeight,
                 wallThickness / 4,
                 0,
                 portalPosition,
-                "world_portal"
+                this.typeColors["world_portal"]
             );
         } else {
-            portal = new SceneCustomObject(
+            portal = new ActionPhysicsBox3D(
                 this.physicsWorld,
                 wallThickness / 4,
                 portalHeight,
                 portalWidth,
                 0,
                 portalPosition,
-                "world_portal"
+                this.typeColors["world_portal"]
             );
         }
+        
+        portal.objectType = "world_portal";
+        
+        // Allow character to pass through
+        portal.body.addListener('preContact', (body, contact) => {
+            if (body.debugName && body.debugName.includes('Character')) {
+                contact.restitution = 0;
+                contact.friction = 0;
+                contact.disabled = true;
+            }
+        });
         
         // Add contact listener for player collision
         portal.body.debugName = 'WorldPortal';
@@ -422,16 +478,17 @@ class SceneLayout {
     }
     
     addDecoration(position, dimensions = {width: 4, height: 4, depth: 4}, type = "decoration") {
-        const decoration = new SceneCustomObject(
+        const decoration = new ActionPhysicsBox3D(
             this.physicsWorld,
             dimensions.width,
             dimensions.height,
             dimensions.depth,
             0,
             position,
-            type
+            this.typeColors[type] || this.typeColors["decoration"]
         );
         
+        decoration.objectType = type;
         this.physicsWorld.addObject(decoration);
         this.objects.decorations.push(decoration);
         
@@ -439,16 +496,17 @@ class SceneLayout {
     }
     
     addTrigger(position, dimensions = {width: 6, height: 10, depth: 6}, type = "trigger", callback = null) {
-        const trigger = new SceneCustomObject(
+        const trigger = new ActionPhysicsBox3D(
             this.physicsWorld,
             dimensions.width,
             dimensions.height,
             dimensions.depth,
             0,
             position,
-            "trigger"
+            this.typeColors["trigger"]
         );
         
+        trigger.objectType = "trigger";
         trigger.type = type;
         trigger.isActive = false;
         trigger.id = Date.now() + Math.floor(Math.random() * 1000);

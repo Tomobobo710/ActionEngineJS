@@ -344,11 +344,6 @@ class WorldMode {
             this.generateWorld();
         }
         
-        if (this.input.isKeyJustPressed("Action4")) {
-            console.log("[WorldMode] Switching to Scene mode...");
-            this.gameModeManager.switchMode("scene");
-        }
-        
         if (this.input.isKeyJustPressed("Action2")) {
             this.use2DRenderer = !this.use2DRenderer;
         }

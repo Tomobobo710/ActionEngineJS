@@ -15,6 +15,7 @@ class ActionFixedPerspectiveCharacter3D extends ActionCharacter {
         
         // Animation state tracking
         this.wasGroundedLastFrame = false;
+        this.lastMoveDirection = new Vector3(0, 0, 1);
     }
     
     applyInput(input, deltaTime) {
@@ -23,6 +24,9 @@ class ActionFixedPerspectiveCharacter3D extends ActionCharacter {
         
         // Calculate movement direction based on camera orientation
         const moveDir = new Goblin.Vector3();
+        
+        // Get input direction relative to camera
+        const viewMatrix = this.camera.getViewMatrix();
         
         // Get camera forward and right vectors from the view matrix
         const cameraForward = this.camera.getViewMatrix().forward;
@@ -39,27 +43,33 @@ class ActionFixedPerspectiveCharacter3D extends ActionCharacter {
         // Track if we're moving this frame
         let isMovingThisFrame = false;
         
-        // Handle movement input relative to camera
-        if (input.isKeyPressed("DirUp")) {
-            moveDir.x += forwardVec.x; // Fixed: DirUp should move in the forward direction
-            moveDir.z += forwardVec.z;
-            isMovingThisFrame = true;
-        }
-        if (input.isKeyPressed("DirDown")) {
-            moveDir.x -= forwardVec.x; // Fixed: DirDown should move in the backward direction
-            moveDir.z -= forwardVec.z;
-            isMovingThisFrame = true;
-        }
-        if (input.isKeyPressed("DirRight")) {
-            moveDir.x += rightVec.x;
-            moveDir.z += rightVec.z;
-            isMovingThisFrame = true;
-        }
-        if (input.isKeyPressed("DirLeft")) {
-            moveDir.x -= rightVec.x;
-            moveDir.z -= rightVec.z;
-            isMovingThisFrame = true;
-        }
+        
+
+    
+    // Calculate movement direction relative to camera
+    if (input.isKeyPressed("DirUp")) {
+        moveDir.x += viewMatrix.forward.x;
+        moveDir.z += viewMatrix.forward.z;
+    }
+    if (input.isKeyPressed("DirDown")) {
+        moveDir.x -= viewMatrix.forward.x;
+        moveDir.z -= viewMatrix.forward.z;
+    }
+    if (input.isKeyPressed("DirRight")) {
+        moveDir.x += viewMatrix.right.x;
+        moveDir.z += viewMatrix.right.z;
+    }
+    if (input.isKeyPressed("DirLeft")) {
+        moveDir.x -= viewMatrix.right.x;
+        moveDir.z -= viewMatrix.right.z;
+    }
+    
+    // If we're moving this frame, store the direction
+    if (moveDir.lengthSquared() > 0) {
+        moveDir.normalize();
+        this.lastMoveDirection.set(moveDir.x, 0, moveDir.z);
+        this.hasMovedOnce = true;
+    }
 
         // Normalize the movement vector if moving diagonally
         if (moveDir.lengthSquared() > 0) {
@@ -83,7 +93,16 @@ class ActionFixedPerspectiveCharacter3D extends ActionCharacter {
             console.log("Character Debug:", this.controller.getDebugInfo());
         }
     }
-    
+    // Override the updateFacingDirection method
+updateFacingDirection() {
+    if (this.hasMovedOnce) {
+        // Use last movement direction instead of rotation-based facing
+        this.facingDirection = this.lastMoveDirection;
+    } else {
+        // If character hasn't moved yet, use the base implementation
+        super.updateFacingDirection();
+    }
+}
     updateAnimationState() {
         if (!this.animator) return;
         
@@ -217,4 +236,6 @@ class ActionFixedPerspectiveCharacter3D extends ActionCharacter {
 
         return transformedTriangles;
     }
+    
+    
 }

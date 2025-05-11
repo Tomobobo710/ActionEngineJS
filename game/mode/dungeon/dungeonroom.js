@@ -5,6 +5,16 @@ class DungeonRoom {
         this.position = position;
         this.dimensions = this.standardizeDimensions(dimensions);
         
+        // Type color mapping
+        this.typeColors = {
+            "floor": "#8B4513",    // Brown
+            "ceiling": "#696969",  // Dim Gray
+            "wall": "#A9A9A9",     // Dark Gray
+            "door": "#8B0000",     // Dark Red
+            "trigger": "#FFD700",  // Gold
+            "world_portal": "#00FF0080" // Semi-transparent Green
+        };
+        
         this.objects = {
             floor: null,
             ceiling: null,
@@ -34,26 +44,29 @@ class DungeonRoom {
         const {x, y, z} = this.position;
         const wallThickness = this.wallThickness;
         
-        this.objects.floor = new DungeonCustomObject(
+        this.objects.floor = new ActionPhysicsBox3D(
             this.physicsWorld,
             width + wallThickness * 2,
             wallThickness,
             depth + wallThickness * 2,
             0,
             new Vector3(x, y - wallThickness/2, z),
-            "floor"
+            this.typeColors["floor"]
         );
+        this.objects.floor.objectType = "floor";
+        this.objects.floor.body.friction = 0.8; // Keep floor friction for character movement
         this.physicsWorld.addObject(this.objects.floor);
         
-        this.objects.ceiling = new DungeonCustomObject(
+        this.objects.ceiling = new ActionPhysicsBox3D(
             this.physicsWorld,
             width + wallThickness * 2,
             wallThickness,
             depth + wallThickness * 2,
             0,
             new Vector3(x, y + height + wallThickness/2, z),
-            "ceiling"
+            this.typeColors["ceiling"]
         );
+        this.objects.ceiling.objectType = "ceiling";
         this.physicsWorld.addObject(this.objects.ceiling);
         
         this.createFullWall("north");
@@ -73,52 +86,53 @@ class DungeonRoom {
         
         switch(direction) {
             case "north":
-                wall = new DungeonCustomObject(
+                wall = new ActionPhysicsBox3D(
                     this.physicsWorld,
                     width + wallThickness * 2,
                     height,
                     wallThickness,
                     0,
                     new Vector3(x, y + height/2, z + depth/2 + wallThickness/2),
-                    "wall"
+                    this.typeColors["wall"]
                 );
                 break;
             case "south":
-                wall = new DungeonCustomObject(
+                wall = new ActionPhysicsBox3D(
                     this.physicsWorld,
                     width + wallThickness * 2,
                     height,
                     wallThickness,
                     0,
                     new Vector3(x, y + height/2, z - depth/2 - wallThickness/2),
-                    "wall"
+                    this.typeColors["wall"]
                 );
                 break;
             case "east":
-                wall = new DungeonCustomObject(
+                wall = new ActionPhysicsBox3D(
                     this.physicsWorld,
                     wallThickness,
                     height,
                     depth,
                     0,
                     new Vector3(x + width/2 + wallThickness/2, y + height/2, z),
-                    "wall"
+                    this.typeColors["wall"]
                 );
                 break;
             case "west":
-                wall = new DungeonCustomObject(
+                wall = new ActionPhysicsBox3D(
                     this.physicsWorld,
                     wallThickness,
                     height,
                     depth,
                     0,
                     new Vector3(x - width/2 - wallThickness/2, y + height/2, z),
-                    "wall"
+                    this.typeColors["wall"]
                 );
                 break;
         }
         
         if (wall) {
+            wall.objectType = "wall";
             this.physicsWorld.addObject(wall);
             this.objects.walls[direction].push(wall);
         }
@@ -150,34 +164,34 @@ class DungeonRoom {
             case "north": {
                 const sideWallWidth = (width + wallThickness * 2 - openingWidth) / 2;
                 
-                leftWall = new DungeonCustomObject(
+                leftWall = new ActionPhysicsBox3D(
                     this.physicsWorld,
                     sideWallWidth,
                     height,
                     wallThickness,
                     0,
                     new Vector3(x - openingWidth/2 - sideWallWidth/2, y + height/2, z + depth/2 + wallThickness/2),
-                    "wall"
+                    this.typeColors["wall"]
                 );
                 
-                rightWall = new DungeonCustomObject(
+                rightWall = new ActionPhysicsBox3D(
                     this.physicsWorld,
                     sideWallWidth,
                     height,
                     wallThickness,
                     0,
                     new Vector3(x + openingWidth/2 + sideWallWidth/2, y + height/2, z + depth/2 + wallThickness/2),
-                    "wall"
+                    this.typeColors["wall"]
                 );
                 
-                header = new DungeonCustomObject(
+                header = new ActionPhysicsBox3D(
                     this.physicsWorld,
                     openingWidth,
                     height - openingHeight,
                     wallThickness,
                     0,
                     new Vector3(x, y + openingHeight + (height - openingHeight)/2, z + depth/2 + wallThickness/2),
-                    "wall"
+                    this.typeColors["wall"]
                 );
                 
                 openingPosition = new Vector3(x, y + openingHeight/2, z + depth/2 + wallThickness/2);
@@ -186,34 +200,34 @@ class DungeonRoom {
             case "south": {
                 const sideWallWidth = (width + wallThickness * 2 - openingWidth) / 2;
                 
-                leftWall = new DungeonCustomObject(
+                leftWall = new ActionPhysicsBox3D(
                     this.physicsWorld,
                     sideWallWidth,
                     height,
                     wallThickness,
                     0,
                     new Vector3(x + openingWidth/2 + sideWallWidth/2, y + height/2, z - depth/2 - wallThickness/2),
-                    "wall"
+                    this.typeColors["wall"]
                 );
                 
-                rightWall = new DungeonCustomObject(
+                rightWall = new ActionPhysicsBox3D(
                     this.physicsWorld,
                     sideWallWidth,
                     height,
                     wallThickness,
                     0,
                     new Vector3(x - openingWidth/2 - sideWallWidth/2, y + height/2, z - depth/2 - wallThickness/2),
-                    "wall"
+                    this.typeColors["wall"]
                 );
                 
-                header = new DungeonCustomObject(
+                header = new ActionPhysicsBox3D(
                     this.physicsWorld,
                     openingWidth,
                     height - openingHeight,
                     wallThickness,
                     0,
                     new Vector3(x, y + openingHeight + (height - openingHeight)/2, z - depth/2 - wallThickness/2),
-                    "wall"
+                    this.typeColors["wall"]
                 );
                 
                 openingPosition = new Vector3(x, y + openingHeight/2, z - depth/2 - wallThickness/2);
@@ -222,34 +236,34 @@ class DungeonRoom {
             case "east": {
                 const sideWallDepth = (depth - openingWidth) / 2;
                 
-                leftWall = new DungeonCustomObject(
+                leftWall = new ActionPhysicsBox3D(
                     this.physicsWorld,
                     wallThickness,
                     height,
                     sideWallDepth,
                     0,
                     new Vector3(x + width/2 + wallThickness/2, y + height/2, z + openingWidth/2 + sideWallDepth/2),
-                    "wall"
+                    this.typeColors["wall"]
                 );
                 
-                rightWall = new DungeonCustomObject(
+                rightWall = new ActionPhysicsBox3D(
                     this.physicsWorld,
                     wallThickness,
                     height,
                     sideWallDepth,
                     0,
                     new Vector3(x + width/2 + wallThickness/2, y + height/2, z - openingWidth/2 - sideWallDepth/2),
-                    "wall"
+                    this.typeColors["wall"]
                 );
                 
-                header = new DungeonCustomObject(
+                header = new ActionPhysicsBox3D(
                     this.physicsWorld,
                     wallThickness,
                     height - openingHeight,
                     openingWidth,
                     0,
                     new Vector3(x + width/2 + wallThickness/2, y + openingHeight + (height - openingHeight)/2, z),
-                    "wall"
+                    this.typeColors["wall"]
                 );
                 
                 openingPosition = new Vector3(x + width/2 + wallThickness/2, y + openingHeight/2, z);
@@ -258,34 +272,34 @@ class DungeonRoom {
             case "west": {
                 const sideWallDepth = (depth - openingWidth) / 2;
                 
-                leftWall = new DungeonCustomObject(
+                leftWall = new ActionPhysicsBox3D(
                     this.physicsWorld,
                     wallThickness,
                     height,
                     sideWallDepth,
                     0,
                     new Vector3(x - width/2 - wallThickness/2, y + height/2, z - openingWidth/2 - sideWallDepth/2),
-                    "wall"
+                    this.typeColors["wall"]
                 );
                 
-                rightWall = new DungeonCustomObject(
+                rightWall = new ActionPhysicsBox3D(
                     this.physicsWorld,
                     wallThickness,
                     height,
                     sideWallDepth,
                     0,
                     new Vector3(x - width/2 - wallThickness/2, y + height/2, z + openingWidth/2 + sideWallDepth/2),
-                    "wall"
+                    this.typeColors["wall"]
                 );
                 
-                header = new DungeonCustomObject(
+                header = new ActionPhysicsBox3D(
                     this.physicsWorld,
                     wallThickness,
                     height - openingHeight,
                     openingWidth,
                     0,
                     new Vector3(x - width/2 - wallThickness/2, y + openingHeight + (height - openingHeight)/2, z),
-                    "wall"
+                    this.typeColors["wall"]
                 );
                 
                 openingPosition = new Vector3(x - width/2 - wallThickness/2, y + openingHeight/2, z);
@@ -295,6 +309,10 @@ class DungeonRoom {
                 console.error(`Invalid direction: ${direction}`);
                 return null;
         }
+        
+        leftWall.objectType = "wall";
+        rightWall.objectType = "wall";
+        header.objectType = "wall";
         
         this.physicsWorld.addObject(leftWall);
         this.physicsWorld.addObject(rightWall);
@@ -313,27 +331,28 @@ class DungeonRoom {
         let door;
         
         if (direction === "north" || direction === "south") {
-            door = new DungeonCustomObject(
+            door = new ActionPhysicsBox3D(
                 this.physicsWorld,
                 doorWidth,
                 doorHeight,
                 wallThickness * 0.98,
                 0,
                 doorPosition,
-                "door"
+                this.typeColors["door"]
             );
         } else {
-            door = new DungeonCustomObject(
+            door = new ActionPhysicsBox3D(
                 this.physicsWorld,
                 wallThickness * 0.98,
                 doorHeight,
                 doorWidth,
                 0,
                 doorPosition,
-                "door"
+                this.typeColors["door"]
             );
         }
         
+        door.objectType = "door";
         this.objects.doors[direction] = door;
         this.doorStates[direction] = true; // Always closed
         
@@ -351,27 +370,28 @@ class DungeonRoom {
         let portal;
         
         if (direction === "north" || direction === "south") {
-            portal = new DungeonCustomObject(
+            portal = new ActionPhysicsBox3D(
                 this.physicsWorld,
                 portalWidth,
                 portalHeight,
                 wallThickness / 2,
                 0,
                 portalPosition,
-                "trigger"
+                this.typeColors["world_portal"]
             );
         } else {
-            portal = new DungeonCustomObject(
+            portal = new ActionPhysicsBox3D(
                 this.physicsWorld,
                 wallThickness / 2,
                 portalHeight,
                 portalWidth,
                 0,
                 portalPosition,
-                "trigger"
+                this.typeColors["world_portal"]
             );
         }
         
+        portal.objectType = "world_portal";
         portal.portalType = "world";
         portal.destination = destination;
         
@@ -402,16 +422,17 @@ class DungeonRoom {
     }
     
     addTrigger(position, dimensions = {width: 6, height: 10, depth: 6}, type = "pressure_plate") {
-        const trigger = new DungeonCustomObject(
+        const trigger = new ActionPhysicsBox3D(
             this.physicsWorld,
             dimensions.width,
             dimensions.height,
             dimensions.depth,
             0,
             position,
-            "trigger"
+            this.typeColors["trigger"]
         );
         
+        trigger.objectType = "trigger";
         trigger.type = type;
         trigger.isActive = false;
         trigger.id = Date.now() + Math.floor(Math.random() * 1000);
@@ -484,8 +505,6 @@ class DungeonRoom {
             this.objects.doors[direction] = null;
             this.doorStates[direction] = null;
         }
-        
-        return this;
         
         return this;
     }
@@ -579,16 +598,17 @@ class DungeonRoom {
     }
     
     addDecoration(position, dimensions = {width: 4, height: 4, depth: 4}, type = "pedestal") {
-        const decoration = new DungeonCustomObject(
+        const decoration = new ActionPhysicsBox3D(
             this.physicsWorld,
             dimensions.width,
             dimensions.height,
             dimensions.depth,
             0,
             position,
-            type
+            this.typeColors[type] || "#A0522D" // Default to saddle brown if type not found
         );
         
+        decoration.objectType = type;
         this.physicsWorld.addObject(decoration);
         this.objects.decorations.push(decoration);
         

@@ -1,11 +1,20 @@
 class ActionPhysicsObject3D extends RenderableObject {
-    constructor(physicsWorld, triangles) {
+     constructor(physicsWorld, triangles, options = {}) {
         super();
         if (!physicsWorld) {
             throw new Error("[ActionPhysicsObject3D] Physics world is required");
         }
         this.physicsWorld = physicsWorld;
-        this.triangles = triangles;
+        
+        // Store the original triangles for later toggling
+        this._originalTriangles = triangles.slice();
+        
+        // Set visibility property
+        this.isVisible = options && options.isVisible !== undefined ? options.isVisible : true;
+        
+        // Initialize triangles based on visibility
+        this.triangles = this.isVisible ? this._originalTriangles : [];
+        
         this.originalNormals = [];
         this.originalVerts = [];
         this.position = new Vector3(0, 0, 0);
@@ -13,13 +22,36 @@ class ActionPhysicsObject3D extends RenderableObject {
         // Calculate bounding sphere for frustum culling
         this.calculateBoundingSphere();
         
-        this.triangles.forEach((triangle) => {
-            this.originalNormals.push(new Vector3(triangle.normal.x, triangle.normal.y, triangle.normal.z));
-
+        // We need to store normals and verts even for invisible objects
+        // so when they become visible again we can update them correctly
+        // Use _originalTriangles to ensure we always have the data
+        this._originalTriangles.forEach((triangle) => {
+            this.originalNormals.push(new Vector3(
+                triangle.normal.x,
+                triangle.normal.y,
+                triangle.normal.z
+            ));
+            
             triangle.vertices.forEach((vertex) => {
-                this.originalVerts.push(new Vector3(vertex.x, vertex.y, vertex.z));
+                this.originalVerts.push(new Vector3(
+                    vertex.x,
+                    vertex.y,
+                    vertex.z
+                ));
             });
         });
+    }
+
+    // Add a method to toggle visibility
+    setVisibility(visible) {
+        if (this.isVisible === visible) return; // No change needed
+        
+        this.isVisible = visible;
+        
+        // Update triangles based on visibility - this is the key part
+        // When invisible, we set triangles to an empty array
+        // When visible, we restore the original triangles
+        this.triangles = visible ? this._originalTriangles : [];
     }
 
     updateVisual() {
