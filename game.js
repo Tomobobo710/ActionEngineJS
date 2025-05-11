@@ -15,6 +15,10 @@ class Game {
        console.log("[Game] Initialization completed");
    }
    
+    action_fixed_update(dt){
+        this.gameMaster.fixed_update(dt);
+    }
+    
    action_update(dt) {
        this.gameMaster.update();
    }

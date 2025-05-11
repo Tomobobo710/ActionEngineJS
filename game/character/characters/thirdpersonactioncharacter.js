@@ -145,6 +145,9 @@ class ThirdPersonActionCharacter extends ActionCharacter {
     update(deltaTime){
         super.update(deltaTime);
         
+        // Save this physics data for other methods
+        this.debugInfo = this.controller.getDebugInfo();
+        
         // Get the character's physics state from the debug info
         const state = this.debugInfo.state.current;
         const velocity = this.debugInfo.physics.velocity;
@@ -169,7 +172,13 @@ class ThirdPersonActionCharacter extends ActionCharacter {
                 }
             }
         }
+    }
+    
+    fixed_update(fixedDeltaTime) {
+        // Call the parent fixed_update for physics
+        super.fixed_update(fixedDeltaTime);
         
+        // Physics-driven updates should be here
         const pos = this.body.position;
 
         // Check if we're below 0
@@ -189,8 +198,12 @@ class ThirdPersonActionCharacter extends ActionCharacter {
                 this.controller.changeState("falling");
             }
         }
+
         
-        // Update animations based on state changes
+        // Update terrain info (non-physics update)
+        this.updateTerrainInfo();
+        
+        // Update animations based on state changes (visual update)
         this.updateAnimationState();
 
         if (this.animator) {

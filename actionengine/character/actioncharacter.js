@@ -187,7 +187,12 @@ class ActionCharacter extends RenderableObject {
     }
 
     update(deltaTime) {
-        this.controller.update(deltaTime);
+        // Physics is now handled in fixed_update, only do non-physics updates here
+    }
+    
+    fixed_update(fixedDeltaTime) {
+        // Physics and character controller updates should be handled in fixed timestep
+        this.controller.update(fixedDeltaTime);
         if (this.body) {
             const pos = this.body.position;
 

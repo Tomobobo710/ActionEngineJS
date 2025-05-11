@@ -198,21 +198,32 @@ class WorldMode {
         this.lastTime = performance.now();
         this.physicsWorld.resume();
     }
-    update() {
-        const currentTime = performance.now();
-        this.deltaTime = Math.min((currentTime - this.lastTime) / 1000, 0.25);
-        this.lastTime = currentTime;
+    
+    fixed_update(fixedDeltaTime) {
+        if (this.isPaused) return;
+        
+        // Physics simulation belongs in fixed update
+        this.physicsWorld.fixed_update(fixedDeltaTime);
+        
+        // Character physics-related updates
+        if (this.character) {
+            this.character.fixed_update(fixedDeltaTime);
+        }
+    }
+    
+    update(deltaTime) {
+        // Store delta time for components that need it
+        this.deltaTime = deltaTime;
 
         if (!this.isPaused) {
             // Update world time
-            this.updateWorldTime(this.deltaTime);
-
-            // Character buffers no longer need special updates - treated like any other object
-
+            this.updateWorldTime(deltaTime);
             
+            // Handle input in variable update
             this.handleInput();
-            this.physicsWorld.update(this.deltaTime);
-            this.weatherSystem.update(this.deltaTime, this.terrain);
+            
+            // Update non-physics systems
+            this.weatherSystem.update(deltaTime, this.terrain);
 
             if (this.character && this.weatherSystem) {
                 this.weatherSystem.updatePosition(this.character.position);
@@ -238,8 +249,7 @@ class WorldMode {
                     });
                 }
                 
-                // Check fishing spots - this might need to be accessed differently
-                // since I'm not sure if they're tracked in a fishingSpots array
+                // Check fishing spots
                 if (this.poiManager.fishingSpots) {
                     this.poiManager.fishingSpots.forEach(spot => {
                         if (spot.checkPlayerDistance) {

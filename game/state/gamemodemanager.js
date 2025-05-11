@@ -12,23 +12,23 @@ class GameModeManager {
     switchMode(modeName) {
         // Clean up current mode if it exists
         if (this.activeMode) {
-        // Make sure we're getting the actual position/rotation from the character
-        if (this.activeMode.character) {
-            const position = new Vector3(
-                this.activeMode.character.position.x,
-                this.activeMode.character.position.y,
-                this.activeMode.character.position.z
-            );
-            const rotation = this.activeMode.character.rotation;
-            
-            // Debug log to verify values
-            console.log("Saving position:", position, "rotation:", rotation);
-            this.gameMaster.savePlayerState(position, rotation);
+            // Make sure we're getting the actual position/rotation from the character
+            if (this.activeMode.character) {
+                const position = new Vector3(
+                    this.activeMode.character.position.x,
+                    this.activeMode.character.position.y,
+                    this.activeMode.character.position.z
+                );
+                const rotation = this.activeMode.character.rotation;
+
+                // Debug log to verify values
+                console.log("Saving position:", position, "rotation:", rotation);
+                this.gameMaster.savePlayerState(position, rotation);
+            }
+
+            this.activeMode.cleanup();
+            this.activeMode = null;
         }
-        
-        this.activeMode.cleanup();
-        this.activeMode = null;
-    }
 
         // Clear all canvases before switching
         const gl =
@@ -67,14 +67,14 @@ class GameModeManager {
                     this // Pass the GameModeManager instance
                 );
                 break;
-                case 'rpgmenu':
-               this.activeMode = new RPGMenuMode(
-                   this.gameMaster.canvases,
-                   this.gameMaster.input,
-                   this.gameMaster.audio,
-                   this.gameMaster
-               );
-               break;
+            case "rpgmenu":
+                this.activeMode = new RPGMenuMode(
+                    this.gameMaster.canvases,
+                    this.gameMaster.input,
+                    this.gameMaster.audio,
+                    this.gameMaster
+                );
+                break;
             case "world":
                 this.activeMode = new WorldMode(
                     this.gameMaster.canvases,
@@ -112,10 +112,15 @@ class GameModeManager {
         this.switchMode(this.modes[this.currentModeIndex]);
     }
 
+    fixed_update(fixedDeltaTime) {
+        if (this.activeMode && typeof this.activeMode.fixed_update === "function") {
+            this.activeMode.fixed_update(fixedDeltaTime);
+        }
+    }
+    
     update(deltaTime) {
         if (this.activeMode) {
             this.activeMode.update(deltaTime);
-
             // Check if battle mode is finished
             if (this.currentMode === "battle") {
                 const battleMode = this.activeMode;

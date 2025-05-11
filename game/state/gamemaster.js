@@ -118,6 +118,11 @@ class GameMaster {
         this.worldTime.minutes = minutes;
     }
     
+    fixed_update(fixedDeltaTime){
+        // Pass fixed timestep updates to active mode
+        this.modeManager.fixed_update(fixedDeltaTime);
+    }
+    
     update() {
         const currentTime = performance.now();
         this.deltaTime = Math.min((currentTime - this.lastTime) / 1000, 0.25);
