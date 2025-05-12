@@ -42,8 +42,8 @@ class MaterialDebugPanel extends BaseDebugPanel {
 
     updateMaterialSystem() {
         // Update the lighting constants with new material values
-        if (this.game.renderer3D?.lightingManager?.constants) {
-            const materialConfig = this.game.renderer3D.lightingManager.constants.MATERIAL;
+        if (this.game.renderer3D?.lightManager?.constants) {
+            const materialConfig = this.game.renderer3D.lightManager.constants.MATERIAL;
 
             // Get global values from registry
             const globalProps = this.textureRegistry.defaultMaterialProperties;

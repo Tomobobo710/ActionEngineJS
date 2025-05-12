@@ -1,33 +1,134 @@
-// actionengine/display/graphics/renderers/actionrenderer3D/shadowmanager.js
-class ShadowManager {
-    constructor(gl, programManager, isWebGL2) {
-        this.gl = gl;
+// actionengine/display/graphics/lighting/actiondirectionalshadowlight.js
+
+/**
+ * Directional light with shadow mapping capability
+ * This light type simulates light coming from a distance in a specific direction,
+ * like sunlight, with parallel light rays.
+ */
+class ActionDirectionalShadowLight extends ActionLight {
+    /**
+     * Constructor for a directional shadow light
+     * @param {WebGLRenderingContext} gl - The WebGL rendering context
+     * @param {boolean} isWebGL2 - Flag indicating if WebGL2 is available
+     * @param {ProgramManager} programManager - Reference to the program manager for shader access
+     */
+    constructor(gl, isWebGL2, programManager) {
+        super(gl, isWebGL2);
+        
         this.programManager = programManager;
-        this.isWebGL2 = isWebGL2;
         this.programRegistry = programManager.getProgramRegistry();
-
-        // Use lighting constants for shadow settings
-        this.constants = lightingConstants;
-
+        
+        // Directional light specific properties
+        this.direction = new Vector3(0, -1, 0);
+        
+        // Enable shadows by default for directional lights
+        this.castsShadows = true;
+        
         // Shadow map settings from constants
         this.shadowMapSize = this.constants.SHADOW_MAP.SIZE.value;
         this.shadowBias = this.constants.SHADOW_MAP.BIAS.value;
-
+        
+        // For tracking direction changes
+        this._lastDirection = undefined;
+        
         // Create matrices for shadow calculations
         this.lightProjectionMatrix = Matrix4.create();
         this.lightViewMatrix = Matrix4.create();
         this.lightSpaceMatrix = Matrix4.create();
-
-        // Initialize shadow map resources
-        this.setupShadowMap();
-
-        // Create shadow shader program
-        this.setupShadowShaderProgram();
         
-        // Create reusable buffers for shadow rendering
-        this.createReusableBuffers();
+        // Initialize shadow map resources and shader program
+        if (this.castsShadows) {
+            this.setupShadowMap();
+            this.setupShadowShaderProgram();
+            this.createReusableBuffers();
+        }
     }
-
+    
+    /**
+     * Set the light direction
+     * @param {Vector3} direction - The new direction vector (will be normalized)
+     */
+    setDirection(direction) {
+        // Use copy if it exists, otherwise fall back to direct assignment
+        if (typeof this.direction.copy === 'function') {
+            this.direction.copy(direction);
+        } else {
+            this.direction.x = direction.x;
+            this.direction.y = direction.y;
+            this.direction.z = direction.z;
+        }
+        this.direction.normalizeInPlace();
+    }
+    
+    /**
+     * Get the light direction
+     * @returns {Vector3} - The current direction
+     */
+    getDirection() {
+        return this.direction;
+    }
+    
+    /**
+     * Override the update method to check for direction changes
+     * @returns {boolean} - Whether any properties changed this frame
+     */
+    update() {
+        let changed = super.update();
+        
+        // Check if direction has changed
+        if (this._lastDirection === undefined ||
+            this._lastDirection.x !== this.direction.x ||
+            this._lastDirection.y !== this.direction.y ||
+            this._lastDirection.z !== this.direction.z) {
+            
+            // Cache current direction to detect changes
+            this._lastDirection = {
+                x: this.direction.x,
+                y: this.direction.y,
+                z: this.direction.z
+            };
+            
+            changed = true;
+        }
+        
+        // If any properties changed and shadows are enabled,
+        // update the light space matrix
+        if (changed && this.castsShadows) {
+            this.updateLightSpaceMatrix();
+        }
+        
+        return changed;
+    }
+    
+    /**
+     * Update properties from global lighting constants
+     */
+    syncWithConstants() {
+        // Update position from constants
+        this.position.x = this.constants.LIGHT_POSITION.x;
+        this.position.y = this.constants.LIGHT_POSITION.y;
+        this.position.z = this.constants.LIGHT_POSITION.z;
+        
+        // Update direction from constants
+        this.direction.x = this.constants.LIGHT_DIRECTION.x;
+        this.direction.y = this.constants.LIGHT_DIRECTION.y;
+        this.direction.z = this.constants.LIGHT_DIRECTION.z;
+        
+        // Update intensity from constants
+        this.intensity = this.constants.LIGHT_INTENSITY.value;
+        
+        // Check if shadow map size has changed
+        if (this.shadowMapSize !== this.constants.SHADOW_MAP.SIZE.value) {
+            this.shadowMapSize = this.constants.SHADOW_MAP.SIZE.value;
+            if (this.castsShadows) {
+                this.setupShadowMap(); // Recreate shadow map with new size
+            }
+        }
+        
+        // Update bias value
+        this.shadowBias = this.constants.SHADOW_MAP.BIAS.value;
+    }
+    
     /**
      * Set up shadow map framebuffer and texture
      */
@@ -93,11 +194,10 @@ class ShadowManager {
         // Unbind the framebuffer
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     }
-
+    
     /**
-     * Set up shadow shader program and get all necessary locations
+     * Create reusable buffers for shadow rendering
      */
-    // Create reusable buffers for shadow rendering
     createReusableBuffers() {
         // Create persistent buffers instead of per-object temporary ones
         this.shadowBuffers = {
@@ -105,42 +205,41 @@ class ShadowManager {
             index: this.gl.createBuffer()
         };
     }
-
-    setupShadowShaderProgram() {
-        const shadowShader = new ShadowShader();
-
-        // Create shadow map program
-        this.shadowProgram = this.programRegistry.createShaderProgram(
-            shadowShader.getShadowVertexShader(this.isWebGL2),
-            shadowShader.getShadowFragmentShader(this.isWebGL2),
-            "shadow_depth_pass"
-        );
-
-        // Get attribute and uniform locations
-        this.shadowLocations = {
-            position: this.gl.getAttribLocation(this.shadowProgram, "aPosition"),
-            lightSpaceMatrix: this.gl.getUniformLocation(this.shadowProgram, "uLightSpaceMatrix"),
-            modelMatrix: this.gl.getUniformLocation(this.shadowProgram, "uModelMatrix"),
-            debugShadowMap: this.gl.getUniformLocation(this.shadowProgram, "uDebugShadowMap"),
-            forceShadowMapTest: this.gl.getUniformLocation(this.shadowProgram, "uForceShadowMapTest"),
-            shadowMapSize: this.gl.getUniformLocation(this.shadowProgram, "uShadowMapSize")
-        };
-
-        console.log("Shadow shader program initialized:", this.shadowProgram);
-        console.log("Shadow locations:", this.shadowLocations);
-    }
-
+    
     /**
-     * Updates light space matrices based on light position and scene bounds
-     * Light Direction Convention: In this engine, the light direction vector indicates where
-     * light is coming FROM, not going TO. However, in the shader lighting calculations,
-     * we negate this direction to get the vector pointing toward the light source.
-     *
-     * @param {Vector3} lightPos - Light position
-     * @param {Vector3} lightDir - Light direction vector (points FROM light source)
-     * @param {Object} sceneBounds - Scene bounding box (min, max vectors)
+     * Set up shadow shader program and get all necessary locations
      */
-    updateLightSpaceMatrix(lightPos, lightDir, sceneBounds) {
+    setupShadowShaderProgram() {
+        try {
+            const shadowShader = new ShadowShader();
+
+            // Create shadow map program
+            this.shadowProgram = this.programRegistry.createShaderProgram(
+                shadowShader.getShadowVertexShader(this.isWebGL2),
+                shadowShader.getShadowFragmentShader(this.isWebGL2),
+                "shadow_depth_pass"
+            );
+
+            // Get attribute and uniform locations
+            this.shadowLocations = {
+                position: this.gl.getAttribLocation(this.shadowProgram, "aPosition"),
+                lightSpaceMatrix: this.gl.getUniformLocation(this.shadowProgram, "uLightSpaceMatrix"),
+                modelMatrix: this.gl.getUniformLocation(this.shadowProgram, "uModelMatrix"),
+                debugShadowMap: this.gl.getUniformLocation(this.shadowProgram, "uDebugShadowMap"),
+                forceShadowMapTest: this.gl.getUniformLocation(this.shadowProgram, "uForceShadowMapTest"),
+                shadowMapSize: this.gl.getUniformLocation(this.shadowProgram, "uShadowMapSize")
+            };
+        } catch (error) {
+            console.error("Error setting up shadow shader program:", error);
+        }
+    }
+    
+    /**
+     * Updates light space matrices based on light position and direction
+     * This creates the view and projection matrices needed for shadow mapping
+     * @param {Object} sceneBounds - Optional scene bounding box (min, max vectors) for automatic fitting
+     */
+    updateLightSpaceMatrix(sceneBounds) {
         // Default scene bounds if not provided
         if (!sceneBounds) {
             sceneBounds = {
@@ -176,29 +275,27 @@ class ShadowManager {
 
         // Create light view matrix - looking from light position toward center
         const lightTarget = new Vector3(0, 0, 0);
-        if (lightDir) {
-            // Use a fixed distance value instead of a configurable one
-            const fixedDistance = 100.0;
+        
+        // Use a fixed distance value
+        const fixedDistance = 100.0;
 
-            // If light direction is provided, use it to calculate target position
-            lightTarget.x = lightPos.x + lightDir.x * fixedDistance;
-            lightTarget.y = lightPos.y + lightDir.y * fixedDistance;
-            lightTarget.z = lightPos.z + lightDir.z * fixedDistance;
-        }
+        // Calculate target position based on light direction
+        lightTarget.x = this.position.x + this.direction.x * fixedDistance;
+        lightTarget.y = this.position.y + this.direction.y * fixedDistance;
+        lightTarget.z = this.position.z + this.direction.z * fixedDistance;
 
         // Choose an appropriate up vector that avoids collinearity with light direction
         let upVector = [0, 1, 0]; // Default up vector
         
         // Check if light direction is too closely aligned with the default up vector
-        // This avoids numerical issues when the light is pointing straight up or down
-        if (Math.abs(lightDir.y) > 0.99) {
+        if (Math.abs(this.direction.y) > 0.99) {
             // If pointing almost straight up/down, use Z axis as up vector instead
             upVector = [0, 0, 1];
         }
         
         Matrix4.lookAt(
             this.lightViewMatrix,
-            lightPos.toArray(),
+            this.position.toArray(),
             lightTarget.toArray(),
             upVector
         );
@@ -206,7 +303,7 @@ class ShadowManager {
         // Combine into light space matrix
         Matrix4.multiply(this.lightSpaceMatrix, this.lightProjectionMatrix, this.lightViewMatrix);
     }
-
+    
     /**
      * Begin shadow map rendering pass
      */
@@ -219,8 +316,10 @@ class ShadowManager {
         // Bind shadow framebuffer and set viewport to shadow map size
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadowFramebuffer);
         gl.viewport(0, 0, this.shadowMapSize, this.shadowMapSize);
+        
+        // Check for debug force test mode
         if (this.constants.DEBUG.FORCE_SHADOW_MAP_TEST) {
-            // Use a color framebuffer instead
+            // Use a color framebuffer instead for debug visualization
             if (!this._debugColorFramebuffer) {
                 this._debugColorFramebuffer = gl.createFramebuffer();
                 this._debugColorTexture = gl.createTexture();
@@ -258,11 +357,11 @@ class ShadowManager {
             // Save this texture for visualization
             this._lastDebugTexture = this._debugColorTexture;
 
-            // Skip shadow rendering
+            // Skip shadow rendering in debug mode
             return;
         }
+        
         // Always clear both color and depth buffers regardless of WebGL version
-        // This is critical to prevent old shadow data from persisting
         gl.clearColor(0.0, 0.0, 0.0, 1.0);  // Clear to black (far depth)
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
@@ -274,13 +373,13 @@ class ShadowManager {
 
         // Set debug shadow map uniform if available
         if (this.shadowLocations.debugShadowMap !== null) {
-            const debugMode = lightingConstants.DEBUG.VISUALIZE_SHADOW_MAP ? 1 : 0;
+            const debugMode = this.constants.DEBUG.VISUALIZE_SHADOW_MAP ? 1 : 0;
             gl.uniform1i(this.shadowLocations.debugShadowMap, debugMode);
         }
 
         // Set force shadow map test uniform if available
         if (this.shadowLocations.forceShadowMapTest !== null) {
-            const forceTest = lightingConstants.DEBUG.FORCE_SHADOW_MAP_TEST ? 1 : 0;
+            const forceTest = this.constants.DEBUG.FORCE_SHADOW_MAP_TEST ? 1 : 0;
             gl.uniform1i(this.shadowLocations.forceShadowMapTest, forceTest);
         }
 
@@ -289,7 +388,7 @@ class ShadowManager {
             gl.uniform1f(this.shadowLocations.shadowMapSize, this.shadowMapSize);
         }
     }
-
+    
     /**
      * End shadow map rendering pass and restore previous state
      */
@@ -302,7 +401,7 @@ class ShadowManager {
         // Restore viewport
         gl.viewport(this._savedViewport[0], this._savedViewport[1], this._savedViewport[2], this._savedViewport[3]);
     }
-
+    
     /**
      * Render a single object to the shadow map
      * @param {Object} object - The object to render
@@ -333,10 +432,6 @@ class ShadowManager {
         if (!this._indicesArray || this._indicesArray.length < totalVertices) {
             this._indicesArray = new Uint16Array(totalVertices);
         }
-        
-        // For debugging, track the min/max values of vertices
-        const minBounds = { x: Infinity, y: Infinity, z: Infinity };
-        const maxBounds = { x: -Infinity, y: -Infinity, z: -Infinity };
 
         // Fill position and index arrays
         for (let i = 0; i < triangles.length; i++) {
@@ -351,24 +446,9 @@ class ShadowManager {
                 this._positionsArray[baseIndex + 1] = vertex.y;
                 this._positionsArray[baseIndex + 2] = vertex.z;
 
-                // Update min/max bounds
-                minBounds.x = Math.min(minBounds.x, vertex.x);
-                minBounds.y = Math.min(minBounds.y, vertex.y);
-                minBounds.z = Math.min(minBounds.z, vertex.z);
-
-                maxBounds.x = Math.max(maxBounds.x, vertex.x);
-                maxBounds.y = Math.max(maxBounds.y, vertex.y);
-                maxBounds.z = Math.max(maxBounds.z, vertex.z);
-
                 // Set up indices
                 this._indicesArray[i * 3 + j] = i * 3 + j;
             }
-        }
-
-        // Debug output for object bounds
-        if (lightingConstants.DEBUG.VISUALIZE_SHADOW_MAP && !this._boundsLogged) {
-            // Removed console.log for performance
-            this._boundsLogged = true;
         }
 
         // Bind and upload position data to our reusable buffer
@@ -385,10 +465,8 @@ class ShadowManager {
 
         // Draw object
         gl.drawElements(gl.TRIANGLES, totalVertices, gl.UNSIGNED_SHORT, 0);
-        
-        // No need to delete buffers since we're reusing them
     }
-
+    
     /**
      * Bind shadow map texture to a texture unit for use in main rendering pass
      * @param {number} textureUnit - Texture unit to bind to (e.g., gl.TEXTURE0)
@@ -415,15 +493,13 @@ class ShadowManager {
             gl.bindTexture(gl.TEXTURE_2D, this.shadowTexture);
 
             const unitIndex = textureUnit - gl.TEXTURE0;
-            console.log(`Shadow map bound to texture unit ${unitIndex}`);
-
             return unitIndex;
         } catch (error) {
             console.error("Error binding shadow texture:", error);
             return 0;
         }
     }
-
+    
     /**
      * Get the light space matrix for passing to shaders
      * @returns {Float32Array} - The light space transformation matrix
@@ -431,36 +507,70 @@ class ShadowManager {
     getLightSpaceMatrix() {
         return this.lightSpaceMatrix;
     }
+    
     /**
-     * Get shadow projection parameters
-     * @returns {Object} Shadow projection bounds
+     * Apply this light's uniforms to a shader program
+     * @param {WebGLProgram} program - The shader program
+     * @param {number} index - Index of this light in an array of lights (for future multi-light support)
      */
-    getShadowProjection() {
-        return {
-            left: this.constants.SHADOW_PROJECTION.LEFT.value,
-            right: this.constants.SHADOW_PROJECTION.RIGHT.value,
-            bottom: this.constants.SHADOW_PROJECTION.BOTTOM.value,
-            top: this.constants.SHADOW_PROJECTION.TOP.value,
-            near: this.constants.SHADOW_PROJECTION.NEAR.value,
-            far: this.constants.SHADOW_PROJECTION.FAR.value
-        };
-    }
-
-    /**
-     * Sync shadow settings with constants
-     * Call this when shadow settings are changed through debug panel
-     */
-    syncWithConstants() {
-        // Check if shadow map size has changed
-        if (this.shadowMapSize !== this.constants.SHADOW_MAP.SIZE.value) {
-            this.shadowMapSize = this.constants.SHADOW_MAP.SIZE.value;
-            this.setupShadowMap(); // Recreate shadow map with new size
+    applyToShader(program, index = 0) {
+        const gl = this.gl;
+        
+        // Get light uniform locations
+        // For now we just use the standard uniforms, but in the future we'd use arrays
+        // like uDirectionalLights[index].direction, etc.
+        
+        const lightDirLoc = gl.getUniformLocation(program, "uLightDirection");
+        const lightPosLoc = gl.getUniformLocation(program, "uLightPosition");
+        const lightIntensityLoc = gl.getUniformLocation(program, "uLightIntensity");
+        const shadowMapLoc = gl.getUniformLocation(program, "uShadowMap");
+        const lightSpaceMatrixLoc = gl.getUniformLocation(program, "uLightSpaceMatrix");
+        const shadowsEnabledLoc = gl.getUniformLocation(program, "uShadowsEnabled");
+        const shadowBiasLoc = gl.getUniformLocation(program, "uShadowBias");
+        
+        // Set light direction
+        if (lightDirLoc !== null) {
+            gl.uniform3f(lightDirLoc, this.direction.x, this.direction.y, this.direction.z);
         }
-
-        // Update bias value
-        this.shadowBias = this.constants.SHADOW_MAP.BIAS.value;
+        
+        // Set light position
+        if (lightPosLoc !== null) {
+            gl.uniform3f(lightPosLoc, this.position.x, this.position.y, this.position.z);
+        }
+        
+        // Set light intensity
+        if (lightIntensityLoc !== null) {
+            gl.uniform1f(lightIntensityLoc, this.intensity);
+        }
+        
+        // Apply shadow mapping uniforms if shadows are enabled
+        if (this.castsShadows) {
+            // Set shadow map texture unit
+            if (shadowMapLoc !== null) {
+                // Use the specified texture unit from lighting constants
+                gl.uniform1i(shadowMapLoc, this.constants.SHADOW_MAP.TEXTURE_UNIT);
+            }
+            
+            // Set light space matrix
+            if (lightSpaceMatrixLoc !== null) {
+                gl.uniformMatrix4fv(lightSpaceMatrixLoc, false, this.lightSpaceMatrix);
+            }
+            
+            // Set shadows enabled flag
+            if (shadowsEnabledLoc !== null) {
+                gl.uniform1i(shadowsEnabledLoc, 1); // 1 = true
+            }
+            
+            // Set shadow bias
+            if (shadowBiasLoc !== null) {
+                gl.uniform1f(shadowBiasLoc, this.shadowBias);
+            }
+        } else if (shadowsEnabledLoc !== null) {
+            // Shadows are disabled for this light
+            gl.uniform1i(shadowsEnabledLoc, 0); // 0 = false
+        }
     }
-
+    
     /**
      * Apply shadow quality preset
      * @param {number} presetIndex - Index of the preset to apply
@@ -477,88 +587,49 @@ class ShadowManager {
         this.shadowBias = preset.bias;
 
         // Recreate shadow map with new settings
-        this.setupShadowMap();
+        if (this.castsShadows) {
+            this.setupShadowMap();
+        }
 
         console.log(`Applied shadow quality preset: ${preset.name}`);
     }
-
+    
     /**
-     * Debug function to analyze the contents of the shadow map
-     * This helps understand what values are actually in the depth texture
+     * Cleanup resources used by this light
      */
-    debugAnalyzeShadowMap() {
+    dispose() {
         const gl = this.gl;
-
-        // We need WebGL2 to read pixels from a depth texture directly
-        if (!this.isWebGL2) {
-            console.warn("Shadow map analysis is only supported in WebGL2");
-            return {
-                error: "WebGL2 required for shadow map analysis"
-            };
+        
+        // Clean up shadow map resources
+        if (this.shadowFramebuffer) {
+            gl.deleteFramebuffer(this.shadowFramebuffer);
+            this.shadowFramebuffer = null;
         }
-
-        try {
-            // Create a framebuffer to read from the shadow texture
-            const tempFramebuffer = gl.createFramebuffer();
-            gl.bindFramebuffer(gl.FRAMEBUFFER, tempFramebuffer);
-            gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, this.shadowTexture, 0);
-
-            // Check if framebuffer is complete
-            const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
-            if (status !== gl.FRAMEBUFFER_COMPLETE) {
-                gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-                gl.deleteFramebuffer(tempFramebuffer);
-                console.error(`Cannot read shadow map, framebuffer status: ${status}`);
-                return {
-                    error: "Framebuffer incomplete"
-                };
+        
+        if (this.shadowTexture) {
+            gl.deleteTexture(this.shadowTexture);
+            this.shadowTexture = null;
+        }
+        
+        if (this._debugColorFramebuffer) {
+            gl.deleteFramebuffer(this._debugColorFramebuffer);
+            this._debugColorFramebuffer = null;
+        }
+        
+        if (this._debugColorTexture) {
+            gl.deleteTexture(this._debugColorTexture);
+            this._debugColorTexture = null;
+        }
+        
+        // Clean up buffers
+        if (this.shadowBuffers) {
+            if (this.shadowBuffers.position) {
+                gl.deleteBuffer(this.shadowBuffers.position);
             }
-
-            // Read a sample of pixels (center and corners)
-            const pixelSize = 4; // RGBA format (4 bytes per pixel)
-            const pixelData = new Float32Array(pixelSize);
-
-            // Sample positions to check
-            const samplePositions = [
-                { x: this.shadowMapSize / 2, y: this.shadowMapSize / 2, name: "center" },
-                { x: 10, y: 10, name: "top-left" },
-                { x: this.shadowMapSize - 10, y: 10, name: "top-right" },
-                { x: 10, y: this.shadowMapSize - 10, name: "bottom-left" },
-                { x: this.shadowMapSize - 10, y: this.shadowMapSize - 10, name: "bottom-right" }
-            ];
-
-            const results = {};
-
-            // Sample pixels at different positions
-            samplePositions.forEach((pos) => {
-                gl.readPixels(pos.x, pos.y, 1, 1, gl.RGBA, gl.FLOAT, pixelData);
-
-                results[pos.name] = {
-                    r: pixelData[0],
-                    g: pixelData[1],
-                    b: pixelData[2],
-                    a: pixelData[3]
-                };
-            });
-
-            // Cleanup
-            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-            gl.deleteFramebuffer(tempFramebuffer);
-
-            console.log("Shadow map analysis:", results);
-            return results;
-        } catch (error) {
-            console.error("Error analyzing shadow map:", error);
-            return {
-                error: error.message || "Unknown error"
-            };
+            if (this.shadowBuffers.index) {
+                gl.deleteBuffer(this.shadowBuffers.index);
+            }
+            this.shadowBuffers = null;
         }
-    }
-
-    /**
-     * Reset the debug state to enable new debug logging
-     */
-    resetDebugState() {
-        this._boundsLogged = false;
     }
 }

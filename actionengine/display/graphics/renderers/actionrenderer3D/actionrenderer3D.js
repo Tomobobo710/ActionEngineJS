@@ -9,19 +9,18 @@ class ActionRenderer3D {
 
         // Initialize all managers and renderers
         this.programManager = new ProgramManager(this.gl, this.canvasManager.isWebGL2());
-        this.lightingManager = new LightingManager(this.gl, this.canvasManager.isWebGL2());
         
-        // Add shadow manager
-        this.shadowManager = new ShadowManager(this.gl, this.programManager, this.canvasManager.isWebGL2());
-        
-        this.debugRenderer = new DebugRenderer3D(this.gl, this.programManager, this.lightingManager, this.shadowManager);
+        // Use the new LightManager instead of separate lighting and shadow managers
+        this.lightManager = new LightManager(this.gl, this.canvasManager.isWebGL2(), this.programManager);
+
+        this.debugRenderer = new DebugRenderer3D(this.gl, this.programManager, this.lightManager);
         this.weatherRenderer = new WeatherRenderer3D(this.gl, this.programManager);
         this.sunRenderer = new SunRenderer3D(this.gl, this.programManager);
         // Create texture manager and texture array before other renderers
         this.textureManager = new TextureManager(this.gl);
         this.textureArray = this.textureManager.textureArray;
         
-        this.objectRenderer = new ObjectRenderer3D(this, this.gl, this.programManager, this.lightingManager);
+        this.objectRenderer = new ObjectRenderer3D(this, this.gl, this.programManager, this.lightManager);
         // Get program registry reference
         this.programRegistry = this.programManager.getProgramRegistry();
         this.waterRenderer = new WaterRenderer3D(this.gl, this.programManager);
@@ -42,7 +41,7 @@ class ActionRenderer3D {
         } = renderData;
         
         // Initialize the shadow textures before first use
-        if (!this._initializedShadows && this.shadowManager) {
+        if (!this._initializedShadows) {
             try {
                 // Initialize shadows for all shader types
                 this._initShadowsForAllShaders();
@@ -52,21 +51,10 @@ class ActionRenderer3D {
             }
         }
         
-        // Performance optimization: only update lighting every N frames
-        if (!this._frameCounter) this._frameCounter = 0;
-        this._frameCounter++;
+        // Update lights through the light manager
+        const lightingChanged = this.lightManager.update();
         
-        if (this._frameCounter % 5 === 0) { // Update every 5 frames
-            const lightingChanged = this.lightingManager.update();
-            
-            // If lighting changed, update the shadow mapping
-            if (lightingChanged && this.shadowsEnabled && this.shadowManager) {
-                // Update light space matrix based on current light position and direction
-                const lightPos = this.lightingManager.lightPos;
-                const lightDir = this.lightingManager.getLightDir();
-                this.shadowManager.updateLightSpaceMatrix(lightPos, lightDir);
-            }
-        }
+        // No need to update shadow mapping separately - it's now handled by the light manager
         
         this.currentTime = (performance.now() - this.startTime) / 1000.0;
 
@@ -112,20 +100,8 @@ class ActionRenderer3D {
         
         // SHADOW MAP PASS (only if shadows are enabled)
         if (this.shadowsEnabled && nonWaterObjects.length > 0) {
-            // Light space matrix is now updated during lighting updates when needed
-            // Begin shadow pass
-            this.shadowManager.beginShadowPass();
-            
-            // Render objects to shadow map
-            for (const object of nonWaterObjects) {
-                // Only render objects that can cast shadows
-                if (object.triangles?.length) {
-                    this.shadowManager.renderObjectToShadowMap(object);
-                }
-            }
-            
-            // End shadow pass
-            this.shadowManager.endShadowPass();
+            // Render all objects to shadow maps for all lights
+            this.lightManager.renderShadowMaps(nonWaterObjects);
         }
         
         // MAIN RENDER PASS
@@ -140,10 +116,6 @@ class ActionRenderer3D {
         // Prepare for main rendering with shadows
         if (this.shadowsEnabled) {
             try {
-                // Get shadow texture unit from constants
-                const SHADOW_MAP_TEXTURE_UNIT = this.lightingManager.getShadowTextureUnit();
-                // WebGL guarantees at least 8 texture units (0-7)
-                
                 // Get the current shader set
                 const shaderSet = this.programRegistry.getCurrentShaderSet();
                 if (!shaderSet || !shaderSet.standard || !shaderSet.standard.program) {
@@ -154,74 +126,33 @@ class ActionRenderer3D {
                 // Use the shader program
                 this.gl.useProgram(shaderSet.standard.program);
                 
-                // Ensure the shadow map is on texture unit 7
-                this.gl.activeTexture(this.gl.TEXTURE0 + SHADOW_MAP_TEXTURE_UNIT);
-                this.gl.bindTexture(this.gl.TEXTURE_2D, this.shadowManager.shadowTexture);
+                // Bind shadow map textures for all lights
+                this.lightManager.bindShadowMapTextures(shaderSet.standard.program);
                 
-                // Get shadow uniform locations directly from the program
-                const uniformShadowMap = this.gl.getUniformLocation(shaderSet.standard.program, 'uShadowMap');
-                const uniformLightSpaceMatrix = this.gl.getUniformLocation(shaderSet.standard.program, 'uLightSpaceMatrix');
-                const uniformShadowsEnabled = this.gl.getUniformLocation(shaderSet.standard.program, 'uShadowsEnabled');
-                const uniformShadowBias = this.gl.getUniformLocation(shaderSet.standard.program, 'uShadowBias');
-                const uniformShadowMapSize = this.gl.getUniformLocation(shaderSet.standard.program, 'uShadowMapSize');
+                // Apply all lights to the shader
+                this.lightManager.applyLightsToShader(shaderSet.standard.program);
+                
+                // Get shadow-specific uniform locations
                 const uniformShadowSoftness = this.gl.getUniformLocation(shaderSet.standard.program, 'uShadowSoftness');
                 const uniformPCFSize = this.gl.getUniformLocation(shaderSet.standard.program, 'uPCFSize');
                 const uniformPCFEnabled = this.gl.getUniformLocation(shaderSet.standard.program, 'uPCFEnabled');
                 
-                
-                // Set shadow map texture unit
-                if (uniformShadowMap !== null) {
-                    this.gl.uniform1i(uniformShadowMap, SHADOW_MAP_TEXTURE_UNIT);
-                } else {
-                    // Some shaders might not have shadow support
-                    console.warn(`Shadow map uniform not found in current shader: ${this.programRegistry.getCurrentShaderName()}`);
-                }
-                
-                // Set light space matrix
-                if (uniformLightSpaceMatrix !== null) {
-                    this.gl.uniformMatrix4fv(
-                        uniformLightSpaceMatrix,
-                        false,
-                        this.shadowManager.getLightSpaceMatrix()
-                    );
-                }
-                
-                // Set shadows enabled flag
-                if (uniformShadowsEnabled !== null) {
-                    this.gl.uniform1i(uniformShadowsEnabled, 1); // 1 = true
-                }
-                
-                // Set shadow bias from constants
-                if (uniformShadowBias !== null) {
-                    this.gl.uniform1f(uniformShadowBias, this.shadowManager.shadowBias);
-                    //console.log(`Set shadow bias uniform to ${this.shadowManager.shadowBias}`);
-                }
-                
-                // Set shadow map size uniform
-                if (uniformShadowMapSize !== null) {
-                    this.gl.uniform1f(uniformShadowMapSize, this.shadowManager.shadowMapSize);
-                    console.log(`Set shadow map size uniform to ${this.shadowManager.shadowMapSize}`);
-                }
-                
                 // Set shadow softness uniform
                 if (uniformShadowSoftness !== null) {
-                    const softness = this.lightingManager.constants.SHADOW_FILTERING.SOFTNESS.value;
+                    const softness = this.lightManager.constants.SHADOW_FILTERING.SOFTNESS.value;
                     this.gl.uniform1f(uniformShadowSoftness, softness);
-                    //console.log(`Set shadow softness uniform to ${softness}`);
                 }
                 
                 // Set PCF size uniform
                 if (uniformPCFSize !== null) {
-                    const pcfSize = this.lightingManager.constants.SHADOW_FILTERING.PCF.SIZE.value;
+                    const pcfSize = this.lightManager.constants.SHADOW_FILTERING.PCF.SIZE.value;
                     this.gl.uniform1i(uniformPCFSize, pcfSize);
-                    //console.log(`Set PCF size uniform to ${pcfSize}`);
                 }
                 
                 // Set PCF enabled uniform
                 if (uniformPCFEnabled !== null) {
-                    const pcfEnabled = this.lightingManager.constants.SHADOW_FILTERING.PCF.ENABLED ? 1 : 0;
+                    const pcfEnabled = this.lightManager.constants.SHADOW_FILTERING.PCF.ENABLED ? 1 : 0;
                     this.gl.uniform1i(uniformPCFEnabled, pcfEnabled);
-                    //console.log(`Set PCF enabled uniform to ${pcfEnabled}`);
                 }
             } catch (error) {
                 console.error('Error setting up shadows:', error);
@@ -242,7 +173,8 @@ class ActionRenderer3D {
         }
 
         // Draw the sun
-        const lightPos = this.lightingManager.lightPos;
+        const mainLight = this.lightManager.getMainDirectionalLight();
+        const lightPos = mainLight ? mainLight.getPosition() : new Vector3(0, 5000, 0);
         const isVirtualBoyShader = (this._cachedShaderSet === this.programRegistry.shaders.get("virtualboy"));
         this.sunRenderer.render(camera, lightPos, isVirtualBoyShader);
         
@@ -277,11 +209,8 @@ class ActionRenderer3D {
             return;
         }
         
-        // Apply the quality preset through the lighting manager
-        this.lightingManager.setShadowQuality(quality);
-        
-        // Sync shadow manager with the new constants
-        this.shadowManager.syncWithConstants();
+        // Apply the quality preset through the light manager
+        this.lightManager.setShadowQuality(quality);
         
         const presetName = lightingConstants.SHADOW_QUALITY_PRESETS[quality].name;
         console.log(`Shadow quality set to ${presetName}`);
@@ -295,9 +224,13 @@ class ActionRenderer3D {
         // Constant for shadow texture unit
         const SHADOW_MAP_TEXTURE_UNIT = 7;
         
+        // Get main directional light
+        const mainLight = this.lightManager.getMainDirectionalLight();
+        if (!mainLight) return;
+        
         // Pre-bind the shadow map texture to unit 7
         this.gl.activeTexture(this.gl.TEXTURE0 + SHADOW_MAP_TEXTURE_UNIT);
-        this.gl.bindTexture(this.gl.TEXTURE_2D, this.shadowManager.shadowTexture);
+        this.gl.bindTexture(this.gl.TEXTURE_2D, mainLight.shadowTexture);
         
         // Get all available shader sets
         const shaderTypes = ['default', 'pbr'];
@@ -327,50 +260,52 @@ class ActionRenderer3D {
                     this.gl.uniform1i(shadowMapLoc, SHADOW_MAP_TEXTURE_UNIT);
                 }
                 
-                
                 // Set shadow enabled flag (on by default)
                 if (shadowEnabledLoc !== null) {
                     this.gl.uniform1i(shadowEnabledLoc, 1);
                 }
                 
                 // Set initial light space matrix if available
-                if (lightSpaceMatrixLoc !== null && this.shadowManager) {
-                    this.gl.uniformMatrix4fv(
-                        lightSpaceMatrixLoc,
-                        false,
-                        this.shadowManager.getLightSpaceMatrix()
-                    );
+                if (lightSpaceMatrixLoc !== null) {
+                    const lightSpaceMatrix = this.lightManager.getLightSpaceMatrix();
+                    if (lightSpaceMatrix) {
+                        this.gl.uniformMatrix4fv(
+                            lightSpaceMatrixLoc,
+                            false,
+                            lightSpaceMatrix
+                        );
+                    }
                 }
                 
                 // Set shadow bias if available
-                if (shadowBiasLoc !== null && this.shadowManager) {
-                    this.gl.uniform1f(shadowBiasLoc, this.shadowManager.shadowBias);
+                if (shadowBiasLoc !== null) {
+                    this.gl.uniform1f(shadowBiasLoc, this.lightManager.getShadowBias());
                     // Console log removed for performance
                 }
                 
                 // Set shadow map size if available
-                if (shadowMapSizeLoc !== null && this.shadowManager) {
-                    this.gl.uniform1f(shadowMapSizeLoc, this.shadowManager.shadowMapSize);
+                if (shadowMapSizeLoc !== null) {
+                    this.gl.uniform1f(shadowMapSizeLoc, this.lightManager.getShadowMapSize());
                     // Console log removed for performance
                 }
                 
                 // Set shadow softness
-                if (shadowSoftnessLoc !== null && this.lightingManager) {
-                    const softness = this.lightingManager.constants.SHADOW_FILTERING.SOFTNESS.value;
+                if (shadowSoftnessLoc !== null) {
+                    const softness = this.lightManager.constants.SHADOW_FILTERING.SOFTNESS.value;
                     this.gl.uniform1f(shadowSoftnessLoc, softness);
                     // Console log removed for performance
                 }
                 
                 // Set PCF size
-                if (pcfSizeLoc !== null && this.lightingManager) {
-                    const pcfSize = this.lightingManager.constants.SHADOW_FILTERING.PCF.SIZE.value;
+                if (pcfSizeLoc !== null) {
+                    const pcfSize = this.lightManager.constants.SHADOW_FILTERING.PCF.SIZE.value;
                     this.gl.uniform1i(pcfSizeLoc, pcfSize);
                     //console.log(`  - Set PCF size uniform for ${shaderType} to ${pcfSize}`);
                 }
                 
                 // Set PCF enabled
-                if (pcfEnabledLoc !== null && this.lightingManager) {
-                    const pcfEnabled = this.lightingManager.constants.SHADOW_FILTERING.PCF.ENABLED ? 1 : 0;
+                if (pcfEnabledLoc !== null) {
+                    const pcfEnabled = this.lightManager.constants.SHADOW_FILTERING.PCF.ENABLED ? 1 : 0;
                     this.gl.uniform1i(pcfEnabledLoc, pcfEnabled);
                     //console.log(`  - Set PCF enabled uniform for ${shaderType} to ${pcfEnabled}`);
                 }
@@ -482,8 +417,11 @@ class ActionRenderer3D {
         }
         
         // Reset debug state when enabling shadow map visualization
-        if (lightingConstants.DEBUG.VISUALIZE_SHADOW_MAP && this.shadowManager) {
-            this.shadowManager.resetDebugState();
+        if (lightingConstants.DEBUG.VISUALIZE_SHADOW_MAP && this.lightManager) {
+            const mainLight = this.lightManager.getMainDirectionalLight();
+            if (mainLight) {
+                // Reset debug state if needed
+            }
         }
         
         console.log(`Shadow map visualization ${lightingConstants.DEBUG.VISUALIZE_SHADOW_MAP ? 'enabled' : 'disabled'}`);

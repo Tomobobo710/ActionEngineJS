@@ -254,11 +254,6 @@ class LightingDebugPanel extends BaseDebugPanel {
                 checked: this.constants.DEBUG.VISUALIZE_SHADOW_MAP,
                 updateProperty: (value) => { 
                     this.constants.DEBUG.VISUALIZE_SHADOW_MAP = value; 
-                    
-                    // Reset debug state when enabling shadow map visualization
-                    if (value && this.game.renderer3D && this.game.renderer3D.shadowManager) {
-                        this.game.renderer3D.shadowManager.resetDebugState();
-                    }
                 }
             },
             {
@@ -266,11 +261,6 @@ class LightingDebugPanel extends BaseDebugPanel {
                 label: "Analyze Shadow Map",
                 checked: false,
                 updateProperty: (value) => { 
-                    // This is a button, not a toggle
-                    if (value && this.game.renderer3D && this.game.renderer3D.shadowManager) {
-                        this.shadowMapAnalysisResults = this.game.renderer3D.shadowManager.debugAnalyzeShadowMap();
-                        console.log('Shadow Map Analysis Results:', this.shadowMapAnalysisResults);
-                    }
                     // Reset to unchecked after analysis
                     return false;
                 }
@@ -702,16 +692,11 @@ class LightingDebugPanel extends BaseDebugPanel {
     
     updateGameSystems() {
         // Update lighting manager
-        if (this.game.renderer3D && this.game.renderer3D.lightingManager) {
-            this.game.renderer3D.lightingManager.syncWithConstants();
+        if (this.game.renderer3D && this.game.renderer3D.lightManager) {
+            this.game.renderer3D.lightManager.syncWithConstants();
             
             // Log light intensity changes for debugging
             console.log(`Light intensity updated: ${this.constants.LIGHT_INTENSITY.value}`);
-        }
-        
-        // Update shadow manager
-        if (this.game.renderer3D && this.game.renderer3D.shadowManager) {
-            this.game.renderer3D.shadowManager.syncWithConstants();
         }
     }
     

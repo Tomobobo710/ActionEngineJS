@@ -1,11 +1,11 @@
 // actionengine/display/graphics/renderers/actionrenderer3D/objectrenderer3D.js
 class ObjectRenderer3D {
-    constructor(renderer, gl, programManager, lightingManager) {
+    constructor(renderer, gl, programManager, lightManager) {
         this.renderer = renderer;
         this.gl = gl;
         this.programManager = programManager;
         this.programRegistry = programManager.getProgramRegistry();
-        this.lightingManager = lightingManager;
+        this.lightManager = lightManager;
         
         // Check if WebGL2 is available for 32-bit indices
         this.isWebGL2 = this.gl instanceof WebGL2RenderingContext;
@@ -402,19 +402,13 @@ class ObjectRenderer3D {
         Matrix4.identity(this._uniformCache.matrices.model);
         
         // Cache the light configuration
-        this._uniformCache.lightConfig = this.lightingManager.getLightConfig();
+        this._uniformCache.lightConfig = this.lightManager.getLightConfig();
         
         // Cache the light direction vector
-        this._uniformCache.lightDir = this.lightingManager.getLightDir();
-        
-        // Cache the light space matrix if shadow mapping is enabled
-        if (this.renderer.shadowsEnabled && this.renderer.shadowManager) {
-            this._uniformCache.matrices.lightSpace = this.renderer.shadowManager.getLightSpaceMatrix();
-            this._uniformCache.shadowBias = this.renderer.shadowManager.shadowBias;
-        }
+        this._uniformCache.lightDir = this.lightManager.getLightDir();
         
         // Cache other commonly used values
-        const materialConfig = this.lightingManager.constants.MATERIAL;
+        const materialConfig = this.lightManager.constants.MATERIAL;
         this._uniformCache.roughness = materialConfig.ROUGHNESS.value;
         this._uniformCache.metallic = materialConfig.METALLIC.value;
         this._uniformCache.baseReflectivity = materialConfig.BASE_REFLECTIVITY.value;
@@ -455,7 +449,7 @@ class ObjectRenderer3D {
             
             // Only apply the factor to the default shader
             if (currentShader === "default") {
-                const factor = this.lightingManager.constants.DEFAULT_SHADER_INTENSITY_FACTOR.value;
+                const factor = this.lightManager.constants.DEFAULT_SHADER_INTENSITY_FACTOR.value;
                 gl.uniform1f(locations.intensityFactor, factor);
             } else {
                 // For non-default shaders, use 1.0 (no scaling)

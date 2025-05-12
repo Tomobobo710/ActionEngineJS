@@ -295,6 +295,18 @@ class Vector3 {
     clone() {
         return new Vector3(this.x, this.y, this.z);
     }
+    
+    /**
+     * Copy the values from another Vector3 into this one
+     * @param {Vector3} v - Vector to copy from
+     * @returns {Vector3} this vector
+     */
+    copy(v) {
+        this.x = v.x;
+        this.y = v.y;
+        this.z = v.z;
+        return this;
+    }
 
     lerp(target, t) {
         return new Vector3(

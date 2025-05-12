@@ -1,10 +1,9 @@
 // actionengine/display/graphics/renderers/actionrenderer3D/debugrenderer3D.js
 class DebugRenderer3D {
-    constructor(gl, programManager, lightingManager, shadowManager) {
+    constructor(gl, programManager, lightManager) {
         this.gl = gl;
         this.programManager = programManager;
-        this.lightingManager = lightingManager;
-        this.shadowManager = shadowManager;
+        this.lightManager = lightManager;
 
         // Reference to lighting constants
         this.constants = lightingConstants;
@@ -74,7 +73,7 @@ class DebugRenderer3D {
      * Draw the light frustum for visualization
      */
     drawLightFrustum(camera, lineShader) {
-        if (!this.shadowManager || !this.lightingManager) return;
+        if (!this.lightManager) return;
 
         // Check if frustum visualization is enabled in constants
         if (!this.constants.DEBUG.VISUALIZE_FRUSTUM && !this.constants.DEBUG.VISUALIZE_SHADOW_MAP) return;
@@ -83,14 +82,16 @@ class DebugRenderer3D {
         // still allow the shadow map debugging code to run but don't draw the frustum lines
         const drawFrustumLines = this.constants.DEBUG.VISUALIZE_FRUSTUM;
 
+        // Get main directional light
+        const mainLight = this.lightManager.getMainDirectionalLight();
+        if (!mainLight) return;
+        
         // Get light position and direction
-        const lightPos = this.lightingManager.lightPos;
-        const lightDir = this.lightingManager.getLightDir();
+        const lightPos = mainLight.getPosition();
+        const lightDir = mainLight.getDirection();
 
         // Get shadow projection parameters
-        const projection = this.shadowManager.getShadowProjection
-            ? this.shadowManager.getShadowProjection()
-            : this.lightingManager.getShadowProjection();
+        const projection = this.lightManager.constants.SHADOW_PROJECTION;
 
         const left = projection.left;
         const right = projection.right;
@@ -212,8 +213,11 @@ class DebugRenderer3D {
             return;
         }
 
-        // Only render if we have a shadow manager
-        if (!this.shadowManager) return;
+        // Only render if we have a light manager and main directional light
+        if (!this.lightManager) return;
+        
+        const mainLight = this.lightManager.getMainDirectionalLight();
+        if (!mainLight || !mainLight.shadowTexture) return;
 
         // Track that we're visualizing the shadow map
         this._wasVisualizingShadowMap = true;
@@ -342,7 +346,7 @@ class DebugRenderer3D {
         gl.bindTexture(gl.TEXTURE_2D, null);
 
         // Now bind the shadow map texture
-        gl.bindTexture(gl.TEXTURE_2D, this.shadowManager.shadowTexture);
+        gl.bindTexture(gl.TEXTURE_2D, mainLight.shadowTexture);
         gl.uniform1i(this._shadowDebugLocations.shadowMap, 0);
 
         // Set visualization mode
