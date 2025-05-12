@@ -249,20 +249,28 @@ class LightingDebugPanel extends BaseDebugPanel {
         // Debug toggles
         this.debugToggles = [
             {
+                id: "shadowsEnabled",
+                label: "Enable Shadows",
+                checked: true, // Assuming shadows are enabled by default
+                updateProperty: (value) => { 
+                    // We need to call the renderer's toggleShadows method
+                    // Return the current state to ensure proper toggle behavior
+                    if (this.game.renderer3D) {
+                        const currentState = this.game.renderer3D.shadowsEnabled;
+                        if (value !== currentState) {
+                            this.game.renderer3D.toggleShadows();
+                        }
+                        return this.game.renderer3D.shadowsEnabled;
+                    }
+                    return value;
+                }
+            },
+            {
                 id: "debugVisualizeShadowMap",
                 label: "Show Shadow Map",
                 checked: this.constants.DEBUG.VISUALIZE_SHADOW_MAP,
                 updateProperty: (value) => { 
                     this.constants.DEBUG.VISUALIZE_SHADOW_MAP = value; 
-                }
-            },
-            {
-                id: "debugAnalyzeShadowMap",
-                label: "Analyze Shadow Map",
-                checked: false,
-                updateProperty: (value) => { 
-                    // Reset to unchecked after analysis
-                    return false;
                 }
             },
             {
@@ -272,31 +280,10 @@ class LightingDebugPanel extends BaseDebugPanel {
                 updateProperty: (value) => { this.constants.DEBUG.VISUALIZE_FRUSTUM = value; }
             },
             {
-                id: "shadowAutoFit",
-                label: "Auto-fit Shadow Frustum",
-                checked: this.constants.SHADOW_PROJECTION.AUTO_FIT,
-                updateProperty: (value) => { this.constants.SHADOW_PROJECTION.AUTO_FIT = value; }
-            },
-            {
-                id: "shadowFilteringEnabled",
-                label: "Enable Shadow Filtering",
-                checked: this.constants.SHADOW_FILTERING.ENABLED,
-                updateProperty: (value) => { this.constants.SHADOW_FILTERING.ENABLED = value; }
-            },
-            {
                 id: "shadowPCFEnabled",
                 label: "Enable PCF Filtering",
                 checked: this.constants.SHADOW_FILTERING.PCF.ENABLED,
                 updateProperty: (value) => { this.constants.SHADOW_FILTERING.PCF.ENABLED = value; }
-            },
-            {
-                id: "debugForceShadowMapTest",
-                label: "Force Shadow Map Test Area",
-                checked: false,
-                updateProperty: (value) => { 
-                    // Store this in a new property in the constants object
-                    this.constants.DEBUG.FORCE_SHADOW_MAP_TEST = value; 
-                }
             }
         ];
         
@@ -492,7 +479,6 @@ class LightingDebugPanel extends BaseDebugPanel {
         this.shadowSliders["Top Bound"].value = this.constants.SHADOW_PROJECTION.TOP.value;
         this.shadowSliders["Near Plane"].value = this.constants.SHADOW_PROJECTION.NEAR.value;
         this.shadowSliders["Far Plane"].value = this.constants.SHADOW_PROJECTION.FAR.value;
-        this.shadowSliders["Target Distance"].value = this.constants.SHADOW_PROJECTION.DISTANCE_MULTIPLIER.value;
         this.shadowSliders["Softness"].value = this.constants.SHADOW_FILTERING.SOFTNESS.value;
         this.shadowSliders["PCF Size"].value = this.constants.SHADOW_FILTERING.PCF.SIZE.value;
         this.shadowSliders["PCF Size"].currentOption = this.constants.SHADOW_FILTERING.PCF.SIZE.options.indexOf(this.constants.SHADOW_FILTERING.PCF.SIZE.value);
@@ -504,11 +490,18 @@ class LightingDebugPanel extends BaseDebugPanel {
         
         // Debug toggles
         this.debugToggles.forEach(toggle => {
-            if (toggle.id === "debugVisualizeShadowMap") toggle.checked = this.constants.DEBUG.VISUALIZE_SHADOW_MAP;
-            if (toggle.id === "debugVisualizeFrustum") toggle.checked = this.constants.DEBUG.VISUALIZE_FRUSTUM;
-            if (toggle.id === "shadowAutoFit") toggle.checked = this.constants.SHADOW_PROJECTION.AUTO_FIT;
-            if (toggle.id === "shadowFilteringEnabled") toggle.checked = this.constants.SHADOW_FILTERING.ENABLED;
-            if (toggle.id === "shadowPCFEnabled") toggle.checked = this.constants.SHADOW_FILTERING.PCF.ENABLED;
+            if (toggle.id === "shadowsEnabled" && this.game.renderer3D) {
+                toggle.checked = this.game.renderer3D.shadowsEnabled;
+            }
+            if (toggle.id === "debugVisualizeShadowMap") {
+                toggle.checked = this.constants.DEBUG.VISUALIZE_SHADOW_MAP;
+            }
+            if (toggle.id === "debugVisualizeFrustum") {
+                toggle.checked = this.constants.DEBUG.VISUALIZE_FRUSTUM;
+            }
+            if (toggle.id === "shadowPCFEnabled") {
+                toggle.checked = this.constants.SHADOW_FILTERING.PCF.ENABLED;
+            }
         });
     }
     
@@ -695,8 +688,8 @@ class LightingDebugPanel extends BaseDebugPanel {
         if (this.game.renderer3D && this.game.renderer3D.lightManager) {
             this.game.renderer3D.lightManager.syncWithConstants();
             
-            // Log light intensity changes for debugging
-            console.log(`Light intensity updated: ${this.constants.LIGHT_INTENSITY.value}`);
+            // Update shadow state in case it changed
+            this.syncWithConstants();
         }
     }
     

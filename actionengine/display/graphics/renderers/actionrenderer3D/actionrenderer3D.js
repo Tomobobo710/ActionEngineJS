@@ -195,6 +195,31 @@ class ActionRenderer3D {
     toggleShadows() {
         this.shadowsEnabled = !this.shadowsEnabled;
         console.log(`Shadows ${this.shadowsEnabled ? 'enabled' : 'disabled'}`);
+        
+        // Update all shader programs with the new shadow state
+        const shaderTypes = ['default', 'pbr'];
+        
+        for (const shaderType of shaderTypes) {
+            const shaderSet = this.programRegistry.shaders.get(shaderType);
+            
+            if (shaderSet && shaderSet.standard && shaderSet.standard.program) {
+                // Use the shader program
+                this.gl.useProgram(shaderSet.standard.program);
+                
+                // Set shadows enabled flag based on current state
+                const shadowEnabledLoc = this.gl.getUniformLocation(shaderSet.standard.program, 'uShadowsEnabled');
+                if (shadowEnabledLoc !== null) {
+                    this.gl.uniform1i(shadowEnabledLoc, this.shadowsEnabled ? 1 : 0);
+                    console.log(`Set uShadowsEnabled=${this.shadowsEnabled ? 1 : 0} for ${shaderType} shader`);
+                }
+            }
+        }
+        
+        // If re-enabling shadows, make sure the settings are properly reinitialized
+        if (this.shadowsEnabled) {
+            this._initShadowsForAllShaders();
+        }
+        
         return this.shadowsEnabled;
     }
     
@@ -414,6 +439,11 @@ class ActionRenderer3D {
             lightingConstants.DEBUG.VISUALIZE_SHADOW_MAP = enable;
         } else {
             lightingConstants.DEBUG.VISUALIZE_SHADOW_MAP = !lightingConstants.DEBUG.VISUALIZE_SHADOW_MAP;
+        }
+        
+        // When shadow map visualization is enabled, also enable frustum visualization for clarity
+        if (lightingConstants.DEBUG.VISUALIZE_SHADOW_MAP) {
+            lightingConstants.DEBUG.VISUALIZE_FRUSTUM = true;
         }
         
         // Reset debug state when enabling shadow map visualization

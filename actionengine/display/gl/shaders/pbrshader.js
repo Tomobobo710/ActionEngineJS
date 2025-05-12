@@ -410,8 +410,10 @@ void main() {
     precision mediump float;
     ${isWebGL2 ? "out vec4 fragColor;\n" : ""}
     
+    uniform vec3 uColor;
+    
     void main() {
-        ${isWebGL2 ? "fragColor" : "gl_FragColor"} = vec4(1.0, 0.0, 0.0, 1.0);
+        ${isWebGL2 ? "fragColor" : "gl_FragColor"} = vec4(uColor, 1.0);
     }`;
     }
 }

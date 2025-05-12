@@ -172,7 +172,7 @@ class LightingConstants {
         this.DEBUG = {
             VISUALIZE_SHADOW_MAP: false,  // Display shadow map in corner
             VISUALIZE_FRUSTUM: true,      // Visualize shadow frustum
-            FORCE_SHADOW_MAP_TEST: false,
+            FORCE_SHADOW_MAP_TEST: false, // Should never be used - was an unfinished AI concept
             LIGHT_VISUALIZATION_SIZE: {
                 value: 20,
                 min: 5,

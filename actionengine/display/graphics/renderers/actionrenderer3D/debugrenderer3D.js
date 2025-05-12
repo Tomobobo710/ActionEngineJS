@@ -11,14 +11,14 @@ class DebugRenderer3D {
         // Create buffer for direction indicators
         this.directionBuffer = this.gl.createBuffer();
 
-        // Line buffer for drawing
-        this.directionBuffer = this.gl.createBuffer();
-
         // Enable shadow map debug labels
         this._shadowDebugLabels = true;
 
         // Track shadow map visualization state
         this._wasVisualizingShadowMap = false;
+        
+        // Debug flag
+        this._debugFrustum = false;
     }
 
     drawDebugLines(camera, character, currentTime) {
@@ -69,36 +69,50 @@ class DebugRenderer3D {
 
         this.drawLine(center.toArray(), directionEnd.toArray(), camera, lineShader, currentTime);
     }
+    
     /**
      * Draw the light frustum for visualization
      */
     drawLightFrustum(camera, lineShader) {
-        if (!this.lightManager) return;
+        if (!this.lightManager) {
+            console.log("No light manager available for frustum visualization");
+            return;
+        }
 
         // Check if frustum visualization is enabled in constants
-        if (!this.constants.DEBUG.VISUALIZE_FRUSTUM && !this.constants.DEBUG.VISUALIZE_SHADOW_MAP) return;
-
-        // If shadow map visualization is enabled but frustum visualization is disabled,
-        // still allow the shadow map debugging code to run but don't draw the frustum lines
-        const drawFrustumLines = this.constants.DEBUG.VISUALIZE_FRUSTUM;
+        if (!this.constants.DEBUG.VISUALIZE_FRUSTUM) {
+            return;
+        }
+        
+        console.log("Drawing light frustum...");
+        this._debugFrustum = true;
 
         // Get main directional light
         const mainLight = this.lightManager.getMainDirectionalLight();
-        if (!mainLight) return;
+        if (!mainLight) {
+            console.log("No main directional light for frustum visualization");
+            return;
+        }
         
         // Get light position and direction
         const lightPos = mainLight.getPosition();
         const lightDir = mainLight.getDirection();
 
-        // Get shadow projection parameters
-        const projection = this.lightManager.constants.SHADOW_PROJECTION;
+        console.log("Light position:", lightPos);
+        console.log("Light direction:", lightDir);
 
-        const left = projection.left;
-        const right = projection.right;
-        const bottom = projection.bottom;
-        const top = projection.top;
-        const near = projection.near;
-        const far = projection.far;
+        // Get shadow projection parameters from constants
+        const projection = this.constants.SHADOW_PROJECTION;
+
+        // Frustum parameters - make sure these get the actual values, not just property names
+        const left = projection.LEFT.value;
+        const right = projection.RIGHT.value;
+        const bottom = projection.BOTTOM.value;
+        const top = projection.TOP.value;
+        const near = projection.NEAR.value;
+        const far = projection.FAR.value;
+
+        console.log("Frustum bounds:", { left, right, bottom, top, near, far });
 
         // Calculate frustum corners in light space
         const corners = [
@@ -141,62 +155,83 @@ class DebugRenderer3D {
             return [worldCorner[0], worldCorner[1], worldCorner[2]];
         });
 
-        // Draw lines connecting the corners (frustum edges) if frustum visualization is enabled
-        if (drawFrustumLines) {
-            // Near plane
-            this.drawLine(worldCorners[0], worldCorners[1], camera, lineShader, 0, [1.0, 1.0, 0.2]);
-            this.drawLine(worldCorners[1], worldCorners[2], camera, lineShader, 0, [1.0, 1.0, 0.2]);
-            this.drawLine(worldCorners[2], worldCorners[3], camera, lineShader, 0, [1.0, 1.0, 0.2]);
-            this.drawLine(worldCorners[3], worldCorners[0], camera, lineShader, 0, [1.0, 1.0, 0.2]);
+        // Draw lines connecting the corners (frustum edges)
+        // Near plane
+        this.drawLine(worldCorners[0], worldCorners[1], camera, lineShader, 0, [1.0, 1.0, 0.2]);
+        this.drawLine(worldCorners[1], worldCorners[2], camera, lineShader, 0, [1.0, 1.0, 0.2]);
+        this.drawLine(worldCorners[2], worldCorners[3], camera, lineShader, 0, [1.0, 1.0, 0.2]);
+        this.drawLine(worldCorners[3], worldCorners[0], camera, lineShader, 0, [1.0, 1.0, 0.2]);
 
-            // Far plane
-            this.drawLine(worldCorners[4], worldCorners[5], camera, lineShader, 0, [1.0, 1.0, 0.2]);
-            this.drawLine(worldCorners[5], worldCorners[6], camera, lineShader, 0, [1.0, 1.0, 0.2]);
-            this.drawLine(worldCorners[6], worldCorners[7], camera, lineShader, 0, [1.0, 1.0, 0.2]);
-            this.drawLine(worldCorners[7], worldCorners[4], camera, lineShader, 0, [1.0, 1.0, 0.2]);
+        // Far plane
+        this.drawLine(worldCorners[4], worldCorners[5], camera, lineShader, 0, [1.0, 1.0, 0.2]);
+        this.drawLine(worldCorners[5], worldCorners[6], camera, lineShader, 0, [1.0, 1.0, 0.2]);
+        this.drawLine(worldCorners[6], worldCorners[7], camera, lineShader, 0, [1.0, 1.0, 0.2]);
+        this.drawLine(worldCorners[7], worldCorners[4], camera, lineShader, 0, [1.0, 1.0, 0.2]);
 
-            // Connecting edges
-            this.drawLine(worldCorners[0], worldCorners[4], camera, lineShader, 0, [1.0, 1.0, 0.2]);
-            this.drawLine(worldCorners[1], worldCorners[5], camera, lineShader, 0, [1.0, 1.0, 0.2]);
-            this.drawLine(worldCorners[2], worldCorners[6], camera, lineShader, 0, [1.0, 1.0, 0.2]);
-            this.drawLine(worldCorners[3], worldCorners[7], camera, lineShader, 0, [1.0, 1.0, 0.2]);
-        }
+        // Connecting edges
+        this.drawLine(worldCorners[0], worldCorners[4], camera, lineShader, 0, [1.0, 1.0, 0.2]);
+        this.drawLine(worldCorners[1], worldCorners[5], camera, lineShader, 0, [1.0, 1.0, 0.2]);
+        this.drawLine(worldCorners[2], worldCorners[6], camera, lineShader, 0, [1.0, 1.0, 0.2]);
+        this.drawLine(worldCorners[3], worldCorners[7], camera, lineShader, 0, [1.0, 1.0, 0.2]);
 
         // Draw light position and direction
         const lightPosArray = [lightPos.x, lightPos.y, lightPos.z];
-        const lightDirEnd = [lightPos.x + lightDir.x * 50, lightPos.y + lightDir.y * 50, lightPos.z + lightDir.z * 50];
+        const lightDirEnd = [lightPos.x + lightDir.x * 500, lightPos.y + lightDir.y * 500, lightPos.z + lightDir.z * 500];
 
         // Always draw the light direction line, even if frustum lines are disabled
         this.drawLine(lightPosArray, lightDirEnd, camera, lineShader, 0, [1.0, 0.8, 0.2]);
+        
+        console.log("Light frustum visualization complete");
     }
 
     drawLine(start, end, camera, lineShader, currentTime, color = [0.2, 0.2, 1.0]) {
-        const lineVerts = new Float32Array([...start, ...end]);
-
-        this.gl.useProgram(lineShader.program);
-
-        // Set up matrices
-        const projection = Matrix4.perspective(Matrix4.create(), camera.fov, Game.WIDTH / Game.HEIGHT, 0.1, 10000.0);
-        const view = Matrix4.create();
-        Matrix4.lookAt(view, camera.position.toArray(), camera.target.toArray(), camera.up.toArray());
-
-        this.gl.uniformMatrix4fv(lineShader.locations.projectionMatrix, false, projection);
-        this.gl.uniformMatrix4fv(lineShader.locations.viewMatrix, false, view);
-
-        // Set the line color
-        const colorLocation = this.gl.getUniformLocation(lineShader.program, "uColor");
-        if (colorLocation) {
-            this.gl.uniform3fv(colorLocation, color);
+        if (!lineShader || !lineShader.program) {
+            console.error("Line shader not available");
+            return;
         }
-        lineShader.locations.color = this.gl.getUniformLocation(lineShader.program, "uColor");
-        // Buffer and draw the line
-        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.directionBuffer);
-        this.gl.bufferData(this.gl.ARRAY_BUFFER, lineVerts, this.gl.STATIC_DRAW);
+        
+        try {
+            const lineVerts = new Float32Array([...start, ...end]);
 
-        this.gl.vertexAttribPointer(lineShader.locations.position, 3, this.gl.FLOAT, false, 0, 0);
-        this.gl.enableVertexAttribArray(lineShader.locations.position);
+            this.gl.useProgram(lineShader.program);
 
-        this.gl.drawArrays(this.gl.LINES, 0, 2);
+            // Set up matrices
+            const projection = Matrix4.perspective(Matrix4.create(), camera.fov, Game.WIDTH / Game.HEIGHT, 0.1, 10000.0);
+            const view = Matrix4.create();
+            Matrix4.lookAt(view, camera.position.toArray(), camera.target.toArray(), camera.up.toArray());
+
+            // Check if locations exist
+            if (!lineShader.locations) {
+                lineShader.locations = {
+                    position: this.gl.getAttribLocation(lineShader.program, "aPosition"),
+                    projectionMatrix: this.gl.getUniformLocation(lineShader.program, "uProjectionMatrix"),
+                    viewMatrix: this.gl.getUniformLocation(lineShader.program, "uViewMatrix"),
+                    color: this.gl.getUniformLocation(lineShader.program, "uColor")
+                };
+            }
+
+            // Set matrix uniforms
+            this.gl.uniformMatrix4fv(lineShader.locations.projectionMatrix, false, projection);
+            this.gl.uniformMatrix4fv(lineShader.locations.viewMatrix, false, view);
+
+            // Set the line color
+            const colorLocation = lineShader.locations.color || this.gl.getUniformLocation(lineShader.program, "uColor");
+            if (colorLocation) {
+                this.gl.uniform3fv(colorLocation, color);
+            }
+
+            // Buffer and draw the line
+            this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.directionBuffer);
+            this.gl.bufferData(this.gl.ARRAY_BUFFER, lineVerts, this.gl.STATIC_DRAW);
+
+            const positionLocation = lineShader.locations.position;
+            this.gl.vertexAttribPointer(positionLocation, 3, this.gl.FLOAT, false, 0, 0);
+            this.gl.enableVertexAttribArray(positionLocation);
+
+            this.gl.drawArrays(this.gl.LINES, 0, 2);
+        } catch (error) {
+            console.error("Error drawing line:", error);
+        }
     }
 
     /**
@@ -212,6 +247,10 @@ class DebugRenderer3D {
             }
             return;
         }
+        
+        // Force visualization frustum on when debug shadow map is on
+        // This ensures we can always see both
+        this.constants.DEBUG.VISUALIZE_FRUSTUM = true;
 
         // Only render if we have a light manager and main directional light
         if (!this.lightManager) return;
