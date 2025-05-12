@@ -58,7 +58,7 @@ class ActionCharacter extends RenderableObject {
             worldGravity.y * gravityMultiplier,
             worldGravity.z * gravityMultiplier
         );
-        
+        this.characterVisualYOffset = 0.75;
         // Add character body to physics world
         this.game.physicsWorld.getWorld().addRigidBody(this.body);
     }
@@ -314,8 +314,10 @@ class ActionCharacter extends RenderableObject {
         // Calculate model orientation transform based on facing direction
         const angle = Math.atan2(this.facingDirection.x, this.facingDirection.z);
         const modelTransform = Matrix4.create();
-        // Uncomment and use this line to position the character at the correct world position
-        Matrix4.translate(modelTransform, modelTransform, [this.position.x, this.position.y, this.position.z]);
+        
+        // Position the character at the correct world position
+        Matrix4.translate(modelTransform, modelTransform, [this.position.x, this.position.y + this.characterVisualYOffset, this.position.z]);
+        
         Matrix4.rotateY(modelTransform, modelTransform, angle);
         const transformedTriangles = [];
         const skin = this.characterModel.skins[0];
