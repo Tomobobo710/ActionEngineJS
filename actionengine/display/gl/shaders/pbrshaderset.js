@@ -1,5 +1,5 @@
-// game/display/gl/shaders/pbrshader.js
-class PBRShader {
+// game/display/gl/shaders/pbrshaderset.js
+class PBRShaderSet {
     getStandardVertexShader(isWebGL2) {
         return `${isWebGL2 ? "#version 300 es\n" : ""}
     // Attributes - data coming in per vertex
@@ -419,4 +419,4 @@ void main() {
 }
 
 // Register the shader set
-ShaderSetRegistry.registerShaderSet("pbr", PBRShader);
+ShaderSetRegistry.registerShaderSet("pbr", PBRShaderSet);
