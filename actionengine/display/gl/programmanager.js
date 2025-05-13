@@ -63,8 +63,8 @@ class ProgramManager {
         };
         
         // Initialize all shaders
-        this.initializeObjectShader();
         this.initializeSpecialShaders();
+        this.initializeObjectShader();
     }
     
     /**

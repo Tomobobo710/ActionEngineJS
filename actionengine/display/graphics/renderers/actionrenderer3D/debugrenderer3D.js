@@ -17,17 +17,20 @@ class DebugRenderer3D {
         // Track shadow map visualization state
         this._wasVisualizingShadowMap = false;
         
+        this._lastLineShaderVariant = null;
+        
         // Debug flag
         this._debugFrustum = false;
     }
 
     drawDebugLines(camera, character, currentTime) {
-        // Adapt based on current shader mode
-        const currentShader = this.programManager.getCurrentVariant();
-        if (currentShader === "virtualboy") {
-            this.programManager.setLineShaderVariant("virtualboy");
-        } else {
-            this.programManager.setLineShaderVariant("default");
+        // Only change variant if needed
+        const currentVariant = this.programManager.getCurrentVariant();
+        const targetVariant = currentVariant === "virtualboy" ? "virtualboy" : "default";
+
+        if (this._lastLineShaderVariant !== targetVariant) {
+            this.programManager.setLineShaderVariant(targetVariant);
+            this._lastLineShaderVariant = targetVariant;
         }
 
         // Get the line program and locations
@@ -93,7 +96,7 @@ class DebugRenderer3D {
             return;
         }
         
-        console.log("Drawing light frustum...");
+        //console.log("Drawing light frustum...");
         this._debugFrustum = true;
 
         // Get main directional light
@@ -107,8 +110,8 @@ class DebugRenderer3D {
         const lightPos = mainLight.getPosition();
         const lightDir = mainLight.getDirection();
 
-        console.log("Light position:", lightPos);
-        console.log("Light direction:", lightDir);
+        //console.log("Light position:", lightPos);
+        //console.log("Light direction:", lightDir);
 
         // Get shadow projection parameters from constants
         const projection = this.constants.SHADOW_PROJECTION;
@@ -121,7 +124,7 @@ class DebugRenderer3D {
         const near = projection.NEAR.value;
         const far = projection.FAR.value;
 
-        console.log("Frustum bounds:", { left, right, bottom, top, near, far });
+        //console.log("Frustum bounds:", { left, right, bottom, top, near, far });
 
         // Calculate frustum corners in light space
         const corners = [
@@ -190,7 +193,7 @@ class DebugRenderer3D {
         // Always draw the light direction line, even if frustum lines are disabled
         this.drawLine(lightPosArray, lightDirEnd, camera, lineShader, 0, [1.0, 0.8, 0.2]);
         
-        console.log("Light frustum visualization complete");
+        //console.log("Light frustum visualization complete");
     }
 
     drawLine(start, end, camera, lineShader, currentTime, color = [0.2, 0.2, 1.0]) {

@@ -447,10 +447,10 @@ class ObjectRenderer3D {
         // Set intensity factor for default shader
         if (locations.intensityFactor !== -1 && locations.intensityFactor !== null) {
             // Get the current shader name
-            const currentShader = this.programManager.getCurrentVariant();
+            const currentVariant = this.programManager.getCurrentVariant();
             
             // Only apply the factor to the default shader
-            if (currentShader === "default") {
+            if (currentVariant === "default") {
                 const factor = this.lightManager.constants.OBJECT_SHADER_DEFAULT_VARIANT_INTENSITY_FACTOR.value;
                 gl.uniform1f(locations.intensityFactor, factor);
             } else {
@@ -567,8 +567,8 @@ class ObjectRenderer3D {
         }
         
         // Performance optimization: Cache shader information and texture binding
-        if (!this._currentShaderType) {
-            this._currentShaderType = "unknown";
+        if (!this._currentShaderVariant) {
+            this._currentShaderVariant = "unknown";
         }
         
         // Bind texture array if the shader uses it
@@ -581,12 +581,12 @@ class ObjectRenderer3D {
                 // Check current variant directly from programManager
                 if (!this._lastCheckedVariant || this._lastCheckedVariant !== this.programManager.getCurrentVariant()) {
                     this._lastCheckedVariant = this.programManager.getCurrentVariant();
-                    this._currentShaderType = this._lastCheckedVariant === "pbr" ? "pbr" : "other";
+                    this._currentShaderVariant = this._lastCheckedVariant === "pbr" ? "pbr" : "other";
                 }
                 
                 // Determine which texture unit to use - use 1 for PBR shader, 0 for others
                 // This avoids conflicts with shadow map (unit 7) or material properties texture (unit 2)
-                const targetUnit = this._currentShaderType === "pbr" ? 1 : 0;
+                const targetUnit = this._currentShaderVariant === "pbr" ? 1 : 0;
                 
                 // Only change texture unit binding if needed
                 if (this._currentTextureUnit !== targetUnit || 
@@ -610,7 +610,7 @@ class ObjectRenderer3D {
                 
                 // Make sure material properties texture is up to date
                 // Only do the update if using PBR shader AND the properties are dirty
-                if (this._currentShaderType === "pbr" && 
+                if (this._currentShaderVariant === "pbr" && 
                     this.renderer?.textureManager?.materialPropertiesDirty) {
                     this.renderer.textureManager.updateMaterialPropertiesTexture();
                 }
