@@ -520,8 +520,10 @@ class ActionDirectionalShadowLight extends ActionLight {
         // For now we just use the standard uniforms, but in the future we'd use arrays
         // like uDirectionalLights[index].direction, etc.
         
-        const lightDirLoc = gl.getUniformLocation(program, "uLightDirection");
-        const lightPosLoc = gl.getUniformLocation(program, "uLightPosition");
+        // Use uLightDir to match what's actually in the shaders
+        const lightDirLoc = gl.getUniformLocation(program, "uLightDir");
+        // Use uLightPos to match what's actually in the shaders
+        const lightPosLoc = gl.getUniformLocation(program, "uLightPos");
         const lightIntensityLoc = gl.getUniformLocation(program, "uLightIntensity");
         const shadowMapLoc = gl.getUniformLocation(program, "uShadowMap");
         const lightSpaceMatrixLoc = gl.getUniformLocation(program, "uLightSpaceMatrix");

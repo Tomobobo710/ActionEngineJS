@@ -22,20 +22,30 @@ class DebugRenderer3D {
     }
 
     drawDebugLines(camera, character, currentTime) {
-        // Clear previous data
-        const shaderSet = this.programManager.getProgramRegistry().getCurrentShaderSet();
+        // Use the dedicated line shader instead of shader set lines
+        // Also adapt based on current shader mode
+        const currentShader = this.programManager.getProgramRegistry().getCurrentShaderName();
+        if (currentShader === "virtualboy") {
+            this.programManager.setLineShaderVariant("virtualboy");
+        } else {
+            this.programManager.setLineShaderVariant("default");
+        }
 
+        // Get the line program and locations
+        const lineProgram = this.programManager.getLineProgram();
+        const lineLocations = this.programManager.getLineLocations();
+        
         // Draw character-related debug info if character exists
         if (character) {
             const currentTriangle = character.getCurrentTriangle();
             if (currentTriangle) {
-                this.drawTriangleNormal(currentTriangle, camera, shaderSet.lines, currentTime);
+                this.drawTriangleNormal(currentTriangle, camera, { program: lineProgram, locations: lineLocations }, currentTime);
             }
-            this.drawDirectionIndicator(character, camera, shaderSet.lines, currentTime);
+            this.drawDirectionIndicator(character, camera, { program: lineProgram, locations: lineLocations }, currentTime);
         }
 
         // Always try to draw light frustum - it will check for the DEBUG.VISUALIZE_FRUSTUM flag internally
-        this.drawLightFrustum(camera, shaderSet.lines);
+        this.drawLightFrustum(camera, { program: lineProgram, locations: lineLocations });
 
         // Draw shadow map visualization if enabled
         this.drawShadowMapDebug(camera);

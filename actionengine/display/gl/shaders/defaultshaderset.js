@@ -316,23 +316,5 @@ class DefaultShaderSet {
     }`;
     }
 
-    getLineVertexShader(isWebGL2) {
-        return `${isWebGL2 ? "#version 300 es\n" : ""}
-    ${isWebGL2 ? "in" : "attribute"} vec3 aPosition;
-    uniform mat4 uProjectionMatrix;
-    uniform mat4 uViewMatrix;
-    void main() {
-        gl_Position = uProjectionMatrix * uViewMatrix * vec4(aPosition, 1.0);
-    }`;
-    }
-
-    getLineFragmentShader(isWebGL2) {
-        return `${isWebGL2 ? "#version 300 es\n" : ""}
-    precision mediump float;
-    uniform vec3 uColor;
-    ${isWebGL2 ? "out vec4 fragColor;\n" : ""}
-    void main() {
-        ${isWebGL2 ? "fragColor" : "gl_FragColor"} = vec4(uColor, 1.0);
-    }`;
-    }
+    // Line shader methods removed - now handled by the dedicated LineShader class
 }

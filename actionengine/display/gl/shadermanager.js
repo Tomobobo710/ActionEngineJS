@@ -11,17 +11,74 @@ class ShaderManager {
         this.uvs = new Float32Array(initialSize * 6);
         this.colorCache = new Map();
 
+        // Instead of using ShaderSetRegistry, we'll manage shader sets directly
+        this.shaderSets = {};
+        this.shaderNames = [];
+        
+        // Register standard shader sets
+        this.registerStandardShaderSets();
+
         // Pre-calculate commonly used values
         this.colorMultiplier = 1 / 255;
+    }
+
+    /**
+     * Register a shader set directly with the ShaderManager
+     * @param {string} name - Name of the shader set
+     * @param {object|function} shaderSetClass - Shader set class or instance
+     */
+    registerShaderSet(name, shaderSetClass) {
+        // Create new instance of the shader if it's a class
+        const shaderInstance = typeof shaderSetClass === 'function' 
+            ? new shaderSetClass() 
+            : shaderSetClass;
+        
+        // Store in shaderSets object
+        this.shaderSets[name] = shaderInstance;
+        
+        // Add to names array if not already present
+        if (!this.shaderNames.includes(name)) {
+            this.shaderNames.push(name);
+        }
+
+        console.log(`[ShaderManager] Registered shader set: ${name}`);
+    }
+
+    /**
+     * Get a shader set by name
+     * @param {string} name - Name of the shader to retrieve
+     * @returns {object|null} - The shader set instance or null if not found
+     */
+    getShaderSet(name) {
+        return this.shaderSets[name] || null;
+    }
+
+    /**
+     * Get names of all registered shader sets
+     * @returns {string[]} - Array of shader set names
+     */
+    getAllShaderNames() {
+        return Array.from(this.shaderNames);
+    }
+    
+    /**
+     * Register all standard shader sets
+     */
+    registerStandardShaderSets() {
+        //this.registerShaderSet("default", DefaultShaderSet);
+        this.registerShaderSet("pbr", PBRShaderSet);
+        this.registerShaderSet("virtualboy", VirtualBoyShaderSet);
+        
+        console.log("[ShaderManager] Registered standard shader sets");
     }
 
     registerAllShaders(renderer) {
         console.log(`[ShaderManager] Registering all shaders, WebGL2: ${this.isWebGL2}`);
         // Register each shader with the renderer
-        ShaderSetRegistry.getAllShaderNames().forEach((name) => {
+        this.getAllShaderNames().forEach((name) => {
             console.log(`[ShaderManager] Registering shader set: ${name}`);
             try {
-                const shader = ShaderSetRegistry.getShaderSet(name);
+                const shader = this.getShaderSet(name);
                 if (!shader) {
                     console.error(`[ShaderManager] Error: Shader '${name}' not found in registry`);
                     return;
@@ -32,7 +89,7 @@ class ShaderManager {
                 console.log(`[ShaderManager] Has getStandardVertexShader: ${!!shader.getStandardVertexShader}`);
                 console.log(`[ShaderManager] Has getStandardFragmentShader: ${!!shader.getStandardFragmentShader}`);
                 
-                // Get shader source with error checking
+                // Get shader source with error checking - line shaders now handled separately
                 let standardVertex = null;
                 try {
                     standardVertex = shader.getStandardVertexShader?.(this.isWebGL2);
@@ -47,29 +104,14 @@ class ShaderManager {
                     console.error(`[ShaderManager] Error getting standard fragment shader for '${name}': ${e.message}`);
                 }
                 
-                let lineVertex = null;
-                try {
-                    lineVertex = shader.getLineVertexShader?.(this.isWebGL2);
-                } catch (e) {
-                    console.error(`[ShaderManager] Error getting line vertex shader for '${name}': ${e.message}`);
-                }
-                
-                let lineFragment = null;
-                try {
-                    lineFragment = shader.getLineFragmentShader?.(this.isWebGL2);
-                } catch (e) {
-                    console.error(`[ShaderManager] Error getting line fragment shader for '${name}': ${e.message}`);
-                }
+                // Line shaders are now handled by the dedicated LineShader class
                 
                 const shaderSet = {
                     standard: {
                         vertex: standardVertex,
                         fragment: standardFragment
-                    },
-                    lines: {
-                        vertex: lineVertex,
-                        fragment: lineFragment
                     }
+                    // Lines removed - now handled by LineShader
                 };
                 
                 try {
@@ -85,36 +127,10 @@ class ShaderManager {
     }
 
     getShader(type, shaderName) {
-        const shader = ShaderSetRegistry.getShaderSet(shaderName);
+        const shader = this.getShaderSet(shaderName);
         if (!shader) return null;
 
         const methodName = `get${type}Shader`;
         return shader[methodName]?.(this.isWebGL2);
     }
-
-    registerShaderSet(renderer, name) {
-        const shaderSet = {};
-
-        const standardVertex = this.getShader("StandardVertex", name);
-        const standardFragment = this.getShader("StandardFragment", name);
-        if (standardVertex && standardFragment) {
-            shaderSet.standard = {
-                vertex: standardVertex,
-                fragment: standardFragment
-            };
-        }
-
-        const lineVertex = this.getShader("LineVertex", name);
-        const lineFragment = this.getShader("LineFragment", name);
-        if (lineVertex && lineFragment) {
-            shaderSet.lines = {
-                vertex: lineVertex,
-                fragment: lineFragment
-            };
-        }
-
-        if (Object.keys(shaderSet).length > 0) {
-            renderer.registerShaderSet(name, shaderSet);
-        }
-    }    
 }

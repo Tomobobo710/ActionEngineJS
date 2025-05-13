@@ -4,6 +4,9 @@ class ProgramManager {
         this.gl = gl;
         this.isWebGL2 = isWebGL2;
         this.programRegistry = new ProgramRegistry(this.gl);
+        
+        // Set programManager reference in programRegistry for access to line shader functions
+        this.programRegistry.programManager = this;
 
         // Store shader programs
         this.particleProgram = null;
@@ -23,6 +26,7 @@ class ProgramManager {
         this.initializeParticleShader();
         this.initializeWaterShader();
         this.initializeDefaultShaderSet();
+        this.initializeLineShader();
     }
 
     initializeParticleShader() {
@@ -79,14 +83,9 @@ class ProgramManager {
         );
 
         // Character shader initialization removed - characters now use standard shader
+        // Line shader initialization moved to separate method
 
-        const defaultLineProgram = this.programRegistry.createShaderProgram(
-            defaultShaderSet.getLineVertexShader(this.isWebGL2),
-            defaultShaderSet.getLineFragmentShader(this.isWebGL2),
-            'default_lines'
-        );
-
-        // Add default shader set to registry
+        // Add default shader set to registry - line shaders now handled separately
         this.programRegistry.shaderSets.set("default", {
             standard: {
                 program: defaultStandardProgram,
@@ -110,15 +109,7 @@ class ProgramManager {
                     texCoord: this.gl.getAttribLocation(defaultStandardProgram, "aTexCoord"),
                     useTexture: this.gl.getAttribLocation(defaultStandardProgram, "aUseTexture")
                 }
-            },
-            lines: {
-                program: defaultLineProgram,
-                locations: {
-                    position: this.gl.getAttribLocation(defaultLineProgram, "aPosition"),
-                    projectionMatrix: this.gl.getUniformLocation(defaultLineProgram, "uProjectionMatrix"),
-                    viewMatrix: this.gl.getUniformLocation(defaultLineProgram, "uViewMatrix")
-                }
-            },
+            }
         });
     }
 
@@ -142,4 +133,84 @@ class ProgramManager {
     getProgramRegistry() {
         return this.programRegistry;
     }
+
+
+    /**
+     * Initialize the dedicated line shader
+     */
+    initializeLineShader() {
+        // Create a new LineShader instance
+        this.lineShader = new LineShader();
+        
+        // Create shader program for the default line shader
+        const lineProgram = this.programRegistry.createShaderProgram(
+            this.lineShader.getVertexShader(this.isWebGL2),
+            this.lineShader.getFragmentShader(this.isWebGL2),
+            'line_shader'
+        );
+        
+        // Get and store shader locations
+        this.lineLocations = {
+            position: this.gl.getAttribLocation(lineProgram, "aPosition"),
+            projectionMatrix: this.gl.getUniformLocation(lineProgram, "uProjectionMatrix"),
+            viewMatrix: this.gl.getUniformLocation(lineProgram, "uViewMatrix"),
+            color: this.gl.getUniformLocation(lineProgram, "uColor"),
+            time: this.gl.getUniformLocation(lineProgram, "uTime")
+        };
+        
+        // Store the program for later use
+        this.lineProgram = lineProgram;
+        
+        console.log("[ProgramManager] Line shader initialized");
+    }
+    
+    /**
+     * Set the current line shader variant
+     * @param {string} variant - The shader variant to use ('default', 'virtualboy', etc.)
+     */
+    setLineShaderVariant(variant) {
+        if (!this.lineShader) {
+            console.warn("[ProgramManager] Line shader not initialized");
+            return;
+        }
+        
+        // Update the line shader variant
+        this.lineShader.setVariant(variant);
+        
+        // Reinitialize the line shader program
+        const newLineProgram = this.programRegistry.createShaderProgram(
+            this.lineShader.getVertexShader(this.isWebGL2),
+            this.lineShader.getFragmentShader(this.isWebGL2),
+            `line_shader_${variant}`
+        );
+        
+        // Update the program and locations
+        this.lineProgram = newLineProgram;
+        this.lineLocations = {
+            position: this.gl.getAttribLocation(newLineProgram, "aPosition"),
+            projectionMatrix: this.gl.getUniformLocation(newLineProgram, "uProjectionMatrix"),
+            viewMatrix: this.gl.getUniformLocation(newLineProgram, "uViewMatrix"),
+            color: this.gl.getUniformLocation(newLineProgram, "uColor"),
+            time: this.gl.getUniformLocation(newLineProgram, "uTime")
+        };
+        
+        console.log(`[ProgramManager] Line shader variant changed to: ${variant}`);
+    }
+    
+    /**
+     * Get the current line shader program
+     * @returns {WebGLProgram} - The WebGL program for the line shader
+     */
+    getLineProgram() {
+        return this.lineProgram;
+    }
+    
+    /**
+     * Get the current line shader locations
+     * @returns {Object} - Object containing shader locations
+     */
+    getLineLocations() {
+        return this.lineLocations;
+    }
+    
 }

@@ -394,29 +394,7 @@ void main() {
 }`;
     }
 
-    getLineVertexShader(isWebGL2) {
-        return `${isWebGL2 ? "#version 300 es\n" : ""}
-    ${isWebGL2 ? "in" : "attribute"} vec3 aPosition;
-    uniform mat4 uProjectionMatrix;
-    uniform mat4 uViewMatrix;
-    
-    void main() {
-        gl_Position = uProjectionMatrix * uViewMatrix * vec4(aPosition, 1.0);
-    }`;
-    }
-
-    getLineFragmentShader(isWebGL2) {
-        return `${isWebGL2 ? "#version 300 es\n" : ""}
-    precision mediump float;
-    ${isWebGL2 ? "out vec4 fragColor;\n" : ""}
-    
-    uniform vec3 uColor;
-    
-    void main() {
-        ${isWebGL2 ? "fragColor" : "gl_FragColor"} = vec4(uColor, 1.0);
-    }`;
-    }
+    // Line shader methods removed - now handled by the dedicated LineShader class
 }
 
-// Register the shader set
-ShaderSetRegistry.registerShaderSet("pbr", PBRShaderSet);
+// Shader sets are now registered by ShaderManager

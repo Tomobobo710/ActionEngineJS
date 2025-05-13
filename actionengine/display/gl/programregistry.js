@@ -5,6 +5,7 @@ class ProgramRegistry {
         this.shaderSets = new Map();
         this.currentShaderIndex = 0;
         this.isWebGL2 = gl.getParameter(gl.VERSION).includes("WebGL 2.0");
+        this.programManager = null; // Will be set by ProgramManager
     }
 
     createShaderProgram(vsSource, fsSource, shaderName = 'unknown') {
@@ -91,21 +92,15 @@ class ProgramRegistry {
     registerShaderSet(name, shaders) {
         const defaultSet = this.shaderSets.get("default");
 
-        // Create new shader set using defaults for any missing shaders
+        // Create new shader set - line shaders now handled separately
         const newSet = {
             standard: {
                 program: shaders.standard
                     ? this.createShaderProgram(shaders.standard.vertex, shaders.standard.fragment, `${name}_standard`)
                     : defaultSet.standard.program,
                 locations: null // Will set after program creation
-            },
-            // 'character' shader removed - characters now use 'standard' shader
-            lines: {
-                program: shaders.lines
-                    ? this.createShaderProgram(shaders.lines.vertex, shaders.lines.fragment, `${name}_lines`)
-                    : defaultSet.lines.program,
-                locations: null
             }
+            // Lines removed - now handled by dedicated LineShader
         };
 
         this.setupShaderLocations(newSet, shaders, defaultSet);
@@ -212,17 +207,7 @@ class ProgramRegistry {
             newSet.standard.locations = defaultSet.standard.locations;
         }
 
-        // Set up locations for line shader (simpler, no textures)
-        if (shaders.lines) {
-            newSet.lines.locations = {
-                position: gl.getAttribLocation(newSet.lines.program, this._attributeNames.position),
-                projectionMatrix: gl.getUniformLocation(newSet.lines.program, this._uniformNames.projectionMatrix),
-                viewMatrix: gl.getUniformLocation(newSet.lines.program, this._uniformNames.viewMatrix),
-                time: gl.getUniformLocation(newSet.lines.program, this._uniformNames.time)
-            };
-        } else {
-            newSet.lines.locations = defaultSet.lines.locations;
-        }
+        // Line shader locations now handled by the dedicated LineShader
     }
 
     setupTimeUniforms(newSet, shaders) {
@@ -232,19 +217,24 @@ class ProgramRegistry {
                 newSet.standard.locations.time = timeLocation;
             }
         }
-
-        if (shaders.lines) {
-            const timeLocation = this.gl.getUniformLocation(newSet.lines.program, "uTime");
-            if (timeLocation !== null) {
-                newSet.lines.locations.time = timeLocation;
-            }
-        }
+        
+        // Time uniform for lines is now handled by the dedicated LineShader
     }
 
     cycleShaderSets() {
         const shaderNames = Array.from(this.shaderSets.keys());
         this.currentShaderIndex = (this.currentShaderIndex + 1) % shaderNames.length;
-        console.log(`[ProgramRegistry] Switched to shader set: ${shaderNames[this.currentShaderIndex]}`);
+        const newShaderName = shaderNames[this.currentShaderIndex];
+        console.log(`[ProgramRegistry] Switched to shader set: ${newShaderName}`);
+        
+        // Update the line shader variant based on the selected shader set
+        if (this.programManager && this.programManager.setLineShaderVariant) {
+            if (newShaderName === "virtualboy") {
+                this.programManager.setLineShaderVariant("virtualboy");
+            } else {
+                this.programManager.setLineShaderVariant("default");
+            }
+        }
     }
 
     getCurrentShaderSet() {
