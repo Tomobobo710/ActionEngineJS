@@ -1,5 +1,5 @@
-// game/display/gl/shaders/defaultshader.js
-class DefaultShader {
+// game/display/gl/shaders/defaultshaderset.js
+class DefaultShaderSet {
     getStandardVertexShader(isWebGL2) {
         return `${isWebGL2 ? "#version 300 es\n" : ""}
     // Add precision qualifier to make it match fragment shader

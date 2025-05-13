@@ -157,12 +157,12 @@ class LightingDebugPanel extends BaseDebugPanel {
                 updateProperty: (value) => { this.constants.SHADOW_PROJECTION.FAR.value = value; }
             },
             "Default Shader Intensity Factor": {
-                value: this.constants.DEFAULT_SHADER_INTENSITY_FACTOR.value,
-                min: this.constants.DEFAULT_SHADER_INTENSITY_FACTOR.min,
-                max: this.constants.DEFAULT_SHADER_INTENSITY_FACTOR.max,
-                step: this.constants.DEFAULT_SHADER_INTENSITY_FACTOR.step,
-                id: "defaultShaderIntensityFactor",
-                updateProperty: (value) => { this.constants.DEFAULT_SHADER_INTENSITY_FACTOR.value = value; }
+                value: this.constants.DEFAULT_SHADER_SET_INTENSITY_FACTOR.value,
+                min: this.constants.DEFAULT_SHADER_SET_INTENSITY_FACTOR.min,
+                max: this.constants.DEFAULT_SHADER_SET_INTENSITY_FACTOR.max,
+                step: this.constants.DEFAULT_SHADER_SET_INTENSITY_FACTOR.step,
+                id: "defaultShaderSetIntensityFactor",
+                updateProperty: (value) => { this.constants.DEFAULT_SHADER_SET_INTENSITY_FACTOR.value = value; }
             },
             "Softness": {
                 value: this.constants.SHADOW_FILTERING.SOFTNESS.value,

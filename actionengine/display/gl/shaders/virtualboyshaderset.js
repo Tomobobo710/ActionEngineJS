@@ -1,5 +1,5 @@
-// game/display/gl/shaders/virtualboyshader.js
-class VirtualBoyShader {
+// game/display/gl/shaders/virtualboyshaderset.js
+class VirtualBoyShaderSet {
     getStandardVertexShader(isWebGL2) { // Renamed from getTerrainVertexShader
         return `${isWebGL2 ? "#version 300 es\n" : ""}
         ${isWebGL2 ? "in" : "attribute"} vec3 aPosition;
@@ -67,5 +67,5 @@ class VirtualBoyShader {
 }
 
 // Auto-register at end of file
-//console.log('[VirtualBoyShader] Registering Virtal Boy shader..');
-ShaderRegistry.register('virtualboy', VirtualBoyShader);
+//console.log('[VirtualBoyShaderSet] Registering Virtal Boy shader set..');
+ShaderSetRegistry.registerShaderSet('virtualboy', VirtualBoyShaderSet);

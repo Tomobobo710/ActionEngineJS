@@ -32,7 +32,7 @@ class LightingConstants {
         };
         
         // Default shader intensity factor - controls how intensity affects non-PBR shaders
-        this.DEFAULT_SHADER_INTENSITY_FACTOR = {
+        this.DEFAULT_SHADER_SET_INTENSITY_FACTOR = {
             value: 0.00001,  // Scale factor for default shader (smaller values = less dramatic effect)
             min: 0.000000000000001,
             max: 1.0,
@@ -203,7 +203,7 @@ class LightingConstants {
             lightPosition: { ...this.LIGHT_POSITION },
             lightDirection: { ...this.LIGHT_DIRECTION },
             lightIntensity: { ...this.LIGHT_INTENSITY },
-            defaultShaderIntensityFactor: { ...this.DEFAULT_SHADER_INTENSITY_FACTOR },
+            defaultShaderSetIntensityFactor: { ...this.DEFAULT_SHADER_SET_INTENSITY_FACTOR },
             material: { ...this.MATERIAL },
             shadowMap: { ...this.SHADOW_MAP },
             shadowProjection: { ...this.SHADOW_PROJECTION },
@@ -234,7 +234,7 @@ class LightingConstants {
         copyProps(this.LIGHT_POSITION, config.lightPosition);
         copyProps(this.LIGHT_DIRECTION, config.lightDirection);
         copyProps(this.LIGHT_INTENSITY, config.lightIntensity);
-        copyProps(this.DEFAULT_SHADER_INTENSITY_FACTOR, config.defaultShaderIntensityFactor);
+        copyProps(this.DEFAULT_SHADER_SET_INTENSITY_FACTOR, config.defaultShaderSetIntensityFactor);
         copyProps(this.MATERIAL, config.material);
         copyProps(this.SHADOW_MAP, config.shadowMap);
         copyProps(this.SHADOW_PROJECTION, config.shadowProjection);

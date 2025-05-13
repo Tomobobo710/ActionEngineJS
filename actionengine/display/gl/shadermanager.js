@@ -1,6 +1,4 @@
 // actionengine/display/gl/shadermanager.js
-
-
 class ShaderManager {
     constructor(renderer3D, initialSize = 500) {
         this.gl = renderer3D.gl;
@@ -20,10 +18,10 @@ class ShaderManager {
     registerAllShaders(renderer) {
         console.log(`[ShaderManager] Registering all shaders, WebGL2: ${this.isWebGL2}`);
         // Register each shader with the renderer
-        ShaderRegistry.getAllShaderNames().forEach((name) => {
+        ShaderSetRegistry.getAllShaderNames().forEach((name) => {
             console.log(`[ShaderManager] Registering shader set: ${name}`);
             try {
-                const shader = ShaderRegistry.getShader(name);
+                const shader = ShaderSetRegistry.getShaderSet(name);
                 if (!shader) {
                     console.error(`[ShaderManager] Error: Shader '${name}' not found in registry`);
                     return;
@@ -87,7 +85,7 @@ class ShaderManager {
     }
 
     getShader(type, shaderName) {
-        const shader = ShaderRegistry.getShader(shaderName);
+        const shader = ShaderSetRegistry.getShaderSet(shaderName);
         if (!shader) return null;
 
         const methodName = `get${type}Shader`;

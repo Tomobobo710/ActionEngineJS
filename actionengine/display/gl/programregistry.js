@@ -2,7 +2,7 @@
 class ProgramRegistry {
     constructor(gl) {
         this.gl = gl;
-        this.shaders = new Map();
+        this.shaderSets = new Map();
         this.currentShaderIndex = 0;
         this.isWebGL2 = gl.getParameter(gl.VERSION).includes("WebGL 2.0");
     }
@@ -89,7 +89,7 @@ class ProgramRegistry {
     }
     
     registerShaderSet(name, shaders) {
-        const defaultSet = this.shaders.get("default");
+        const defaultSet = this.shaderSets.get("default");
 
         // Create new shader set using defaults for any missing shaders
         const newSet = {
@@ -109,7 +109,7 @@ class ProgramRegistry {
         };
 
         this.setupShaderLocations(newSet, shaders, defaultSet);
-        this.shaders.set(name, newSet);
+        this.shaderSets.set(name, newSet);
     }
 
     setupShaderLocations(newSet, shaders, defaultSet) {
@@ -241,15 +241,15 @@ class ProgramRegistry {
         }
     }
 
-    cycleShaders() {
-        const shaderNames = Array.from(this.shaders.keys());
+    cycleShaderSets() {
+        const shaderNames = Array.from(this.shaderSets.keys());
         this.currentShaderIndex = (this.currentShaderIndex + 1) % shaderNames.length;
         console.log(`[ProgramRegistry] Switched to shader set: ${shaderNames[this.currentShaderIndex]}`);
     }
 
     getCurrentShaderSet() {
-        const shaderNames = Array.from(this.shaders.keys());
-        return this.shaders.get(shaderNames[this.currentShaderIndex]);
+        const shaderNames = Array.from(this.shaderSets.keys());
+        return this.shaderSets.get(shaderNames[this.currentShaderIndex]);
     }
     
     /**
@@ -257,7 +257,7 @@ class ProgramRegistry {
      * @returns {string} - The name of the current shader set
      */
     getCurrentShaderName() {
-        const shaderNames = Array.from(this.shaders.keys());
+        const shaderNames = Array.from(this.shaderSets.keys());
         return shaderNames[this.currentShaderIndex];
     }
 }

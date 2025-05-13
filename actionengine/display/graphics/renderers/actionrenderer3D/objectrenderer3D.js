@@ -449,7 +449,7 @@ class ObjectRenderer3D {
             
             // Only apply the factor to the default shader
             if (currentShader === "default") {
-                const factor = this.lightManager.constants.DEFAULT_SHADER_INTENSITY_FACTOR.value;
+                const factor = this.lightManager.constants.DEFAULT_SHADER_SET_INTENSITY_FACTOR.value;
                 gl.uniform1f(locations.intensityFactor, factor);
             } else {
                 // For non-default shaders, use 1.0 (no scaling)
@@ -579,7 +579,7 @@ class ObjectRenderer3D {
                 if (!this._lastCheckedShader || this._lastCheckedShader !== this.programRegistry.getCurrentShaderSet()) {
                     const currentShaderSet = this.programRegistry.getCurrentShaderSet();
                     this._lastCheckedShader = currentShaderSet;
-                    this._currentShaderType = this.programRegistry?.shaders.get("pbr") === currentShaderSet ? "pbr" : "other";
+                    this._currentShaderType = this.programRegistry?.shaderSets.get("pbr") === currentShaderSet ? "pbr" : "other";
                 }
                 
                 // Determine which texture unit to use - use 1 for PBR shader, 0 for others

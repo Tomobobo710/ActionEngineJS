@@ -63,7 +63,7 @@ class ActionRenderer3D {
             this._cachedShaderSet = this.programRegistry.getCurrentShaderSet();
             
             // Set clear color based on shader
-            if (this._cachedShaderSet === this.programRegistry.shaders.get("virtualboy")) {
+            if (this._cachedShaderSet === this.programRegistry.shaderSets.get("virtualboy")) {
                 this.canvasManager.setClearColor(0.0, 0.0, 0.0, 1.0); // Black
             } else {
                 this.canvasManager.setClearColor(0.529, 0.808, 0.922, 1.0); // Original blue
@@ -76,7 +76,7 @@ class ActionRenderer3D {
             this._cachedShaderSet = currentShaderSet;
             
             // Update clear color if shader changed
-            if (this._cachedShaderSet === this.programRegistry.shaders.get("virtualboy")) {
+            if (this._cachedShaderSet === this.programRegistry.shaderSets.get("virtualboy")) {
                 this.canvasManager.setClearColor(0.0, 0.0, 0.0, 1.0); // Black
             } else {
                 this.canvasManager.setClearColor(0.529, 0.808, 0.922, 1.0); // Original blue
@@ -175,8 +175,8 @@ class ActionRenderer3D {
         // Draw the sun
         const mainLight = this.lightManager.getMainDirectionalLight();
         const lightPos = mainLight ? mainLight.getPosition() : new Vector3(0, 5000, 0);
-        const isVirtualBoyShader = (this._cachedShaderSet === this.programRegistry.shaders.get("virtualboy"));
-        this.sunRenderer.render(camera, lightPos, isVirtualBoyShader);
+        const isVirtualBoyShaderSet = (this._cachedShaderSet === this.programRegistry.shaderSets.get("virtualboy"));
+        this.sunRenderer.render(camera, lightPos, isVirtualBoyShaderSet);
         
         // Debug visualization if enabled
         if (showDebugPanel && camera) {
@@ -200,7 +200,7 @@ class ActionRenderer3D {
         const shaderTypes = ['default', 'pbr'];
         
         for (const shaderType of shaderTypes) {
-            const shaderSet = this.programRegistry.shaders.get(shaderType);
+            const shaderSet = this.programRegistry.shaderSets.get(shaderType);
             
             if (shaderSet && shaderSet.standard && shaderSet.standard.program) {
                 // Use the shader program
@@ -262,7 +262,7 @@ class ActionRenderer3D {
         
         // Initialize shadows for each shader type
         for (const shaderType of shaderTypes) {
-            const shaderSet = this.programRegistry.shaders.get(shaderType);
+            const shaderSet = this.programRegistry.shaderSets.get(shaderType);
             
             if (shaderSet && shaderSet.standard && shaderSet.standard.program) {
                 // Console log removed for performance
@@ -350,14 +350,14 @@ class ActionRenderer3D {
         const gl = this.gl;
         
         // Make sure program registry exists and has shaders
-        if (!this.programRegistry || !this.programRegistry.shaders) {
+        if (!this.programRegistry || !this.programRegistry.shaderSets) {
             console.warn('Program registry or shaders map not available for debugging');
             return;
         }
         
         // Check all registered shader programs
         try {
-            this.programRegistry.shaders.forEach((shaderSet, name) => {
+            this.programRegistry.shaderSets.forEach((shaderSet, name) => {
             const standardProgram = shaderSet.standard.program;
             console.log(`\nChecking shadow uniforms for shader '${name}':\n`);
             

@@ -22,7 +22,7 @@ class ProgramManager {
     initializeShaderPrograms() {
         this.initializeParticleShader();
         this.initializeWaterShader();
-        this.initializeDefaultShaders();
+        this.initializeDefaultShaderSet();
     }
 
     initializeParticleShader() {
@@ -69,25 +69,25 @@ class ProgramManager {
         console.log("Water locations:", this.waterLocations); // Debug
     }
 
-    initializeDefaultShaders() {
-        const defaultShader = new DefaultShader();
+    initializeDefaultShaderSet() {
+        const defaultShaderSet = new DefaultShaderSet();
 
         const defaultStandardProgram = this.programRegistry.createShaderProgram(
-            defaultShader.getStandardVertexShader(this.isWebGL2),
-            defaultShader.getStandardFragmentShader(this.isWebGL2),
+            defaultShaderSet.getStandardVertexShader(this.isWebGL2),
+            defaultShaderSet.getStandardFragmentShader(this.isWebGL2),
             'default_standard'
         );
 
         // Character shader initialization removed - characters now use standard shader
 
         const defaultLineProgram = this.programRegistry.createShaderProgram(
-            defaultShader.getLineVertexShader(this.isWebGL2),
-            defaultShader.getLineFragmentShader(this.isWebGL2),
+            defaultShaderSet.getLineVertexShader(this.isWebGL2),
+            defaultShaderSet.getLineFragmentShader(this.isWebGL2),
             'default_lines'
         );
 
         // Add default shader set to registry
-        this.programRegistry.shaders.set("default", {
+        this.programRegistry.shaderSets.set("default", {
             standard: {
                 program: defaultStandardProgram,
                 locations: {
@@ -111,7 +111,6 @@ class ProgramManager {
                     useTexture: this.gl.getAttribLocation(defaultStandardProgram, "aUseTexture")
                 }
             },
-            // Character shader removed - characters now use standard shader
             lines: {
                 program: defaultLineProgram,
                 locations: {
@@ -142,9 +141,5 @@ class ProgramManager {
 
     getProgramRegistry() {
         return this.programRegistry;
-    }
-
-    cycleShaders() {
-        this.programRegistry.cycleShaders();
     }
 }

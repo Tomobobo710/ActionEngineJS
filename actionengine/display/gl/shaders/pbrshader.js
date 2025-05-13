@@ -418,5 +418,5 @@ void main() {
     }
 }
 
-// Register the shader
-ShaderRegistry.register("pbr", PBRShader);
+// Register the shader set
+ShaderSetRegistry.registerShaderSet("pbr", PBRShader);
