@@ -76,11 +76,8 @@ class Game {
 		// Initialize 3D renderer - this handles all WebGL complexity for us!
 		this.renderer3D = new ActionRenderer3D(this.canvas);
 
-		// Initialize shader manager - manages all shader programs
-		this.shaderManager = new ShaderManager(this.renderer3D);
-
 		// Initialize physics world - handles all physics calculations
-		this.physicsWorld = new ActionPhysicsWorld3D(this.shaderManager);
+		this.physicsWorld = new ActionPhysicsWorld3D();
 
 		// Setup camera - starts in free mode until character is spawned
 		this.camera = new ActionCamera();
