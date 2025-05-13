@@ -16,7 +16,6 @@ class ActionDirectionalShadowLight extends ActionLight {
         super(gl, isWebGL2);
         
         this.programManager = programManager;
-        this.programRegistry = programManager.getProgramRegistry();
         
         // Directional light specific properties
         this.direction = new Vector3(0, -1, 0);
@@ -214,7 +213,7 @@ class ActionDirectionalShadowLight extends ActionLight {
             const shadowShader = new ShadowShader();
 
             // Create shadow map program
-            this.shadowProgram = this.programRegistry.createShaderProgram(
+            this.shadowProgram = this.programManager.createShaderProgram(
                 shadowShader.getShadowVertexShader(this.isWebGL2),
                 shadowShader.getShadowFragmentShader(this.isWebGL2),
                 "shadow_depth_pass"
@@ -519,9 +518,12 @@ class ActionDirectionalShadowLight extends ActionLight {
         // Get light uniform locations
         // For now we just use the standard uniforms, but in the future we'd use arrays
         // like uDirectionalLights[index].direction, etc.
-        
-        const lightDirLoc = gl.getUniformLocation(program, "uLightDirection");
-        const lightPosLoc = gl.getUniformLocation(program, "uLightPosition");
+        // tbh idk if this is working cause we had wrong names and it doesn't matter
+        // like these were uLightDirection and uLightPosition which don't exist anywhere
+        // else in the codebase but theres no error or known issues here so idk what this
+        // even does
+        const lightDirLoc = gl.getUniformLocation(program, "uLightDir"); 
+        const lightPosLoc = gl.getUniformLocation(program, "uLightPos"); 
         const lightIntensityLoc = gl.getUniformLocation(program, "uLightIntensity");
         const shadowMapLoc = gl.getUniformLocation(program, "uShadowMap");
         const lightSpaceMatrixLoc = gl.getUniformLocation(program, "uLightSpaceMatrix");

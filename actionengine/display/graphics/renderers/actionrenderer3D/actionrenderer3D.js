@@ -62,7 +62,7 @@ class ActionRenderer3D {
         if (!this._cachedShaderSet) {
             this._cachedShaderSet = this.programRegistry.getCurrentShaderSet();
             
-            // Set clear color based on shader
+            // Set clear color based on shader set
             if (this._cachedShaderSet === this.programRegistry.shaderSets.get("virtualboy")) {
                 this.canvasManager.setClearColor(0.0, 0.0, 0.0, 1.0); // Black
             } else {

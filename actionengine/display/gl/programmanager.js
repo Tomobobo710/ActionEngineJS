@@ -3,7 +3,7 @@ class ProgramManager {
     constructor(gl, isWebGL2) {
         this.gl = gl;
         this.isWebGL2 = isWebGL2;
-        this.programRegistry = new ProgramRegistry(this.gl, this);
+        this.programRegistry = new ProgramRegistry(this.gl);
 
         // Store shader programs
         this.particleProgram = null;
@@ -21,22 +21,148 @@ class ProgramManager {
         // Debug visualization buffers
         this.debugQuadBuffer = null;
         this.debugBackgroundBuffer = null;
-
-        // Initialize shaders
-        this.initializeShaderPrograms();
+        
+        // Attribute and uniform name mappings
+        this.attributeNames = {
+            position: 'aPosition',
+            normal: 'aNormal',
+            color: 'aColor',
+            texCoord: 'aTexCoord',
+            textureIndex: 'aTextureIndex',
+            useTexture: 'aUseTexture'
+        };
+        
+        this.uniformNames = {
+            projectionMatrix: 'uProjectionMatrix',
+            viewMatrix: 'uViewMatrix',
+            modelMatrix: 'uModelMatrix',
+            lightPos: 'uLightPos',
+            lightDir: 'uLightDir',
+            lightIntensity: 'uLightIntensity',
+            roughness: 'uRoughness',
+            metallic: 'uMetallic',
+            baseReflectivity: 'uBaseReflectivity',
+            cameraPos: 'uCameraPos',
+            time: 'uTime',
+            lightSpaceMatrix: 'uLightSpaceMatrix',
+            shadowMap: 'uShadowMap',
+            shadowsEnabled: 'uShadowsEnabled',
+            intensityFactor: 'uIntensityFactor'
+        };
+        
+        this.textureUniforms = {
+            standard: this.isWebGL2 ? 'uTextureArray' : 'uTexture',
+            pbr: 'uPBRTextureArray',
+            shadowMap: 'uShadowMap',
+            materialProps: 'uMaterialPropertiesTexture'
+        };
+        
+        // Initialize special shaders (particles, water, line)
+        this.initializeSpecialShaders();
+        
+        // Register ALL shader sets through one consistent method
         this.registerAllShaderSets();
     }
+    
+    /**
+     * Create a shader program 
+     */
+    createShaderProgram(vsSource, fsSource, shaderName = 'unknown') {
+        try {
+            // Try to compile the vertex shader
+            const vertexShader = this.compileShader(this.gl.VERTEX_SHADER, vsSource, `${shaderName} vertex`);
+            
+            // Try to compile the fragment shader
+            const fragmentShader = this.compileShader(this.gl.FRAGMENT_SHADER, fsSource, `${shaderName} fragment`);
+    
+            const program = this.gl.createProgram();
+            this.gl.attachShader(program, vertexShader);
+            this.gl.attachShader(program, fragmentShader);
+            this.gl.linkProgram(program);
+    
+            if (!this.gl.getProgramParameter(program, this.gl.LINK_STATUS)) {
+                const info = this.gl.getProgramInfoLog(program);
+                console.error(`==== SHADER LINK ERROR FOR '${shaderName}' ====`);
+                console.error(info);
+                console.error('==== VERTEX SHADER SOURCE ====');
+                console.error(vsSource);
+                console.error('==== FRAGMENT SHADER SOURCE ====');
+                console.error(fsSource);
+                throw new Error(`Shader program '${shaderName}' failed to link: ${info}`);
+            }
+    
+            // Clean up shaders after linking
+            this.gl.deleteShader(vertexShader);
+            this.gl.deleteShader(fragmentShader);
+    
+            return program;
+        } catch (error) {
+            console.error(`Error creating shader program '${shaderName}': ${error.message}`);
+            throw error;
+        }
+    }
 
-    initializeShaderPrograms() {
+    /**
+     * Compile a shader
+     */
+    compileShader(type, source, shaderLabel = 'unknown') {
+        const shader = this.gl.createShader(type);
+        this.gl.shaderSource(shader, source);
+        this.gl.compileShader(shader);
+
+        if (!this.gl.getShaderParameter(shader, this.gl.COMPILE_STATUS)) {
+            const info = this.gl.getShaderInfoLog(shader);
+            this.gl.deleteShader(shader);
+            
+            // Print detailed error information
+            console.error(`==== SHADER COMPILE ERROR FOR '${shaderLabel}' ====`);
+            console.error(info);
+            
+            // Print the source code with line numbers
+            const sourceLines = source.split('\n');
+            console.error('==== SHADER SOURCE ====');
+            sourceLines.forEach((line, index) => {
+                console.error(`${index + 1}: ${line}`);
+            });
+            
+            // Analyze error message for line numbers
+            let lineNumber = -1;
+            const lineMatch = info.match(/\d+:(\d+)/);
+            if (lineMatch && lineMatch[1]) {
+                lineNumber = parseInt(lineMatch[1]);
+                if (lineNumber > 0 && lineNumber <= sourceLines.length) {
+                    console.error('==== PROBLEMATIC LINE ====');
+                    console.error(`${lineNumber}: ${sourceLines[lineNumber - 1]}`);
+                    
+                    // Show context (lines before and after)
+                    console.error('==== CONTEXT ====');
+                    const startLine = Math.max(0, lineNumber - 3);
+                    const endLine = Math.min(sourceLines.length, lineNumber + 2);
+                    for (let i = startLine; i < endLine; i++) {
+                        const prefix = i === lineNumber - 1 ? '> ' : '  ';
+                        console.error(`${prefix}${i + 1}: ${sourceLines[i]}`);
+                    }
+                }
+            }
+            
+            throw new Error(`Shader compile error in '${shaderLabel}': ${info}`);
+        }
+
+        return shader;
+    }
+    
+    /**
+     * Initialize special-case shaders (particles, water, line)
+     */
+    initializeSpecialShaders() {
         this.initializeParticleShader();
         this.initializeWaterShader();
-        this.initializeDefaultShaderSet();
         this.initializeLineShader();
     }
 
     initializeParticleShader() {
         const particleShader = new ParticleShader();
-        this.particleProgram = this.programRegistry.createShaderProgram(
+        this.particleProgram = this.createShaderProgram(
             particleShader.getParticleVertexShader(this.isWebGL2),
             particleShader.getParticleFragmentShader(this.isWebGL2),
             'particle_shader'
@@ -53,7 +179,7 @@ class ProgramManager {
 
     initializeWaterShader() {
         const waterShader = new WaterShader();
-        this.waterProgram = this.programRegistry.createShaderProgram(
+        this.waterProgram = this.createShaderProgram(
             waterShader.getWaterVertexShader(this.isWebGL2),
             waterShader.getWaterFragmentShader(this.isWebGL2),
             'water_shader'
@@ -79,123 +205,13 @@ class ProgramManager {
 
         console.log("Water locations:", this.waterLocations); // Debug
     }
-
-    initializeDefaultShaderSet() {
-        const defaultShaderSet = new DefaultShaderSet();
-
-        const defaultStandardProgram = this.programRegistry.createShaderProgram(
-            defaultShaderSet.getStandardVertexShader(this.isWebGL2),
-            defaultShaderSet.getStandardFragmentShader(this.isWebGL2),
-            'default_standard'
-        );
-
-        // Add default shader set to registry
-        this.programRegistry.shaderSets.set("default", {
-            standard: {
-                program: defaultStandardProgram,
-                locations: {
-                    // Attributes
-                    position: this.gl.getAttribLocation(defaultStandardProgram, "aPosition"),
-                    normal: this.gl.getAttribLocation(defaultStandardProgram, "aNormal"),
-                    color: this.gl.getAttribLocation(defaultStandardProgram, "aColor"),
-                    texCoord: this.gl.getAttribLocation(defaultStandardProgram, "aTexCoord"),
-                    textureIndex: this.gl.getAttribLocation(defaultStandardProgram, "aTextureIndex"),
-                    useTexture: this.gl.getAttribLocation(defaultStandardProgram, "aUseTexture"),
-                    
-                    // Uniforms
-                    projectionMatrix: this.gl.getUniformLocation(defaultStandardProgram, "uProjectionMatrix"),
-                    viewMatrix: this.gl.getUniformLocation(defaultStandardProgram, "uViewMatrix"),
-                    modelMatrix: this.gl.getUniformLocation(defaultStandardProgram, "uModelMatrix"),
-                    cameraPos: this.gl.getUniformLocation(defaultStandardProgram, "uCameraPos"),
-                    lightDir: this.gl.getUniformLocation(defaultStandardProgram, "uLightDir"),
-                    lightPos: this.gl.getUniformLocation(defaultStandardProgram, "uLightPos"),
-                    lightIntensity: this.gl.getUniformLocation(defaultStandardProgram, "uLightIntensity"),
-                    intensityFactor: this.gl.getUniformLocation(defaultStandardProgram, "uIntensityFactor"),
-                    time: this.gl.getUniformLocation(defaultStandardProgram, "uTime"),
-                    
-                    // Shadow mapping
-                    lightSpaceMatrix: this.gl.getUniformLocation(defaultStandardProgram, "uLightSpaceMatrix"),
-                    shadowMap: this.gl.getUniformLocation(defaultStandardProgram, "uShadowMap"),
-                    shadowsEnabled: this.gl.getUniformLocation(defaultStandardProgram, "uShadowsEnabled"),
-                    
-                    // Textures
-                    textureArray: this.gl.getUniformLocation(defaultStandardProgram, "uTextureArray")
-                }
-            }
-        });
-        
-        console.log("[ProgramManager] Default shader set initialized");
-    }
     
-    /**
-     * Register all additional shader sets
-     */
-    registerAllShaderSets() {
-        console.log(`[ProgramManager] Registering all shader sets, WebGL2: ${this.isWebGL2}`);
-        
-        // Register PBR shader set
-        this.registerShaderSet("pbr", new PBRShaderSet());
-        
-        // Register VirtualBoy shader set
-        this.registerShaderSet("virtualboy", new VirtualBoyShaderSet());
-        
-        console.log("[ProgramManager] All shader sets registered");
-    }
-    
-    /**
-     * Register a shader set with the program registry
-     * @param {string} name - Name of the shader set
-     * @param {Object} shaderSetInstance - Instance of a shader set
-     */
-    registerShaderSet(name, shaderSetInstance) {
-        console.log(`[ProgramManager] Registering shader set: ${name}`);
-        
-        try {
-            // Get shader sources
-            let standardVertex = null;
-            let standardFragment = null;
-            
-            try {
-                if (shaderSetInstance.getStandardVertexShader) {
-                    standardVertex = shaderSetInstance.getStandardVertexShader(this.isWebGL2);
-                }
-            } catch (e) {
-                console.error(`[ProgramManager] Error getting standard vertex shader for '${name}': ${e.message}`);
-            }
-            
-            try {
-                if (shaderSetInstance.getStandardFragmentShader) {
-                    standardFragment = shaderSetInstance.getStandardFragmentShader(this.isWebGL2);
-                }
-            } catch (e) {
-                console.error(`[ProgramManager] Error getting standard fragment shader for '${name}': ${e.message}`);
-            }
-            
-            // Create shader set object
-            const shaderSet = {
-                standard: {
-                    vertex: standardVertex,
-                    fragment: standardFragment
-                }
-            };
-            
-            // Register with program registry
-            this.programRegistry.registerShaderSet(name, shaderSet);
-            console.log(`[ProgramManager] Successfully registered shader set: ${name}`);
-        } catch (e) {
-            console.error(`[ProgramManager] Error registering shader set '${name}': ${e.message}`);
-        }
-    }
-
-    /**
-     * Initialize the dedicated line shader
-     */
     initializeLineShader() {
         // Create a new LineShader instance
         this.lineShader = new LineShader();
         
         // Create shader program for the default line shader
-        const lineProgram = this.programRegistry.createShaderProgram(
+        const lineProgram = this.createShaderProgram(
             this.lineShader.getVertexShader(this.isWebGL2),
             this.lineShader.getFragmentShader(this.isWebGL2),
             'line_shader'
@@ -217,6 +233,133 @@ class ProgramManager {
     }
     
     /**
+     * Register all standard shader sets
+     */
+    registerAllShaderSets() {
+        console.log("[ProgramManager] Registering all shader sets");
+        
+        // Register default shader set
+        const defaultShader = new DefaultShaderSet();
+        this.registerShaderSet("default", defaultShader);
+        
+        // Register PBR shader set
+        const pbrShader = new PBRShaderSet();
+        this.registerShaderSet("pbr", pbrShader);
+        
+        // Register VirtualBoy shader set
+        const vbShader = new VirtualBoyShaderSet();
+        this.registerShaderSet("virtualboy", vbShader);
+        
+        console.log("[ProgramManager] All shader sets registered");
+    }
+    
+    /**
+     * Register a shader set
+     * @param {string} name - Name of the shader set
+     * @param {Object} shaderSetInstance - Instance of a shader set
+     */
+    registerShaderSet(name, shaderSetInstance) {
+        console.log(`[ProgramManager] Registering shader set: ${name}`);
+        
+        try {
+            // Get shader sources
+            let standardVertex = null;
+            let standardFragment = null;
+            
+            try {
+                if (shaderSetInstance.getStandardVertexShader) {
+                    standardVertex = shaderSetInstance.getStandardVertexShader(this.isWebGL2);
+                }
+            } catch (e) {
+                console.error(`[ProgramManager] Error getting standard vertex shader for '${name}': ${e.message}`);
+                return;
+            }
+            
+            try {
+                if (shaderSetInstance.getStandardFragmentShader) {
+                    standardFragment = shaderSetInstance.getStandardFragmentShader(this.isWebGL2);
+                }
+            } catch (e) {
+                console.error(`[ProgramManager] Error getting standard fragment shader for '${name}': ${e.message}`);
+                return;
+            }
+            
+            // Create shader program
+            const standardProgram = this.createShaderProgram(
+                standardVertex, 
+                standardFragment, 
+                `${name}_standard`
+            );
+            
+            // Get shader locations
+            const isPBR = name === 'pbr';
+            const standardLocations = this.getStandardShaderLocations(standardProgram, isPBR);
+            
+            // Create shader set with required structure
+            const shaderSet = {
+                standard: {
+                    program: standardProgram,
+                    locations: standardLocations
+                }
+            };
+            
+            // Store in registry
+            this.programRegistry.storeShaderSet(name, shaderSet);
+            console.log(`[ProgramManager] Successfully registered shader set: ${name}`);
+        } catch (e) {
+            console.error(`[ProgramManager] Error registering shader set '${name}': ${e.message}`);
+        }
+    }
+    
+    /**
+     * Get locations for a standard shader
+     * @param {WebGLProgram} program - The WebGL program
+     * @param {boolean} isPBR - Whether this is a PBR shader
+     * @returns {Object} - Object containing all shader locations
+     */
+    getStandardShaderLocations(program, isPBR = false) {
+        const gl = this.gl;
+        const attr = this.attributeNames;
+        const unif = this.uniformNames;
+        const tex = this.textureUniforms;
+        
+        // Get all attribute and uniform locations
+        return {
+            // Attributes
+            position: gl.getAttribLocation(program, attr.position),
+            normal: gl.getAttribLocation(program, attr.normal),
+            color: gl.getAttribLocation(program, attr.color),
+            texCoord: gl.getAttribLocation(program, attr.texCoord),
+            textureIndex: gl.getAttribLocation(program, attr.textureIndex),
+            useTexture: gl.getAttribLocation(program, attr.useTexture),
+            
+            // Uniforms
+            projectionMatrix: gl.getUniformLocation(program, unif.projectionMatrix),
+            viewMatrix: gl.getUniformLocation(program, unif.viewMatrix),
+            modelMatrix: gl.getUniformLocation(program, unif.modelMatrix),
+            lightPos: gl.getUniformLocation(program, unif.lightPos),
+            lightDir: gl.getUniformLocation(program, unif.lightDir),
+            lightIntensity: gl.getUniformLocation(program, unif.lightIntensity),
+            roughness: gl.getUniformLocation(program, unif.roughness),
+            metallic: gl.getUniformLocation(program, unif.metallic),
+            baseReflectivity: gl.getUniformLocation(program, unif.baseReflectivity),
+            usePerTextureMaterials: gl.getUniformLocation(program, 'uUsePerTextureMaterials'),
+            materialPropertiesTexture: gl.getUniformLocation(program, tex.materialProps),
+            cameraPos: gl.getUniformLocation(program, unif.cameraPos),
+            time: gl.getUniformLocation(program, unif.time),
+            intensityFactor: gl.getUniformLocation(program, unif.intensityFactor),
+            
+            // Shadow mapping uniforms
+            lightSpaceMatrix: gl.getUniformLocation(program, unif.lightSpaceMatrix),
+            shadowMap: gl.getUniformLocation(program, unif.shadowMap),
+            shadowsEnabled: gl.getUniformLocation(program, unif.shadowsEnabled),
+            
+            // Texture uniform
+            textureArray: gl.getUniformLocation(program, isPBR ? tex.pbr : tex.standard)
+        };
+    }
+    
+    /**
      * Set the current line shader variant
      * @param {string} variant - The shader variant to use ('default', 'virtualboy', etc.)
      */
@@ -230,7 +373,7 @@ class ProgramManager {
         this.lineShader.setVariant(variant);
         
         // Reinitialize the line shader program
-        const newLineProgram = this.programRegistry.createShaderProgram(
+        const newLineProgram = this.createShaderProgram(
             this.lineShader.getVertexShader(this.isWebGL2),
             this.lineShader.getFragmentShader(this.isWebGL2),
             `line_shader_${variant}`
@@ -247,6 +390,25 @@ class ProgramManager {
         };
         
         console.log(`[ProgramManager] Line shader variant changed to: ${variant}`);
+    }
+    
+    /**
+     * Update line shader when cycling through shader sets
+     * @param {string} shaderName - The name of the new shader set
+     */
+    handleShaderSetChange(shaderName) {
+        if (shaderName === "virtualboy") {
+            this.setLineShaderVariant("virtualboy");
+        } else {
+            this.setLineShaderVariant("default");
+        }
+    }
+    
+    /**
+     * Cycle to the next shader set
+     */
+    cycleShaderSets() {
+        this.programRegistry.cycleShaderSets(this.handleShaderSetChange.bind(this));
     }
     
     // Accessor methods

@@ -316,8 +316,7 @@ class DebugRenderer3D {
             `;
 
             // Create the program
-            const programRegistry = this.programManager.getProgramRegistry();
-            this._shadowDebugProgram = programRegistry.createShaderProgram(quadVS, depthFS, "shadow_debug");
+            this._shadowDebugProgram = this.programManager.createShaderProgram(quadVS, depthFS, "shadow_debug");
 
             // Get attribute locations
             this._shadowDebugLocations = {
