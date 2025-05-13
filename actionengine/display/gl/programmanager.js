@@ -3,9 +3,13 @@ class ProgramManager {
     constructor(gl, isWebGL2) {
         this.gl = gl;
         this.isWebGL2 = isWebGL2;
-        this.programRegistry = new ProgramRegistry(this.gl);
-
+        
+        // Current active variant (replaces ProgramRegistry)
+        this.currentVariant = "default";
+        
         // Store shader programs
+        this.objectProgram = null;
+        this.objectLocations = {};
         this.particleProgram = null;
         this.waterProgram = null;
         this.lineProgram = null;
@@ -15,7 +19,8 @@ class ProgramManager {
         this.waterLocations = {};
         this.lineLocations = {};
 
-        // Line shader instance
+        // Shader instances
+        this.objectShader = null;
         this.lineShader = null;
 
         // Debug visualization buffers
@@ -57,11 +62,9 @@ class ProgramManager {
             materialProps: 'uMaterialPropertiesTexture'
         };
         
-        // Initialize special shaders (particles, water, line)
+        // Initialize all shaders
+        this.initializeObjectShader();
         this.initializeSpecialShaders();
-        
-        // Register ALL shader sets through one consistent method
-        this.registerAllShaderSets();
     }
     
     /**
@@ -152,6 +155,115 @@ class ProgramManager {
     }
     
     /**
+     * Initialize the object shader
+     */
+    initializeObjectShader() {
+        console.log("[ProgramManager] Initializing object shader");
+        
+        try {
+            // Create a new ObjectShader instance
+            this.objectShader = new ObjectShader();
+            
+            // Set initial variant
+            this.setObjectShaderVariant("default");
+            
+            console.log("[ProgramManager] Object shader initialized successfully");
+        } catch (e) {
+            console.error(`[ProgramManager] Error initializing object shader: ${e.message}`);
+        }
+    }
+    
+    /**
+     * Set the current object shader variant and recompile
+     * @param {string} variant - The variant to use ('default', 'pbr', 'virtualboy')
+     */
+    setObjectShaderVariant(variant) {
+        if (!this.objectShader) {
+            console.warn("[ProgramManager] Object shader not initialized");
+            return;
+        }
+        
+        try {
+            // Remember current variant
+            this.currentVariant = variant;
+            
+            // Update the object shader variant
+            this.objectShader.setVariant(variant);
+            
+            // Compile shader program with the current variant
+            const program = this.createShaderProgram(
+                this.objectShader.getVertexShader(this.isWebGL2),
+                this.objectShader.getFragmentShader(this.isWebGL2),
+                `object_shader_${variant}`
+            );
+            
+            // Get locations for uniforms and attributes
+            const isPBR = variant === 'pbr';
+            const locations = this.getStandardShaderLocations(program, isPBR);
+            
+            // Update stored program and locations
+            this.objectProgram = program;
+            this.objectLocations = locations;
+            
+            console.log(`[ProgramManager] Object shader variant changed to: ${variant}`);
+            
+            // Update line shader to match
+            this.handleVariantChange(variant);
+            
+            return variant;
+        } catch (e) {
+            console.error(`[ProgramManager] Error setting object shader variant: ${e.message}`);
+            return this.currentVariant; // Return previous variant on error
+        }
+    }
+    
+    /**
+     * Cycle to the next shader variant
+     * @param {function} callback - Optional callback for when variant changes
+     * @returns {string} - Name of the new shader variant
+     */
+    cycleVariants(callback) {
+        const variants = ["default", "pbr", "virtualboy"];
+        const currentIndex = variants.indexOf(this.currentVariant);
+        const nextIndex = (currentIndex + 1) % variants.length;
+        const newVariant = variants[nextIndex];
+        
+        // Set the new variant
+        this.setObjectShaderVariant(newVariant);
+        
+        // Call the callback if provided
+        if (callback && typeof callback === 'function') {
+            callback(newVariant);
+        }
+        
+        return newVariant;
+    }
+    
+    /**
+     * Get the current shader variant
+     * @returns {string} - Current variant name
+     */
+    getCurrentVariant() {
+        return this.currentVariant;
+    }
+    
+    /**
+     * Get the current object shader program
+     * @returns {WebGLProgram} - WebGL program for the current object shader
+     */
+    getObjectProgram() {
+        return this.objectProgram;
+    }
+    
+    /**
+     * Get locations for the current object shader
+     * @returns {Object} - Locations for attributes and uniforms
+     */
+    getObjectLocations() {
+        return this.objectLocations;
+    }
+    
+    /**
      * Initialize special-case shaders (particles, water, line)
      */
     initializeSpecialShaders() {
@@ -202,8 +314,6 @@ class ProgramManager {
             cameraPos: this.gl.getUniformLocation(this.waterProgram, "uCameraPos"),
             lightDir: this.gl.getUniformLocation(this.waterProgram, "uLightDir")
         };
-
-        console.log("Water locations:", this.waterLocations); // Debug
     }
     
     initializeLineShader() {
@@ -230,85 +340,6 @@ class ProgramManager {
         this.lineProgram = lineProgram;
         
         console.log("[ProgramManager] Line shader initialized");
-    }
-    
-    /**
-     * Register all standard shader sets
-     */
-    registerAllShaderSets() {
-        console.log("[ProgramManager] Registering all shader sets");
-        
-        // Register default shader set
-        const defaultShader = new DefaultShaderSet();
-        this.registerShaderSet("default", defaultShader);
-        
-        // Register PBR shader set
-        const pbrShader = new PBRShaderSet();
-        this.registerShaderSet("pbr", pbrShader);
-        
-        // Register VirtualBoy shader set
-        const vbShader = new VirtualBoyShaderSet();
-        this.registerShaderSet("virtualboy", vbShader);
-        
-        console.log("[ProgramManager] All shader sets registered");
-    }
-    
-    /**
-     * Register a shader set
-     * @param {string} name - Name of the shader set
-     * @param {Object} shaderSetInstance - Instance of a shader set
-     */
-    registerShaderSet(name, shaderSetInstance) {
-        console.log(`[ProgramManager] Registering shader set: ${name}`);
-        
-        try {
-            // Get shader sources
-            let standardVertex = null;
-            let standardFragment = null;
-            
-            try {
-                if (shaderSetInstance.getStandardVertexShader) {
-                    standardVertex = shaderSetInstance.getStandardVertexShader(this.isWebGL2);
-                }
-            } catch (e) {
-                console.error(`[ProgramManager] Error getting standard vertex shader for '${name}': ${e.message}`);
-                return;
-            }
-            
-            try {
-                if (shaderSetInstance.getStandardFragmentShader) {
-                    standardFragment = shaderSetInstance.getStandardFragmentShader(this.isWebGL2);
-                }
-            } catch (e) {
-                console.error(`[ProgramManager] Error getting standard fragment shader for '${name}': ${e.message}`);
-                return;
-            }
-            
-            // Create shader program
-            const standardProgram = this.createShaderProgram(
-                standardVertex, 
-                standardFragment, 
-                `${name}_standard`
-            );
-            
-            // Get shader locations
-            const isPBR = name === 'pbr';
-            const standardLocations = this.getStandardShaderLocations(standardProgram, isPBR);
-            
-            // Create shader set with required structure
-            const shaderSet = {
-                standard: {
-                    program: standardProgram,
-                    locations: standardLocations
-                }
-            };
-            
-            // Store in registry
-            this.programRegistry.storeShaderSet(name, shaderSet);
-            console.log(`[ProgramManager] Successfully registered shader set: ${name}`);
-        } catch (e) {
-            console.error(`[ProgramManager] Error registering shader set '${name}': ${e.message}`);
-        }
     }
     
     /**
@@ -393,22 +424,15 @@ class ProgramManager {
     }
     
     /**
-     * Update line shader when cycling through shader sets
-     * @param {string} shaderName - The name of the new shader set
+     * Update shaders when variant changes
+     * @param {string} variant - The name of the new variant
      */
-    handleShaderSetChange(shaderName) {
-        if (shaderName === "virtualboy") {
+    handleVariantChange(variant) {
+        if (variant === "virtualboy") {
             this.setLineShaderVariant("virtualboy");
         } else {
             this.setLineShaderVariant("default");
         }
-    }
-    
-    /**
-     * Cycle to the next shader set
-     */
-    cycleShaderSets() {
-        this.programRegistry.cycleShaderSets(this.handleShaderSetChange.bind(this));
     }
     
     // Accessor methods
@@ -435,8 +459,42 @@ class ProgramManager {
     getLineLocations() {
         return this.lineLocations;
     }
-
+    
+    /**
+     * Get the current shader set (for backward compatibility)
+     * @returns {object} - Object containing program and locations
+     */
+    getCurrentShaderSet() {
+        return {
+            standard: {
+                program: this.objectProgram,
+                locations: this.objectLocations
+            }
+        };
+    }
+    
+    /**
+     * Get the current shader name (for backward compatibility)
+     * @returns {string} - Name of the current shader variant
+     */
+    getCurrentShaderName() {
+        return this.currentVariant;
+    }
+    
+    /**
+     * Provides a limited API compatible with the old ProgramRegistry
+     * for external code that still expects it
+     */
     getProgramRegistry() {
-        return this.programRegistry;
+        // Return an object with just enough API surface to maintain compatibility
+        return {
+            getCurrentShaderSet: () => this.getCurrentShaderSet(),
+            getCurrentShaderName: () => this.getCurrentVariant(),
+            shaderSets: new Map([
+                ["default", this.currentVariant === "default" ? this.getCurrentShaderSet() : null],
+                ["pbr", this.currentVariant === "pbr" ? this.getCurrentShaderSet() : null],
+                ["virtualboy", this.currentVariant === "virtualboy" ? this.getCurrentShaderSet() : null]
+            ])
+        };
     }
 }

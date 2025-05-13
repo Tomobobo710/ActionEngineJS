@@ -4,7 +4,7 @@ class FishingMode {
         this.guiCanvas = canvases.guiCanvas;
         this.debugCanvas = canvases.debugCanvas;
         this.input = input;
-        this.renderer3d = new ActionRenderer3D(this.canvas);
+        this.renderer3D = new ActionRenderer3D(this.canvas);
         this.guiContext = this.guiCanvas.getContext("2d");
         this.ui = new FishingUI(this.guiCanvas, this.guiContext);
         const initialCameraPos = new Vector3(0, 20, -60);
@@ -35,7 +35,7 @@ class FishingMode {
 
    update(deltaTime) {
     if (this.input.isKeyJustPressed("Numpad5")) {
-            this.renderer3d.programRegistry.cycleShaderSets();
+            this.renderer3D.programManager.cycleVariants();
         }
     // Reset hooking UI state at start of update
     this.hookingBarVisible = false;
@@ -231,7 +231,7 @@ class FishingMode {
     }
 
     draw() {
-    this.renderer3d.render({
+    this.renderer3D.render({
         camera: this.camera,
         renderableObjects: Array.from(this.physicsWorld.objects)
     });
@@ -286,25 +286,25 @@ releaseFish() {
             this.physicsWorld = null;
         }
 
-        if (this.renderer3d && this.renderer3d.gl) {
-            const gl = this.renderer3d.gl;
+        if (this.renderer3D && this.renderer3D.gl) {
+            const gl = this.renderer3D.gl;
 
             // Clean up all WebGL resources
-            if (this.renderer3d.program) {
-                gl.deleteProgram(this.renderer3d.program);
+            if (this.renderer3D.program) {
+                gl.deleteProgram(this.renderer3D.program);
             }
-            if (this.renderer3d.vertexBuffer) {
-                gl.deleteBuffer(this.renderer3d.vertexBuffer);
+            if (this.renderer3D.vertexBuffer) {
+                gl.deleteBuffer(this.renderer3D.vertexBuffer);
             }
-            if (this.renderer3d.indexBuffer) {
-                gl.deleteBuffer(this.renderer3d.indexBuffer);
+            if (this.renderer3D.indexBuffer) {
+                gl.deleteBuffer(this.renderer3D.indexBuffer);
             }
 
-            this.renderer3d = null;
+            this.renderer3D = null;
         }
 
-        if (this.depthFramebuffer && this.renderer3d && this.renderer3d.gl) {
-            const gl = this.renderer3d.gl;
+        if (this.depthFramebuffer && this.renderer3D && this.renderer3D.gl) {
+            const gl = this.renderer3D.gl;
             gl.deleteFramebuffer(this.depthFramebuffer);
             gl.deleteTexture(this.depthTexture);
             this.depthFramebuffer = null;

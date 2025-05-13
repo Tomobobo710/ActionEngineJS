@@ -21,8 +21,7 @@ class ActionRenderer3D {
         this.textureArray = this.textureManager.textureArray;
         
         this.objectRenderer = new ObjectRenderer3D(this, this.gl, this.programManager, this.lightManager);
-        // Get program registry reference
-        this.programRegistry = this.programManager.getProgramRegistry();
+        // We no longer need programRegistry - we'll use programManager directly
         this.waterRenderer = new WaterRenderer3D(this.gl, this.programManager);
         // Time tracking
         this.startTime = performance.now();
@@ -58,25 +57,25 @@ class ActionRenderer3D {
         
         this.currentTime = (performance.now() - this.startTime) / 1000.0;
 
-        // Cache shader set between frames
-        if (!this._cachedShaderSet) {
-            this._cachedShaderSet = this.programRegistry.getCurrentShaderSet();
+        // Cache current variant name
+        if (!this._cachedVariant) {
+            this._cachedVariant = this.programManager.getCurrentVariant();
             
-            // Set clear color based on shader set
-            if (this._cachedShaderSet === this.programRegistry.shaderSets.get("virtualboy")) {
+            // Set clear color based on current variant
+            if (this._cachedVariant === "virtualboy") {
                 this.canvasManager.setClearColor(0.0, 0.0, 0.0, 1.0); // Black
             } else {
                 this.canvasManager.setClearColor(0.529, 0.808, 0.922, 1.0); // Original blue
             }
         }
         
-        // Check if shader changed
-        const currentShaderSet = this.programRegistry.getCurrentShaderSet();
-        if (currentShaderSet !== this._cachedShaderSet) {
-            this._cachedShaderSet = currentShaderSet;
+        // Check if shader variant changed
+        const currentVariant = this.programManager.getCurrentVariant();
+        if (currentVariant !== this._cachedVariant) {
+            this._cachedVariant = currentVariant;
             
-            // Update clear color if shader changed
-            if (this._cachedShaderSet === this.programRegistry.shaderSets.get("virtualboy")) {
+            // Update clear color if variant changed
+            if (this._cachedVariant === "virtualboy") {
                 this.canvasManager.setClearColor(0.0, 0.0, 0.0, 1.0); // Black
             } else {
                 this.canvasManager.setClearColor(0.529, 0.808, 0.922, 1.0); // Original blue
@@ -110,32 +109,32 @@ class ActionRenderer3D {
 
         // Collect all objects into batch first
         for (const object of nonWaterObjects) {
-            this.objectRenderer.queue(object, camera, this._cachedShaderSet, this.currentTime);
+            this.objectRenderer.queue(object, camera, null, this.currentTime); // No need to pass shader set anymore
         }
         
         // Prepare for main rendering with shadows
         if (this.shadowsEnabled) {
             try {
-                // Get the current shader set
-                const shaderSet = this.programRegistry.getCurrentShaderSet();
-                if (!shaderSet || !shaderSet.standard || !shaderSet.standard.program) {
+                // Get the current shader program
+                const program = this.programManager.getObjectProgram();
+                if (!program) {
                     console.warn('Cannot setup shadows: shader program not available');
                     return;
                 }
                 
                 // Use the shader program
-                this.gl.useProgram(shaderSet.standard.program);
+                this.gl.useProgram(program);
                 
                 // Bind shadow map textures for all lights
-                this.lightManager.bindShadowMapTextures(shaderSet.standard.program);
+                this.lightManager.bindShadowMapTextures(program);
                 
                 // Apply all lights to the shader
-                this.lightManager.applyLightsToShader(shaderSet.standard.program);
+                this.lightManager.applyLightsToShader(program);
                 
                 // Get shadow-specific uniform locations
-                const uniformShadowSoftness = this.gl.getUniformLocation(shaderSet.standard.program, 'uShadowSoftness');
-                const uniformPCFSize = this.gl.getUniformLocation(shaderSet.standard.program, 'uPCFSize');
-                const uniformPCFEnabled = this.gl.getUniformLocation(shaderSet.standard.program, 'uPCFEnabled');
+                const uniformShadowSoftness = this.gl.getUniformLocation(program, 'uShadowSoftness');
+                const uniformPCFSize = this.gl.getUniformLocation(program, 'uPCFSize');
+                const uniformPCFEnabled = this.gl.getUniformLocation(program, 'uPCFEnabled');
                 
                 // Set shadow softness uniform
                 if (uniformShadowSoftness !== null) {
@@ -175,7 +174,7 @@ class ActionRenderer3D {
         // Draw the sun
         const mainLight = this.lightManager.getMainDirectionalLight();
         const lightPos = mainLight ? mainLight.getPosition() : new Vector3(0, 5000, 0);
-        const isVirtualBoyShaderSet = (this._cachedShaderSet === this.programRegistry.shaderSets.get("virtualboy"));
+        const isVirtualBoyShaderSet = (this._cachedVariant === "virtualboy");
         this.sunRenderer.render(camera, lightPos, isVirtualBoyShaderSet);
         
         // Debug visualization if enabled
@@ -196,22 +195,19 @@ class ActionRenderer3D {
         this.shadowsEnabled = !this.shadowsEnabled;
         console.log(`Shadows ${this.shadowsEnabled ? 'enabled' : 'disabled'}`);
         
-        // Update all shader programs with the new shadow state
-        const shaderTypes = ['default', 'pbr'];
+        // Update the current shader program with the new shadow state
+        const program = this.programManager.getObjectProgram();
+        const variant = this.programManager.getCurrentVariant();
         
-        for (const shaderType of shaderTypes) {
-            const shaderSet = this.programRegistry.shaderSets.get(shaderType);
+        if (program) {
+            // Use the shader program
+            this.gl.useProgram(program);
             
-            if (shaderSet && shaderSet.standard && shaderSet.standard.program) {
-                // Use the shader program
-                this.gl.useProgram(shaderSet.standard.program);
-                
-                // Set shadows enabled flag based on current state
-                const shadowEnabledLoc = this.gl.getUniformLocation(shaderSet.standard.program, 'uShadowsEnabled');
-                if (shadowEnabledLoc !== null) {
-                    this.gl.uniform1i(shadowEnabledLoc, this.shadowsEnabled ? 1 : 0);
-                    console.log(`Set uShadowsEnabled=${this.shadowsEnabled ? 1 : 0} for ${shaderType} shader`);
-                }
+            // Set shadows enabled flag based on current state
+            const shadowEnabledLoc = this.gl.getUniformLocation(program, 'uShadowsEnabled');
+            if (shadowEnabledLoc !== null) {
+                this.gl.uniform1i(shadowEnabledLoc, this.shadowsEnabled ? 1 : 0);
+                console.log(`Set uShadowsEnabled=${this.shadowsEnabled ? 1 : 0} for ${variant} shader variant`);
             }
         }
         
@@ -257,28 +253,25 @@ class ActionRenderer3D {
         this.gl.activeTexture(this.gl.TEXTURE0 + SHADOW_MAP_TEXTURE_UNIT);
         this.gl.bindTexture(this.gl.TEXTURE_2D, mainLight.shadowTexture);
         
-        // Get all available shader sets
-        const shaderTypes = ['default', 'pbr'];
+        // For now, we just need to initialize the current shader variant
+        const currentProgram = this.programManager.getObjectProgram();
         
-        // Initialize shadows for each shader type
-        for (const shaderType of shaderTypes) {
-            const shaderSet = this.programRegistry.shaderSets.get(shaderType);
-            
-            if (shaderSet && shaderSet.standard && shaderSet.standard.program) {
+        // Initialize shadows for current program
+        if (currentProgram) {
                 // Console log removed for performance
                 
                 // Use this shader program
-                this.gl.useProgram(shaderSet.standard.program);
+                this.gl.useProgram(currentProgram);
                 
                 // Get shadow uniforms
-                const shadowMapLoc = this.gl.getUniformLocation(shaderSet.standard.program, 'uShadowMap');
-                const shadowEnabledLoc = this.gl.getUniformLocation(shaderSet.standard.program, 'uShadowsEnabled');
-                const lightSpaceMatrixLoc = this.gl.getUniformLocation(shaderSet.standard.program, 'uLightSpaceMatrix');
-                const shadowBiasLoc = this.gl.getUniformLocation(shaderSet.standard.program, 'uShadowBias');
-                const shadowMapSizeLoc = this.gl.getUniformLocation(shaderSet.standard.program, 'uShadowMapSize');
-                const shadowSoftnessLoc = this.gl.getUniformLocation(shaderSet.standard.program, 'uShadowSoftness');
-                const pcfSizeLoc = this.gl.getUniformLocation(shaderSet.standard.program, 'uPCFSize');
-                const pcfEnabledLoc = this.gl.getUniformLocation(shaderSet.standard.program, 'uPCFEnabled');
+                const shadowMapLoc = this.gl.getUniformLocation(currentProgram, 'uShadowMap');
+                const shadowEnabledLoc = this.gl.getUniformLocation(currentProgram, 'uShadowsEnabled');
+                const lightSpaceMatrixLoc = this.gl.getUniformLocation(currentProgram, 'uLightSpaceMatrix');
+                const shadowBiasLoc = this.gl.getUniformLocation(currentProgram, 'uShadowBias');
+                const shadowMapSizeLoc = this.gl.getUniformLocation(currentProgram, 'uShadowMapSize');
+                const shadowSoftnessLoc = this.gl.getUniformLocation(currentProgram, 'uShadowSoftness');
+                const pcfSizeLoc = this.gl.getUniformLocation(currentProgram, 'uPCFSize');
+                const pcfEnabledLoc = this.gl.getUniformLocation(currentProgram, 'uPCFEnabled');
                 
                 // Set shadow map texture unit
                 if (shadowMapLoc !== null) {
@@ -336,7 +329,7 @@ class ActionRenderer3D {
                 }
             }
         }
-    }
+    
     
     /**
      * Debug shadow uniform locations in all shaders
@@ -349,30 +342,31 @@ class ActionRenderer3D {
         }
         const gl = this.gl;
         
-        // Make sure program registry exists and has shaders
-        if (!this.programRegistry || !this.programRegistry.shaderSets) {
-            console.warn('Program registry or shaders map not available for debugging');
+        // Get current object shader program
+        const program = this.programManager.getObjectProgram();
+        const variant = this.programManager.getCurrentVariant();
+        
+        if (!program) {
+            console.warn('Object shader program not available for debugging');
             return;
         }
         
-        // Check all registered shader programs
+        // Check current shader program
         try {
-            this.programRegistry.shaderSets.forEach((shaderSet, name) => {
-            const standardProgram = shaderSet.standard.program;
-            console.log(`\nChecking shadow uniforms for shader '${name}':\n`);
+            console.log(`\nChecking shadow uniforms for current shader variant '${variant}':\n`);
             
-            if (standardProgram) {
+            if (program) {
                 // Check uniform locations directly
-                const shadowMapLoc = gl.getUniformLocation(standardProgram, 'uShadowMap');
-                const lightSpaceMatrixLoc = gl.getUniformLocation(standardProgram, 'uLightSpaceMatrix');
-                const shadowsEnabledLoc = gl.getUniformLocation(standardProgram, 'uShadowsEnabled');
-                const shadowBiasLoc = gl.getUniformLocation(standardProgram, 'uShadowBias');
-                const shadowMapSizeLoc = gl.getUniformLocation(standardProgram, 'uShadowMapSize');
-                const shadowSoftnessLoc = gl.getUniformLocation(standardProgram, 'uShadowSoftness');
-                const pcfSizeLoc = gl.getUniformLocation(standardProgram, 'uPCFSize');
-                const pcfEnabledLoc = gl.getUniformLocation(standardProgram, 'uPCFEnabled');
+                const shadowMapLoc = gl.getUniformLocation(program, 'uShadowMap');
+                const lightSpaceMatrixLoc = gl.getUniformLocation(program, 'uLightSpaceMatrix');
+                const shadowsEnabledLoc = gl.getUniformLocation(program, 'uShadowsEnabled');
+                const shadowBiasLoc = gl.getUniformLocation(program, 'uShadowBias');
+                const shadowMapSizeLoc = gl.getUniformLocation(program, 'uShadowMapSize');
+                const shadowSoftnessLoc = gl.getUniformLocation(program, 'uShadowSoftness');
+                const pcfSizeLoc = gl.getUniformLocation(program, 'uPCFSize');
+                const pcfEnabledLoc = gl.getUniformLocation(program, 'uPCFEnabled');
                 
-                console.log(`Direct check for shader '${name}':\n`);
+                console.log(`Direct check for shader variant '${variant}':\n`);
                 console.log('uShadowMap:', shadowMapLoc);
                 console.log('uLightSpaceMatrix:', lightSpaceMatrixLoc);
                 console.log('uShadowsEnabled:', shadowsEnabledLoc);
@@ -383,17 +377,16 @@ class ActionRenderer3D {
                 console.log('uPCFEnabled:', pcfEnabledLoc);
                 
                 // Get active uniforms
-                const numUniforms = gl.getProgramParameter(standardProgram, gl.ACTIVE_UNIFORMS);
-                console.log(`\nActive uniforms for shader '${name}' (${numUniforms} total):\n`);
+                const numUniforms = gl.getProgramParameter(program, gl.ACTIVE_UNIFORMS);
+                console.log(`\nActive uniforms for shader variant '${variant}' (${numUniforms} total):\n`);
                 
                 for (let i = 0; i < numUniforms; i++) {
-                    const uniformInfo = gl.getActiveUniform(standardProgram, i);
+                    const uniformInfo = gl.getActiveUniform(program, i);
                     console.log(`${i}: ${uniformInfo.name} (${this.getGLTypeString(uniformInfo.type)})`);
                 }
             } else {
-                console.log(`No standard program found for shader '${name}'`);
+                console.log(`Program not available for shader variant '${variant}'`);
             }
-        });
         } catch (error) {
             console.error('Error in shadow uniform debugging:', error);
         }

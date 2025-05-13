@@ -326,7 +326,7 @@ class WorldMode {
         }
 
         if (this.input.isKeyJustPressed("Numpad5")) {
-            this.renderer3D.programRegistry.cycleShaderSets();
+            this.renderer3D.programManager.cycleVariants();
         }
 
         if (this.input.isKeyJustPressed("ActionDebugToggle")) {

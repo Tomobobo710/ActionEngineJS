@@ -4,7 +4,7 @@ class ObjectRenderer3D {
         this.renderer = renderer;
         this.gl = gl;
         this.programManager = programManager;
-        this.programRegistry = programManager.getProgramRegistry();
+        // No longer need programRegistry - direct access to programManager
         this.lightManager = lightManager;
         
         // Check if WebGL2 is available for 32-bit indices
@@ -57,7 +57,7 @@ class ObjectRenderer3D {
         };
     }
 
-    queue(object, camera, shaderSet, currentTime) {
+    queue(object, camera, unusedShaderSet, currentTime) { // shaderSet parameter is no longer used
         // Skip rendering if object is invalid
         if (!object) {
             console.warn('Attempted to render null or undefined object');
@@ -77,9 +77,9 @@ class ObjectRenderer3D {
             this._frameInitialized = true;
             this._currentFrameTime = performance.now();
             
-            // Store camera and shader for batch rendering
+            // Store camera for batch rendering
             this._camera = camera;
-            this._shaderSet = shaderSet;
+            // We no longer need to store shader set - using program manager directly
             
             // Create persistent texture cache
             if (!this._textureCache) {
@@ -125,14 +125,14 @@ class ObjectRenderer3D {
 
     render() {
         if (this._frameObjects && this._frameObjects.length > 0) {
-            this.drawObjects(this._camera, this._shaderSet);
+            this.drawObjects(this._camera, null); // No need to pass shader set anymore
             this._frameInitialized = false;
             this._frameObjects = [];
             this._totalTriangles = 0;
         }
     }
     
-    drawObjects(camera, shaderSet) {
+    drawObjects(camera, unusedShaderSet) { // shaderSet parameter is no longer used
         // If we have no objects to render, just return
         if (!this._frameObjects || this._frameObjects.length === 0) {
             return;
@@ -351,34 +351,39 @@ class ObjectRenderer3D {
         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, DYNAMIC_DRAW);
 
         // PRE-COMPUTE ALL MATRICES AND UNIFORMS ONCE PER FRAME
-        this.updateUniformCache(camera, shaderSet);
+        this.updateUniformCache(camera, null); // No need to pass shader set anymore
 
-        // Setup shader and draw - use the standard object shader
-        const program = shaderSet.standard;
-        gl.useProgram(program.program);
-        this.setupObjectShader(program.locations, camera);
+        // Setup shader and draw - use the object shader from program manager
+        const program = this.programManager.getObjectProgram();
+        const locations = this.programManager.getObjectLocations();
+        gl.useProgram(program);
+        this.setupObjectShader(locations, camera);
 
         // Draw all objects in one batch
-        this.drawObject(program.locations, totalIndexCount);
+        this.drawObject(locations, totalIndexCount);
         
         // Reset frame tracking for next frame
         this._frameInitialized = false;
         this._frameObjects = [];
         this._totalTriangles = 0;
+        this._shaderSet = null; // Clean up old shaderSet reference
     }
     
-    // New method to pre-compute all uniform values once per frame
+    // Pre-compute all uniform values once per frame
     updateUniformCache(camera, shaderSet) {
+        // Get the current shader program from program manager
+        const program = this.programManager.getObjectProgram();
+        
         // Check if we already computed values for this frame
         if (this._uniformCache.frame === this._frameCount && 
-            this._uniformCache.shaderProgram === shaderSet.standard.program &&
+            this._uniformCache.shaderProgram === program &&
             this._uniformCache.camera === camera) {
             return; // Cache is valid, no need to update
         }
         
         // Update cache validation
         this._uniformCache.frame = this._frameCount;
-        this._uniformCache.shaderProgram = shaderSet.standard.program;
+        this._uniformCache.shaderProgram = program;
         this._uniformCache.camera = camera;
         
         // Pre-compute projection matrix
@@ -445,7 +450,7 @@ class ObjectRenderer3D {
         // Set intensity factor for default shader
         if (locations.intensityFactor !== -1 && locations.intensityFactor !== null) {
             // Get the current shader name
-            const currentShader = this.programRegistry.getCurrentShaderName();
+            const currentShader = this.programManager.getCurrentVariant();
             
             // Only apply the factor to the default shader
             if (currentShader === "default") {
@@ -576,10 +581,10 @@ class ObjectRenderer3D {
             
             if (textureArray) {
                 // Determine which shader we're using - only do this check when shader changes
-                if (!this._lastCheckedShader || this._lastCheckedShader !== this.programRegistry.getCurrentShaderSet()) {
-                    const currentShaderSet = this.programRegistry.getCurrentShaderSet();
-                    this._lastCheckedShader = currentShaderSet;
-                    this._currentShaderType = this.programRegistry?.shaderSets.get("pbr") === currentShaderSet ? "pbr" : "other";
+                // Check current variant directly from programManager
+                if (!this._lastCheckedVariant || this._lastCheckedVariant !== this.programManager.getCurrentVariant()) {
+                    this._lastCheckedVariant = this.programManager.getCurrentVariant();
+                    this._currentShaderType = this._lastCheckedVariant === "pbr" ? "pbr" : "other";
                 }
                 
                 // Determine which texture unit to use - use 1 for PBR shader, 0 for others
