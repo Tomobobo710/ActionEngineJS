@@ -21,8 +21,8 @@ class ActionRenderer3D {
         this.textureArray = this.textureManager.textureArray;
         
         this.objectRenderer = new ObjectRenderer3D(this, this.gl, this.programManager, this.lightManager);
-        // We no longer need programRegistry - we'll use programManager directly
         this.waterRenderer = new WaterRenderer3D(this.gl, this.programManager);
+        
         // Time tracking
         this.startTime = performance.now();
         this.currentTime = 0;
@@ -109,7 +109,7 @@ class ActionRenderer3D {
 
         // Collect all objects into batch first
         for (const object of nonWaterObjects) {
-            this.objectRenderer.queue(object, camera, null, this.currentTime); // No need to pass shader set anymore
+            this.objectRenderer.queue(object, camera, this.currentTime);
         }
         
         // Prepare for main rendering with shadows
@@ -174,8 +174,8 @@ class ActionRenderer3D {
         // Draw the sun
         const mainLight = this.lightManager.getMainDirectionalLight();
         const lightPos = mainLight ? mainLight.getPosition() : new Vector3(0, 5000, 0);
-        const isVirtualBoyShaderSet = (this._cachedVariant === "virtualboy");
-        this.sunRenderer.render(camera, lightPos, isVirtualBoyShaderSet);
+        const isVirtualBoyMode = (this._cachedVariant === "virtualboy");
+        this.sunRenderer.render(camera, lightPos, isVirtualBoyMode);
         
         // Debug visualization if enabled
         if (showDebugPanel && camera) {

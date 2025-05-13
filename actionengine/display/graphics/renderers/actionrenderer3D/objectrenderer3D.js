@@ -4,7 +4,6 @@ class ObjectRenderer3D {
         this.renderer = renderer;
         this.gl = gl;
         this.programManager = programManager;
-        // No longer need programRegistry - direct access to programManager
         this.lightManager = lightManager;
         
         // Check if WebGL2 is available for 32-bit indices
@@ -57,7 +56,7 @@ class ObjectRenderer3D {
         };
     }
 
-    queue(object, camera, unusedShaderSet, currentTime) { // shaderSet parameter is no longer used
+    queue(object, camera, currentTime) {
         // Skip rendering if object is invalid
         if (!object) {
             console.warn('Attempted to render null or undefined object');
@@ -79,7 +78,6 @@ class ObjectRenderer3D {
             
             // Store camera for batch rendering
             this._camera = camera;
-            // We no longer need to store shader set - using program manager directly
             
             // Create persistent texture cache
             if (!this._textureCache) {
@@ -125,14 +123,14 @@ class ObjectRenderer3D {
 
     render() {
         if (this._frameObjects && this._frameObjects.length > 0) {
-            this.drawObjects(this._camera, null); // No need to pass shader set anymore
+            this.drawObjects(this._camera);
             this._frameInitialized = false;
             this._frameObjects = [];
             this._totalTriangles = 0;
         }
     }
     
-    drawObjects(camera, unusedShaderSet) { // shaderSet parameter is no longer used
+    drawObjects(camera) {
         // If we have no objects to render, just return
         if (!this._frameObjects || this._frameObjects.length === 0) {
             return;
@@ -351,7 +349,7 @@ class ObjectRenderer3D {
         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, DYNAMIC_DRAW);
 
         // PRE-COMPUTE ALL MATRICES AND UNIFORMS ONCE PER FRAME
-        this.updateUniformCache(camera, null); // No need to pass shader set anymore
+        this.updateUniformCache(camera);
 
         // Setup shader and draw - use the object shader from program manager
         const program = this.programManager.getObjectProgram();
@@ -366,11 +364,10 @@ class ObjectRenderer3D {
         this._frameInitialized = false;
         this._frameObjects = [];
         this._totalTriangles = 0;
-        this._shaderSet = null; // Clean up old shaderSet reference
     }
     
     // Pre-compute all uniform values once per frame
-    updateUniformCache(camera, shaderSet) {
+    updateUniformCache(camera) {
         // Get the current shader program from program manager
         const program = this.programManager.getObjectProgram();
         
@@ -454,7 +451,7 @@ class ObjectRenderer3D {
             
             // Only apply the factor to the default shader
             if (currentShader === "default") {
-                const factor = this.lightManager.constants.DEFAULT_SHADER_SET_INTENSITY_FACTOR.value;
+                const factor = this.lightManager.constants.OBJECT_SHADER_DEFAULT_VARIANT_INTENSITY_FACTOR.value;
                 gl.uniform1f(locations.intensityFactor, factor);
             } else {
                 // For non-default shaders, use 1.0 (no scaling)

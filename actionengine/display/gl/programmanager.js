@@ -4,7 +4,7 @@ class ProgramManager {
         this.gl = gl;
         this.isWebGL2 = isWebGL2;
         
-        // Current active variant (replaces ProgramRegistry)
+        // Current active variant
         this.currentVariant = "default";
         
         // Store shader programs
@@ -458,43 +458,5 @@ class ProgramManager {
 
     getLineLocations() {
         return this.lineLocations;
-    }
-    
-    /**
-     * Get the current shader set (for backward compatibility)
-     * @returns {object} - Object containing program and locations
-     */
-    getCurrentShaderSet() {
-        return {
-            standard: {
-                program: this.objectProgram,
-                locations: this.objectLocations
-            }
-        };
-    }
-    
-    /**
-     * Get the current shader name (for backward compatibility)
-     * @returns {string} - Name of the current shader variant
-     */
-    getCurrentShaderName() {
-        return this.currentVariant;
-    }
-    
-    /**
-     * Provides a limited API compatible with the old ProgramRegistry
-     * for external code that still expects it
-     */
-    getProgramRegistry() {
-        // Return an object with just enough API surface to maintain compatibility
-        return {
-            getCurrentShaderSet: () => this.getCurrentShaderSet(),
-            getCurrentShaderName: () => this.getCurrentVariant(),
-            shaderSets: new Map([
-                ["default", this.currentVariant === "default" ? this.getCurrentShaderSet() : null],
-                ["pbr", this.currentVariant === "pbr" ? this.getCurrentShaderSet() : null],
-                ["virtualboy", this.currentVariant === "virtualboy" ? this.getCurrentShaderSet() : null]
-            ])
-        };
     }
 }

@@ -92,7 +92,7 @@ class SunRenderer3D {
         this.gl.bufferData(this.gl.ARRAY_BUFFER, position, this.gl.STATIC_DRAW);
     }
     
-    render(camera, lightPos, isVirtualBoyShaderSet) {
+    render(camera, lightPos, isVirtualBoyMode) {
         const gl = this.gl;
         
         // Use our sun shader program
@@ -107,8 +107,8 @@ class SunRenderer3D {
         gl.uniformMatrix4fv(this.locations.viewMatrix, false, viewMatrix);
         
         // Set sun color based on active shader
-        if (isVirtualBoyShaderSet) {
-            // Red for VirtualBoy shader set
+        if (isVirtualBoyMode) {
+            // Red for VirtualBoy shader variant
             gl.uniform3f(this.locations.sunColor, 1.0, 0.0, 0.0);
         } else {
             // Default yellow-orange
