@@ -10,8 +10,7 @@ class FishingMode {
         const initialCameraPos = new Vector3(0, 20, -60);
         const initialCameraTarget = new Vector3(0, 0, 0);
         this.camera = new ActionCamera(initialCameraPos, initialCameraTarget);
-        this.shaderManager = new ShaderManager(this.renderer3d);
-        this.physicsWorld = new ActionPhysicsWorld3D(this.shaderManager);
+        this.physicsWorld = new ActionPhysicsWorld3D();
         
         this.ocean = new Ocean(this.physicsWorld, 500, 500, 8, 1);
         this.fishingArea = new FishingArea();
@@ -302,10 +301,6 @@ releaseFish() {
             }
 
             this.renderer3d = null;
-        }
-
-        if (this.shaderManager) {
-            this.shaderManager = null;
         }
 
         if (this.depthFramebuffer && this.renderer3d && this.renderer3d.gl) {

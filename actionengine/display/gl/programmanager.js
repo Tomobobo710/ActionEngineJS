@@ -3,16 +3,20 @@ class ProgramManager {
     constructor(gl, isWebGL2) {
         this.gl = gl;
         this.isWebGL2 = isWebGL2;
-        this.programRegistry = new ProgramRegistry(this.gl);
-        
-        // Set programManager reference in programRegistry for access to line shader functions
-        this.programRegistry.programManager = this;
+        this.programRegistry = new ProgramRegistry(this.gl, this);
 
         // Store shader programs
         this.particleProgram = null;
+        this.waterProgram = null;
+        this.lineProgram = null;
 
         // Store locations for different shader programs
         this.particleLocations = {};
+        this.waterLocations = {};
+        this.lineLocations = {};
+
+        // Line shader instance
+        this.lineShader = null;
 
         // Debug visualization buffers
         this.debugQuadBuffer = null;
@@ -20,6 +24,7 @@ class ProgramManager {
 
         // Initialize shaders
         this.initializeShaderPrograms();
+        this.registerAllShaderSets();
     }
 
     initializeShaderPrograms() {
@@ -33,7 +38,8 @@ class ProgramManager {
         const particleShader = new ParticleShader();
         this.particleProgram = this.programRegistry.createShaderProgram(
             particleShader.getParticleVertexShader(this.isWebGL2),
-            particleShader.getParticleFragmentShader(this.isWebGL2)
+            particleShader.getParticleFragmentShader(this.isWebGL2),
+            'particle_shader'
         );
 
         this.particleLocations = {
@@ -49,7 +55,8 @@ class ProgramManager {
         const waterShader = new WaterShader();
         this.waterProgram = this.programRegistry.createShaderProgram(
             waterShader.getWaterVertexShader(this.isWebGL2),
-            waterShader.getWaterFragmentShader(this.isWebGL2)
+            waterShader.getWaterFragmentShader(this.isWebGL2),
+            'water_shader'
         );
 
         // Add null checks
@@ -82,18 +89,20 @@ class ProgramManager {
             'default_standard'
         );
 
-        // Character shader initialization removed - characters now use standard shader
-        // Line shader initialization moved to separate method
-
-        // Add default shader set to registry - line shaders now handled separately
+        // Add default shader set to registry
         this.programRegistry.shaderSets.set("default", {
             standard: {
                 program: defaultStandardProgram,
                 locations: {
-                    // Existing locations
+                    // Attributes
                     position: this.gl.getAttribLocation(defaultStandardProgram, "aPosition"),
                     normal: this.gl.getAttribLocation(defaultStandardProgram, "aNormal"),
                     color: this.gl.getAttribLocation(defaultStandardProgram, "aColor"),
+                    texCoord: this.gl.getAttribLocation(defaultStandardProgram, "aTexCoord"),
+                    textureIndex: this.gl.getAttribLocation(defaultStandardProgram, "aTextureIndex"),
+                    useTexture: this.gl.getAttribLocation(defaultStandardProgram, "aUseTexture"),
+                    
+                    // Uniforms
                     projectionMatrix: this.gl.getUniformLocation(defaultStandardProgram, "uProjectionMatrix"),
                     viewMatrix: this.gl.getUniformLocation(defaultStandardProgram, "uViewMatrix"),
                     modelMatrix: this.gl.getUniformLocation(defaultStandardProgram, "uModelMatrix"),
@@ -102,38 +111,81 @@ class ProgramManager {
                     lightPos: this.gl.getUniformLocation(defaultStandardProgram, "uLightPos"),
                     lightIntensity: this.gl.getUniformLocation(defaultStandardProgram, "uLightIntensity"),
                     intensityFactor: this.gl.getUniformLocation(defaultStandardProgram, "uIntensityFactor"),
-
-                    // Modified texture handling
-                    textureArray: this.gl.getUniformLocation(defaultStandardProgram, "uTextureArray"),
-                    textureIndex: this.gl.getAttribLocation(defaultStandardProgram, "aTextureIndex"),
-                    texCoord: this.gl.getAttribLocation(defaultStandardProgram, "aTexCoord"),
-                    useTexture: this.gl.getAttribLocation(defaultStandardProgram, "aUseTexture")
+                    time: this.gl.getUniformLocation(defaultStandardProgram, "uTime"),
+                    
+                    // Shadow mapping
+                    lightSpaceMatrix: this.gl.getUniformLocation(defaultStandardProgram, "uLightSpaceMatrix"),
+                    shadowMap: this.gl.getUniformLocation(defaultStandardProgram, "uShadowMap"),
+                    shadowsEnabled: this.gl.getUniformLocation(defaultStandardProgram, "uShadowsEnabled"),
+                    
+                    // Textures
+                    textureArray: this.gl.getUniformLocation(defaultStandardProgram, "uTextureArray")
                 }
             }
         });
+        
+        console.log("[ProgramManager] Default shader set initialized");
     }
-
-    // Accessor methods
-    getParticleProgram() {
-        return this.particleProgram;
+    
+    /**
+     * Register all additional shader sets
+     */
+    registerAllShaderSets() {
+        console.log(`[ProgramManager] Registering all shader sets, WebGL2: ${this.isWebGL2}`);
+        
+        // Register PBR shader set
+        this.registerShaderSet("pbr", new PBRShaderSet());
+        
+        // Register VirtualBoy shader set
+        this.registerShaderSet("virtualboy", new VirtualBoyShaderSet());
+        
+        console.log("[ProgramManager] All shader sets registered");
     }
-
-    getParticleLocations() {
-        return this.particleLocations;
+    
+    /**
+     * Register a shader set with the program registry
+     * @param {string} name - Name of the shader set
+     * @param {Object} shaderSetInstance - Instance of a shader set
+     */
+    registerShaderSet(name, shaderSetInstance) {
+        console.log(`[ProgramManager] Registering shader set: ${name}`);
+        
+        try {
+            // Get shader sources
+            let standardVertex = null;
+            let standardFragment = null;
+            
+            try {
+                if (shaderSetInstance.getStandardVertexShader) {
+                    standardVertex = shaderSetInstance.getStandardVertexShader(this.isWebGL2);
+                }
+            } catch (e) {
+                console.error(`[ProgramManager] Error getting standard vertex shader for '${name}': ${e.message}`);
+            }
+            
+            try {
+                if (shaderSetInstance.getStandardFragmentShader) {
+                    standardFragment = shaderSetInstance.getStandardFragmentShader(this.isWebGL2);
+                }
+            } catch (e) {
+                console.error(`[ProgramManager] Error getting standard fragment shader for '${name}': ${e.message}`);
+            }
+            
+            // Create shader set object
+            const shaderSet = {
+                standard: {
+                    vertex: standardVertex,
+                    fragment: standardFragment
+                }
+            };
+            
+            // Register with program registry
+            this.programRegistry.registerShaderSet(name, shaderSet);
+            console.log(`[ProgramManager] Successfully registered shader set: ${name}`);
+        } catch (e) {
+            console.error(`[ProgramManager] Error registering shader set '${name}': ${e.message}`);
+        }
     }
-
-    getWaterProgram() {
-        return this.waterProgram;
-    }
-
-    getWaterLocations() {
-        return this.waterLocations;
-    }
-
-    getProgramRegistry() {
-        return this.programRegistry;
-    }
-
 
     /**
      * Initialize the dedicated line shader
@@ -197,20 +249,32 @@ class ProgramManager {
         console.log(`[ProgramManager] Line shader variant changed to: ${variant}`);
     }
     
-    /**
-     * Get the current line shader program
-     * @returns {WebGLProgram} - The WebGL program for the line shader
-     */
+    // Accessor methods
+    getParticleProgram() {
+        return this.particleProgram;
+    }
+
+    getParticleLocations() {
+        return this.particleLocations;
+    }
+
+    getWaterProgram() {
+        return this.waterProgram;
+    }
+
+    getWaterLocations() {
+        return this.waterLocations;
+    }
+
     getLineProgram() {
         return this.lineProgram;
     }
-    
-    /**
-     * Get the current line shader locations
-     * @returns {Object} - Object containing shader locations
-     */
+
     getLineLocations() {
         return this.lineLocations;
     }
-    
+
+    getProgramRegistry() {
+        return this.programRegistry;
+    }
 }

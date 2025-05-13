@@ -87,13 +87,8 @@ class WorldMode {
 
         this.renderer3D = new ActionRenderer3D(this.gameCanvas3D);
         this.renderer2D = new ActionRenderer2D(this.guiCanvas);
-
         
-        this.shaderManager = new ShaderManager(this.renderer3D);
-        // Register all available shaders with the renderer
-        this.shaderManager.registerAllShaders(this.renderer3D);
-        
-        this.physicsWorld = new ActionPhysicsWorld3D(this.shaderManager);
+        this.physicsWorld = new ActionPhysicsWorld3D();
 
         this.camera = new ActionCamera();
         
@@ -477,12 +472,6 @@ class WorldMode {
         if (this.renderer2D) {
             // Need to add proper cleanup to renderer
             this.renderer2D = null;
-        }
-
-        // Clean up shader manager
-        if (this.shaderManager) {
-            // Need to add proper cleanup to shader manager
-            this.shaderManager = null;
         }
 
         // Clean up weather system

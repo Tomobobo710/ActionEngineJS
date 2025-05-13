@@ -315,6 +315,4 @@ class DefaultShaderSet {
         ${isWebGL2 ? "fragColor" : "gl_FragColor"} = vec4(result, baseColor.a);
     }`;
     }
-
-    // Line shader methods removed - now handled by the dedicated LineShader class
 }

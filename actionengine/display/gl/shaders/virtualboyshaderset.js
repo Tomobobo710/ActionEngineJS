@@ -1,6 +1,6 @@
 // game/display/gl/shaders/virtualboyshaderset.js
 class VirtualBoyShaderSet {
-    getStandardVertexShader(isWebGL2) { // Renamed from getTerrainVertexShader
+    getStandardVertexShader(isWebGL2) {
         return `${isWebGL2 ? "#version 300 es\n" : ""}
         ${isWebGL2 ? "in" : "attribute"} vec3 aPosition;
         ${isWebGL2 ? "in" : "attribute"} vec3 aNormal;
@@ -25,7 +25,7 @@ class VirtualBoyShaderSet {
         }`;
     }
 
-    getStandardFragmentShader(isWebGL2) { // Renamed from getTerrainFragmentShader
+    getStandardFragmentShader(isWebGL2) {
         return `${isWebGL2 ? "#version 300 es\n" : ""}
         precision mediump float;
         ${isWebGL2 ? "flat in float vLighting;\nin vec3 vBarycentricCoord;\nout vec4 fragColor;" 
@@ -44,8 +44,4 @@ class VirtualBoyShaderSet {
             }
         }`;
     }
-
-    // Line shader methods removed - now handled by the dedicated LineShader class
 }
-
-// Shader sets are now registered by ShaderManager

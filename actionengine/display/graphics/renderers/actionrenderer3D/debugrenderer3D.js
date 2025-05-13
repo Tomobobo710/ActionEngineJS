@@ -22,8 +22,7 @@ class DebugRenderer3D {
     }
 
     drawDebugLines(camera, character, currentTime) {
-        // Use the dedicated line shader instead of shader set lines
-        // Also adapt based on current shader mode
+        // Adapt based on current shader mode
         const currentShader = this.programManager.getProgramRegistry().getCurrentShaderName();
         if (currentShader === "virtualboy") {
             this.programManager.setLineShaderVariant("virtualboy");

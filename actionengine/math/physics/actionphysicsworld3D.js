@@ -1,7 +1,6 @@
 // actionengine/math/physics/actionphysicsworld3D.js
 class ActionPhysicsWorld3D {
-    constructor(shaderManager, fixedTimestep = 1 / 60) {
-        this.shaderManager = shaderManager;
+    constructor(fixedTimestep = 1 / 60) {
         this.broadphase = new Goblin.SAPBroadphase();
         this.narrowphase = new Goblin.NarrowPhase();
         this.solver = new Goblin.IterativeSolver();

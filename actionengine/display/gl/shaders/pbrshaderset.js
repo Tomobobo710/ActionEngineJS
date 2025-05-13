@@ -393,8 +393,4 @@ void main() {
     ${isWebGL2 ? "fragColor" : "gl_FragColor"} = vec4(color, 1.0);
 }`;
     }
-
-    // Line shader methods removed - now handled by the dedicated LineShader class
 }
-
-// Shader sets are now registered by ShaderManager

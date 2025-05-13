@@ -1,11 +1,53 @@
 // actionengine/display/gl/programregistry.js
 class ProgramRegistry {
-    constructor(gl) {
+    constructor(gl, programManager) {
         this.gl = gl;
+        this.programManager = programManager;
         this.shaderSets = new Map();
         this.currentShaderIndex = 0;
         this.isWebGL2 = gl.getParameter(gl.VERSION).includes("WebGL 2.0");
-        this.programManager = null; // Will be set by ProgramManager
+        
+        // Cache attribute and uniform name strings
+        this._attributeNames = {
+            position: 'aPosition',
+            normal: 'aNormal',
+            color: 'aColor',
+            texCoord: 'aTexCoord',
+            textureIndex: 'aTextureIndex',
+            useTexture: 'aUseTexture'
+        };
+        
+        this._uniformNames = {
+            projectionMatrix: 'uProjectionMatrix',
+            viewMatrix: 'uViewMatrix',
+            modelMatrix: 'uModelMatrix',
+            lightPos: 'uLightPos',
+            lightDir: 'uLightDir',
+            lightIntensity: 'uLightIntensity',
+            roughness: 'uRoughness',
+            metallic: 'uMetallic',
+            baseReflectivity: 'uBaseReflectivity',
+            cameraPos: 'uCameraPos',
+            time: 'uTime',
+            lightSpaceMatrix: 'uLightSpaceMatrix',
+            shadowMap: 'uShadowMap',
+            shadowsEnabled: 'uShadowsEnabled',
+            intensityFactor: 'uIntensityFactor'
+        };
+        
+        this._textureUniforms = {
+            standard: this.isWebGL2 ? 'uTextureArray' : 'uTexture',
+            pbr: 'uPBRTextureArray',
+            shadowMap: 'uShadowMap',
+            materialProps: 'uMaterialPropertiesTexture'
+        };
+        
+        this._textureUnits = {
+            standard: 0,
+            pbr: 1,
+            materialProps: 2,
+            shadowMap: 7
+        };
     }
 
     createShaderProgram(vsSource, fsSource, shaderName = 'unknown') {
@@ -92,7 +134,7 @@ class ProgramRegistry {
     registerShaderSet(name, shaders) {
         const defaultSet = this.shaderSets.get("default");
 
-        // Create new shader set - line shaders now handled separately
+        // Create new shader set
         const newSet = {
             standard: {
                 program: shaders.standard
@@ -100,61 +142,16 @@ class ProgramRegistry {
                     : defaultSet.standard.program,
                 locations: null // Will set after program creation
             }
-            // Lines removed - now handled by dedicated LineShader
         };
 
-        this.setupShaderLocations(newSet, shaders, defaultSet);
+        this.setupShaderLocations(newSet, shaders, defaultSet, name);
         this.shaderSets.set(name, newSet);
+        console.log(`[ProgramRegistry] Registered shader set: ${name}`);
     }
 
-    setupShaderLocations(newSet, shaders, defaultSet) {
+    setupShaderLocations(newSet, shaders, defaultSet, name) {
         // Cache GL context
         const gl = this.gl;
-        
-        // Cache attribute and uniform name strings
-        if (!this._attributeNames) {
-            this._attributeNames = {
-                position: 'aPosition',
-                normal: 'aNormal',
-                color: 'aColor',
-                texCoord: 'aTexCoord',
-                textureIndex: 'aTextureIndex',
-                useTexture: 'aUseTexture'
-            };
-            
-            this._uniformNames = {
-                projectionMatrix: 'uProjectionMatrix',
-                viewMatrix: 'uViewMatrix',
-                modelMatrix: 'uModelMatrix',
-                lightPos: 'uLightPos',
-                lightDir: 'uLightDir',
-                lightIntensity: 'uLightIntensity',
-                roughness: 'uRoughness',
-                metallic: 'uMetallic',
-                baseReflectivity: 'uBaseReflectivity',
-                cameraPos: 'uCameraPos',
-                time: 'uTime',
-                // Add shadow mapping uniforms
-                lightSpaceMatrix: 'uLightSpaceMatrix',
-                shadowMap: 'uShadowMap',
-                shadowsEnabled: 'uShadowsEnabled'
-            };
-            
-            this._textureUniforms = {
-                standard: this.isWebGL2 ? 'uTextureArray' : 'uTexture',
-                pbr: 'uPBRTextureArray',
-                shadowMap: 'uShadowMap',  // Keep this as a separate texture type
-                materialProps: 'uMaterialPropertiesTexture' // Material properties texture
-            };
-            
-            // Pre-determined texture unit assignments to avoid conflicts
-            this._textureUnits = {
-                standard: 0,  // Texture array or standard texture uses unit 0
-                pbr: 1,      // PBR textures use unit 1
-                materialProps: 2, // Material properties texture uses unit 2
-                shadowMap: 7  // Shadow map uses unit 7 to avoid conflicts with all other textures
-            };
-        }
         
         // Helper function to efficiently get shader locations
         const getLocations = (program, isPBR = false) => {
@@ -186,6 +183,7 @@ class ProgramRegistry {
                 materialPropertiesTexture: gl.getUniformLocation(program, tex.materialProps),
                 cameraPos: gl.getUniformLocation(program, unif.cameraPos),
                 time: gl.getUniformLocation(program, unif.time),
+                intensityFactor: gl.getUniformLocation(program, unif.intensityFactor),
                 
                 // Shadow mapping uniforms
                 lightSpaceMatrix: gl.getUniformLocation(program, unif.lightSpaceMatrix),
@@ -207,18 +205,13 @@ class ProgramRegistry {
             newSet.standard.locations = defaultSet.standard.locations;
         }
 
-        // Line shader locations now handled by the dedicated LineShader
-    }
-
-    setupTimeUniforms(newSet, shaders) {
+        // Setup time uniform separately if needed
         if (shaders.standard) {
             const timeLocation = this.gl.getUniformLocation(newSet.standard.program, "uTime");
             if (timeLocation !== null) {
                 newSet.standard.locations.time = timeLocation;
             }
         }
-        
-        // Time uniform for lines is now handled by the dedicated LineShader
     }
 
     cycleShaderSets() {

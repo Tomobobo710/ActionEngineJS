@@ -39,9 +39,7 @@ class SceneMode {
         this.debugCanvas = this.canvases.debugCanvas;
 
         this.renderer3D = new ActionRenderer3D(this.gameCanvas3D);
-        this.shaderManager = new ShaderManager(this.renderer3D);
-        this.shaderManager.registerAllShaders(this.renderer3D);
-        this.physicsWorld = new ActionPhysicsWorld3D(this.shaderManager);
+        this.physicsWorld = new ActionPhysicsWorld3D();
         this.camera = new ActionCamera();
         this.lastTime = performance.now();
         this.deltaTime = 0;
@@ -317,7 +315,6 @@ class SceneMode {
 
         this.character = null;
         this.renderer3D = null;
-        this.shaderManager = null;
         this.camera = null;
         this.scenes = {};
         this.activeScene = null;
