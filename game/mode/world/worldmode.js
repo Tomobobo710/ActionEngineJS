@@ -113,7 +113,7 @@ class WorldMode {
         console.log("[WorldMode] Initialization completed");
     }
 
-    generateWorld() {
+    generateWorld(customConfig) {
         // Store character position and properties before reset if it exists
         let characterState = null;
         if (this.character && this.character.body) {
@@ -140,7 +140,7 @@ class WorldMode {
             this.physicsWorld.reset();
         }
 
-        const baseConfig = {
+        const baseConfig = customConfig || {
             seed: this.seed
         };
 
@@ -336,6 +336,8 @@ class WorldMode {
         if (this.input.isKeyJustPressed("Action3")) {
             console.log("[WorldMode] Generating new world...");
             this.seed = Math.floor(Math.random() * 10000);
+            
+            // Let the terrain system decide based on the seed
             this.generateWorld();
         }
         

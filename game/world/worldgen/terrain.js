@@ -17,12 +17,23 @@ class Terrain {
         // Determine generator type
         if (config.generator === undefined) {
             const seed = config.seed || Math.floor(Math.random() * 10000);
-            this.config.generator = seed % 2 === 0 ? "tiled" : undefined;
+            // Use modulo 3 to select one of three generators deterministically
+            const modResult = seed % 3;
+            if (modResult === 0) {
+                this.config.generator = "tiled";
+            } else if (modResult === 1) {
+                this.config.generator = "island";
+            } else { // modResult === 2
+                this.config.generator = "continent";
+            }
         }
 
         // Pass config to generate terrain data
         if (config.generator === "tiled") {
             this.generator = new TileWorldGenerator(config);
+        } else if (config.generator === "continent") {
+            // Use the improved continent generator
+            this.generator = new ContinentGenerator(config);
         } else {
             this.generator = new IslandGenerator(config);
         }
@@ -64,7 +75,8 @@ class Terrain {
                 const vertexIndex = z * vertexCount + x;
                 // Create a proper Vector3 instance
                 this.vertices[vertexIndex] = new Vector3(worldX, height, worldZ);
-                this.colors[vertexIndex] = this.getColorForHeight(height);
+                // Pass world coordinates for potential biome mapping
+                this.colors[vertexIndex] = this.getColorForHeight(height, worldX, worldZ);
             }
         }
 
@@ -81,9 +93,11 @@ class Terrain {
                 const trVertex = this.vertices[topRight];
                 const blVertex = this.vertices[bottomLeft];
                 const avgHeight1 = (tlVertex.y + blVertex.y + trVertex.y) / 3;
+                const avgX1 = (tlVertex.x + blVertex.x + trVertex.x) / 3;
+                const avgZ1 = (tlVertex.z + blVertex.z + trVertex.z) / 3;
 
-                const color1 = this.getColorForHeight(avgHeight1);
-                const texture1 = this.getTextureForHeight(avgHeight1);
+                const color1 = this.getColorForHeight(avgHeight1, avgX1, avgZ1);
+                const texture1 = this.getTextureForHeight(avgHeight1, avgX1, avgZ1);
                 const uvs1 = texture1
                     ? [
                           { u: 0, v: 0 },
@@ -97,9 +111,11 @@ class Terrain {
                 // Second triangle
                 const brVertex = this.vertices[bottomRight];
                 const avgHeight2 = (trVertex.y + blVertex.y + brVertex.y) / 3;
+                const avgX2 = (trVertex.x + blVertex.x + brVertex.x) / 3;
+                const avgZ2 = (trVertex.z + blVertex.z + brVertex.z) / 3;
 
-                const color2 = this.getColorForHeight(avgHeight2);
-                const texture2 = this.getTextureForHeight(avgHeight2);
+                const color2 = this.getColorForHeight(avgHeight2, avgX2, avgZ2);
+                const texture2 = this.getTextureForHeight(avgHeight2, avgX2, avgZ2);
                 const uvs2 = texture2
                     ? [
                           { u: 0, v: 0 },
@@ -144,7 +160,14 @@ class Terrain {
         return nearbyTriangles;
     }
 
-    getColorForHeight(height) {
+    getColorForHeight(height, x, z) {
+        // Allow the generator to override the color assignment if it implements the method
+        if (this.generator.getBiomeColor && typeof this.generator.getBiomeColor === 'function') {
+            const color = this.generator.getBiomeColor(height, x, z);
+            if (color) return color;
+        }
+        
+        // Otherwise, fall back to the default height-based system
         // Handle extremes first
         if (height <= 0) return BIOME_TYPES.OCEAN.base;
         if (height >= 400) return BIOME_TYPES.SNOW.base;
@@ -160,7 +183,14 @@ class Terrain {
         }
         return BIOME_TYPES.SNOW.base; // Default fallback
     }
-    getTextureForHeight(height) {
+    getTextureForHeight(height, x, z) {
+        // Allow the generator to override the texture assignment if it implements the method
+        if (this.generator.getBiomeTexture && typeof this.generator.getBiomeTexture === 'function') {
+            const texture = this.generator.getBiomeTexture(height, x, z);
+            if (texture) return texture;
+        }
+        
+        // Otherwise, fall back to the default height-based system
         // Handle extremes first - match the same absolute height checks as getColorForHeight
         if (height <= 0) return textureRegistry.get("water");
         if (height >= 400) return textureRegistry.get("snow");

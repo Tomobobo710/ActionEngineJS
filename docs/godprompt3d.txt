@@ -79,11 +79,8 @@ class Game {
 		// Initialize 3D renderer - this handles all WebGL complexity for us!
 		this.renderer3D = new ActionRenderer3D(this.canvas);
 
-		// Initialize shader manager - manages all shader programs
-		this.shaderManager = new ShaderManager(this.renderer3D);
-
 		// Initialize physics world - handles all physics calculations
-		this.physicsWorld = new ActionPhysicsWorld3D(this.shaderManager);
+		this.physicsWorld = new ActionPhysicsWorld3D();
 
 		// Setup camera - starts in free mode until character is spawned
 		this.camera = new ActionCamera();
@@ -262,6 +259,26 @@ class Game {
 
 		// Call our update method with the calculated delta time
 		this.update(deltaTime);
+	}
+	/**
+	 * action_fixed_update(fixedDeltaTime) - Hook called by the App class at fixed intervals
+	 * 
+	 * This method is called at a fixed timestep (typically 1/60 second) regardless of frame rate.
+	 * Physics simulations and consistent-timing logic should be placed here for best results.
+	 * 
+	 * @param {number} fixedDeltaTime - The fixed time step duration in seconds (typically 1/60)
+	 */
+	action_fixed_update(fixedDeltaTime) {
+		// Physics update at fixed timestep
+		if (!this.showDebug && this.physicsWorld) {
+			// Update physics system
+			this.physicsWorld.fixed_update(fixedDeltaTime);
+			
+			// Update player character physics if it exists
+			if (this.player && typeof this.player.fixed_update === 'function') {
+				this.player.fixed_update(fixedDeltaTime);
+			}
+		}
 	}
 
 	/**
@@ -489,7 +506,9 @@ class Game {
 		); // Specify game layer
 	}
 
-	/*
+
+
+/*
 	 * update()
 	 * The beating heart of the DEMO! This method handles all the logic updates
 	 * including input handling, physics, and game state changes.
@@ -516,8 +535,7 @@ class Game {
 	 */
 
 	update3DWorld(deltaTime) {
-		// Update physics engine first
-		this.physicsWorld.update(deltaTime);
+		// Physics is now handled in fixed_update
 
 		// If we have a player character, update it
 		if (this.player) {
@@ -687,6 +705,7 @@ class Game {
 			this.audio.play("sound3");
 		}
 	}
+
 	/**
 	 * Handle input that applies regardless of debug/game state
 	 */
@@ -787,7 +806,7 @@ class Game {
 		// Handle button 1 press - toggles inactive button
 		if (this.input.isElementJustPressed("button1")) {
 			const newActiveState = !this.input.isElementActive("inactiveButton");
-			this.input.state.elements.gui.get("inactiveButton").isActive = newActiveState;
+			this.input.setElementActive("inactiveButton", "gui", newActiveState);
 			this.inactiveButton.color = newActiveState ? "#00f0f0" : "#666666";
 			this.addMessage(`Inactive button ${newActiveState ? "enabled" : "disabled"}`);
 			this.totalClicks++;
