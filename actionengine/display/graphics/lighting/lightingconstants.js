@@ -74,6 +74,22 @@ class LightingConstants {
             TEXTURE_UNIT: 7   // WebGL texture unit used for shadow map
         };
         
+        // Shadow map settings
+        this.POINT_LIGHT_SHADOW_MAP = {
+            SIZE: {
+                value: 512,   // Power of 2 for best performance
+                options: [512, 1024, 2048, 4096, 8192, 16384],
+                label: "Shadow Resolution"
+            },
+            BIAS: {
+                value: 0.0732,   // Bias to prevent shadow acne - fine-tuned for testing
+                min: -0.001,      // Narrower range focused on useful values
+                max: 0.1,     // Maximum bias value for testing
+                step: 0.0001    // Very small step for fine-grained control
+            },
+            TEXTURE_UNIT: 6   // WebGL texture unit used for shadow map
+        };
+        
         // Shadow projection settings - orthographic frustum for directional light
         this.SHADOW_PROJECTION = {
             LEFT: {

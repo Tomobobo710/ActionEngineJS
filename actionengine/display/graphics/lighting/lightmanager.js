@@ -104,6 +104,37 @@ class LightManager {
     }
     
     /**
+     * Create a new omnidirectional point light
+     * @param {Vector3} position - Initial position
+     * @param {Vector3} color - Light color (RGB, values 0-1)
+     * @param {number} intensity - Light intensity
+     * @param {number} radius - Light radius (affects attenuation)
+     * @param {boolean} castsShadows - Whether this light should cast shadows
+     * @returns {ActionOmnidirectionalShadowLight} - The created light
+     */
+    createPointLight(position, color, intensity, radius = 100.0, castsShadows = true) {
+        const light = new ActionOmnidirectionalShadowLight(
+            this.gl,
+            this.isWebGL2,
+            this.programManager
+        );
+        
+        light.setPosition(position);
+        
+        if (color) {
+            light.setColor(color);
+        }
+        
+        light.setIntensity(intensity);
+        light.setRadius(radius);
+        light.setShadowsEnabled(castsShadows);
+        
+        this.pointLights.push(light);
+        
+        return light;
+    }
+    
+    /**
      * Remove a light from the manager
      * @param {ActionLight} light - The light to remove
      * @returns {boolean} - True if the light was removed, false if not found
@@ -160,7 +191,7 @@ class LightManager {
             changed = changed || lightChanged;
         }
         
-        // Update point lights (future)
+        // Update point lights
         for (const light of this.pointLights) {
             const lightChanged = light.update();
             changed = changed || lightChanged;
@@ -253,8 +284,24 @@ class LightManager {
             }
         }
         
-        // Render point light shadow maps (future)
-        // ...
+        // Render point light shadow maps
+        for (const light of this.pointLights) {
+            if (light.getShadowsEnabled()) {
+                // For omnidirectional lights, we need to render the shadow map for each face (6 faces)
+                for (let faceIndex = 0; faceIndex < 6; faceIndex++) {
+                    light.beginShadowPass(faceIndex);
+                    
+                    // Render objects to shadow map for this face
+                    for (const object of objects) {
+                        if (object && object.triangles && object.triangles.length > 0) {
+                            light.renderObjectToShadowMap(object);
+                        }
+                    }
+                    
+                    light.endShadowPass();
+                }
+            }
+        }
         
         // Render spot light shadow maps (future)
         // ...
@@ -267,12 +314,29 @@ class LightManager {
     bindShadowMapTextures(program) {
         const gl = this.gl;
         
-        // For now, we only have the main directional light bound to texture unit 7
+        // Bind directional light shadow map (main light) to texture unit 7
         const mainLight = this.getMainDirectionalLight();
         if (mainLight && mainLight.getShadowsEnabled()) {
             // Get shadow texture unit from constants
             const textureUnit = gl.TEXTURE0 + this.constants.SHADOW_MAP.TEXTURE_UNIT;
             mainLight.bindShadowMapTexture(textureUnit);
+        }
+        
+        // Bind point light shadow maps
+        // This binds to texture unit 6 for now (one unit before directional shadows)
+        if (this.pointLights.length > 0) {
+            const pointLight = this.pointLights[0]; // For now, just use the first point light
+            if (pointLight && pointLight.getShadowsEnabled()) {
+                // Use the texture unit just before the directional shadow map
+                const textureUnit = gl.TEXTURE0 + this.constants.SHADOW_MAP.TEXTURE_UNIT - 1;
+                pointLight.bindShadowMapTexture(textureUnit);
+                
+                // Set the uniform for point shadow map
+                const pointShadowMapLoc = gl.getUniformLocation(program, "uPointShadowMap");
+                if (pointShadowMapLoc !== null) {
+                    gl.uniform1i(pointShadowMapLoc, this.constants.SHADOW_MAP.TEXTURE_UNIT - 1);
+                }
+            }
         }
     }
     
@@ -283,21 +347,31 @@ class LightManager {
     applyLightsToShader(program) {
         const gl = this.gl;
         
-        // For compatibility with existing code, we'll just apply the main directional light
-        // When we update the shaders to support multiple lights, we'll implement this properly
+        // Apply directional light (for backward compatibility)
         const mainLight = this.getMainDirectionalLight();
         if (mainLight) {
             mainLight.applyToShader(program);
         }
         
-        // Future: Apply all lights based on light arrays in the shader
-        // Set light counts
-        // gl.uniform1i(gl.getUniformLocation(program, "uNumDirectionalLights"), this.directionalLights.length);
-        // gl.uniform1i(gl.getUniformLocation(program, "uNumPointLights"), this.pointLights.length);
-        // gl.uniform1i(gl.getUniformLocation(program, "uNumSpotLights"), this.spotLights.length);
-        
-        // Apply each light to shader with its index
-        // ...
+        // Apply point light (if exists)
+        if (this.pointLights.length > 0) {
+            const pointLight = this.pointLights[0]; // Just use the first point light for now
+            if (pointLight) {
+                pointLight.applyToShader(program);
+                
+                // Set point light count uniform
+                const pointLightCountLoc = gl.getUniformLocation(program, "uPointLightCount");
+                if (pointLightCountLoc !== null) {
+                    gl.uniform1i(pointLightCountLoc, this.pointLights.length);
+                }
+            }
+        } else {
+            // No point lights - set count to 0
+            const pointLightCountLoc = gl.getUniformLocation(program, "uPointLightCount");
+            if (pointLightCountLoc !== null) {
+                gl.uniform1i(pointLightCountLoc, 0);
+            }
+        }
     }
     
     /**
@@ -312,7 +386,12 @@ class LightManager {
             }
         }
         
-        // Future: Apply to point and spot lights
+        // Apply to all point lights
+        for (const light of this.pointLights) {
+            if (light.getShadowsEnabled()) {
+                light.setQualityPreset(presetIndex);
+            }
+        }
     }
     
     /**

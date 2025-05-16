@@ -212,11 +212,11 @@ class ActionDirectionalShadowLight extends ActionLight {
         try {
             const shadowShader = new ShadowShader();
 
-            // Create shadow map program
+            // Create shadow map program using directional-specific shaders
             this.shadowProgram = this.programManager.createShaderProgram(
-                shadowShader.getShadowVertexShader(this.isWebGL2),
-                shadowShader.getShadowFragmentShader(this.isWebGL2),
-                "shadow_depth_pass"
+                shadowShader.getDirectionalShadowVertexShader(this.isWebGL2),
+                shadowShader.getDirectionalShadowFragmentShader(this.isWebGL2),
+                "directional_shadow_pass" // Use distinct name to avoid conflicts
             );
 
             // Get attribute and uniform locations
@@ -397,8 +397,13 @@ class ActionDirectionalShadowLight extends ActionLight {
         // Unbind shadow framebuffer
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
-        // Restore viewport
-        gl.viewport(this._savedViewport[0], this._savedViewport[1], this._savedViewport[2], this._savedViewport[3]);
+        // Restore viewport if it was saved
+        if (this._savedViewport) {
+            gl.viewport(this._savedViewport[0], this._savedViewport[1], this._savedViewport[2], this._savedViewport[3]);
+        } else {
+            // Fallback to default viewport
+            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+        }
     }
     
     /**

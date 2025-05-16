@@ -42,6 +42,36 @@ class DungeonMode {
         this.deltaTime = 0;
         
         this.generateDungeon();
+        this.setupPointLight();
+    }
+    
+    /**
+     * Set up an omnidirectional point light in the entrance room
+     */
+    setupPointLight() {
+        // Create a point light in the center of the entrance room (if we have access to the light manager)
+        if (this.renderer3D && this.renderer3D.lightManager) {
+            // Position the light in the middle of the entrance room
+            const lightPos = new Vector3(
+                this.entranceRoom.position.x,
+                this.entranceRoom.position.y + this.entranceRoom.dimensions.height / 2,  // Position at half height
+                this.entranceRoom.position.z
+            );
+            
+            // Create orange-yellow color for the light
+            const lightColor = new Vector3(1.0, 0.8, 0.5);  // Warm light color
+            
+            // Create the point light with shadows
+            this.pointLight = this.renderer3D.lightManager.createPointLight(
+                lightPos,         // Position in the middle of the entrance room
+                lightColor,       // Warm light color
+                500.0,            // Intensity
+                120.0,            // Radius
+                true              // Cast shadows
+            );
+            
+            console.log("[DungeonMode] Created omnidirectional shadow light in entrance room");
+        }
     }
 
     generateDungeon() {
@@ -295,6 +325,18 @@ class DungeonMode {
     }
 
     cleanup() {
+        // Clean up the point light if it exists
+        if (this.pointLight && this.renderer3D && this.renderer3D.lightManager) {
+            this.renderer3D.lightManager.removeLight(this.pointLight);
+            this.pointLight = null;
+        }
+        
+        // Remove the light sphere if it exists
+        if (this.lightSphere && this.physicsWorld) {
+            this.physicsWorld.removeObject(this.lightSphere);
+            this.lightSphere = null;
+        }
+        
         if (this.physicsWorld) {
             this.physicsWorld.reset();
             this.physicsWorld = null;

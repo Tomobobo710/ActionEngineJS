@@ -337,21 +337,212 @@ class ObjectShader {
     // Shadow map with explicit separate binding (unit 7)
     // Always use sampler2D for shadow maps
     uniform sampler2D uShadowMap;
+    ${isWebGL2 ? "uniform samplerCube uPointShadowMap;" : "uniform sampler2D uPointShadowMap;"}
     uniform vec3 uLightPos;
     uniform vec3 uLightDir;
     uniform float uLightIntensity; // Light intensity uniform
+    uniform float uLightRadius; // Point light radius
     uniform float uIntensityFactor; // Factor controlling intensity effect in default shader
     uniform bool uShadowsEnabled;
+    uniform bool uPointShadowsEnabled; // Enable point light shadows
+    uniform int uPointLightCount; // Number of point lights
     uniform float uShadowBias; // Shadow bias uniform for controlling shadow acne
     uniform float uShadowMapSize; // Shadow map size for texture calculations
     uniform float uShadowSoftness; // Controls shadow edge softness (0-1)
     uniform int uPCFSize; // Controls PCF kernel size (1, 3, 5, 7, 9)
     uniform bool uPCFEnabled; // Controls whether PCF filtering is enabled
+    uniform float uFarPlane; // Far plane for point light shadows
     
     ${isWebGL2 ? "out vec4 fragColor;" : ""}
     
     // Shadow mapping functions
     ${shadowFunctions}
+    
+    // Point light shadow functions
+    ${isWebGL2 ? `
+    // Calculate shadow for omnidirectional point light with cubemap shadow
+    float pointShadowCalculation(vec3 fragPos, vec3 lightPos, samplerCube shadowMap, float farPlane) {
+        // Calculate fragment-to-light vector
+        vec3 fragToLight = fragPos - lightPos;
+        
+        // Get current distance from fragment to light
+        float currentDepth = length(fragToLight);
+        
+        // Normalize to [0,1] range using far plane
+        currentDepth = currentDepth / farPlane;
+        
+        // Apply bias
+        float bias = uShadowBias;
+        
+        // Sample from cubemap shadow map in the direction of fragToLight
+        float closestDepth = texture(shadowMap, fragToLight).r;
+        
+        // Check if fragment is in shadow
+        float shadow = currentDepth - bias > closestDepth ? 0.0 : 1.0;
+        
+        return shadow;
+    }
+    
+    // PCF shadow calculation for omnidirectional point light
+    float pointShadowCalculationPCF(vec3 fragPos, vec3 lightPos, samplerCube shadowMap, float farPlane) {
+        // Check if PCF is disabled - fall back to basic shadow calculation
+        if (!uPCFEnabled) {
+            return pointShadowCalculation(fragPos, lightPos, shadowMap, farPlane);
+        }
+        
+        // Calculate fragment-to-light vector (will be used as cubemap direction)
+        vec3 fragToLight = fragPos - lightPos;
+        
+        // Get current distance from fragment to light
+        float currentDepth = length(fragToLight);
+        
+        // Normalize to [0,1] range using far plane
+        currentDepth = currentDepth / farPlane;
+        
+        // Apply bias, adjusted by softness
+        float softnessFactor = max(0.1, uShadowSoftness); // Ensure minimum softness
+        float bias = uShadowBias * softnessFactor;
+        
+        // Set up PCF sampling
+        float shadow = 0.0;
+        int samples = 0;
+        float diskRadius = 0.01 * softnessFactor; // Adjust based on softness and distance
+        
+        // Generate a tangent space TBN matrix for sampling in a cone
+        vec3 absFragToLight = abs(fragToLight);
+        vec3 tangent, bitangent;
+        
+        // Find least used axis to avoid precision issues
+        if (absFragToLight.x <= absFragToLight.y && absFragToLight.x <= absFragToLight.z) {
+            tangent = vec3(0.0, fragToLight.z, -fragToLight.y);
+        } else if (absFragToLight.y <= absFragToLight.x && absFragToLight.y <= absFragToLight.z) {
+            tangent = vec3(fragToLight.z, 0.0, -fragToLight.x);
+        } else {
+            tangent = vec3(fragToLight.y, -fragToLight.x, 0.0);
+        }
+        
+        tangent = normalize(tangent);
+        bitangent = normalize(cross(fragToLight, tangent));
+        
+        // Determine sample count based on PCF size
+        int pcfRadius = uPCFSize / 2;
+        int maxSamples = (pcfRadius * 2 + 1) * (pcfRadius * 2 + 1);
+        
+        for (int i = 0; i < maxSamples; i++) {
+            // Skip if we exceed the requested PCF size
+            int x = (i % 9) - 4;
+            int y = (i / 9) - 4;
+            
+            if (abs(x) <= pcfRadius && abs(y) <= pcfRadius) {
+                // Generate offset direction based on x, y grid position
+                float angle = float(x) * (3.14159265359 / float(pcfRadius + 1)); // Convert x to angle
+                float distance = float(y) + 0.1; // Add small offset to avoid zero
+                
+                // Calculate offset direction in tangent space
+                vec3 offset = tangent * (cos(angle) * distance * diskRadius) + 
+                              bitangent * (sin(angle) * distance * diskRadius);
+                
+                // Sample from the cubemap with offset
+                float closestDepth = texture(shadowMap, normalize(fragToLight + offset)).r;
+                
+                // Check if fragment is in shadow with bias
+                shadow += currentDepth - bias > closestDepth ? 0.0 : 1.0;
+                samples++;
+            }
+        }
+        
+        // Average all samples
+        shadow /= float(max(samples, 1));
+        
+        return shadow;
+    }` : `
+    // For WebGL1 without cubemap support, calculate shadow from a single face
+    float pointShadowCalculation(vec3 fragPos, vec3 lightPos, sampler2D shadowMap, float farPlane) {
+        // We can't do proper cubemap in WebGL1, so this is just an approximation
+        // using the first face of what would be a cubemap
+        vec3 fragToLight = fragPos - lightPos;
+        
+        // Get current distance from fragment to light
+        float currentDepth = length(fragToLight);
+        
+        // Normalize to [0,1] range using far plane
+        currentDepth = currentDepth / farPlane;
+        
+        // Simple planar mapping for the single shadow map face
+        // This is just a fallback - won't look great but better than nothing
+        vec2 shadowCoord = vec2(
+            (fragToLight.x / abs(fragToLight.x + 0.0001) + 1.0) * 0.25,
+            (fragToLight.y / abs(fragToLight.y + 0.0001) + 1.0) * 0.25
+        );
+        
+        // Apply bias
+        float bias = uShadowBias;
+        
+        // Sample from shadow map 
+        vec4 packedDepth = texture2D(shadowMap, shadowCoord);
+        float closestDepth = unpackDepth(packedDepth);
+        
+        // Check if fragment is in shadow
+        float shadow = currentDepth - bias > closestDepth ? 0.0 : 1.0;
+        
+        return shadow;
+    }
+    
+    // Simplified PCF for WebGL1 single-face approximation
+    float pointShadowCalculationPCF(vec3 fragPos, vec3 lightPos, sampler2D shadowMap, float farPlane) {
+        // Check if PCF is disabled - fall back to basic shadow calculation
+        if (!uPCFEnabled) {
+            return pointShadowCalculation(fragPos, lightPos, shadowMap, farPlane);
+        }
+        
+        // Calculate fragment-to-light vector
+        vec3 fragToLight = fragPos - lightPos;
+        
+        // Get current distance from fragment to light
+        float currentDepth = length(fragToLight);
+        
+        // Normalize to [0,1] range using far plane
+        currentDepth = currentDepth / farPlane;
+        
+        // Simple planar mapping for the single shadow map face
+        vec2 shadowCoord = vec2(
+            (fragToLight.x / abs(fragToLight.x + 0.0001) + 1.0) * 0.25,
+            (fragToLight.y / abs(fragToLight.y + 0.0001) + 1.0) * 0.25
+        );
+        
+        // Apply bias
+        float softnessFactor = max(0.1, uShadowSoftness); // Ensure minimum softness
+        float bias = uShadowBias * softnessFactor;
+        
+        // Set up PCF sampling
+        float shadow = 0.0;
+        float texelSize = 1.0 / uShadowMapSize;
+        
+        // Determine PCF kernel radius based on uPCFSize
+        int pcfRadius = int(uPCFSize) / 2;
+        float totalSamples = 0.0;
+        
+        // Limit loop size for WebGL1
+        for(int x = -4; x <= 4; ++x) {
+            for(int y = -4; y <= 4; ++y) {
+                // Skip samples outside the requested kernel radius
+                if (abs(x) <= pcfRadius && abs(y) <= pcfRadius) {
+                    // Apply softness factor to sampling coordinates
+                    vec2 offset = vec2(x, y) * texelSize * mix(1.0, 2.0, uShadowSoftness);
+                    
+                    vec4 packedDepth = texture2D(shadowMap, shadowCoord + offset);
+                    float pcfDepth = unpackDepth(packedDepth);
+                    shadow += currentDepth - bias > pcfDepth ? 0.0 : 1.0;
+                    totalSamples += 1.0;
+                }
+            }
+        }
+        
+        // Average samples
+        shadow /= max(1.0, totalSamples);
+        
+        return shadow;
+    }`}
     
     void main() {
         // Base color calculation
@@ -372,7 +563,7 @@ class ObjectShader {
         float intensity = uLightIntensity / 100.0; // More aggressive scaling
         diffuse = diffuse * clamp(intensity, 0.1, 10.0); // Allow for dramatically brighter light
         
-        // Calculate shadow factor
+        // Calculate shadow factor for directional light
         float shadow = 1.0;
         if (uShadowsEnabled) {
             // Use explicit texture lookup to avoid sampler conflicts
@@ -382,12 +573,35 @@ class ObjectShader {
             shadow = 1.0 - (1.0 - shadowFactor) * 0.8;
         }
         
-        // Apply light intensity with configurable intensity factor
+        // Calculate point light contribution
+        vec3 pointLightColor = vec3(0.0);
+        if (uPointLightCount > 0) {
+            // For now, just use one omnidirectional light
+            vec3 lightDir = normalize(vFragPos - uLightPos);
+            float pointDiffuse = max(0.0, dot(normalize(vNormal), -lightDir));
+            
+            // Calculate distance attenuation
+            float distance = length(vFragPos - uLightPos);
+            float attenuation = 1.0 / (1.0 + (distance * distance) / (uLightRadius * uLightRadius));
+            
+            // Calculate shadow for point light
+            float pointShadow = 1.0;
+            if (uPointShadowsEnabled) {
+                // The point shadow map is bound to texture unit 6
+                float pointShadowFactor = pointShadowCalculationPCF(vFragPos, uLightPos, uPointShadowMap, uFarPlane);
+                pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
+            }
+            
+            // Calculate final point light contribution
+            pointLightColor = baseColor.rgb * pointDiffuse * attenuation * pointShadow * uLightIntensity * uIntensityFactor;
+        }
+        
+        // Apply directional light intensity with configurable intensity factor
         // This allows tuning the relationship between PBR and default shader intensity
         float lighting = ambient + (diffuse * shadow * uLightIntensity * uIntensityFactor);
         
         // Apply lighting to color with a natural effect
-        vec3 result = baseColor.rgb * lighting;
+        vec3 result = baseColor.rgb * lighting + pointLightColor;
         
         ${isWebGL2 ? "fragColor" : "gl_FragColor"} = vec4(result, baseColor.a);
     }`;
@@ -684,12 +898,17 @@ uniform float uLightIntensity;
 
 // Shadow mapping (always on texture unit 7)
 uniform sampler2D uShadowMap;
+${isWebGL2 ? "uniform samplerCube uPointShadowMap;" : "uniform sampler2D uPointShadowMap;"}
 uniform bool uShadowsEnabled;
+uniform bool uPointShadowsEnabled; // Enable point light shadows
+uniform int uPointLightCount; // Number of point lights
+uniform float uLightRadius; // Point light radius
 uniform float uShadowBias; // Shadow bias uniform for controlling shadow acne
 uniform float uShadowMapSize; // Shadow map size for texture calculations
 uniform float uShadowSoftness; // Controls shadow edge softness (0-1)
 uniform int uPCFSize; // Controls PCF kernel size (1, 3, 5, 7, 9)
 uniform bool uPCFEnabled; // Controls whether PCF filtering is enabled
+uniform float uFarPlane; // Far plane for point light shadows
 
 // Texture sampler
 uniform sampler2DArray uPBRTextureArray;
@@ -697,8 +916,8 @@ uniform sampler2DArray uPBRTextureArray;
 ${isWebGL2 ? "out vec4 fragColor;" : ""}
 
 // Constants for performance
-const float PI = 3.14159265359;
-const float RECIPROCAL_PI = 0.31830988618;
+#define PI 3.14159265359
+#define RECIPROCAL_PI 0.31830988618
 
 // Shadow mapping functions
 ${shadowFunctions}
@@ -787,8 +1006,35 @@ void main() {
         shadow = 1.0 - (1.0 - shadowFactor) * 0.8;
     }
     
-    // Combined lighting equation with shadow
+    // Combined lighting equation with shadow for directional light
     vec3 color = (kD * albedo * RECIPROCAL_PI + specular) * NdotL * uLightIntensity * distanceAttenuation * shadow;
+    
+    // Calculate point light contribution
+    if (uPointLightCount > 0) {
+        // Direction from fragment to point light (we need to negate for consistent lighting)
+        vec3 pointL = normalize(uLightPos - vWorldPos);
+        float pointNdotL = max(dot(N, pointL), 0.0);
+        
+        // Calculate distance attenuation for point light
+        float pointDistance = length(vWorldPos - uLightPos);
+        float pointAttenuation = 1.0 / (1.0 + (pointDistance * pointDistance) / (uLightRadius * uLightRadius));
+        
+        // Calculate specular for point light
+        vec3 pointSpecular = specularBRDF(N, pointL, V, baseF0, roughness);
+        vec3 pointKD = (vec3(1.0) - pointSpecular) * (1.0 - metallic);
+        
+        // Calculate point light shadow
+        float pointShadow = 1.0;
+        if (uPointShadowsEnabled) {
+            // Use PCF to sample point shadow map (bound to unit 6)
+            float pointShadowFactor = pointShadowCalculationPCF(vWorldPos, uLightPos, uPointShadowMap, uFarPlane);
+            pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
+        }
+        
+        // Add point light contribution to color
+        color += (pointKD * albedo * RECIPROCAL_PI + pointSpecular) * pointNdotL * 
+                uLightIntensity * pointAttenuation * pointShadow;
+    }
 
     // Add ambient light (pre-computed constant)
     color += vec3(0.03) * albedo;

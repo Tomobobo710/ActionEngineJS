@@ -82,7 +82,13 @@ class ProgramManager {
             this.gl.attachShader(program, vertexShader);
             this.gl.attachShader(program, fragmentShader);
             this.gl.linkProgram(program);
-    
+            
+            // After successful linking:
+            if (program) {
+                // Set explicit texture sampler bindings to prevent location conflicts
+                this.assignExplicitSamplerBindings(program);
+            }
+            
             if (!this.gl.getProgramParameter(program, this.gl.LINK_STATUS)) {
                 const info = this.gl.getProgramInfoLog(program);
                 console.error(`==== SHADER LINK ERROR FOR '${shaderName}' ====`);
@@ -104,7 +110,61 @@ class ProgramManager {
             throw error;
         }
     }
+    
+    /**
+     * Assigns explicit texture units to sampler uniforms to prevent WebGL sampler location conflicts.
+     * 
+     * BACKGROUND: WebGL has a critical requirement where different sampler types 
+     * (sampler2D, samplerCube, sampler2DArray) cannot share the same texture unit
+     * if they're used in the same shader program during a draw call. If not handled
+     * properly, it causes the error:
+     * "GL_INVALID_OPERATION: Two textures of different types use the same sampler location"
+     * 
+     * WHY THIS HAPPENS: When WebGL compiles a shader program, it assigns internal memory
+     * locations to samplers. Sometimes the compiler optimizes by sharing locations, which
+     * can cause conflicts between DIFFERENT sampler TYPES.......
+     * 
+     * KEY POINTS:
+     * - This only becomes an issue when mixing different sampler types
+     * - You MUST call this after program linking - calling earlier has no effect
+     * - Only texture samplers need this explicit assignment, not regular uniforms
+     * - The texture units used (0, 1, etc.) aren't as important as using different ones
+     *   for different sampler types, but it's advised to use the same units, and unit 0
+     *   will be selected when webgl handles automatic texture unit assignment
+     * - This hurt brain a lot
+     * 
+     * @param {WebGLProgram} program - The linked shader program
+     */
+    assignExplicitSamplerBindings(program) {
+        this.gl.useProgram(program);
 
+        // Define dedicated texture units for each sampler type
+        // Using different units for different sampler types prevents the location conflict
+        const samplerUniforms = [
+            // Standard texture samplers - TEXTURE_2D type
+            {name: "uShadowMap", unit: 4},         // Directional shadow map
+
+            // Cubemap texture samplers - TEXTURE_CUBE_MAP type
+            {name: "uPointShadowMap", unit: 3},    // Omnidirectional shadow map
+
+            // Texture array samplers - TEXTURE_2D_ARRAY type
+            {name: "uTextureArray", unit: 0},      // Standard texture array
+            {name: "uPBRTextureArray", unit: 1},   // PBR texture array
+
+            // Additional samplers
+            {name: "uMaterialPropertiesTexture", unit: 2}, // Material properties
+        ];
+
+        // Assign each sampler to its dedicated texture unit
+        // This forces WebGL to use separate internal locations for different sampler types
+        for (const {name, unit} of samplerUniforms) {
+            const loc = this.gl.getUniformLocation(program, name);
+            if (loc !== null) {
+                this.gl.uniform1i(loc, unit);
+            }
+        }
+    }
+    
     /**
      * Compile a shader
      */
