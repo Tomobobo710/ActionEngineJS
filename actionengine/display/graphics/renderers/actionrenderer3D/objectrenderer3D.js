@@ -608,9 +608,8 @@ class ObjectRenderer3D {
                     this._currentBoundTextureType = gl.TEXTURE_2D_ARRAY;
                 }
                 
-                // Make sure material properties texture is up to date
-                // Always update if properties are dirty, regardless of shader variant
-                if (this.renderer?.textureManager?.materialPropertiesDirty) {
+                // Always update material properties texture, no dirty flag check
+                if (this.renderer?.textureManager) {
                     this.renderer.textureManager.updateMaterialPropertiesTexture();
                 }
             }

@@ -1,14 +1,4 @@
-class TextureRegistry {	// Helper method to mark the texture manager's material properties as dirty
-	_markMaterialPropertiesDirty() {
-		// Find the game instance to access the renderer
-		if (typeof Game !== 'undefined' && 
-			Game.instance && 
-			Game.instance.renderer3D && 
-			Game.instance.renderer3D.textureManager) {
-			// Mark the texture manager's material properties as dirty
-			Game.instance.renderer3D.textureManager.materialPropertiesDirty = true;
-		}
-	}
+class TextureRegistry {
 
 	constructor() {
 		this.textures = new Map();
@@ -137,8 +127,7 @@ class TextureRegistry {	// Helper method to mark the texture manager's material 
 			...properties
 		});
 		
-		// Mark the texture manager's material properties as dirty
-		this._markMaterialPropertiesDirty();
+		// Material properties have been updated
 	}
 
 	// Update default material properties (global settings)
@@ -161,8 +150,7 @@ class TextureRegistry {	// Helper method to mark the texture manager's material 
 			...properties
 		};
 		
-		// Mark the texture manager's material properties as dirty
-		this._markMaterialPropertiesDirty();
+		// Material properties have been updated
 	}
 
 	// Get all material properties as a flat array for use in a texture

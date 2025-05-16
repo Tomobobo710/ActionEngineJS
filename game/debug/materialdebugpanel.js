@@ -54,10 +54,8 @@ class MaterialDebugPanel extends BaseDebugPanel {
             materialConfig.BASE_REFLECTIVITY.value = globalProps.baseReflectivity;
         }
 
-        // Always force material properties texture to update
+        // Also update per-texture materials
         if (this.textureManager) {
-            // Force dirty flag to true to ensure update happens
-            this.textureManager.materialPropertiesDirty = true;
             this.textureManager.updateMaterialPropertiesTexture();
         }
     }

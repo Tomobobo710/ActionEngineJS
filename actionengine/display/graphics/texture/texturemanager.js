@@ -185,9 +185,6 @@ class TextureManager {
             return;
         }
         
-        // Force update of material properties each time this is called
-        this.materialPropertiesDirty = true;
-        
         const gl = this.gl;
         
         // Get the current material properties data
@@ -237,8 +234,7 @@ class TextureManager {
             this._lastMaterialPropertiesHash = currentHash;
         }
         
-        // Reset the dirty flag after the update (or decision to skip)
-        this.materialPropertiesDirty = false;
+        // No dirty flag to reset
     }
     
     // Toggle per-texture material usage
