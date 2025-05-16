@@ -18,11 +18,11 @@ class ObjectShader {
             }
             // Additional variants can be added here
         };
-        
+
         // Current active variant (default to 'default')
-        this.currentVariant = 'default';
+        this.currentVariant = "default";
     }
-    
+
     /**
      * Set the current shader variant
      * @param {string} variantName - Name of the variant to use
@@ -33,10 +33,10 @@ class ObjectShader {
             console.log(`[ObjectShader] Set shader variant to: ${variantName}`);
         } else {
             console.warn(`[ObjectShader] Unknown variant: ${variantName}, using default`);
-            this.currentVariant = 'default';
+            this.currentVariant = "default";
         }
     }
-    
+
     /**
      * Get the current variant name
      * @returns {string} - Current variant name
@@ -44,7 +44,7 @@ class ObjectShader {
     getCurrentVariant() {
         return this.currentVariant;
     }
-    
+
     /**
      * Get the current variant's vertex shader
      * @param {boolean} isWebGL2 - Whether WebGL2 is being used
@@ -53,7 +53,7 @@ class ObjectShader {
     getVertexShader(isWebGL2) {
         return this.variants[this.currentVariant].getVertexShader.call(this, isWebGL2);
     }
-    
+
     /**
      * Get the current variant's fragment shader
      * @param {boolean} isWebGL2 - Whether WebGL2 is being used
@@ -62,11 +62,11 @@ class ObjectShader {
     getFragmentShader(isWebGL2) {
         return this.variants[this.currentVariant].getFragmentShader.call(this, isWebGL2);
     }
-    
+
     //--------------------------------------------------------------------------
     // DEFAULT SHADER VARIANT
     //--------------------------------------------------------------------------
-    
+
     /**
      * Default object vertex shader
      * @param {boolean} isWebGL2 - Whether WebGL2 is being used
@@ -122,7 +122,7 @@ class ObjectShader {
         vUseTexture = aUseTexture;
     }`;
     }
-    
+
     /**
      * Default object fragment shader
      * @param {boolean} isWebGL2 - Whether WebGL2 is being used
@@ -130,8 +130,8 @@ class ObjectShader {
      */
     getDefaultFragmentShader(isWebGL2) {
         // Directly include shadow calculation functions
-        const shadowFunctions = isWebGL2 ? 
-        `
+        const shadowFunctions = isWebGL2
+            ? `
             // Sample from shadow map with hardware-enabled filtering
             float shadowCalculation(vec4 fragPosLightSpace, sampler2D shadowMap) {
                 // Perform perspective divide to get NDC coordinates
@@ -219,8 +219,8 @@ class ObjectShader {
                 shadow /= max(1.0, totalSamples);
                 
                 return shadow;
-            }` :
-        `
+            }`
+            : `
             // Unpack depth from RGBA color
             float unpackDepth(vec4 packedDepth) {
                 const vec4 bitShift = vec4(1.0, 1.0/256.0, 1.0/(256.0*256.0), 1.0/(256.0*256.0*256.0));
@@ -317,7 +317,7 @@ class ObjectShader {
                 
                 return shadow;
             }`;
-        
+
         return `${isWebGL2 ? "#version 300 es\n" : ""}
     precision mediump float;
     ${isWebGL2 ? "precision mediump sampler2DArray;\n" : ""}
@@ -359,7 +359,9 @@ class ObjectShader {
     ${shadowFunctions}
     
     // Point light shadow functions
-    ${isWebGL2 ? `
+    ${
+        isWebGL2
+            ? `
     // Calculate shadow for omnidirectional point light with cubemap shadow
     float pointShadowCalculation(vec3 fragPos, vec3 lightPos, samplerCube shadowMap, float farPlane) {
         // Calculate fragment-to-light vector
@@ -455,7 +457,8 @@ class ObjectShader {
         shadow /= float(max(samples, 1));
         
         return shadow;
-    }` : `
+    }`
+            : `
     // For WebGL1 without cubemap support, calculate shadow from a single face
     float pointShadowCalculation(vec3 fragPos, vec3 lightPos, sampler2D shadowMap, float farPlane) {
         // We can't do proper cubemap in WebGL1, so this is just an approximation
@@ -542,7 +545,8 @@ class ObjectShader {
         shadow /= max(1.0, totalSamples);
         
         return shadow;
-    }`}
+    }`
+    }
     
     void main() {
         // Base color calculation
@@ -610,7 +614,7 @@ class ObjectShader {
     //--------------------------------------------------------------------------
     // PBR SHADER VARIANT
     //--------------------------------------------------------------------------
-    
+
     /**
      * PBR vertex shader
      * @param {boolean} isWebGL2 - Whether WebGL2 is being used
@@ -639,7 +643,7 @@ class ObjectShader {
     ${isWebGL2 ? "out" : "varying"} vec3 vNormal;        // Surface normal
     ${isWebGL2 ? "out" : "varying"} vec3 vWorldPos;      // Position in world space
     ${isWebGL2 ? "out" : "varying"} vec4 vFragPosLightSpace;  // Added for shadow mapping
-
+    ${isWebGL2 ? "out" : "varying"} vec3 vFragPos;
     ${isWebGL2 ? "out" : "varying"} vec3 vColor;
     ${isWebGL2 ? "out" : "varying"} vec3 vViewDir;       // Direction to camera
     ${isWebGL2 ? "flat out" : "varying"} float vTextureIndex;
@@ -650,7 +654,7 @@ class ObjectShader {
         // Calculate world position
         vec4 worldPos = uModelMatrix * vec4(aPosition, 1.0);
         vWorldPos = worldPos.xyz;
-        
+        vFragPos = worldPos.xyz;
         // Transform normal to world space
         vNormal = mat3(uModelMatrix) * aNormal;
         
@@ -670,7 +674,7 @@ class ObjectShader {
         gl_Position = uProjectionMatrix * uViewMatrix * worldPos;
     }`;
     }
-    
+
     /**
      * PBR fragment shader
      * @param {boolean} isWebGL2 - Whether WebGL2 is being used
@@ -678,194 +682,379 @@ class ObjectShader {
      */
     getPBRFragmentShader(isWebGL2) {
         // Directly include shadow calculation functions
-        const shadowFunctions = isWebGL2 ? 
-        `
-            // Sample from shadow map with hardware-enabled filtering
-            float shadowCalculation(vec4 fragPosLightSpace, sampler2D shadowMap) {
-                // Perform perspective divide to get NDC coordinates
-                vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
-                
-                // Transform to [0,1] range for texture lookup
-                projCoords = projCoords * 0.5 + 0.5;
-                
-                // Check if position is outside the shadow map bounds
-                if(projCoords.x < 0.0 || projCoords.x > 1.0 || 
-                   projCoords.y < 0.0 || projCoords.y > 1.0 || 
-                   projCoords.z < 0.0 || projCoords.z > 1.0) {
-                    return 1.0; // No shadow outside shadow map
-                }
-                
-                // Explicitly sample shadow map with explicit texture binding
-                // This helps avoid texture binding conflicts
-                float closestDepth = texture(shadowMap, projCoords.xy).r;
-                
-                // Get current depth value
-                float currentDepth = projCoords.z;
-                
-                // Apply bias from uniform to avoid shadow acne
-                float bias = uShadowBias;
-                
-                // Check if fragment is in shadow
-                float shadow = currentDepth - bias > closestDepth ? 0.0 : 1.0;
-                
-                return shadow;
+        const shadowFunctions = isWebGL2
+            ? `
+        // Sample from shadow map with hardware-enabled filtering
+        float shadowCalculation(vec4 fragPosLightSpace, sampler2D shadowMap) {
+            // Perform perspective divide to get NDC coordinates
+            vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+            
+            // Transform to [0,1] range for texture lookup
+            projCoords = projCoords * 0.5 + 0.5;
+            
+            // Check if position is outside the shadow map bounds
+            if(projCoords.x < 0.0 || projCoords.x > 1.0 || 
+               projCoords.y < 0.0 || projCoords.y > 1.0 || 
+               projCoords.z < 0.0 || projCoords.z > 1.0) {
+                return 1.0; // No shadow outside shadow map
             }
             
-            // PCF shadow mapping for smoother shadows
-            float shadowCalculationPCF(vec4 fragPosLightSpace, sampler2D shadowMap) {
-                // Check if PCF is disabled - fall back to basic shadow calculation
-                if (!uPCFEnabled) {
-                    return shadowCalculation(fragPosLightSpace, shadowMap);
-                }
-                
-                // Perform perspective divide to get NDC coordinates
-                vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
-                
-                // Transform to [0,1] range for texture lookup
-                projCoords = projCoords * 0.5 + 0.5;
-                
-                // Check if position is outside the shadow map bounds
-                if(projCoords.x < 0.0 || projCoords.x > 1.0 || 
-                   projCoords.y < 0.0 || projCoords.y > 1.0 || 
-                   projCoords.z < 0.0 || projCoords.z > 1.0) {
-                    return 1.0; // No shadow outside shadow map
-                }
-                
-                // Get current depth value
-                float currentDepth = projCoords.z;
-                
-                // Apply bias from uniform - adjust using softness factor
-                float softnessFactor = max(0.1, uShadowSoftness); // Ensure minimum softness
-                float bias = uShadowBias * softnessFactor;
-                
-                // Calculate PCF with explicit shadow map sampling
-                float shadow = 0.0;
-                vec2 texelSize = 1.0 / vec2(textureSize(shadowMap, 0));
-                
-                // Determine PCF kernel radius based on uPCFSize
-                int pcfRadius = uPCFSize / 2;
-                float totalSamples = 0.0;
-                
-                // Dynamic PCF sampling using the specified kernel size
-                for(int x = -pcfRadius; x <= pcfRadius; ++x) {
-                    for(int y = -pcfRadius; y <= pcfRadius; ++y) {
-                        // Skip samples outside the kernel radius 
-                        // (needed for non-square kernels like 3x3, 5x5, etc.)
-                        if (abs(x) <= pcfRadius && abs(y) <= pcfRadius) {
-                            // Apply softness factor to sampling coordinates
-                            vec2 offset = vec2(x, y) * texelSize * mix(1.0, 2.0, uShadowSoftness);
-                            
-                            // Explicitly sample shadow map with clear texture binding
-                            float pcfDepth = texture(shadowMap, projCoords.xy + offset).r; 
-                            shadow += currentDepth - bias > pcfDepth ? 0.0 : 1.0;
-                            totalSamples += 1.0;
-                        }
-                    }
-                }
-                
-                // Average samples
-                shadow /= max(1.0, totalSamples);
-                
-                return shadow;
-            }` :
-        `
-            // Unpack depth from RGBA color
-            float unpackDepth(vec4 packedDepth) {
-                const vec4 bitShift = vec4(1.0, 1.0/256.0, 1.0/(256.0*256.0), 1.0/(256.0*256.0*256.0));
-                return dot(packedDepth, bitShift);
-            }
+            // Explicitly sample shadow map with explicit texture binding
+            // This helps avoid texture binding conflicts
+            float closestDepth = texture(shadowMap, projCoords.xy).r;
             
-            // Shadow calculation for WebGL1
-            float shadowCalculation(vec4 fragPosLightSpace, sampler2D shadowMap) {
-                // Perform perspective divide to get NDC coordinates
-                vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
-                
-                // Transform to [0,1] range for texture lookup
-                projCoords = projCoords * 0.5 + 0.5;
-                
-                // Check if position is outside the shadow map bounds
-                if(projCoords.x < 0.0 || projCoords.x > 1.0 || 
-                   projCoords.y < 0.0 || projCoords.y > 1.0 || 
-                   projCoords.z < 0.0 || projCoords.z > 1.0) {
-                    return 1.0; // No shadow outside shadow map
-                }
-                
-                // Get packed depth value
-                vec4 packedDepth = texture2D(shadowMap, projCoords.xy);
-                
-                // Unpack the depth value
-                float closestDepth = unpackDepth(packedDepth);
-                
-                // Get current depth value
-                float currentDepth = projCoords.z;
-                
-                // Apply bias from uniform to avoid shadow acne
-                float bias = uShadowBias;
-                
-                // Check if fragment is in shadow
-                float shadow = currentDepth - bias > closestDepth ? 0.0 : 1.0;
-                
-                return shadow;
-            }
+            // Get current depth value
+            float currentDepth = projCoords.z;
             
-            // PCF shadow calculation for WebGL1
-            float shadowCalculationPCF(vec4 fragPosLightSpace, sampler2D shadowMap) {
-                // Check if PCF is disabled - fall back to basic shadow calculation
-                if (!uPCFEnabled) {
-                    return shadowCalculation(fragPosLightSpace, shadowMap);
-                }
-                
-                // Perform perspective divide to get NDC coordinates
-                vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
-                
-                // Transform to [0,1] range for texture lookup
-                projCoords = projCoords * 0.5 + 0.5;
-                
-                // Check if position is outside the shadow map bounds
-                if(projCoords.x < 0.0 || projCoords.x > 1.0 || 
-                   projCoords.y < 0.0 || projCoords.y > 1.0 || 
-                   projCoords.z < 0.0 || projCoords.z > 1.0) {
-                    return 1.0; // No shadow outside shadow map
-                }
-                
-                // Get current depth value
-                float currentDepth = projCoords.z;
-                
-                // Apply bias from uniform - adjust using softness factor
-                float softnessFactor = max(0.1, uShadowSoftness); // Ensure minimum softness
-                float bias = uShadowBias * softnessFactor;
-                
-                // Calculate PCF with explicit shadow map sampling
-                float shadow = 0.0;
-                float texelSize = 1.0 / uShadowMapSize;
-                
-                // Determine PCF kernel radius based on uPCFSize
-                int pcfRadius = int(uPCFSize) / 2;
-                float totalSamples = 0.0;
-                
-                // WebGL1 has more limited loop support, so limit to max 9x9 kernel
-                // We need fixed loop bounds in WebGL1
-                for(int x = -4; x <= 4; ++x) {
-                    for(int y = -4; y <= 4; ++y) {
-                        // Skip samples outside the requested kernel radius
-                        if (abs(x) <= pcfRadius && abs(y) <= pcfRadius) {
-                            // Apply softness factor to sampling coordinates
-                            vec2 offset = vec2(x, y) * texelSize * mix(1.0, 2.0, uShadowSoftness);
-                            
-                            vec4 packedDepth = texture2D(shadowMap, projCoords.xy + offset);
-                            float pcfDepth = unpackDepth(packedDepth);
-                            shadow += currentDepth - bias > pcfDepth ? 0.0 : 1.0;
-                            totalSamples += 1.0;
-                        }
-                    }
-                }
-                
-                // Average samples
-                shadow /= max(1.0, totalSamples);
-                
-                return shadow;
-            }`;
+            // Apply bias from uniform to avoid shadow acne
+            float bias = uShadowBias;
+            
+            // Check if fragment is in shadow
+            float shadow = currentDepth - bias > closestDepth ? 0.0 : 1.0;
+            
+            return shadow;
+        }
         
+        // PCF shadow mapping for smoother shadows
+        float shadowCalculationPCF(vec4 fragPosLightSpace, sampler2D shadowMap) {
+            // Check if PCF is disabled - fall back to basic shadow calculation
+            if (!uPCFEnabled) {
+                return shadowCalculation(fragPosLightSpace, shadowMap);
+            }
+            
+            // Perform perspective divide to get NDC coordinates
+            vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+            
+            // Transform to [0,1] range for texture lookup
+            projCoords = projCoords * 0.5 + 0.5;
+            
+            // Check if position is outside the shadow map bounds
+            if(projCoords.x < 0.0 || projCoords.x > 1.0 || 
+               projCoords.y < 0.0 || projCoords.y > 1.0 || 
+               projCoords.z < 0.0 || projCoords.z > 1.0) {
+                return 1.0; // No shadow outside shadow map
+            }
+            
+            // Get current depth value
+            float currentDepth = projCoords.z;
+            
+            // Apply bias from uniform - adjust using softness factor
+            float softnessFactor = max(0.1, uShadowSoftness); // Ensure minimum softness
+            float bias = uShadowBias * softnessFactor;
+            
+            // Calculate PCF with explicit shadow map sampling
+            float shadow = 0.0;
+            vec2 texelSize = 1.0 / vec2(textureSize(shadowMap, 0));
+            
+            // Determine PCF kernel radius based on uPCFSize
+            int pcfRadius = uPCFSize / 2;
+            float totalSamples = 0.0;
+            
+            // Dynamic PCF sampling using the specified kernel size
+            for(int x = -pcfRadius; x <= pcfRadius; ++x) {
+                for(int y = -pcfRadius; y <= pcfRadius; ++y) {
+                    // Skip samples outside the kernel radius 
+                    // (needed for non-square kernels like 3x3, 5x5, etc.)
+                    if (abs(x) <= pcfRadius && abs(y) <= pcfRadius) {
+                        // Apply softness factor to sampling coordinates
+                        vec2 offset = vec2(x, y) * texelSize * mix(1.0, 2.0, uShadowSoftness);
+                        
+                        // Explicitly sample shadow map with clear texture binding
+                        float pcfDepth = texture(shadowMap, projCoords.xy + offset).r; 
+                        shadow += currentDepth - bias > pcfDepth ? 0.0 : 1.0;
+                        totalSamples += 1.0;
+                    }
+                }
+            }
+            
+            // Average samples
+            shadow /= max(1.0, totalSamples);
+            
+            return shadow;
+        }
+        
+        // Calculate shadow for omnidirectional point light with cubemap shadow
+        float pointShadowCalculation(vec3 fragPos, vec3 lightPos, samplerCube shadowMap, float farPlane) {
+            // Calculate fragment-to-light vector
+            vec3 fragToLight = fragPos - lightPos;
+            
+            // Get current distance from fragment to light
+            float currentDepth = length(fragToLight);
+            
+            // Normalize to [0,1] range using far plane
+            currentDepth = currentDepth / farPlane;
+            
+            // Apply bias
+            float bias = uShadowBias;
+            
+            // Sample from cubemap shadow map in the direction of fragToLight
+            float closestDepth = texture(shadowMap, fragToLight).r;
+            
+            // Check if fragment is in shadow
+            float shadow = currentDepth - bias > closestDepth ? 0.0 : 1.0;
+            
+            return shadow;
+        }
+        
+        // PCF shadow calculation for omnidirectional point light
+        float pointShadowCalculationPCF(vec3 fragPos, vec3 lightPos, samplerCube shadowMap, float farPlane) {
+            // Check if PCF is disabled - fall back to basic shadow calculation
+            if (!uPCFEnabled) {
+                return pointShadowCalculation(fragPos, lightPos, shadowMap, farPlane);
+            }
+            
+            // Calculate fragment-to-light vector (will be used as cubemap direction)
+            vec3 fragToLight = fragPos - lightPos;
+            
+            // Get current distance from fragment to light
+            float currentDepth = length(fragToLight);
+            
+            // Normalize to [0,1] range using far plane
+            currentDepth = currentDepth / farPlane;
+            
+            // Apply bias, adjusted by softness
+            float softnessFactor = max(0.1, uShadowSoftness); // Ensure minimum softness
+            float bias = uShadowBias * softnessFactor;
+            
+            // Set up PCF sampling
+            float shadow = 0.0;
+            int samples = 0;
+            float diskRadius = 0.01 * softnessFactor; // Adjust based on softness and distance
+            
+            // Generate a tangent space TBN matrix for sampling in a cone
+            vec3 absFragToLight = abs(fragToLight);
+            vec3 tangent, bitangent;
+            
+            // Find least used axis to avoid precision issues
+            if (absFragToLight.x <= absFragToLight.y && absFragToLight.x <= absFragToLight.z) {
+                tangent = vec3(0.0, fragToLight.z, -fragToLight.y);
+            } else if (absFragToLight.y <= absFragToLight.x && absFragToLight.y <= absFragToLight.z) {
+                tangent = vec3(fragToLight.z, 0.0, -fragToLight.x);
+            } else {
+                tangent = vec3(fragToLight.y, -fragToLight.x, 0.0);
+            }
+            
+            tangent = normalize(tangent);
+            bitangent = normalize(cross(fragToLight, tangent));
+            
+            // Determine sample count based on PCF size
+            int pcfRadius = uPCFSize / 2;
+            int maxSamples = (pcfRadius * 2 + 1) * (pcfRadius * 2 + 1);
+            
+            for (int i = 0; i < maxSamples; i++) {
+                // Skip if we exceed the requested PCF size
+                int x = (i % 9) - 4;
+                int y = (i / 9) - 4;
+                
+                if (abs(x) <= pcfRadius && abs(y) <= pcfRadius) {
+                    // Generate offset direction based on x, y grid position
+                    float angle = float(x) * (3.14159265359 / float(pcfRadius + 1)); // Convert x to angle
+                    float distance = float(y) + 0.1; // Add small offset to avoid zero
+                    
+                    // Calculate offset direction in tangent space
+                    vec3 offset = tangent * (cos(angle) * distance * diskRadius) + 
+                                bitangent * (sin(angle) * distance * diskRadius);
+                    
+                    // Sample from the cubemap with offset
+                    float closestDepth = texture(shadowMap, normalize(fragToLight + offset)).r;
+                    
+                    // Check if fragment is in shadow with bias
+                    shadow += currentDepth - bias > closestDepth ? 0.0 : 1.0;
+                    samples++;
+                }
+            }
+            
+            // Average all samples
+            shadow /= float(max(samples, 1));
+            
+            return shadow;
+        }`
+            : `
+        // Unpack depth from RGBA color
+        float unpackDepth(vec4 packedDepth) {
+            const vec4 bitShift = vec4(1.0, 1.0/256.0, 1.0/(256.0*256.0), 1.0/(256.0*256.0*256.0));
+            return dot(packedDepth, bitShift);
+        }
+        
+        // Shadow calculation for WebGL1
+        float shadowCalculation(vec4 fragPosLightSpace, sampler2D shadowMap) {
+            // Perform perspective divide to get NDC coordinates
+            vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+            
+            // Transform to [0,1] range for texture lookup
+            projCoords = projCoords * 0.5 + 0.5;
+            
+            // Check if position is outside the shadow map bounds
+            if(projCoords.x < 0.0 || projCoords.x > 1.0 || 
+               projCoords.y < 0.0 || projCoords.y > 1.0 || 
+               projCoords.z < 0.0 || projCoords.z > 1.0) {
+                return 1.0; // No shadow outside shadow map
+            }
+            
+            // Get packed depth value
+            vec4 packedDepth = texture2D(shadowMap, projCoords.xy);
+            
+            // Unpack the depth value
+            float closestDepth = unpackDepth(packedDepth);
+            
+            // Get current depth value
+            float currentDepth = projCoords.z;
+            
+            // Apply bias from uniform to avoid shadow acne
+            float bias = uShadowBias;
+            
+            // Check if fragment is in shadow
+            float shadow = currentDepth - bias > closestDepth ? 0.0 : 1.0;
+            
+            return shadow;
+        }
+        
+        // PCF shadow calculation for WebGL1
+        float shadowCalculationPCF(vec4 fragPosLightSpace, sampler2D shadowMap) {
+            // Check if PCF is disabled - fall back to basic shadow calculation
+            if (!uPCFEnabled) {
+                return shadowCalculation(fragPosLightSpace, shadowMap);
+            }
+            
+            // Perform perspective divide to get NDC coordinates
+            vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+            
+            // Transform to [0,1] range for texture lookup
+            projCoords = projCoords * 0.5 + 0.5;
+            
+            // Check if position is outside the shadow map bounds
+            if(projCoords.x < 0.0 || projCoords.x > 1.0 || 
+               projCoords.y < 0.0 || projCoords.y > 1.0 || 
+               projCoords.z < 0.0 || projCoords.z > 1.0) {
+                return 1.0; // No shadow outside shadow map
+            }
+            
+            // Get current depth value
+            float currentDepth = projCoords.z;
+            
+            // Apply bias from uniform - adjust using softness factor
+            float softnessFactor = max(0.1, uShadowSoftness); // Ensure minimum softness
+            float bias = uShadowBias * softnessFactor;
+            
+            // Calculate PCF with explicit shadow map sampling
+            float shadow = 0.0;
+            float texelSize = 1.0 / uShadowMapSize;
+            
+            // Determine PCF kernel radius based on uPCFSize
+            int pcfRadius = int(uPCFSize) / 2;
+            float totalSamples = 0.0;
+            
+            // WebGL1 has more limited loop support, so limit to max 9x9 kernel
+            // We need fixed loop bounds in WebGL1
+            for(int x = -4; x <= 4; ++x) {
+                for(int y = -4; y <= 4; ++y) {
+                    // Skip samples outside the requested kernel radius
+                    if (abs(x) <= pcfRadius && abs(y) <= pcfRadius) {
+                        // Apply softness factor to sampling coordinates
+                        vec2 offset = vec2(x, y) * texelSize * mix(1.0, 2.0, uShadowSoftness);
+                        
+                        vec4 packedDepth = texture2D(shadowMap, projCoords.xy + offset);
+                        float pcfDepth = unpackDepth(packedDepth);
+                        shadow += currentDepth - bias > pcfDepth ? 0.0 : 1.0;
+                        totalSamples += 1.0;
+                    }
+                }
+            }
+            
+            // Average samples
+            shadow /= max(1.0, totalSamples);
+            
+            return shadow;
+        }
+        
+        // For WebGL1 without cubemap support, calculate shadow from a single face
+        float pointShadowCalculation(vec3 fragPos, vec3 lightPos, sampler2D shadowMap, float farPlane) {
+            // We can't do proper cubemap in WebGL1, so this is just an approximation
+            // using the first face of what would be a cubemap
+            vec3 fragToLight = fragPos - lightPos;
+            
+            // Get current distance from fragment to light
+            float currentDepth = length(fragToLight);
+            
+            // Normalize to [0,1] range using far plane
+            currentDepth = currentDepth / farPlane;
+            
+            // Simple planar mapping for the single shadow map face
+            // This is just a fallback - won't look great but better than nothing
+            vec2 shadowCoord = vec2(
+                (fragToLight.x / abs(fragToLight.x + 0.0001) + 1.0) * 0.25,
+                (fragToLight.y / abs(fragToLight.y + 0.0001) + 1.0) * 0.25
+            );
+            
+            // Apply bias
+            float bias = uShadowBias;
+            
+            // Sample from shadow map 
+            vec4 packedDepth = texture2D(shadowMap, shadowCoord);
+            float closestDepth = unpackDepth(packedDepth);
+            
+            // Check if fragment is in shadow
+            float shadow = currentDepth - bias > closestDepth ? 0.0 : 1.0;
+            
+            return shadow;
+        }
+        
+        // Simplified PCF for WebGL1 single-face approximation
+        float pointShadowCalculationPCF(vec3 fragPos, vec3 lightPos, sampler2D shadowMap, float farPlane) {
+            // Check if PCF is disabled - fall back to basic shadow calculation
+            if (!uPCFEnabled) {
+                return pointShadowCalculation(fragPos, lightPos, shadowMap, farPlane);
+            }
+            
+            // Calculate fragment-to-light vector
+            vec3 fragToLight = fragPos - lightPos;
+            
+            // Get current distance from fragment to light
+            float currentDepth = length(fragToLight);
+            
+            // Normalize to [0,1] range using far plane
+            currentDepth = currentDepth / farPlane;
+            
+            // Simple planar mapping for the single shadow map face
+            vec2 shadowCoord = vec2(
+                (fragToLight.x / abs(fragToLight.x + 0.0001) + 1.0) * 0.25,
+                (fragToLight.y / abs(fragToLight.y + 0.0001) + 1.0) * 0.25
+            );
+            
+            // Apply bias
+            float softnessFactor = max(0.1, uShadowSoftness); // Ensure minimum softness
+            float bias = uShadowBias * softnessFactor;
+            
+            // Set up PCF sampling
+            float shadow = 0.0;
+            float texelSize = 1.0 / uShadowMapSize;
+            
+            // Determine PCF kernel radius based on uPCFSize
+            int pcfRadius = int(uPCFSize) / 2;
+            float totalSamples = 0.0;
+            
+            // Limit loop size for WebGL1
+            for(int x = -4; x <= 4; ++x) {
+                for(int y = -4; y <= 4; ++y) {
+                    // Skip samples outside the requested kernel radius
+                    if (abs(x) <= pcfRadius && abs(y) <= pcfRadius) {
+                        // Apply softness factor to sampling coordinates
+                        vec2 offset = vec2(x, y) * texelSize * mix(1.0, 2.0, uShadowSoftness);
+                        
+                        vec4 packedDepth = texture2D(shadowMap, shadowCoord + offset);
+                        float pcfDepth = unpackDepth(packedDepth);
+                        shadow += currentDepth - bias > pcfDepth ? 0.0 : 1.0;
+                        totalSamples += 1.0;
+                    }
+                }
+            }
+            
+            // Average samples
+            shadow /= max(1.0, totalSamples);
+            
+            return shadow;
+        }`;
+
         return `${isWebGL2 ? "#version 300 es\n" : ""}
 precision highp float;
 ${isWebGL2 ? "precision mediump sampler2DArray;\n" : ""}
@@ -874,6 +1063,7 @@ ${isWebGL2 ? "precision mediump sampler2DArray;\n" : ""}
 ${isWebGL2 ? "in" : "varying"} vec3 vNormal;
 ${isWebGL2 ? "in" : "varying"} vec3 vWorldPos;
 ${isWebGL2 ? "in" : "varying"} vec4 vFragPosLightSpace;  // Added for shadow mapping
+${isWebGL2 ? "in" : "varying"} vec3 vFragPos;  // THIS IS IMPORTANT - now we include vFragPos from the vertex shader
 
 ${isWebGL2 ? "in" : "varying"} vec3 vColor;
 ${isWebGL2 ? "in" : "varying"} vec3 vViewDir;
@@ -1027,7 +1217,7 @@ void main() {
         float pointShadow = 1.0;
         if (uPointShadowsEnabled) {
             // Use PCF to sample point shadow map (bound to unit 6)
-            float pointShadowFactor = pointShadowCalculationPCF(vWorldPos, uLightPos, uPointShadowMap, uFarPlane);
+            float pointShadowFactor = pointShadowCalculationPCF(vFragPos, uLightPos, uPointShadowMap, uFarPlane);
             pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
         }
         
@@ -1050,7 +1240,7 @@ void main() {
     //--------------------------------------------------------------------------
     // VIRTUALBOY SHADER VARIANT
     //--------------------------------------------------------------------------
-    
+
     /**
      * VirtualBoy vertex shader
      * @param {boolean} isWebGL2 - Whether WebGL2 is being used
@@ -1067,8 +1257,11 @@ void main() {
         uniform mat4 uModelMatrix;
         uniform vec3 uLightDir;
         
-        ${isWebGL2 ? "flat out float vLighting;\nout vec3 vBarycentricCoord;" 
-            : "varying float vLighting;\nvarying vec3 vBarycentricCoord;"}
+        ${
+            isWebGL2
+                ? "flat out float vLighting;\nout vec3 vBarycentricCoord;"
+                : "varying float vLighting;\nvarying vec3 vBarycentricCoord;"
+        }
         
         void main() {
             gl_Position = uProjectionMatrix * uViewMatrix * uModelMatrix * vec4(aPosition, 1.0);
@@ -1080,7 +1273,7 @@ void main() {
             vBarycentricCoord = vec3(id == 0.0, id == 1.0, id == 2.0);
         }`;
     }
-    
+
     /**
      * VirtualBoy fragment shader
      * @param {boolean} isWebGL2 - Whether WebGL2 is being used
@@ -1089,8 +1282,11 @@ void main() {
     getVirtualBoyFragmentShader(isWebGL2) {
         return `${isWebGL2 ? "#version 300 es\n" : ""}
         precision mediump float;
-        ${isWebGL2 ? "flat in float vLighting;\nin vec3 vBarycentricCoord;\nout vec4 fragColor;" 
-            : "varying float vLighting;\nvarying vec3 vBarycentricCoord;"}
+        ${
+            isWebGL2
+                ? "flat in float vLighting;\nin vec3 vBarycentricCoord;\nout vec4 fragColor;"
+                : "varying float vLighting;\nvarying vec3 vBarycentricCoord;"
+        }
         
         void main() {
             float edgeWidth = 1.0;

@@ -507,11 +507,6 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
         
         // Apply shadow mapping uniforms if shadows are enabled
         if (this.castsShadows) {
-            // Set shadow map texture unit
-            if (shadowMapLoc !== null) {
-                // Use the specified texture unit from lighting constants
-                //gl.uniform1i(shadowMapLoc, this.constants.POINT_LIGHT_SHADOW_MAP.TEXTURE_UNIT); // this actually doesn't work yet
-            }
             
             // Set shadows enabled flag
             if (shadowsEnabledLoc !== null) {

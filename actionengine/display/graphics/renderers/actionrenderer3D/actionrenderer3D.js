@@ -125,9 +125,6 @@ class ActionRenderer3D {
                 // Use the shader program
                 this.gl.useProgram(program);
                 
-                // Bind shadow map textures for all lights
-                this.lightManager.bindShadowMapTextures(program);
-                
                 // Apply all lights to the shader
                 this.lightManager.applyLightsToShader(program);
                 
@@ -327,7 +324,11 @@ class ActionRenderer3D {
                     this.gl.uniform1i(pcfEnabledLoc, pcfEnabled);
                     //console.log(`  - Set PCF enabled uniform for ${shaderType} to ${pcfEnabled}`);
                 }
+                
+            
+            
             }
+        
         }
     
     

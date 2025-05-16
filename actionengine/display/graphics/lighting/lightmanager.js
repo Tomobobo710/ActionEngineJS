@@ -308,39 +308,6 @@ class LightManager {
     }
     
     /**
-     * Bind shadow map textures to appropriate texture units
-     * @param {WebGLProgram} program - The shader program to bind textures for
-     */
-    bindShadowMapTextures(program) {
-        const gl = this.gl;
-        
-        // Bind directional light shadow map (main light) to texture unit 7
-        const mainLight = this.getMainDirectionalLight();
-        if (mainLight && mainLight.getShadowsEnabled()) {
-            // Get shadow texture unit from constants
-            const textureUnit = gl.TEXTURE0 + this.constants.SHADOW_MAP.TEXTURE_UNIT;
-            mainLight.bindShadowMapTexture(textureUnit);
-        }
-        
-        // Bind point light shadow maps
-        // This binds to texture unit 6 for now (one unit before directional shadows)
-        if (this.pointLights.length > 0) {
-            const pointLight = this.pointLights[0]; // For now, just use the first point light
-            if (pointLight && pointLight.getShadowsEnabled()) {
-                // Use the texture unit just before the directional shadow map
-                const textureUnit = gl.TEXTURE0 + this.constants.SHADOW_MAP.TEXTURE_UNIT - 1;
-                pointLight.bindShadowMapTexture(textureUnit);
-                
-                // Set the uniform for point shadow map
-                const pointShadowMapLoc = gl.getUniformLocation(program, "uPointShadowMap");
-                if (pointShadowMapLoc !== null) {
-                    gl.uniform1i(pointShadowMapLoc, this.constants.SHADOW_MAP.TEXTURE_UNIT - 1);
-                }
-            }
-        }
-    }
-    
-    /**
      * Apply all lights to the given shader program
      * @param {WebGLProgram} program - The shader program to apply lights to
      */

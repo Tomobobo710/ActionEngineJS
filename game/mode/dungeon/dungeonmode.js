@@ -65,8 +65,8 @@ class DungeonMode {
             this.pointLight = this.renderer3D.lightManager.createPointLight(
                 lightPos,         // Position in the middle of the entrance room
                 lightColor,       // Warm light color
-                500.0,            // Intensity
-                120.0,            // Radius
+                5000.0,            // Intensity
+                500.0,            // Radius
                 true              // Cast shadows
             );
             
