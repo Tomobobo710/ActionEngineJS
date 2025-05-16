@@ -129,18 +129,7 @@ class TextureRegistry {	// Helper method to mark the texture manager's material 
 		// Get existing properties or default ones
 		const existing = this.materialProperties.get(textureName) || { ...this.defaultMaterialProperties };
 		
-		// Check if any property is actually changing
-		let hasChanges = false;
-		Object.keys(properties).forEach(key => {
-			if (properties[key] !== existing[key]) {
-				hasChanges = true;
-			}
-		});
-		
-		// If nothing is changing, don't update
-		if (!hasChanges) {
-			return;
-		}
+
 
 		// Update with new properties
 		this.materialProperties.set(textureName, {

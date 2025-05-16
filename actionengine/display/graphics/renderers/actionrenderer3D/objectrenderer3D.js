@@ -482,9 +482,9 @@ class ObjectRenderer3D {
             const materialPropertiesTexture = this.renderer.textureManager?.materialPropertiesTexture;
             if (materialPropertiesTexture) {
                 // Only change texture binding if needed (texture unit 2 for material properties)
-                if (this._currentTextureUnit !== 2 || 
-                    this._currentBoundTexture !== materialPropertiesTexture || 
-                    this._currentBoundTextureType !== this.gl.TEXTURE_2D) {
+                // Always bind the material properties texture to ensure it's up to date
+                // This is needed to support real-time changes in the debug panel
+                {
                     
                     // Use texture unit 2 for material properties
                     this.gl.activeTexture(this.gl.TEXTURE2);
@@ -609,9 +609,8 @@ class ObjectRenderer3D {
                 }
                 
                 // Make sure material properties texture is up to date
-                // Only do the update if using PBR shader AND the properties are dirty
-                if (this._currentShaderVariant === "pbr" && 
-                    this.renderer?.textureManager?.materialPropertiesDirty) {
+                // Always update if properties are dirty, regardless of shader variant
+                if (this.renderer?.textureManager?.materialPropertiesDirty) {
                     this.renderer.textureManager.updateMaterialPropertiesTexture();
                 }
             }

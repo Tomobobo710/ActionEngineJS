@@ -185,10 +185,8 @@ class TextureManager {
             return;
         }
         
-        // Skip update if properties haven't changed
-        if (!this.materialPropertiesDirty) {
-            return;
-        }
+        // Force update of material properties each time this is called
+        this.materialPropertiesDirty = true;
         
         const gl = this.gl;
         

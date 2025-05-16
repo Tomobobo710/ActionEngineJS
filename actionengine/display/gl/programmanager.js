@@ -152,7 +152,7 @@ class ProgramManager {
             {name: "uPBRTextureArray", unit: 1},   // PBR texture array
 
             // Additional samplers
-            //{name: "uMaterialPropertiesTexture", unit: 2}, // Material properties
+            {name: "uMaterialPropertiesTexture", unit: 2}, // Material properties
         ];
 
         // Assign each sampler to its dedicated texture unit
