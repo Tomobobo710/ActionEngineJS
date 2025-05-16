@@ -471,38 +471,7 @@ class ActionDirectionalShadowLight extends ActionLight {
         gl.drawElements(gl.TRIANGLES, totalVertices, gl.UNSIGNED_SHORT, 0);
     }
     
-    /**
-     * Bind shadow map texture to a texture unit for use in main rendering pass
-     * @param {number} textureUnit - Texture unit to bind to (e.g., gl.TEXTURE0)
-     * @returns {number} - The texture unit index (0, 1, etc.)
-     */
-    bindShadowMapTexture(textureUnit) {
-        const gl = this.gl;
-
-        try {
-            // Completely unbind ALL textures from this unit before binding the shadow map
-            gl.activeTexture(textureUnit);
-
-            // Unbind all possible texture types from this unit
-            gl.bindTexture(gl.TEXTURE_2D, null);
-            if (this.isWebGL2) {
-                gl.bindTexture(gl.TEXTURE_2D_ARRAY, null);
-                gl.bindTexture(gl.TEXTURE_3D, null);
-                gl.bindTexture(gl.TEXTURE_CUBE_MAP, null);
-            } else {
-                gl.bindTexture(gl.TEXTURE_CUBE_MAP, null);
-            }
-
-            // Now bind our shadow map texture to a completely clean unit
-            gl.bindTexture(gl.TEXTURE_2D, this.shadowTexture);
-
-            const unitIndex = textureUnit - gl.TEXTURE0;
-            return unitIndex;
-        } catch (error) {
-            console.error("Error binding shadow texture:", error);
-            return 0;
-        }
-    }
+    
     
     /**
      * Get the light space matrix for passing to shaders
@@ -551,13 +520,7 @@ class ActionDirectionalShadowLight extends ActionLight {
         }
         
         // Apply shadow mapping uniforms if shadows are enabled
-        if (this.castsShadows) {
-            // Set shadow map texture unit
-            if (shadowMapLoc !== null) {
-                // Use the specified texture unit from lighting constants
-                gl.uniform1i(shadowMapLoc, this.constants.SHADOW_MAP.TEXTURE_UNIT);
-            }
-            
+        if (this.castsShadows) {            
             // Set light space matrix
             if (lightSpaceMatrixLoc !== null) {
                 gl.uniformMatrix4fv(lightSpaceMatrixLoc, false, this.lightSpaceMatrix);

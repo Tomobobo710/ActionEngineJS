@@ -70,8 +70,7 @@ class LightingConstants {
                 min: -0.001,      // Narrower range focused on useful values
                 max: 0.1,     // Maximum bias value for testing
                 step: 0.0001    // Very small step for fine-grained control
-            },
-            TEXTURE_UNIT: 7   // WebGL texture unit used for shadow map
+            }
         };
         
         // Shadow map settings
@@ -86,8 +85,7 @@ class LightingConstants {
                 min: -0.001,      // Narrower range focused on useful values
                 max: 0.1,     // Maximum bias value for testing
                 step: 0.0001    // Very small step for fine-grained control
-            },
-            TEXTURE_UNIT: 6   // WebGL texture unit used for shadow map
+            }
         };
         
         // Shadow projection settings - orthographic frustum for directional light

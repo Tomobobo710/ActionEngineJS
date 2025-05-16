@@ -190,18 +190,6 @@ class ActionLight {
     }
     
     /**
-     * Bind shadow map textures to appropriate texture units
-     * This should be implemented by subclasses
-     * @param {number} textureUnit - Base texture unit to bind to
-     * @returns {number} - Texture unit index used
-     */
-    bindShadowMapTexture(textureUnit) {
-        // Base implementation does nothing
-        // Subclasses should override this
-        return textureUnit;
-    }
-    
-    /**
      * Apply this light's uniforms to a shader program
      * This should be implemented by subclasses
      * @param {WebGLProgram} program - The shader program

@@ -435,34 +435,6 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
         gl.drawElements(gl.TRIANGLES, totalVertices, gl.UNSIGNED_SHORT, 0);
     }
     
-    /**
-     * Bind shadow map texture to a texture unit for use in main rendering pass
-     * @param {number} textureUnit - Texture unit to bind to (e.g., gl.TEXTURE0)
-     * @returns {number} - The texture unit index (0, 1, etc.)
-     */
-    bindShadowMapTexture(textureUnit) {
-        const gl = this.gl;
-
-        try {
-            // Activate the specified texture unit
-            gl.activeTexture(textureUnit);
-
-            if (this.isWebGL2) {
-                // Bind the cubemap texture
-                gl.bindTexture(gl.TEXTURE_CUBE_MAP, this.shadowTexture);
-            } else {
-                // In WebGL1, we just bind the first face texture
-                // The shader will need to be modified to handle this limitation
-                gl.bindTexture(gl.TEXTURE_2D, this.shadowTextures[0]);
-            }
-
-            const unitIndex = textureUnit - gl.TEXTURE0;
-            return unitIndex;
-        } catch (error) {
-            console.error("Error binding shadow texture:", error);
-            return 0;
-        }
-    }
     
     /**
      * Get the light space matrix for a specific face

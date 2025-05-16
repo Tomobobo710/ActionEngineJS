@@ -585,8 +585,8 @@ class ObjectRenderer3D {
                 }
                 
                 // Determine which texture unit to use - use 1 for PBR shader, 0 for others
-                // This avoids conflicts with shadow map (unit 7) or material properties texture (unit 2)
-                const targetUnit = this._currentShaderVariant === "pbr" ? 1 : 0;
+                // This avoids conflicts with shadow map (unit 4) or material properties texture (unit 2)
+                const targetUnit = this._currentShaderVariant === "pbr" ? 1 : 0; // but this is 1/0?
                 
                 // Only change texture unit binding if needed
                 if (this._currentTextureUnit !== targetUnit || 

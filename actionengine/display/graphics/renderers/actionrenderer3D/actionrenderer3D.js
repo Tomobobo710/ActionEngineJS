@@ -240,13 +240,14 @@ class ActionRenderer3D {
      */
     _initShadowsForAllShaders() {
         // Constant for shadow texture unit
-        const SHADOW_MAP_TEXTURE_UNIT = 7;
+        const SHADOW_MAP_TEXTURE_UNIT = 4;
         
         // Get main directional light
         const mainLight = this.lightManager.getMainDirectionalLight();
         if (!mainLight) return;
         
-        // Pre-bind the shadow map texture to unit 7
+        // Pre-bind the shadow map texture to unit
+        // This is required here, if we remove this, directional shadows break
         this.gl.activeTexture(this.gl.TEXTURE0 + SHADOW_MAP_TEXTURE_UNIT);
         this.gl.bindTexture(this.gl.TEXTURE_2D, mainLight.shadowTexture);
         
@@ -269,11 +270,6 @@ class ActionRenderer3D {
                 const shadowSoftnessLoc = this.gl.getUniformLocation(currentProgram, 'uShadowSoftness');
                 const pcfSizeLoc = this.gl.getUniformLocation(currentProgram, 'uPCFSize');
                 const pcfEnabledLoc = this.gl.getUniformLocation(currentProgram, 'uPCFEnabled');
-                
-                // Set shadow map texture unit
-                if (shadowMapLoc !== null) {
-                    this.gl.uniform1i(shadowMapLoc, SHADOW_MAP_TEXTURE_UNIT);
-                }
                 
                 // Set shadow enabled flag (on by default)
                 if (shadowEnabledLoc !== null) {

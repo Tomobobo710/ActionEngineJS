@@ -378,15 +378,7 @@ class LightManager {
         const mainLight = this.getMainDirectionalLight();
         return mainLight ? mainLight.shadowBias : this.constants.SHADOW_MAP.BIAS.value;
     }
-    
-    /**
-     * Get shadow texture unit from constants
-     * @returns {number} - The shadow texture unit
-     */
-    getShadowTextureUnit() {
-        return this.constants.SHADOW_MAP.TEXTURE_UNIT;
-    }
-    
+        
     /**
      * Cleanup and dispose of all lights
      */

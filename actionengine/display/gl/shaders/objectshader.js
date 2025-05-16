@@ -331,10 +331,10 @@ class ObjectShader {
     ${isWebGL2 ? "in" : "varying"} vec3 vNormal;
     ${isWebGL2 ? "in" : "varying"} vec3 vFragPos;
     
-    // Texture array for albedo textures (unit 0)
+    // Texture array for albedo textures
     ${isWebGL2 ? "uniform sampler2DArray uTextureArray;" : "uniform sampler2D uTexture;"}
     
-    // Shadow map with explicit separate binding (unit 7)
+    // Shadow map with explicit separate binding
     // Always use sampler2D for shadow maps
     uniform sampler2D uShadowMap;
     ${isWebGL2 ? "uniform samplerCube uPointShadowMap;" : "uniform sampler2D uPointShadowMap;"}
@@ -571,7 +571,6 @@ class ObjectShader {
         float shadow = 1.0;
         if (uShadowsEnabled) {
             // Use explicit texture lookup to avoid sampler conflicts
-            // The shadow map is bound to texture unit 7
             float shadowFactor = shadowCalculationPCF(vFragPosLightSpace, uShadowMap);
             // Match the PBR shader calculation - shadows should be darker
             shadow = 1.0 - (1.0 - shadowFactor) * 0.8;
@@ -591,7 +590,7 @@ class ObjectShader {
             // Calculate shadow for point light
             float pointShadow = 1.0;
             if (uPointShadowsEnabled) {
-                // The point shadow map is bound to texture unit 6
+                // The point shadow map
                 float pointShadowFactor = pointShadowCalculationPCF(vFragPos, uLightPos, uPointShadowMap, uFarPlane);
                 pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
             }
@@ -1086,7 +1085,7 @@ uniform vec3 uLightDir;
 uniform vec3 uCameraPos;
 uniform float uLightIntensity;
 
-// Shadow mapping (always on texture unit 7)
+// Shadow mapping
 uniform sampler2D uShadowMap;
 ${isWebGL2 ? "uniform samplerCube uPointShadowMap;" : "uniform sampler2D uPointShadowMap;"}
 uniform bool uShadowsEnabled;
@@ -1190,7 +1189,7 @@ void main() {
     float shadow = 1.0;
     if (uShadowsEnabled) {
         // Use the PCF shadow calculation for soft shadows
-        // The shadow map is bound to texture unit 7
+        // The shadow map
         float shadowFactor = shadowCalculationPCF(vFragPosLightSpace, uShadowMap);
         // Adjust shadow intensity for PBR - not completely black shadows
         shadow = 1.0 - (1.0 - shadowFactor) * 0.8;
@@ -1216,7 +1215,7 @@ void main() {
         // Calculate point light shadow
         float pointShadow = 1.0;
         if (uPointShadowsEnabled) {
-            // Use PCF to sample point shadow map (bound to unit 6)
+            // Use PCF to sample point shadow map
             float pointShadowFactor = pointShadowCalculationPCF(vFragPos, uLightPos, uPointShadowMap, uFarPlane);
             pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
         }
