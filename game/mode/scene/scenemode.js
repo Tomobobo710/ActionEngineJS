@@ -50,6 +50,29 @@ class SceneMode {
         
         // Make sure the camera is not attached to the character
         this.camera.isDetached = true;
+        // Disable directional light for now
+        if (this.renderer3D && this.renderer3D.lightManager) {
+            this.renderer3D.lightManager.setMainDirectionalLightEnabled(false);
+        }
+        // Add an omnidirectional light to the center of the scene
+        if (this.renderer3D && this.renderer3D.lightManager) {
+            // Create position in the middle of where the scene will be
+            const lightPos = new Vector3(0, 15, 0);
+            
+            // Create warm light color for the scene
+            const lightColor = new Vector3(1.0, 0.9, 0.7);
+            
+            // Create the point light with good intensity and radius
+            this.pointLight = this.renderer3D.lightManager.createPointLight(
+                lightPos,         // Position
+                lightColor,       // Light color
+                2.0,              // Intensity
+                80.0,             // Radius
+                true              // Cast shadows
+            );
+            
+            console.log("[SceneMode] Created omnidirectional light in scene center");
+        }
     }
 
     generateDemoScene() {
@@ -110,6 +133,14 @@ class SceneMode {
         
         const scene = this.scenes[sceneId];
         this.activeScene = scene;
+        
+        // Move the omnidirectional light to the center of the new scene
+        if (this.pointLight && scene.position) {
+            const newLightPos = scene.position.clone();
+            newLightPos.y += 15; // Position light at mid-height of the room
+            this.pointLight.setPosition(newLightPos);
+            console.log(`[SceneMode] Moved omnidirectional light to scene ${sceneId}`);
+        }
         
         // Position the camera
         if (scene.cameraPosition) {

@@ -134,7 +134,32 @@ class ActionRenderer3D {
                 // Use the shader program
                 this.gl.useProgram(program);
                 
-                // Apply all lights to the shader
+                // Apply all lights to the shader with texture binding persistence
+                // First, make sure we re-bind the shadow textures to their units
+                const SHADOW_MAP_TEXTURE_UNIT = 4;
+                const POINT_SHADOW_TEXTURE_UNIT = 3;
+                
+                // Get main directional light and point light
+                const mainLight = this.lightManager.getMainDirectionalLight();
+                const pointLight = this.lightManager.pointLights.length > 0 ? this.lightManager.pointLights[0] : null;
+                
+                // Ensure directional shadow map is bound
+                if (mainLight && mainLight.shadowTexture) {
+                    this.gl.activeTexture(this.gl.TEXTURE0 + SHADOW_MAP_TEXTURE_UNIT);
+                    this.gl.bindTexture(this.gl.TEXTURE_2D, mainLight.shadowTexture);
+                }
+                
+                // Ensure point light shadow map is bound
+                if (pointLight && pointLight.shadowTexture) {
+                    this.gl.activeTexture(this.gl.TEXTURE0 + POINT_SHADOW_TEXTURE_UNIT);
+                    if (this.canvasManager.isWebGL2()) {
+                        this.gl.bindTexture(this.gl.TEXTURE_CUBE_MAP, pointLight.shadowTexture);
+                    } else if (pointLight.shadowTextures && pointLight.shadowTextures.length > 0) {
+                        this.gl.bindTexture(this.gl.TEXTURE_2D, pointLight.shadowTextures[0]);
+                    }
+                }
+                
+                // Now apply all lights' uniforms to the shader
                 this.lightManager.applyLightsToShader(program);
                 
                 // Get shadow-specific uniform locations
@@ -319,10 +344,10 @@ class ActionRenderer3D {
         }
         
         // Now set up point light shadow if available
-        if (pointLight && pointLight.shadowTexture) {
+        if (pointLight) {
             // Verify the point light texture is present
             if (!pointLight.shadowTexture) {
-                console.log("Reinitializing shadow map for point light");
+                console.log("Initializing shadow map for point light");
                 pointLight.setupShadowMap();
             }
             
@@ -345,12 +370,7 @@ class ActionRenderer3D {
             }
         }
         
-        // Pre-bind the point light shadow cubemap texture to unit 3
-        if (pointLight && pointLight.shadowTexture) {
-            this.gl.activeTexture(this.gl.TEXTURE0 + POINT_SHADOW_TEXTURE_UNIT);
-            this.gl.bindTexture(this.gl.TEXTURE_CUBE_MAP, pointLight.shadowTexture);
-            console.log("[ActionRenderer3D] Bound point light shadow cubemap texture to unit 3");
-        }
+        // Previous code already bound the point light texture if available
         
         // For now, we just need to initialize the current shader variant
         const currentProgram = this.programManager.getObjectProgram();

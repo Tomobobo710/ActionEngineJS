@@ -41,13 +41,14 @@ class DungeonMode {
         this.lastTime = performance.now();
         this.deltaTime = 0;
         
-        // Disable directional light for dungeon mode
+        // Disable directional light for now
         if (this.renderer3D && this.renderer3D.lightManager) {
             this.renderer3D.lightManager.setMainDirectionalLightEnabled(false);
         }
         
         this.generateDungeon();
         this.setupPointLight();
+        this.setupGreenPointLight(); // Add a second point light (green) in the south room (it won't work tho)
     }
     
     /**
@@ -64,7 +65,7 @@ class DungeonMode {
             );
             
             // Create color for the light
-            const lightColor = new Vector3(1.0, 1.0, 1.0);
+            const lightColor = new Vector3(1.0, 0.9, 1.0);
             
             // Create the point light
             this.pointLight = this.renderer3D.lightManager.createPointLight(
@@ -77,6 +78,38 @@ class DungeonMode {
             
             console.log("[DungeonMode] Created omnidirectional shadow light in entrance room");
         }
+    }
+    
+    /**
+     * Set up a green omnidirectional point light in the south room
+     */
+    setupGreenPointLight() {
+        // Make sure south room and light manager exist
+        if (!this.southRoom || !this.renderer3D || !this.renderer3D.lightManager) {
+            console.warn("[DungeonMode] Cannot create green light - south room or light manager not available");
+            return;
+        }
+            
+        // Position the light in the middle of the south room
+        const lightPos = new Vector3(
+            this.southRoom.position.x,
+            this.southRoom.position.y + this.southRoom.dimensions.height / 2,  // Position at half height
+            this.southRoom.position.z
+        );
+        
+        // Create a green color for the light
+        const lightColor = new Vector3(0.2, 1.0, 0.3);
+        
+        // Create the point light
+        this.greenPointLight = this.renderer3D.lightManager.createPointLight(
+            lightPos,         // Position
+            lightColor,       // Light color
+            1.5,              // Intensity - slightly brighter than the first light
+            400.0,            // Radius - slightly smaller than the first light
+            true              // Cast shadows
+        );
+        
+        console.log("[DungeonMode] Created green omnidirectional shadow light in south room");
     }
 
     generateDungeon() {

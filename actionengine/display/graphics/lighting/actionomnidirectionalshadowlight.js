@@ -455,7 +455,8 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
         
         // Get light uniform locations
         const lightPosLoc = gl.getUniformLocation(program, "uLightPos"); 
-        const lightIntensityLoc = gl.getUniformLocation(program, "uLightIntensity");
+        // Use a dedicated intensity uniform for point lights to avoid conflict with directional lights
+        const lightIntensityLoc = gl.getUniformLocation(program, "uPointLightIntensity");
         const lightRadiusLoc = gl.getUniformLocation(program, "uLightRadius");
         const shadowMapLoc = gl.getUniformLocation(program, "uPointShadowMap");
         const shadowsEnabledLoc = gl.getUniformLocation(program, "uPointShadowsEnabled");

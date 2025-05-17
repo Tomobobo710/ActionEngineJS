@@ -340,7 +340,8 @@ class ObjectShader {
     ${isWebGL2 ? "uniform samplerCube uPointShadowMap;" : "uniform sampler2D uPointShadowMap;"}
     uniform vec3 uLightPos;
     uniform vec3 uLightDir;
-    uniform float uLightIntensity; // Light intensity uniform
+    uniform float uLightIntensity; // Directional light intensity uniform
+    uniform float uPointLightIntensity; // Point light intensity uniform (separate to avoid conflicts)
     uniform float uLightRadius; // Point light radius
     uniform float uIntensityFactor; // Factor controlling intensity effect in default shader
     uniform bool uShadowsEnabled;
@@ -601,7 +602,8 @@ class ObjectShader {
             
             // Apply point light with proper color contribution
             vec3 pointLightColorValue = uPointLightColor;
-            pointLightColor = baseColor.rgb * pointLightFactor * pointLightColorValue * uLightIntensity;
+            // Use a dedicated point light intensity uniform to avoid conflict with directional light
+            pointLightColor = baseColor.rgb * pointLightFactor * pointLightColorValue * uPointLightIntensity;
         }
         
         // Only apply directional light if it's actually enabled (no sneaky calculations)
@@ -623,11 +625,13 @@ class ObjectShader {
         
         // Only add point light if it exists
         if (uPointLightCount > 0) {
-            // Calculate a proper blending factor to avoid over-brightening
-            float blendFactor = 1.0 - min(1.0, length(pointLightColor) * 0.5);
+            // NO BLENDING - JUST ADD THE LIGHT CONTRIBUTIONS DIRECTLY
+            // This eliminates the intensity-based blend factor that was causing inversion
+            result = directionalContribution + pointLightColor;
             
-            // Blend the two lighting contributions
-            result = mix(result, directionalContribution + pointLightColor, blendFactor);
+            // OPTIONAL: To prevent over-brightening, we could clamp the result
+            // but for now let's see what happens with direct addition
+            // result = min(vec3(1.0), result);
         }
         
         ${isWebGL2 ? "fragColor" : "gl_FragColor"} = vec4(result, baseColor.a);
@@ -1108,6 +1112,7 @@ uniform vec3 uLightPos;
 uniform vec3 uLightDir;
 uniform vec3 uCameraPos;
 uniform float uLightIntensity;
+uniform float uPointLightIntensity; // Separate uniform for point light intensity
 
 // Shadow mapping
 uniform sampler2D uShadowMap;
@@ -1256,7 +1261,7 @@ void main() {
         // Use a warm default color for point lights suitable for torch/dungeon lighting
         vec3 pointLightColorValue = uPointLightColor;
         pointColor = (pointKD * albedo * RECIPROCAL_PI + pointSpecular) * pointNdotL * 
-                uLightIntensity * pointAttenuation * pointShadow * pointLightColorValue;
+                uPointLightIntensity * pointAttenuation * pointShadow * pointLightColorValue;
     }
     
     // Combine lighting with physically correct blending
@@ -1264,11 +1269,9 @@ void main() {
     
     // Blend point light if it exists
     if (uPointLightCount > 0) {
-        // Calculate proper blending factor to avoid over-brightening 
-        float blendFactor = 1.0 - min(1.0, length(pointColor) * 0.5);
-        
-        // Blend the two lighting contributions
-        color = mix(color, directionalColor + pointColor, blendFactor);
+        // NO BLENDING - JUST ADD THE LIGHT CONTRIBUTIONS DIRECTLY
+        // This eliminates the intensity-based blend factor that was causing inversion
+        color = directionalColor + pointColor;
     }
 
     // Add ambient light (pre-computed constant)
