@@ -63,16 +63,16 @@ class DungeonMode {
                 this.entranceRoom.position.z
             );
             
-            // Create orange-yellow color for the light
-            const lightColor = new Vector3(1.0, 0.8, 0.5);  // Warm light color
+            // Create color for the light
+            const lightColor = new Vector3(1.0, 1.0, 1.0);
             
-            // Create the point light WITHOUT shadows for now (disable shadows to test basic lighting)
+            // Create the point light
             this.pointLight = this.renderer3D.lightManager.createPointLight(
-                lightPos,         // Position in the middle of the entrance room
-                lightColor,       // Warm light color
-                1.0,          // Even higher intensity to make sure it's visible
+                lightPos,         // Position
+                lightColor,       // Light color
+                1.0,              // Intensity
                 500.0,            // Radius
-                true              // Don't cast shadows for now to debug the basic lighting
+                true              // Cast shadows
             );
             
             console.log("[DungeonMode] Created omnidirectional shadow light in entrance room");
@@ -334,17 +334,6 @@ class DungeonMode {
         if (this.pointLight && this.renderer3D && this.renderer3D.lightManager) {
             this.renderer3D.lightManager.removeLight(this.pointLight);
             this.pointLight = null;
-        }
-        
-        // Remove the light sphere if it exists
-        if (this.lightSphere && this.physicsWorld) {
-            this.physicsWorld.removeObject(this.lightSphere);
-            this.lightSphere = null;
-        }
-        
-        // Re-enable directional light for other modes
-        if (this.renderer3D && this.renderer3D.lightManager) {
-            this.renderer3D.lightManager.setMainDirectionalLightEnabled(true);
         }
         
         if (this.physicsWorld) {

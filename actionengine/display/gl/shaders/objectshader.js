@@ -352,7 +352,8 @@ class ObjectShader {
     uniform int uPCFSize; // Controls PCF kernel size (1, 3, 5, 7, 9)
     uniform bool uPCFEnabled; // Controls whether PCF filtering is enabled
     uniform float uFarPlane; // Far plane for point light shadows
-    
+    uniform vec3 uLightColor;      // Directional light color
+    uniform vec3 uPointLightColor; // Point light color
     ${isWebGL2 ? "out vec4 fragColor;" : ""}
     
     // Shadow mapping functions
@@ -595,12 +596,12 @@ class ObjectShader {
                 pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
             }
             
-            // Calculate final point light contribution with a flat minimum to make sure it's visible
-            float minLight = 0.5; // Add a minimum light level to make the light more visible
-            float pointLightFactor = max(minLight, pointDiffuse * attenuation);
-            // Don't use shadow for now as we're testing basic lighting
-            // Calculate final point light contribution
-            pointLightColor = baseColor.rgb * pointDiffuse * attenuation * pointShadow * uLightIntensity;
+            // Calculate final point light contribution with proper attenuation and shadow
+            float pointLightFactor = max(0.0, pointDiffuse * attenuation * pointShadow);
+            
+            // Apply point light with proper color contribution
+            vec3 pointLightColorValue = uPointLightColor;
+            pointLightColor = baseColor.rgb * pointLightFactor * pointLightColorValue * uLightIntensity;
         }
         
         // Only apply directional light if it's actually enabled (no sneaky calculations)
@@ -613,8 +614,21 @@ class ObjectShader {
             lighting += directionalContribution;
         }
         
-        // Apply lighting to color with a natural effect
-        vec3 result = baseColor.rgb * lighting + pointLightColor;
+        // Calculate directional light contribution
+        vec3 directionalContribution = baseColor.rgb * lighting;
+        
+        // Properly handle the combination of both light types
+        // This ensures they're physically correctly combined and don't over-brighten
+        vec3 result = directionalContribution;
+        
+        // Only add point light if it exists
+        if (uPointLightCount > 0) {
+            // Calculate a proper blending factor to avoid over-brightening
+            float blendFactor = 1.0 - min(1.0, length(pointLightColor) * 0.5);
+            
+            // Blend the two lighting contributions
+            result = mix(result, directionalContribution + pointLightColor, blendFactor);
+        }
         
         ${isWebGL2 ? "fragColor" : "gl_FragColor"} = vec4(result, baseColor.a);
     }`;
@@ -1108,7 +1122,8 @@ uniform float uShadowSoftness; // Controls shadow edge softness (0-1)
 uniform int uPCFSize; // Controls PCF kernel size (1, 3, 5, 7, 9)
 uniform bool uPCFEnabled; // Controls whether PCF filtering is enabled
 uniform float uFarPlane; // Far plane for point light shadows
-
+uniform vec3 uLightColor;      // Directional light color
+uniform vec3 uPointLightColor; // Point light color
 // Texture sampler
 uniform sampler2DArray uPBRTextureArray;
 
@@ -1205,17 +1220,17 @@ void main() {
         shadow = 1.0 - (1.0 - shadowFactor) * 0.8;
     }
     
-    // Only perform directional light calculations if shadows are enabled
-    // This effectively means the directional light is active
-    vec3 color = vec3(0.0);
+    // Calculate directional light contribution (if active)
+    vec3 directionalColor = vec3(0.0);
     
     // Check actual shadow flag rather than intensity to avoid sneaky calculations
     if (uShadowsEnabled) {
         // Only add directional light contribution if explicitly enabled
-        color = (kD * albedo * RECIPROCAL_PI + specular) * NdotL * uLightIntensity * distanceAttenuation * shadow;
+        directionalColor = (kD * albedo * RECIPROCAL_PI + specular) * NdotL * uLightIntensity * distanceAttenuation * shadow * uLightColor;
     }
     
-    // Calculate point light contribution
+    // Calculate point light contribution separately
+    vec3 pointColor = vec3(0.0);
     if (uPointLightCount > 0) {
         // Direction from fragment to point light (we need to negate for consistent lighting)
         vec3 pointL = normalize(uLightPos - vWorldPos);
@@ -1237,9 +1252,23 @@ void main() {
             pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
         }
         
-        // Add point light contribution to color
-        color += (pointKD * albedo * RECIPROCAL_PI + pointSpecular) * pointNdotL * 
-                uLightIntensity * pointAttenuation * pointShadow;
+        // Calculate point light color with proper PBR contribution
+        // Use a warm default color for point lights suitable for torch/dungeon lighting
+        vec3 pointLightColorValue = uPointLightColor;
+        pointColor = (pointKD * albedo * RECIPROCAL_PI + pointSpecular) * pointNdotL * 
+                uLightIntensity * pointAttenuation * pointShadow * pointLightColorValue;
+    }
+    
+    // Combine lighting with physically correct blending
+    vec3 color = directionalColor;
+    
+    // Blend point light if it exists
+    if (uPointLightCount > 0) {
+        // Calculate proper blending factor to avoid over-brightening 
+        float blendFactor = 1.0 - min(1.0, length(pointColor) * 0.5);
+        
+        // Blend the two lighting contributions
+        color = mix(color, directionalColor + pointColor, blendFactor);
     }
 
     // Add ambient light (pre-computed constant)

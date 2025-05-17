@@ -15,26 +15,26 @@ class LightManager {
         this.gl = gl;
         this.isWebGL2 = isWebGL2;
         this.programManager = programManager;
-        
+
         // Reference to lighting constants
         this.constants = lightingConstants;
-        
+
         // Storage for different light types
         this.directionalLights = [];
         this.pointLights = [];
         this.spotLights = [];
-        
+
         // The main directional light (sun) is optional
         // It's not created by default, but can be created if needed
         this.mainDirectionalLightEnabled = true; // Flag to track whether directional light should be enabled
         if (this.mainDirectionalLightEnabled) {
             this.createMainDirectionalLight();
         }
-        
+
         // Frame counter for updates
         this.frameCount = 0;
     }
-    
+
     /**
      * Create the main directional light (sun) with default settings
      * @returns {ActionDirectionalShadowLight} - The created light or null if directional light is disabled
@@ -44,33 +44,33 @@ class LightManager {
         if (!this.mainDirectionalLightEnabled) {
             return null;
         }
-        const mainLight = new ActionDirectionalShadowLight(
-            this.gl,
-            this.isWebGL2,
-            this.programManager
-        );
-        
+        const mainLight = new ActionDirectionalShadowLight(this.gl, this.isWebGL2, this.programManager);
+
         // Set initial properties from constants
-        mainLight.setPosition(new Vector3(
-            this.constants.LIGHT_POSITION.x,
-            this.constants.LIGHT_POSITION.y,
-            this.constants.LIGHT_POSITION.z
-        ));
-        
-        mainLight.setDirection(new Vector3(
-            this.constants.LIGHT_DIRECTION.x,
-            this.constants.LIGHT_DIRECTION.y,
-            this.constants.LIGHT_DIRECTION.z
-        ));
-        
+        mainLight.setPosition(
+            new Vector3(
+                this.constants.LIGHT_POSITION.x,
+                this.constants.LIGHT_POSITION.y,
+                this.constants.LIGHT_POSITION.z
+            )
+        );
+
+        mainLight.setDirection(
+            new Vector3(
+                this.constants.LIGHT_DIRECTION.x,
+                this.constants.LIGHT_DIRECTION.y,
+                this.constants.LIGHT_DIRECTION.z
+            )
+        );
+
         mainLight.setIntensity(this.constants.LIGHT_INTENSITY.value);
-        
+
         // Add to the list of directional lights
         this.directionalLights.push(mainLight);
-        
+
         return mainLight;
     }
-    
+
     /**
      * Get the main directional light (sun)
      * @returns {ActionDirectionalShadowLight|null} - The main directional light or null if none exists
@@ -78,26 +78,26 @@ class LightManager {
     getMainDirectionalLight() {
         return this.directionalLights[0] || null;
     }
-    
+
     /**
      * Enable or disable the main directional light
      * @param {boolean} enabled - Whether the directional light should be enabled
      */
     setMainDirectionalLightEnabled(enabled) {
         this.mainDirectionalLightEnabled = enabled;
-        
-        // When enabling the light, make sure the intensity in constants is non-zero 
+
+        // When enabling the light, make sure the intensity in constants is non-zero
         if (enabled) {
             // Make sure the intensity in lighting constants is not 0
             if (this.constants.LIGHT_INTENSITY.value <= 0.001) {
                 // Set to a reasonable default if it was zero
                 this.constants.LIGHT_INTENSITY.value = 100.0;
             }
-            
+
             // If no directional light exists, create one
             if (this.directionalLights.length === 0) {
                 const light = this.createMainDirectionalLight();
-                
+
                 // Force update light from constants to make sure it has the right properties
                 if (light) {
                     light.setIntensity(this.constants.LIGHT_INTENSITY.value);
@@ -110,22 +110,22 @@ class LightManager {
                     light.setIntensity(this.constants.LIGHT_INTENSITY.value);
                 }
             }
-        } 
+        }
         // If disabling and directional light exists, remove it
         else if (!enabled && this.directionalLights.length > 0) {
             // Store a reference to the light before removal
             const light = this.directionalLights[0];
-            
+
             // Remove the light from the array first
             this.directionalLights.splice(0, 1);
-            
+
             // Then dispose of its resources
             if (light) {
                 light.dispose();
             }
         }
     }
-    
+
     /**
      * Check if the main directional light is enabled
      * @returns {boolean} - Whether the directional light is enabled
@@ -133,7 +133,7 @@ class LightManager {
     isMainDirectionalLightEnabled() {
         return this.mainDirectionalLightEnabled;
     }
-    
+
     /**
      * Create a new directional light
      * @param {Vector3} position - Initial position
@@ -144,27 +144,23 @@ class LightManager {
      * @returns {ActionDirectionalShadowLight} - The created light
      */
     createDirectionalLight(position, direction, color, intensity, castsShadows = true) {
-        const light = new ActionDirectionalShadowLight(
-            this.gl,
-            this.isWebGL2,
-            this.programManager
-        );
-        
+        const light = new ActionDirectionalShadowLight(this.gl, this.isWebGL2, this.programManager);
+
         light.setPosition(position);
         light.setDirection(direction);
-        
+
         if (color) {
             light.setColor(color);
         }
-        
+
         light.setIntensity(intensity);
         light.setShadowsEnabled(castsShadows);
-        
+
         this.directionalLights.push(light);
-        
+
         return light;
     }
-    
+
     /**
      * Create a new omnidirectional point light
      * @param {Vector3} position - Initial position
@@ -174,28 +170,24 @@ class LightManager {
      * @param {boolean} castsShadows - Whether this light should cast shadows
      * @returns {ActionOmnidirectionalShadowLight} - The created light
      */
-    createPointLight(position, color, intensity, radius = 100.0, castsShadows = true) {
-        const light = new ActionOmnidirectionalShadowLight(
-            this.gl,
-            this.isWebGL2,
-            this.programManager
-        );
-        
+    createPointLight(position, color, intensity, radius = 100.0, castsShadows = false) {
+        const light = new ActionOmnidirectionalShadowLight(this.gl, this.isWebGL2, this.programManager);
+
         light.setPosition(position);
-        
+
         if (color) {
             light.setColor(color);
         }
-        
+
         light.setIntensity(intensity);
         light.setRadius(radius);
         light.setShadowsEnabled(castsShadows);
-        
+
         this.pointLights.push(light);
-        
+
         return light;
     }
-    
+
     /**
      * Remove a light from the manager
      * @param {ActionLight} light - The light to remove
@@ -203,7 +195,7 @@ class LightManager {
      */
     removeLight(light) {
         if (!light) return false;
-        
+
         // Check each light type
         const directionalIndex = this.directionalLights.indexOf(light);
         if (directionalIndex !== -1) {
@@ -216,7 +208,9 @@ class LightManager {
                     this.directionalLights.splice(directionalIndex, 1);
                     return true;
                 } else {
-                    console.warn("Cannot remove main directional light while it's enabled. Use setMainDirectionalLightEnabled(false) first.");
+                    console.warn(
+                        "Cannot remove main directional light while it's enabled. Use setMainDirectionalLightEnabled(false) first."
+                    );
                     return false;
                 }
             }
@@ -224,24 +218,24 @@ class LightManager {
             this.directionalLights.splice(directionalIndex, 1);
             return true;
         }
-        
+
         const pointIndex = this.pointLights.indexOf(light);
         if (pointIndex !== -1) {
             light.dispose();
             this.pointLights.splice(pointIndex, 1);
             return true;
         }
-        
+
         const spotIndex = this.spotLights.indexOf(light);
         if (spotIndex !== -1) {
             light.dispose();
             this.spotLights.splice(spotIndex, 1);
             return true;
         }
-        
+
         return false;
     }
-    
+
     /**
      * Update all lights
      * @returns {boolean} - Whether any lights changed this frame
@@ -249,33 +243,33 @@ class LightManager {
     update() {
         this.frameCount++;
         let changed = false;
-        
+
         // Only update every few frames for performance
         if (this.frameCount % 5 !== 0) {
             return false;
         }
-        
+
         // Update directional lights
         for (const light of this.directionalLights) {
             const lightChanged = light.update();
             changed = changed || lightChanged;
         }
-        
+
         // Update point lights
         for (const light of this.pointLights) {
             const lightChanged = light.update();
             changed = changed || lightChanged;
         }
-        
+
         // Update spot lights (future)
         for (const light of this.spotLights) {
             const lightChanged = light.update();
             changed = changed || lightChanged;
         }
-        
+
         return changed;
     }
-    
+
     /**
      * Sync the main directional light with lighting constants
      * This maintains compatibility with the existing debug panel
@@ -286,7 +280,7 @@ class LightManager {
             mainLight.syncWithConstants();
         }
     }
-    
+
     /**
      * Get light configuration for the main directional light
      * This maintains compatibility with existing code
@@ -294,7 +288,7 @@ class LightManager {
     getLightConfig() {
         const mainLight = this.getMainDirectionalLight();
         if (!mainLight) return null;
-        
+
         return {
             POSITION: {
                 x: mainLight.position.x,
@@ -314,7 +308,7 @@ class LightManager {
             }
         };
     }
-    
+
     /**
      * Get the light space matrix from the main directional light
      * @returns {Float32Array|null} - The light space matrix or null if no directional light exists
@@ -323,7 +317,7 @@ class LightManager {
         const mainLight = this.getMainDirectionalLight();
         return mainLight ? mainLight.getLightSpaceMatrix() : null;
     }
-    
+
     /**
      * Get the direction vector from the main directional light
      * @returns {Vector3|null} - The direction vector or null if no directional light exists
@@ -332,7 +326,7 @@ class LightManager {
         const mainLight = this.getMainDirectionalLight();
         return mainLight ? mainLight.getDirection() : null;
     }
-    
+
     /**
      * Render shadow maps for all shadow-casting lights
      * @param {Array} objects - Array of objects to render to shadow maps
@@ -342,75 +336,84 @@ class LightManager {
         for (const light of this.directionalLights) {
             if (light.getShadowsEnabled()) {
                 light.beginShadowPass();
-                
+
                 // Render objects to shadow map
                 for (const object of objects) {
                     if (object && object.triangles && object.triangles.length > 0) {
                         light.renderObjectToShadowMap(object);
                     }
                 }
-                
+
                 light.endShadowPass();
             }
         }
-        
+
         // Render point light shadow maps
         for (const light of this.pointLights) {
             if (light.getShadowsEnabled()) {
                 // For omnidirectional lights, we need to render the shadow map for each face (6 faces)
                 for (let faceIndex = 0; faceIndex < 6; faceIndex++) {
                     light.beginShadowPass(faceIndex);
-                    
+
                     // Render objects to shadow map for this face
                     for (const object of objects) {
                         if (object && object.triangles && object.triangles.length > 0) {
                             light.renderObjectToShadowMap(object);
                         }
                     }
-                    
+
                     light.endShadowPass();
                 }
             }
         }
-        
+
         // Render spot light shadow maps (future)
         // ...
     }
-    
+
     /**
      * Apply all lights to the given shader program
      * @param {WebGLProgram} program - The shader program to apply lights to
      */
     applyLightsToShader(program) {
         const gl = this.gl;
-        
+
         // Apply directional light only if it exists
         const mainLight = this.getMainDirectionalLight();
         const shadowsEnabledLoc = gl.getUniformLocation(program, "uShadowsEnabled");
-        
+        const lightColorLoc = gl.getUniformLocation(program, "uLightColor");
+
         // Key distinction: Only set directional light uniforms if the light actually exists
         if (mainLight) {
             // Apply all uniforms from the light
             mainLight.applyToShader(program);
-            
+
+            // Set the light color uniform
+            if (lightColorLoc !== null) {
+                const color = mainLight.getColor();
+                gl.uniform3f(lightColorLoc, color.x, color.y, color.z);
+            }
+
             // Explicitly enable shadows/directional light in the shader
             if (shadowsEnabledLoc !== null) {
                 gl.uniform1i(shadowsEnabledLoc, 1); // 1 = true
             }
-        } else {
-            // If no directional light exists, simply disable shadows
-            // No sneaky default values - the shaders will skip directional light calculations
-            if (shadowsEnabledLoc !== null) {
-                gl.uniform1i(shadowsEnabledLoc, 0); // 0 = false
-            }
         }
-        
+
         // Apply point light (if exists)
         if (this.pointLights.length > 0) {
             const pointLight = this.pointLights[0]; // Just use the first point light for now
             if (pointLight) {
+                // First apply all the standard uniforms
                 pointLight.applyToShader(program);
-                
+
+                // Then explicitly get the color from the light and set it
+                const pointLightColorLoc = gl.getUniformLocation(program, "uPointLightColor");
+                if (pointLightColorLoc !== null) {
+                    const color = pointLight.getColor(); // Get the actual color from the light
+                    gl.uniform3f(pointLightColorLoc, color.x, color.y, color.z);
+                }
+
                 // Set point light count uniform
                 const pointLightCountLoc = gl.getUniformLocation(program, "uPointLightCount");
                 if (pointLightCountLoc !== null) {
@@ -418,14 +421,19 @@ class LightManager {
                 }
             }
         } else {
-            // No point lights - set count to 0
+            // No point lights - set default white color and count to 0
+            const pointLightColorLoc = gl.getUniformLocation(program, "uPointLightColor");
+            if (pointLightColorLoc !== null) {
+                gl.uniform3f(pointLightColorLoc, 1.0, 1.0, 1.0);
+            }
+
             const pointLightCountLoc = gl.getUniformLocation(program, "uPointLightCount");
             if (pointLightCountLoc !== null) {
                 gl.uniform1i(pointLightCountLoc, 0);
             }
         }
     }
-    
+
     /**
      * Apply shadow quality preset to all shadow-casting lights
      * @param {number} presetIndex - Index of the preset to apply
@@ -437,7 +445,7 @@ class LightManager {
                 light.setQualityPreset(presetIndex);
             }
         }
-        
+
         // Apply to all point lights
         for (const light of this.pointLights) {
             if (light.getShadowsEnabled()) {
@@ -445,7 +453,7 @@ class LightManager {
             }
         }
     }
-    
+
     /**
      * Get shadow map size from the main directional light
      * @returns {number} - The shadow map size
@@ -454,7 +462,7 @@ class LightManager {
         const mainLight = this.getMainDirectionalLight();
         return mainLight ? mainLight.shadowMapSize : this.constants.SHADOW_MAP.SIZE.value;
     }
-    
+
     /**
      * Get shadow bias from the main directional light
      * @returns {number} - The shadow bias
@@ -463,7 +471,7 @@ class LightManager {
         const mainLight = this.getMainDirectionalLight();
         return mainLight ? mainLight.shadowBias : this.constants.SHADOW_MAP.BIAS.value;
     }
-        
+
     /**
      * Cleanup and dispose of all lights
      */
@@ -473,12 +481,12 @@ class LightManager {
             light.dispose();
         }
         this.directionalLights = [];
-        
+
         for (const light of this.pointLights) {
             light.dispose();
         }
         this.pointLights = [];
-        
+
         for (const light of this.spotLights) {
             light.dispose();
         }
