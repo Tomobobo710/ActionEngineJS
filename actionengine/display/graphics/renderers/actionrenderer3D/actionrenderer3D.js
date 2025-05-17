@@ -53,6 +53,15 @@ class ActionRenderer3D {
         // Update lights through the light manager
         const lightingChanged = this.lightManager.update();
         
+        // If lighting changed, we need to reinitialize shadows to ensure textures are properly bound
+        if (lightingChanged) {
+            try {
+                this._initShadowsForAllShaders();
+            } catch (error) {
+                console.error('Error reinitializing shadows after lighting change:', error);
+            }
+        }
+        
         // No need to update shadow mapping separately - it's now handled by the light manager
         
         this.currentTime = (performance.now() - this.startTime) / 1000.0;
@@ -168,11 +177,13 @@ class ActionRenderer3D {
             this.weatherRenderer.render(weatherSystem, camera);
         }
 
-        // Draw the sun
-        const mainLight = this.lightManager.getMainDirectionalLight();
-        const lightPos = mainLight ? mainLight.getPosition() : new Vector3(0, 5000, 0);
-        const isVirtualBoyMode = (this._cachedVariant === "virtualboy");
-        this.sunRenderer.render(camera, lightPos, isVirtualBoyMode);
+        // Draw the sun (only if directional light is enabled)
+        if (this.lightManager.isMainDirectionalLightEnabled()) {
+            const mainLight = this.lightManager.getMainDirectionalLight();
+            const lightPos = mainLight ? mainLight.getPosition() : new Vector3(0, 5000, 0);
+            const isVirtualBoyMode = (this._cachedVariant === "virtualboy");
+            this.sunRenderer.render(camera, lightPos, isVirtualBoyMode);
+        }
         
         // Debug visualization if enabled
         if (showDebugPanel && camera) {
@@ -183,6 +194,46 @@ class ActionRenderer3D {
             );
             this.debugRenderer.drawDebugLines(camera, character, this.currentTime);
         }
+    }
+    
+    /**
+     * Toggle directional light on or off
+     * @param {boolean} [enabled] - If provided, explicitly sets directional light on/off
+     * @returns {boolean} - Current state of directional light
+     */
+    toggleDirectionalLight(enabled) {
+        // If enabled parameter is provided, use it, otherwise toggle
+        if (enabled !== undefined) {
+            this.lightManager.setMainDirectionalLightEnabled(enabled);
+        } else {
+            const currentState = this.lightManager.isMainDirectionalLightEnabled();
+            this.lightManager.setMainDirectionalLightEnabled(!currentState);
+        }
+        
+        // The state may have changed, so ensure shader is updated
+        const program = this.programManager.getObjectProgram();
+        if (program) {
+            // Get current directional light state
+            const isEnabled = this.lightManager.isMainDirectionalLightEnabled();
+            const hasLight = this.lightManager.getMainDirectionalLight() !== null;
+            
+            // Use the shader program
+            this.gl.useProgram(program);
+            
+            // Set shadows enabled flag based on light status
+            const shadowsEnabledLoc = this.gl.getUniformLocation(program, 'uShadowsEnabled');
+            if (shadowsEnabledLoc !== null) {
+                this.gl.uniform1i(shadowsEnabledLoc, (isEnabled && hasLight) ? 1 : 0);
+            }
+            
+            // If directional light was just enabled, initialize all shadow-related uniforms
+            if (isEnabled && hasLight) {
+                this._initShadowsForAllShaders();
+            }
+        }
+        
+        // Return the new state
+        return this.lightManager.isMainDirectionalLightEnabled();
     }
     
     /**
@@ -239,93 +290,188 @@ class ActionRenderer3D {
      * This ensures both default and PBR shaders can render shadows
      */
     _initShadowsForAllShaders() {
+        console.log("_initShadowsForAllShaders called");
         // Constant for shadow texture unit
         const SHADOW_MAP_TEXTURE_UNIT = 4;
+        const POINT_SHADOW_TEXTURE_UNIT = 3; // Point shadows use texture unit 3
         
         // Get main directional light
         const mainLight = this.lightManager.getMainDirectionalLight();
-        if (!mainLight) return;
         
-        // Pre-bind the shadow map texture to unit
-        // This is required here, if we remove this, directional shadows break
-        this.gl.activeTexture(this.gl.TEXTURE0 + SHADOW_MAP_TEXTURE_UNIT);
-        this.gl.bindTexture(this.gl.TEXTURE_2D, mainLight.shadowTexture);
+        // Always check for point lights regardless of directional light existence
+        const pointLight = this.lightManager.pointLights.length > 0 ? this.lightManager.pointLights[0] : null;
+        
+        // Only proceed with directional light stuff if it exists
+        if (mainLight) {
+            // Verify that the light and its texture are properly initialized
+            if (!mainLight.shadowTexture) {
+                console.log("Reinitializing shadow map for directional light");
+                mainLight.setupShadowMap();
+            }
+            
+            // Pre-bind the directional shadow map texture to unit 4
+            this.gl.activeTexture(this.gl.TEXTURE0 + SHADOW_MAP_TEXTURE_UNIT);
+            // Force unbind texture first to ensure complete refresh  
+            this.gl.bindTexture(this.gl.TEXTURE_2D, null);
+            // Now bind the shadow texture - this ensures proper rebinding when toggling
+            this.gl.bindTexture(this.gl.TEXTURE_2D, mainLight.shadowTexture);
+            console.log("Bound directional light shadow texture to unit 4");
+        }
+        
+        // Now set up point light shadow if available
+        if (pointLight && pointLight.shadowTexture) {
+            // Verify the point light texture is present
+            if (!pointLight.shadowTexture) {
+                console.log("Reinitializing shadow map for point light");
+                pointLight.setupShadowMap();
+            }
+            
+            // Pre-bind the point light shadow cubemap texture to unit 3
+            this.gl.activeTexture(this.gl.TEXTURE0 + POINT_SHADOW_TEXTURE_UNIT);
+            
+            // Force unbind to ensure complete refresh
+            if (this.isWebGL2) {
+                this.gl.bindTexture(this.gl.TEXTURE_CUBE_MAP, null);
+                // For WebGL2, bind as CUBE_MAP
+                this.gl.bindTexture(this.gl.TEXTURE_CUBE_MAP, pointLight.shadowTexture);
+                console.log("Bound point light shadow cubemap texture to unit 3");
+            } else {
+                // For WebGL1, we have individual textures
+                this.gl.bindTexture(this.gl.TEXTURE_2D, null);
+                if (pointLight.shadowTextures && pointLight.shadowTextures.length > 0) {
+                    this.gl.bindTexture(this.gl.TEXTURE_2D, pointLight.shadowTextures[0]);
+                    console.log("Bound point light shadow texture (face 0) to unit 3 (WebGL1)");
+                }
+            }
+        }
+        
+        // Pre-bind the point light shadow cubemap texture to unit 3
+        if (pointLight && pointLight.shadowTexture) {
+            this.gl.activeTexture(this.gl.TEXTURE0 + POINT_SHADOW_TEXTURE_UNIT);
+            this.gl.bindTexture(this.gl.TEXTURE_CUBE_MAP, pointLight.shadowTexture);
+            console.log("[ActionRenderer3D] Bound point light shadow cubemap texture to unit 3");
+        }
         
         // For now, we just need to initialize the current shader variant
         const currentProgram = this.programManager.getObjectProgram();
         
         // Initialize shadows for current program
         if (currentProgram) {
-                // Console log removed for performance
-                
-                // Use this shader program
-                this.gl.useProgram(currentProgram);
-                
-                // Get shadow uniforms
+            // Use this shader program
+            this.gl.useProgram(currentProgram);
+            
+            // === DIRECTIONAL LIGHT UNIFORMS ===
+            if (mainLight) {
+                // Get shadow uniforms for directional light
                 const shadowMapLoc = this.gl.getUniformLocation(currentProgram, 'uShadowMap');
                 const shadowEnabledLoc = this.gl.getUniformLocation(currentProgram, 'uShadowsEnabled');
                 const lightSpaceMatrixLoc = this.gl.getUniformLocation(currentProgram, 'uLightSpaceMatrix');
-                const shadowBiasLoc = this.gl.getUniformLocation(currentProgram, 'uShadowBias');
-                const shadowMapSizeLoc = this.gl.getUniformLocation(currentProgram, 'uShadowMapSize');
-                const shadowSoftnessLoc = this.gl.getUniformLocation(currentProgram, 'uShadowSoftness');
-                const pcfSizeLoc = this.gl.getUniformLocation(currentProgram, 'uPCFSize');
-                const pcfEnabledLoc = this.gl.getUniformLocation(currentProgram, 'uPCFEnabled');
                 
-                // Set shadow enabled flag (on by default)
+                // Set shadow map texture uniform
+                if (shadowMapLoc !== null) {
+                    this.gl.uniform1i(shadowMapLoc, SHADOW_MAP_TEXTURE_UNIT);
+                    console.log("Set uShadowMap to texture unit", SHADOW_MAP_TEXTURE_UNIT);
+                }
+                
+                // Set shadow enabled flag
                 if (shadowEnabledLoc !== null) {
                     this.gl.uniform1i(shadowEnabledLoc, 1);
+                    console.log("Set uShadowsEnabled to 1");
                 }
                 
                 // Set initial light space matrix if available
                 if (lightSpaceMatrixLoc !== null) {
                     const lightSpaceMatrix = this.lightManager.getLightSpaceMatrix();
                     if (lightSpaceMatrix) {
-                        this.gl.uniformMatrix4fv(
-                            lightSpaceMatrixLoc,
-                            false,
-                            lightSpaceMatrix
-                        );
+                        this.gl.uniformMatrix4fv(lightSpaceMatrixLoc, false, lightSpaceMatrix);
                     }
                 }
-                
-                // Set shadow bias if available
-                if (shadowBiasLoc !== null) {
-                    this.gl.uniform1f(shadowBiasLoc, this.lightManager.getShadowBias());
-                    // Console log removed for performance
+            } else {
+                // If no directional light, explicitly disable shadows
+                const shadowEnabledLoc = this.gl.getUniformLocation(currentProgram, 'uShadowsEnabled');
+                if (shadowEnabledLoc !== null) {
+                    this.gl.uniform1i(shadowEnabledLoc, 0);
+                    console.log("Set uShadowsEnabled to 0 - no directional light");
                 }
-                
-                // Set shadow map size if available
-                if (shadowMapSizeLoc !== null) {
-                    this.gl.uniform1f(shadowMapSizeLoc, this.lightManager.getShadowMapSize());
-                    // Console log removed for performance
-                }
-                
-                // Set shadow softness
-                if (shadowSoftnessLoc !== null) {
-                    const softness = this.lightManager.constants.SHADOW_FILTERING.SOFTNESS.value;
-                    this.gl.uniform1f(shadowSoftnessLoc, softness);
-                    // Console log removed for performance
-                }
-                
-                // Set PCF size
-                if (pcfSizeLoc !== null) {
-                    const pcfSize = this.lightManager.constants.SHADOW_FILTERING.PCF.SIZE.value;
-                    this.gl.uniform1i(pcfSizeLoc, pcfSize);
-                    //console.log(`  - Set PCF size uniform for ${shaderType} to ${pcfSize}`);
-                }
-                
-                // Set PCF enabled
-                if (pcfEnabledLoc !== null) {
-                    const pcfEnabled = this.lightManager.constants.SHADOW_FILTERING.PCF.ENABLED ? 1 : 0;
-                    this.gl.uniform1i(pcfEnabledLoc, pcfEnabled);
-                    //console.log(`  - Set PCF enabled uniform for ${shaderType} to ${pcfEnabled}`);
-                }
-                
-            
-            
             }
-        
+            
+            // === POINT LIGHT UNIFORMS ===
+            if (pointLight) {
+                // Get point light shadow uniforms
+                const pointShadowMapLoc = this.gl.getUniformLocation(currentProgram, 'uPointShadowMap');
+                const pointShadowsEnabledLoc = this.gl.getUniformLocation(currentProgram, 'uPointShadowsEnabled');
+                const pointLightCountLoc = this.gl.getUniformLocation(currentProgram, 'uPointLightCount');
+                const farPlaneLoc = this.gl.getUniformLocation(currentProgram, 'uFarPlane');
+                
+                // Set point light count
+                if (pointLightCountLoc !== null) {
+                    this.gl.uniform1i(pointLightCountLoc, 1); // We have one point light
+                    console.log("Set uPointLightCount to 1");
+                }
+                
+                // Set point shadow map texture uniform
+                if (pointShadowMapLoc !== null) {
+                    this.gl.uniform1i(pointShadowMapLoc, POINT_SHADOW_TEXTURE_UNIT);
+                    console.log("Set uPointShadowMap to texture unit", POINT_SHADOW_TEXTURE_UNIT);
+                }
+                
+                // Set point shadows enabled flag
+                if (pointShadowsEnabledLoc !== null) {
+                    this.gl.uniform1i(pointShadowsEnabledLoc, 1); // Enable point light shadows
+                    console.log("Set uPointShadowsEnabled to 1");
+                }
+                
+                // Set far plane for point light shadow mapping
+                if (farPlaneLoc !== null) {
+                    this.gl.uniform1f(farPlaneLoc, 500.0); // Match the value in pointLight.applyToShader
+                    console.log("Set uFarPlane to 500.0");
+                }
+            } else {
+                // No point light, set count to 0
+                const pointLightCountLoc = this.gl.getUniformLocation(currentProgram, 'uPointLightCount');
+                if (pointLightCountLoc !== null) {
+                    this.gl.uniform1i(pointLightCountLoc, 0);
+                    console.log("Set uPointLightCount to 0 - no point light");
+                }
+            }
+            
+            // === COMMON SHADOW PARAMETERS ===
+            // These apply to both directional and point lights
+            const shadowBiasLoc = this.gl.getUniformLocation(currentProgram, 'uShadowBias');
+            const shadowMapSizeLoc = this.gl.getUniformLocation(currentProgram, 'uShadowMapSize');
+            const shadowSoftnessLoc = this.gl.getUniformLocation(currentProgram, 'uShadowSoftness');
+            const pcfSizeLoc = this.gl.getUniformLocation(currentProgram, 'uPCFSize');
+            const pcfEnabledLoc = this.gl.getUniformLocation(currentProgram, 'uPCFEnabled');
+            
+            // Set shadow bias
+            if (shadowBiasLoc !== null) {
+                this.gl.uniform1f(shadowBiasLoc, this.lightManager.getShadowBias());
+            }
+            
+            // Set shadow map size
+            if (shadowMapSizeLoc !== null) {
+                this.gl.uniform1f(shadowMapSizeLoc, this.lightManager.getShadowMapSize());
+            }
+            
+            // Set shadow softness
+            if (shadowSoftnessLoc !== null) {
+                const softness = this.lightManager.constants.SHADOW_FILTERING.SOFTNESS.value;
+                this.gl.uniform1f(shadowSoftnessLoc, softness);
+            }
+            
+            // Set PCF size
+            if (pcfSizeLoc !== null) {
+                const pcfSize = this.lightManager.constants.SHADOW_FILTERING.PCF.SIZE.value;
+                this.gl.uniform1i(pcfSizeLoc, pcfSize);
+            }
+            
+            // Set PCF enabled
+            if (pcfEnabledLoc !== null) {
+                const pcfEnabled = this.lightManager.constants.SHADOW_FILTERING.PCF.ENABLED ? 1 : 0;
+                this.gl.uniform1i(pcfEnabledLoc, pcfEnabled);
+            }
         }
+    }
     
     
     /**

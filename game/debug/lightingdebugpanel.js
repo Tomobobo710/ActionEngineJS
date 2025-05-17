@@ -249,6 +249,18 @@ class LightingDebugPanel extends BaseDebugPanel {
         // Debug toggles
         this.debugToggles = [
             {
+                id: "directionalLightEnabled",
+                label: "Enable Directional Light",
+                checked: true, // Directional light is enabled by default
+                updateProperty: (value) => { 
+                    // Call the renderer's toggleDirectionalLight method
+                    if (this.game.renderer3D) {
+                        return this.game.renderer3D.toggleDirectionalLight(value);
+                    }
+                    return value;
+                }
+            },
+            {
                 id: "shadowsEnabled",
                 label: "Enable Shadows",
                 checked: true, // Assuming shadows are enabled by default
@@ -488,11 +500,11 @@ class LightingDebugPanel extends BaseDebugPanel {
         this.materialSliders["Metallic"].value = this.constants.MATERIAL.METALLIC.value;
         this.materialSliders["Base Reflectivity"].value = this.constants.MATERIAL.BASE_REFLECTIVITY.value;
         
-        // Debug toggles
+        // Update directional light toggle to match actual state
+        this.updateDebugToggleStates();
+        
+        // Update the constants-based toggles
         this.debugToggles.forEach(toggle => {
-            if (toggle.id === "shadowsEnabled" && this.game.renderer3D) {
-                toggle.checked = this.game.renderer3D.shadowsEnabled;
-            }
             if (toggle.id === "debugVisualizeShadowMap") {
                 toggle.checked = this.constants.DEBUG.VISUALIZE_SHADOW_MAP;
             }
@@ -769,12 +781,36 @@ class LightingDebugPanel extends BaseDebugPanel {
         super.drawSliders(this.materialSliders);
     }
     
+    updateDebugToggleStates() {
+        // Make sure toggle states match the actual state of the renderer/light manager
+        if (this.game.renderer3D) {
+            // Update directional light toggle to match actual state
+            const directionalToggle = this.debugToggles.find(t => t.id === "directionalLightEnabled");
+            if (directionalToggle && this.game.renderer3D.lightManager) {
+                const lightManager = this.game.renderer3D.lightManager;
+                // Check both the enabled flag and if the light actually exists
+                const lightExists = lightManager.getMainDirectionalLight() !== null;
+                const lightEnabled = lightManager.isMainDirectionalLightEnabled();
+                directionalToggle.checked = lightEnabled && lightExists;
+            }
+            
+            // Update shadows toggle to match actual state
+            const shadowsToggle = this.debugToggles.find(t => t.id === "shadowsEnabled");
+            if (shadowsToggle) {
+                shadowsToggle.checked = this.game.renderer3D.shadowsEnabled;
+            }
+        }
+    }
+    
     drawDebugControls() {
         // Title
         this.ctx.fillStyle = "#ffffff";
         this.ctx.font = "16px Arial";
         this.ctx.textAlign = "center";
         this.ctx.fillText("Debug Settings", this.panelX + this.panelWidth / 2, this.panelY + 50);
+        
+        // Update toggle states before drawing
+        this.updateDebugToggleStates();
         
         // Draw toggles using base class method
         this.drawToggles(this.debugToggles);

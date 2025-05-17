@@ -403,11 +403,21 @@ class ObjectRenderer3D {
         // Identity model matrix
         Matrix4.identity(this._uniformCache.matrices.model);
         
-        // Cache the light configuration
-        this._uniformCache.lightConfig = this.lightManager.getLightConfig();
-        
-        // Cache the light direction vector
-        this._uniformCache.lightDir = this.lightManager.getLightDir();
+        // Only cache light configuration if directional light is actually enabled
+        if (this.lightManager.isMainDirectionalLightEnabled() && this.lightManager.getMainDirectionalLight()) {
+            // Get real light data from the light manager - no sneaky default values
+            this._uniformCache.lightConfig = this.lightManager.getLightConfig();
+            this._uniformCache.lightDir = this.lightManager.getLightDir();
+            
+            // Get the actual light space matrix from the light manager
+            this._uniformCache.matrices.lightSpace = this.lightManager.getLightSpaceMatrix();
+        } else {
+            // If directional light is disabled, explicitly set these to null
+            // to indicate there's no directional light present
+            this._uniformCache.lightConfig = null;
+            this._uniformCache.lightDir = null;
+            this._uniformCache.matrices.lightSpace = null;
+        }
         
         // Cache other commonly used values
         const materialConfig = this.lightManager.constants.MATERIAL;
@@ -432,15 +442,28 @@ class ObjectRenderer3D {
             gl.uniform3fv(locations.cameraPos, camera.position.toArray());
         }
 
-        // Use cached light configuration
+        // Only set light uniforms if we actually have a directional light
+        // Otherwise the shader will skip directional light calculations entirely
         const config = this._uniformCache.lightConfig;
-        if (locations.lightPos !== -1 && locations.lightPos !== null) {
+        const mainLightEnabled = this.lightManager.isMainDirectionalLightEnabled() && this.lightManager.getMainDirectionalLight() !== null;
+        
+        // If directional light is enabled, make sure shadows are also enabled
+        if (mainLightEnabled && locations.shadowsEnabled !== -1 && locations.shadowsEnabled !== null) {
+            gl.uniform1i(locations.shadowsEnabled, 1); // 1 = true
+        }
+        
+        // Only set light position if light is enabled - no sneaky default values
+        if (locations.lightPos !== -1 && locations.lightPos !== null && mainLightEnabled && config && config.POSITION) {
             gl.uniform3fv(locations.lightPos, [config.POSITION.x, config.POSITION.y, config.POSITION.z]);
         }
-        if (locations.lightDir !== -1 && locations.lightDir !== null) {
+        
+        // Only set light direction if light is enabled - no sneaky default values  
+        if (locations.lightDir !== -1 && locations.lightDir !== null && mainLightEnabled && this._uniformCache.lightDir) {
             gl.uniform3fv(locations.lightDir, this._uniformCache.lightDir.toArray());
         }
-        if (locations.lightIntensity !== -1 && locations.lightIntensity !== null) {
+        
+        // Only set intensity if light is enabled - no sneaky default values
+        if (locations.lightIntensity !== -1 && locations.lightIntensity !== null && mainLightEnabled && config && config.INTENSITY !== undefined) {
             gl.uniform1f(locations.lightIntensity, config.INTENSITY);
         }
         
@@ -512,9 +535,13 @@ class ObjectRenderer3D {
             gl.uniform1f(locations.shadowBias, shadowBias);
         }
         
-        // Set light space matrix if available
+        // Only set light space matrix if directional light is actually enabled
+        // We don't want to do sneaky calculations with default matrices
         if (locations.lightSpaceMatrix !== -1 && locations.lightSpaceMatrix !== null && 
-            this._uniformCache.matrices.lightSpace) {
+            this._uniformCache.matrices.lightSpace && 
+            this.lightManager.isMainDirectionalLightEnabled()) {
+            
+            // Apply the actual light space matrix from the light
             gl.uniformMatrix4fv(locations.lightSpaceMatrix, false, this._uniformCache.matrices.lightSpace);
         }
         

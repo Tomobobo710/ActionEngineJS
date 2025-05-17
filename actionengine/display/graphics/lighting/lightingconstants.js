@@ -76,7 +76,7 @@ class LightingConstants {
         // Shadow map settings
         this.POINT_LIGHT_SHADOW_MAP = {
             SIZE: {
-                value: 512,   // Power of 2 for best performance
+                value: 2048,   // Power of 2 for best performance
                 options: [512, 1024, 2048, 4096, 8192, 16384],
                 label: "Shadow Resolution"
             },

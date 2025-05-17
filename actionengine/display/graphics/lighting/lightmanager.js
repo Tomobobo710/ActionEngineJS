@@ -24,9 +24,12 @@ class LightManager {
         this.pointLights = [];
         this.spotLights = [];
         
-        // Create the main directional light (sun) by default
-        // This maintains compatibility with existing code
-        this.createMainDirectionalLight();
+        // The main directional light (sun) is optional
+        // It's not created by default, but can be created if needed
+        this.mainDirectionalLightEnabled = true; // Flag to track whether directional light should be enabled
+        if (this.mainDirectionalLightEnabled) {
+            this.createMainDirectionalLight();
+        }
         
         // Frame counter for updates
         this.frameCount = 0;
@@ -34,9 +37,13 @@ class LightManager {
     
     /**
      * Create the main directional light (sun) with default settings
-     * @returns {ActionDirectionalShadowLight} - The created light
+     * @returns {ActionDirectionalShadowLight} - The created light or null if directional light is disabled
      */
     createMainDirectionalLight() {
+        // If directional light is disabled, return null
+        if (!this.mainDirectionalLightEnabled) {
+            return null;
+        }
         const mainLight = new ActionDirectionalShadowLight(
             this.gl,
             this.isWebGL2,
@@ -70,6 +77,61 @@ class LightManager {
      */
     getMainDirectionalLight() {
         return this.directionalLights[0] || null;
+    }
+    
+    /**
+     * Enable or disable the main directional light
+     * @param {boolean} enabled - Whether the directional light should be enabled
+     */
+    setMainDirectionalLightEnabled(enabled) {
+        this.mainDirectionalLightEnabled = enabled;
+        
+        // When enabling the light, make sure the intensity in constants is non-zero 
+        if (enabled) {
+            // Make sure the intensity in lighting constants is not 0
+            if (this.constants.LIGHT_INTENSITY.value <= 0.001) {
+                // Set to a reasonable default if it was zero
+                this.constants.LIGHT_INTENSITY.value = 100.0;
+            }
+            
+            // If no directional light exists, create one
+            if (this.directionalLights.length === 0) {
+                const light = this.createMainDirectionalLight();
+                
+                // Force update light from constants to make sure it has the right properties
+                if (light) {
+                    light.setIntensity(this.constants.LIGHT_INTENSITY.value);
+                }
+            }
+            // If light already exists, make sure its properties match the constants
+            else if (this.directionalLights.length > 0) {
+                const light = this.directionalLights[0];
+                if (light) {
+                    light.setIntensity(this.constants.LIGHT_INTENSITY.value);
+                }
+            }
+        } 
+        // If disabling and directional light exists, remove it
+        else if (!enabled && this.directionalLights.length > 0) {
+            // Store a reference to the light before removal
+            const light = this.directionalLights[0];
+            
+            // Remove the light from the array first
+            this.directionalLights.splice(0, 1);
+            
+            // Then dispose of its resources
+            if (light) {
+                light.dispose();
+            }
+        }
+    }
+    
+    /**
+     * Check if the main directional light is enabled
+     * @returns {boolean} - Whether the directional light is enabled
+     */
+    isMainDirectionalLightEnabled() {
+        return this.mainDirectionalLightEnabled;
     }
     
     /**
@@ -145,10 +207,18 @@ class LightManager {
         // Check each light type
         const directionalIndex = this.directionalLights.indexOf(light);
         if (directionalIndex !== -1) {
-            // Don't remove the main light (index 0) to maintain compatibility
+            // Allow removing the main light if it's the main directional light
+            // and it matches the light parameter
             if (directionalIndex === 0) {
-                console.warn("Cannot remove main directional light");
-                return false;
+                // Only allow removal if we're explicitly disabling the main light
+                if (!this.mainDirectionalLightEnabled) {
+                    light.dispose();
+                    this.directionalLights.splice(directionalIndex, 1);
+                    return true;
+                } else {
+                    console.warn("Cannot remove main directional light while it's enabled. Use setMainDirectionalLightEnabled(false) first.");
+                    return false;
+                }
             }
             light.dispose();
             this.directionalLights.splice(directionalIndex, 1);
@@ -314,10 +384,25 @@ class LightManager {
     applyLightsToShader(program) {
         const gl = this.gl;
         
-        // Apply directional light (for backward compatibility)
+        // Apply directional light only if it exists
         const mainLight = this.getMainDirectionalLight();
+        const shadowsEnabledLoc = gl.getUniformLocation(program, "uShadowsEnabled");
+        
+        // Key distinction: Only set directional light uniforms if the light actually exists
         if (mainLight) {
+            // Apply all uniforms from the light
             mainLight.applyToShader(program);
+            
+            // Explicitly enable shadows/directional light in the shader
+            if (shadowsEnabledLoc !== null) {
+                gl.uniform1i(shadowsEnabledLoc, 1); // 1 = true
+            }
+        } else {
+            // If no directional light exists, simply disable shadows
+            // No sneaky default values - the shaders will skip directional light calculations
+            if (shadowsEnabledLoc !== null) {
+                gl.uniform1i(shadowsEnabledLoc, 0); // 0 = false
+            }
         }
         
         // Apply point light (if exists)

@@ -558,7 +558,7 @@ class ObjectShader {
         }
         
         // Apply ambient and diffuse lighting
-        float ambient = 0.2;
+        float ambient = 0.3; // Higher ambient to ensure dungeon isn't too dark
         // Negate light direction to be consistent with shadow mapping convention
         float diffuse = max(0.0, dot(normalize(vNormal), normalize(-uLightDir)));
         
@@ -595,13 +595,23 @@ class ObjectShader {
                 pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
             }
             
+            // Calculate final point light contribution with a flat minimum to make sure it's visible
+            float minLight = 0.5; // Add a minimum light level to make the light more visible
+            float pointLightFactor = max(minLight, pointDiffuse * attenuation);
+            // Don't use shadow for now as we're testing basic lighting
             // Calculate final point light contribution
-            pointLightColor = baseColor.rgb * pointDiffuse * attenuation * pointShadow * uLightIntensity * uIntensityFactor;
+            pointLightColor = baseColor.rgb * pointDiffuse * attenuation * pointShadow * uLightIntensity;
         }
         
-        // Apply directional light intensity with configurable intensity factor
-        // This allows tuning the relationship between PBR and default shader intensity
-        float lighting = ambient + (diffuse * shadow * uLightIntensity * uIntensityFactor);
+        // Only apply directional light if it's actually enabled (no sneaky calculations)
+        float lighting = ambient; // Start with just ambient
+        
+        // Check if directional light is enabled and skip all calculations if not
+        if (uShadowsEnabled) {
+            // Calculate directional light contribution only if enabled
+            float directionalContribution = diffuse * shadow * uLightIntensity * uIntensityFactor;
+            lighting += directionalContribution;
+        }
         
         // Apply lighting to color with a natural effect
         vec3 result = baseColor.rgb * lighting + pointLightColor;
@@ -1195,8 +1205,15 @@ void main() {
         shadow = 1.0 - (1.0 - shadowFactor) * 0.8;
     }
     
-    // Combined lighting equation with shadow for directional light
-    vec3 color = (kD * albedo * RECIPROCAL_PI + specular) * NdotL * uLightIntensity * distanceAttenuation * shadow;
+    // Only perform directional light calculations if shadows are enabled
+    // This effectively means the directional light is active
+    vec3 color = vec3(0.0);
+    
+    // Check actual shadow flag rather than intensity to avoid sneaky calculations
+    if (uShadowsEnabled) {
+        // Only add directional light contribution if explicitly enabled
+        color = (kD * albedo * RECIPROCAL_PI + specular) * NdotL * uLightIntensity * distanceAttenuation * shadow;
+    }
     
     // Calculate point light contribution
     if (uPointLightCount > 0) {
