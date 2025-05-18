@@ -72,6 +72,7 @@ class SceneMode {
             );
             
             console.log("[SceneMode] Created omnidirectional light in scene center");
+            console.log(`[SceneMode] Light manager now has ${this.renderer3D.lightManager.pointLights.length} point lights`);
         }
     }
 
@@ -339,6 +340,16 @@ class SceneMode {
     }
 
     cleanup() {
+        // Clean up the point light if it exists
+        if (this.pointLight && this.renderer3D && this.renderer3D.lightManager) {
+            console.log("[SceneMode] Removing point light");
+            this.renderer3D.lightManager.removeLight(this.pointLight);
+            this.pointLight = null;
+            
+            // Log the remaining point lights after cleanup
+            console.log(`[SceneMode] After cleanup, light manager has ${this.renderer3D.lightManager.pointLights.length} point lights`);
+        }
+        
         if (this.physicsWorld) {
             this.physicsWorld.reset();
             this.physicsWorld = null;

@@ -84,8 +84,9 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
     /**
      * Set up shadow map framebuffer and texture
      * Creates a cubemap texture for omnidirectional shadows
+     * @param {number} lightIndex - Index of the light (for multiple lights)
      */
-    setupShadowMap() {
+    setupShadowMap(lightIndex = 0) {
         const gl = this.gl;
 
         // Delete any existing shadow framebuffer and texture
@@ -185,6 +186,9 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
                 this.depthBuffers.push(depthBuffer);
             }
         }
+
+        // Store the light index for later use
+        this.lightIndex = lightIndex;
 
         // Unbind the framebuffer
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -287,13 +291,19 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
     /**
      * Begin shadow map rendering pass for a specific face
      * @param {number} faceIndex - Index of the cube face to render (0-5)
+     * @param {number} lightIndex - Index of the light (for multiple lights)
      */
-    beginShadowPass(faceIndex) {
+    beginShadowPass(faceIndex, lightIndex = 0) {
         const gl = this.gl;
 
         // Save current viewport
         if (!this._savedViewport) {
             this._savedViewport = gl.getParameter(gl.VIEWPORT);
+        }
+
+        // Create shadow maps on demand if they don't exist for this light
+        if (!this.shadowFramebuffer && !this.shadowTexture) {
+            this.setupShadowMap(lightIndex);
         }
 
         if (this.isWebGL2) {
@@ -453,15 +463,51 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
     applyToShader(program, index = 0) {
         const gl = this.gl;
         
-        // Get light uniform locations
-        const lightPosLoc = gl.getUniformLocation(program, "uLightPos"); 
-        // Use a dedicated intensity uniform for point lights to avoid conflict with directional lights
-        const lightIntensityLoc = gl.getUniformLocation(program, "uPointLightIntensity");
-        const lightRadiusLoc = gl.getUniformLocation(program, "uLightRadius");
-        const shadowMapLoc = gl.getUniformLocation(program, "uPointShadowMap");
-        const shadowsEnabledLoc = gl.getUniformLocation(program, "uPointShadowsEnabled");
+        // Use indexed uniform names for lights beyond the first one
+        const indexSuffix = index > 0 ? index.toString() : '';
+        
+        // Select the right uniform names based on index
+        let posUniform, intensityUniform, radiusUniform, shadowMapUniform, shadowsEnabledUniform;
+        
+        if (index === 0) {
+            // First light uses legacy names (no suffix)
+            posUniform = "uPointLightPos";
+            intensityUniform = "uPointLightIntensity";
+            radiusUniform = "uLightRadius"; // Different name for first light!
+            shadowMapUniform = "uPointShadowMap";
+            shadowsEnabledUniform = "uPointShadowsEnabled";
+        } else {
+            // Additional lights use indexed names
+            posUniform = `uPointLightPos${indexSuffix}`;
+            intensityUniform = `uPointLightIntensity${indexSuffix}`;
+            radiusUniform = `uPointLightRadius${indexSuffix}`;
+            shadowMapUniform = `uPointShadowMap${indexSuffix}`;
+            shadowsEnabledUniform = `uPointShadowsEnabled${indexSuffix}`;
+        }
+        
+        // Get uniform locations
+        const lightPosLoc = gl.getUniformLocation(program, posUniform);
+        const lightIntensityLoc = gl.getUniformLocation(program, intensityUniform);
+        const lightRadiusLoc = gl.getUniformLocation(program, radiusUniform);
+        const shadowMapLoc = gl.getUniformLocation(program, shadowMapUniform);
+        const shadowsEnabledLoc = gl.getUniformLocation(program, shadowsEnabledUniform);
         const shadowBiasLoc = gl.getUniformLocation(program, "uShadowBias");
         const farPlaneLoc = gl.getUniformLocation(program, "uFarPlane");
+        
+        // Detailed logs commented out to reduce console noise
+        /*
+        // Keep minimal logs for light setup
+        if (index === 0) {
+            console.log(`[PointLight:${index}] Setting up primary light`); 
+        } else {
+            console.log(`[PointLight:${index}] Setting up additional light`);
+        }
+        
+        console.log(`[PointLight:${index}] Setting up with: ${posUniform}, ${intensityUniform}, ${radiusUniform}`);
+        console.log(`Light position: (${this.position.x.toFixed(2)}, ${this.position.y.toFixed(2)}, ${this.position.z.toFixed(2)})`);
+        console.log(`Light intensity: ${this.intensity.toFixed(2)}, Light radius: ${this.radius.toFixed(2)}, Shadows: ${this.castsShadows}`);
+        */
+
         
         // Set light position
         if (lightPosLoc !== null) {

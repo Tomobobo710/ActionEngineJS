@@ -514,6 +514,7 @@ class LightingDebugPanel extends BaseDebugPanel {
             if (toggle.id === "shadowPCFEnabled") {
                 toggle.checked = this.constants.SHADOW_FILTERING.PCF.ENABLED;
             }
+            // Add UI for multiple point lights if needed here
         });
     }
     

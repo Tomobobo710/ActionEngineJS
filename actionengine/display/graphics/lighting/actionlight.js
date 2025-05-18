@@ -54,6 +54,14 @@ class ActionLight {
     }
     
     /**
+     * Get the shadow texture for this light (if it exists)
+     * @returns {WebGLTexture|null} - The shadow texture or null if there isn't one
+     */
+    getShadowsEnabled() {
+        return this.castsShadows;
+    }
+    
+    /**
      * Set the light color
      * @param {Vector3} color - RGB color vector (values 0-1)
      */

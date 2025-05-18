@@ -41,14 +41,9 @@ class DungeonMode {
         this.lastTime = performance.now();
         this.deltaTime = 0;
         
-        // Disable directional light for now
-        if (this.renderer3D && this.renderer3D.lightManager) {
-            this.renderer3D.lightManager.setMainDirectionalLightEnabled(false);
-        }
-        
         this.generateDungeon();
         this.setupPointLight();
-        this.setupGreenPointLight(); // Add a second point light (green) in the south room (it won't work tho)
+        this.setupGreenPointLight(); // Add a second point light (green) in the south room
     }
     
     /**
@@ -71,12 +66,13 @@ class DungeonMode {
             this.pointLight = this.renderer3D.lightManager.createPointLight(
                 lightPos,         // Position
                 lightColor,       // Light color
-                1.0,              // Intensity
+                2.0,              // Intensity - increase for better visibility with directional light
                 500.0,            // Radius
                 true              // Cast shadows
             );
             
             console.log("[DungeonMode] Created omnidirectional shadow light in entrance room");
+            console.log(`[DungeonMode] Light manager now has ${this.renderer3D.lightManager.pointLights.length} point lights`);
         }
     }
     
@@ -110,6 +106,7 @@ class DungeonMode {
         );
         
         console.log("[DungeonMode] Created green omnidirectional shadow light in south room");
+        console.log(`[DungeonMode] Light manager now has ${this.renderer3D.lightManager.pointLights.length} point lights`);
     }
 
     generateDungeon() {
@@ -323,6 +320,12 @@ class DungeonMode {
             this.character.update(this.deltaTime);
         }
         
+        // Switch shader variants with Numpad5 (same as world mode)
+        if (this.input.isKeyJustPressed("Numpad5") && this.renderer3D) {
+            const newVariant = this.renderer3D.programManager.cycleVariants();
+            console.log(`[DungeonMode] Switched shader variant to: ${newVariant}`);
+        }
+        
         if (this.input.isKeyJustPressed("Action5")) {
             this.gameModeManager.switchMode("world");
         }
@@ -363,10 +366,22 @@ class DungeonMode {
     }
 
     cleanup() {
-        // Clean up the point light if it exists
-        if (this.pointLight && this.renderer3D && this.renderer3D.lightManager) {
-            this.renderer3D.lightManager.removeLight(this.pointLight);
-            this.pointLight = null;
+        // Clean up the point lights if they exist
+        if (this.renderer3D && this.renderer3D.lightManager) {
+            if (this.pointLight) {
+                console.log("[DungeonMode] Removing entrance room point light");
+                this.renderer3D.lightManager.removeLight(this.pointLight);
+                this.pointLight = null;
+            }
+            
+            if (this.greenPointLight) {
+                console.log("[DungeonMode] Removing green point light");
+                this.renderer3D.lightManager.removeLight(this.greenPointLight);
+                this.greenPointLight = null;
+            }
+            
+            // Log the remaining point lights after cleanup
+            console.log(`[DungeonMode] After cleanup, light manager has ${this.renderer3D.lightManager.pointLights.length} point lights`);
         }
         
         if (this.physicsWorld) {

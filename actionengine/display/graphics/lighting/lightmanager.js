@@ -171,6 +171,16 @@ class LightManager {
      * @returns {ActionOmnidirectionalShadowLight} - The created light
      */
     createPointLight(position, color, intensity, radius = 100.0, castsShadows = false) {
+        // Keep just the basic light creation logs
+        console.log(`[LightManager] Creating point light #${this.pointLights.length}`);
+        
+        // Comment out detailed logs to reduce noise
+        /*
+        console.log(`  Position: (${position.x.toFixed(2)}, ${position.y.toFixed(2)}, ${position.z.toFixed(2)})`);
+        console.log(`  Color: (${color ? color.x.toFixed(2) : '1.00'}, ${color ? color.y.toFixed(2) : '1.00'}, ${color ? color.z.toFixed(2) : '1.00'})`);
+        console.log(`  Intensity: ${intensity.toFixed(2)}, Radius: ${radius.toFixed(2)}, Shadows: ${castsShadows}`);
+        */
+        
         const light = new ActionOmnidirectionalShadowLight(this.gl, this.isWebGL2, this.programManager);
 
         light.setPosition(position);
@@ -348,12 +358,14 @@ class LightManager {
             }
         }
 
-        // Render point light shadow maps
-        for (const light of this.pointLights) {
+        // Render point light shadow maps - Important: create separate shadow maps for each light
+        for (let lightIndex = 0; lightIndex < this.pointLights.length; lightIndex++) {
+            const light = this.pointLights[lightIndex];
             if (light.getShadowsEnabled()) {
                 // For omnidirectional lights, we need to render the shadow map for each face (6 faces)
                 for (let faceIndex = 0; faceIndex < 6; faceIndex++) {
-                    light.beginShadowPass(faceIndex);
+                    // Use light index as an identifier to ensure unique shadow maps per light
+                    light.beginShadowPass(faceIndex, lightIndex);
 
                     // Render objects to shadow map for this face
                     for (const object of objects) {
@@ -400,24 +412,67 @@ class LightManager {
             }
         }
 
-        // Apply point light (if exists)
+        // Apply point lights - support multiple
         if (this.pointLights.length > 0) {
-            const pointLight = this.pointLights[0]; // Just use the first point light for now
-            if (pointLight) {
-                // First apply all the standard uniforms
-                pointLight.applyToShader(program);
-
-                // Then explicitly get the color from the light and set it
-                const pointLightColorLoc = gl.getUniformLocation(program, "uPointLightColor");
-                if (pointLightColorLoc !== null) {
-                    const color = pointLight.getColor(); // Get the actual color from the light
-                    gl.uniform3f(pointLightColorLoc, color.x, color.y, color.z);
-                }
-
-                // Set point light count uniform
-                const pointLightCountLoc = gl.getUniformLocation(program, "uPointLightCount");
-                if (pointLightCountLoc !== null) {
-                    gl.uniform1i(pointLightCountLoc, this.pointLights.length);
+            // Set up array uniforms for multiple lights
+            const maxLights = Math.min(this.pointLights.length, 8); // Support up to 8 point lights
+            
+            // Set uniform for count of point lights
+            const pointLightCountLoc = gl.getUniformLocation(program, "uPointLightCount");
+            if (pointLightCountLoc !== null) {
+                gl.uniform1i(pointLightCountLoc, maxLights);
+            }
+            
+            // Update each light's uniforms
+            for (let i = 0; i < maxLights; i++) {
+                const pointLight = this.pointLights[i];
+                if (pointLight) {
+                    // Apply based on index
+                    if (i === 0) {
+                        // First light uses the existing uniforms without index for backward compatibility
+                        pointLight.applyToShader(program, 0);
+                        
+                        // Set the color for the first light
+                        const pointLightColorLoc = gl.getUniformLocation(program, "uPointLightColor");
+                        if (pointLightColorLoc !== null) {
+                            const color = pointLight.getColor();
+                            gl.uniform3f(pointLightColorLoc, color.x, color.y, color.z);
+                        }
+                        
+                        // Minimal logging
+                        // console.log("[LightManager] Applied first point light to shader");
+                    } else {
+                        // Additional lights use indexed uniforms
+                        // Get light uniform locations with index
+                        const lightPosLoc = gl.getUniformLocation(program, `uPointLightPos${i}`);
+                        const lightIntensityLoc = gl.getUniformLocation(program, `uPointLightIntensity${i}`);
+                        const lightRadiusLoc = gl.getUniformLocation(program, `uPointLightRadius${i}`);
+                        const lightColorLoc = gl.getUniformLocation(program, `uPointLightColor${i}`);
+                        const shadowMapLoc = gl.getUniformLocation(program, `uPointShadowMap${i}`);
+                        const shadowsEnabledLoc = gl.getUniformLocation(program, `uPointShadowsEnabled${i}`);
+                        
+                        // Apply uniforms if they exist
+                        if (lightPosLoc !== null) {
+                            gl.uniform3f(lightPosLoc, pointLight.position.x, pointLight.position.y, pointLight.position.z);
+                        }
+                        
+                        if (lightIntensityLoc !== null) {
+                            gl.uniform1f(lightIntensityLoc, pointLight.intensity);
+                        }
+                        
+                        if (lightRadiusLoc !== null) {
+                            gl.uniform1f(lightRadiusLoc, pointLight.radius);
+                        }
+                        
+                        if (lightColorLoc !== null) {
+                            const color = pointLight.getColor();
+                            gl.uniform3f(lightColorLoc, color.x, color.y, color.z);
+                        }
+                        
+                        if (shadowsEnabledLoc !== null) {
+                            gl.uniform1i(shadowsEnabledLoc, pointLight.getShadowsEnabled() ? 1 : 0);
+                        }
+                    }
                 }
             }
         } else {

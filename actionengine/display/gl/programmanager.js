@@ -146,7 +146,8 @@ class ProgramManager {
             {name: "uShadowMap", unit: 4},         // Directional shadow map
 
             // Cubemap texture samplers - TEXTURE_CUBE_MAP type
-            {name: "uPointShadowMap", unit: 3},    // Omnidirectional shadow map
+            {name: "uPointShadowMap", unit: 5},    // First omnidirectional shadow map
+            {name: "uPointShadowMap1", unit: 6},   // Second omnidirectional shadow map
 
             // Texture array samplers - TEXTURE_2D_ARRAY type
             {name: "uTextureArray", unit: 0},      // Standard texture array
@@ -446,6 +447,23 @@ class ProgramManager {
             lightSpaceMatrix: gl.getUniformLocation(program, unif.lightSpaceMatrix),
             shadowMap: gl.getUniformLocation(program, unif.shadowMap),
             shadowsEnabled: gl.getUniformLocation(program, unif.shadowsEnabled),
+            
+            // Point light uniforms
+            pointLightPos: gl.getUniformLocation(program, "uPointLightPos"),
+            pointLightColor: gl.getUniformLocation(program, "uPointLightColor"),
+            pointLightRadius: gl.getUniformLocation(program, "uLightRadius"),
+            pointShadowsEnabled: gl.getUniformLocation(program, "uPointShadowsEnabled"),
+            pointShadowMap: gl.getUniformLocation(program, "uPointShadowMap"),
+            pointLightCount: gl.getUniformLocation(program, "uPointLightCount"),
+            farPlane: gl.getUniformLocation(program, "uFarPlane"),
+            
+            // Second point light uniforms
+            pointLightPos1: gl.getUniformLocation(program, "uPointLightPos1"),
+            pointLightColor1: gl.getUniformLocation(program, "uPointLightColor1"),
+            pointLightRadius1: gl.getUniformLocation(program, "uPointLightRadius1"),
+            pointShadowsEnabled1: gl.getUniformLocation(program, "uPointShadowsEnabled1"),
+            pointShadowMap1: gl.getUniformLocation(program, "uPointShadowMap1"),
+            pointLightIntensity1: gl.getUniformLocation(program, "uPointLightIntensity1"),
             
             // Texture uniform
             textureArray: gl.getUniformLocation(program, isPBR ? tex.pbr : tex.standard)
