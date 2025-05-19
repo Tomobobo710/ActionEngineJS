@@ -33,7 +33,7 @@ class LightingConstants {
         
         // Default shader intensity factor - controls how intensity affects non-PBR shaders
         this.OBJECT_SHADER_DEFAULT_VARIANT_INTENSITY_FACTOR = {
-            value: 0.00001,  // Scale factor for default shader (smaller values = less dramatic effect)
+            value: 0.0001,  // Scale factor for default shader (increased for more visible lighting)
             min: 0.000000000000001,
             max: 1.0,
             step: 0.00000000000001

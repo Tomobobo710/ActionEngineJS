@@ -598,107 +598,132 @@ class ObjectRenderer3D {
             this._currentShaderVariant = "unknown";
         }
         
-        // Always bind shadow maps to their expected texture units
-        // Directional light shadow map - texture unit 4
+        // TEXTURE BINDING STRATEGY:
+        // Group 1: 2D textures (0-7)
+        // Group 2: Cubemap textures (10-19)
+        // Group 3: 2D array textures (20-29)
+        
+        // --- GROUP 1: 2D TEXTURES ---
+        // Bind material properties (2D texture)
+        if (locations.materialPropertiesTexture !== -1 && locations.materialPropertiesTexture !== null) {
+            const materialPropertiesTexture = this.renderer?.textureManager?.materialPropertiesTexture;
+            if (materialPropertiesTexture) {
+                gl.activeTexture(gl.TEXTURE0);
+                gl.bindTexture(gl.TEXTURE_2D, materialPropertiesTexture);
+                gl.uniform1i(locations.materialPropertiesTexture, 0);
+            }
+        }
+        
+        // Bind light data textures (2D textures)
+        if (locations.directionalLightData !== -1 && locations.directionalLightData !== null && 
+            this.lightManager.directionalLightDataTexture) {
+            gl.activeTexture(gl.TEXTURE1);
+            gl.bindTexture(gl.TEXTURE_2D, this.lightManager.directionalLightDataTexture);
+            gl.uniform1i(locations.directionalLightData, 1);
+        }
+        
+        if (locations.pointLightData !== -1 && locations.pointLightData !== null &&
+            this.lightManager.pointLightDataTexture) {
+            gl.activeTexture(gl.TEXTURE2);
+            gl.bindTexture(gl.TEXTURE_2D, this.lightManager.pointLightDataTexture);
+            gl.uniform1i(locations.pointLightData, 2);
+        }
+        
+        // Bind directional shadow map (2D texture)
         if (locations.shadowMap !== -1 && locations.shadowMap !== null) {
             const mainLight = this.lightManager.getMainDirectionalLight();
             if (mainLight && mainLight.getShadowsEnabled()) {
                 const shadowMap = mainLight.shadowTexture;
                 if (shadowMap) {
-                    gl.activeTexture(gl.TEXTURE4);
+                    gl.activeTexture(gl.TEXTURE3);
                     gl.bindTexture(gl.TEXTURE_2D, shadowMap);
-                    gl.uniform1i(locations.shadowMap, 4);
+                    gl.uniform1i(locations.shadowMap, 3);
                 }
             }
         }
         
-        // Point light shadow maps - starting from texture unit 5
-        if (this.lightManager.pointLights.length > 0) {
-            // Single log message for binding shadow maps
-            //console.log(`[ObjectRenderer3D] Binding ${this.lightManager.pointLights.length} point light shadow maps`);
+        // --- GROUP 2: CUBEMAP TEXTURES (must be separate from 2D textures) ---
+        // Bind shadow maps for multiple point lights
+        // Each point light gets assigned a texture unit starting from 10
+        
+        // Define the mapping of point light index to shadow map properties
+        const pointLightShadowMaps = [
+            { locationName: 'pointShadowMap', textureUnit: 10, enabledName: 'pointShadowsEnabled' },
+            { locationName: 'pointShadowMap1', textureUnit: 11, enabledName: 'pointShadowsEnabled1' },
+            { locationName: 'pointShadowMap2', textureUnit: 12, enabledName: 'pointShadowsEnabled2' },
+            { locationName: 'pointShadowMap3', textureUnit: 13, enabledName: 'pointShadowsEnabled3' }
+        ];
+        
+        // Bind shadow maps for up to 4 point lights
+        for (let i = 0; i < Math.min(this.lightManager.pointLights.length, pointLightShadowMaps.length); i++) {
+            const pointLight = this.lightManager.pointLights[i];
+            const shadowMapDef = pointLightShadowMaps[i];
             
-            // Handle first point light with standard uniforms for backward compatibility
-            if (locations.pointShadowMap !== -1 && locations.pointShadowMap !== null) {
-                const pointLight = this.lightManager.pointLights[0];
-                if (pointLight && pointLight.getShadowsEnabled()) {
-                    const pointShadowMap = pointLight.shadowTexture;
-                    if (pointShadowMap) {
-                        gl.activeTexture(gl.TEXTURE5);
-                        if (this.isWebGL2 && pointLight.isWebGL2) {
-                            gl.bindTexture(gl.TEXTURE_CUBE_MAP, pointShadowMap);
-                        } else {
-                            gl.bindTexture(gl.TEXTURE_2D, pointShadowMap);
-                        }
-                        gl.uniform1i(locations.pointShadowMap, 5);
-                        // Reduced logging
-                        // console.log(`[ObjectRenderer3D] Bound first point light shadow map to texture unit 5`);
+            // Get uniform locations
+            const shadowMapLoc = locations[shadowMapDef.locationName];
+            const shadowEnabledLoc = locations[shadowMapDef.enabledName];
+            
+            // Skip if any required uniform doesn't exist
+            if (shadowMapLoc === -1 || shadowMapLoc === null || shadowEnabledLoc === -1 || shadowEnabledLoc === null) {
+                continue;
+            }
+            
+            // Check if this light casts shadows
+            if (pointLight && pointLight.getShadowsEnabled()) {
+                const pointShadowMap = pointLight.shadowTexture;
+                if (pointShadowMap) {
+                    // Bind the shadow map
+                    gl.activeTexture(gl.TEXTURE0 + shadowMapDef.textureUnit);
+                    if (this.isWebGL2 && pointLight.isWebGL2) {
+                        gl.bindTexture(gl.TEXTURE_CUBE_MAP, pointShadowMap);
                     } else {
-                        console.warn(`[ObjectRenderer3D] First point light has no shadow texture!`);
+                        gl.bindTexture(gl.TEXTURE_2D, pointShadowMap);
                     }
+                    gl.uniform1i(shadowMapLoc, shadowMapDef.textureUnit);
+                    
+                    // Set that this light's shadows are enabled
+                    gl.uniform1i(shadowEnabledLoc, 1); // 1 = true
                 } else {
-                    console.warn(`[ObjectRenderer3D] First point light either doesn't exist or has shadows disabled`);
+                    // No shadow map, disable shadows
+                    gl.uniform1i(shadowEnabledLoc, 0); // 0 = false
                 }
             } else {
-                console.warn(`[ObjectRenderer3D] pointShadowMap uniform not found in shader`);
-            }
-            
-            // Handle additional point lights with indexed uniforms
-            const maxLights = Math.min(this.lightManager.pointLights.length, 8); // Up to 8 lights
-            
-            for (let i = 1; i < maxLights; i++) { // Start from second light (i=1)
-                const lightUniform = locations[`pointShadowMap${i}`];
-                if (lightUniform !== -1 && lightUniform !== null) {
-                    const pointLight = this.lightManager.pointLights[i];
-                    if (pointLight && pointLight.getShadowsEnabled()) {
-                        const pointShadowMap = pointLight.shadowTexture;
-                        if (pointShadowMap) {
-                            // Use texture units 6+ for additional lights (5 is already used for first light)
-                            gl.activeTexture(gl.TEXTURE5 + i);
-                            if (this.isWebGL2 && pointLight.isWebGL2) {
-                                gl.bindTexture(gl.TEXTURE_CUBE_MAP, pointShadowMap);
-                            } else {
-                                gl.bindTexture(gl.TEXTURE_2D, pointShadowMap);
-                            }
-                            gl.uniform1i(lightUniform, 5 + i);
-                            // Reduced logging
-                            // console.log(`[ObjectRenderer3D] Bound point light ${i} shadow map to texture unit ${5 + i}`);
-                        } else {
-                            console.warn(`[ObjectRenderer3D] Point light ${i} has no shadow texture!`);
-                        }
-                    }
-                }
+                // Light doesn't cast shadows, disable them
+                gl.uniform1i(shadowEnabledLoc, 0); // 0 = false
             }
         }
-
-        // Bind texture array if the shader uses it
-        if (locations.textureArray !== -1 && locations.textureArray !== null) {
-            // Get texture array from renderer
-            const textureArray = this.renderer?.textureArray;
+        
+        // Disable shadows for any additional shadow map uniforms that exist
+        for (let i = this.lightManager.pointLights.length; i < pointLightShadowMaps.length; i++) {
+            const shadowMapDef = pointLightShadowMaps[i];
+            const shadowEnabledLoc = locations[shadowMapDef.enabledName];
             
+            if (shadowEnabledLoc !== -1 && shadowEnabledLoc !== null) {
+                gl.uniform1i(shadowEnabledLoc, 0); // 0 = false
+            }
+        }
+        
+        // --- GROUP 3: TEXTURE ARRAYS ---
+        // Bind texture array (2D array texture)
+        if (locations.textureArray !== -1 && locations.textureArray !== null) {
+            const textureArray = this.renderer?.textureArray;
             if (textureArray) {
-                // Determine which shader we're using - only do this check when shader changes
-                // Check current variant directly from programManager
+                // Determine which shader variant to use
                 if (!this._lastCheckedVariant || this._lastCheckedVariant !== this.programManager.getCurrentVariant()) {
                     this._lastCheckedVariant = this.programManager.getCurrentVariant();
                     this._currentShaderVariant = this._lastCheckedVariant === "pbr" ? "pbr" : "other";
                 }
                 
-                // Determine which texture unit to use - use 1 for PBR shader, 0 for others
-                // This avoids conflicts with shadow map (unit 4) or material properties texture (unit 2)
-                const targetUnit = this._currentShaderVariant === "pbr" ? 1 : 0; // but this is 1/0?
+                // Use unit 20 for standard shader, 21 for PBR shader
+                const targetUnit = this._currentShaderVariant === "pbr" ? 21 : 20;
                 
-                // Only change texture unit binding if needed
+                // Only change binding if needed
                 if (this._currentTextureUnit !== targetUnit || 
                     this._currentBoundTexture !== textureArray || 
                     this._currentBoundTextureType !== gl.TEXTURE_2D_ARRAY) {
                     
-                    // Activate the texture unit
                     gl.activeTexture(gl.TEXTURE0 + targetUnit);
-                    
-                    // Bind the texture array to this unit
                     gl.bindTexture(gl.TEXTURE_2D_ARRAY, textureArray);
-                    
-                    // Tell the shader which unit has the texture array
                     gl.uniform1i(locations.textureArray, targetUnit);
                     
                     // Update state tracking

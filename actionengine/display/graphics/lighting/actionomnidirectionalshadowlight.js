@@ -526,10 +526,14 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
         
         // Apply shadow mapping uniforms if shadows are enabled
         if (this.castsShadows) {
+            //console.log(`[PointLight:${index}] Shadows enabled, shadowsEnabledLoc: ${shadowsEnabledLoc}, shadowMapLoc: ${shadowMapLoc}`);
             
             // Set shadows enabled flag
             if (shadowsEnabledLoc !== null) {
                 gl.uniform1i(shadowsEnabledLoc, 1); // 1 = true
+                //console.log(`[PointLight:${index}] Set ${shadowsEnabledUniform} to true`);
+            } else {
+                console.warn(`[PointLight:${index}] Could not find uniform location for ${shadowsEnabledUniform}`);
             }
             
             // Set shadow bias
@@ -544,6 +548,7 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
         } else if (shadowsEnabledLoc !== null) {
             // Shadows are disabled for this light
             gl.uniform1i(shadowsEnabledLoc, 0); // 0 = false
+            //console.log(`[PointLight:${index}] Shadows disabled, set ${shadowsEnabledUniform} to false`);
         }
     }
     

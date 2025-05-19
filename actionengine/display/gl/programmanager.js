@@ -139,22 +139,31 @@ class ProgramManager {
     assignExplicitSamplerBindings(program) {
         this.gl.useProgram(program);
 
+        // WEBGL SAMPLER CONFLICT RESOLUTION:
+        // 1. Group samplers by type (2D, Cube, Array)
+        // 2. Assign consecutive units within each type group
+        // 3. Ensure large gaps between different sampler types
+        
         // Define dedicated texture units for each sampler type
-        // Using different units for different sampler types prevents the location conflict
         const samplerUniforms = [
-            // Standard texture samplers - TEXTURE_2D type
-            {name: "uShadowMap", unit: 4},         // Directional shadow map
+            // GROUP 1: 2D TEXTURES (units 0-7)
+            // Regular 2D textures - TEXTURE_2D type
+            {name: "uMaterialPropertiesTexture", unit: 0},  // Material properties
+            {name: "uDirectionalLightData", unit: 1},      // Directional light data
+            {name: "uPointLightData", unit: 2},            // Point light data
+            {name: "uShadowMap", unit: 3},                // Directional shadow map
 
-            // Cubemap texture samplers - TEXTURE_CUBE_MAP type
-            {name: "uPointShadowMap", unit: 5},    // First omnidirectional shadow map
-            {name: "uPointShadowMap1", unit: 6},   // Second omnidirectional shadow map
-
+            // GROUP 2: CUBEMAP TEXTURES (units 10-19) - Large gap to prevent conflicts
+            // Cubemap texture samplers - TEXTURE_CUBE_MAP type  
+            {name: "uPointShadowMap", unit: 10},          // First point shadow map
+            {name: "uPointShadowMap1", unit: 11},         // Second point shadow map
+            {name: "uPointShadowMap2", unit: 12},         // Third point shadow map
+            {name: "uPointShadowMap3", unit: 13},         // Fourth point shadow map
+            
+            // GROUP 3: TEXTURE ARRAYS (units 20-29) - Large gap to prevent conflicts
             // Texture array samplers - TEXTURE_2D_ARRAY type
-            {name: "uTextureArray", unit: 0},      // Standard texture array
-            {name: "uPBRTextureArray", unit: 1},   // PBR texture array
-
-            // Additional samplers
-            {name: "uMaterialPropertiesTexture", unit: 2}, // Material properties
+            {name: "uTextureArray", unit: 20},            // Standard texture array
+            {name: "uPBRTextureArray", unit: 21},         // PBR texture array
         ];
 
         // Assign each sampler to its dedicated texture unit
@@ -448,22 +457,41 @@ class ProgramManager {
             shadowMap: gl.getUniformLocation(program, unif.shadowMap),
             shadowsEnabled: gl.getUniformLocation(program, unif.shadowsEnabled),
             
-            // Point light uniforms
+            // Light counts
+            directionalLightCount: gl.getUniformLocation(program, "uDirectionalLightCount"),
+            pointLightCount: gl.getUniformLocation(program, "uPointLightCount"),
+            spotLightCount: gl.getUniformLocation(program, "uSpotLightCount"),
+            
+            // Light data textures
+            directionalLightData: gl.getUniformLocation(program, "uDirectionalLightData"),
+            directionalLightTextureSize: gl.getUniformLocation(program, "uDirectionalLightTextureSize"),
+            pointLightData: gl.getUniformLocation(program, "uPointLightData"),
+            pointLightTextureSize: gl.getUniformLocation(program, "uPointLightTextureSize"),
+            
+            farPlane: gl.getUniformLocation(program, "uFarPlane"),
+            
+            // Legacy light uniforms
             pointLightPos: gl.getUniformLocation(program, "uPointLightPos"),
             pointLightColor: gl.getUniformLocation(program, "uPointLightColor"),
             pointLightRadius: gl.getUniformLocation(program, "uLightRadius"),
             pointShadowsEnabled: gl.getUniformLocation(program, "uPointShadowsEnabled"),
             pointShadowMap: gl.getUniformLocation(program, "uPointShadowMap"),
-            pointLightCount: gl.getUniformLocation(program, "uPointLightCount"),
-            farPlane: gl.getUniformLocation(program, "uFarPlane"),
             
-            // Second point light uniforms
+            // Additional point light uniforms (2-4)
             pointLightPos1: gl.getUniformLocation(program, "uPointLightPos1"),
             pointLightColor1: gl.getUniformLocation(program, "uPointLightColor1"),
             pointLightRadius1: gl.getUniformLocation(program, "uPointLightRadius1"),
             pointShadowsEnabled1: gl.getUniformLocation(program, "uPointShadowsEnabled1"),
             pointShadowMap1: gl.getUniformLocation(program, "uPointShadowMap1"),
             pointLightIntensity1: gl.getUniformLocation(program, "uPointLightIntensity1"),
+            
+            // Third point light uniforms
+            pointShadowsEnabled2: gl.getUniformLocation(program, "uPointShadowsEnabled2"),
+            pointShadowMap2: gl.getUniformLocation(program, "uPointShadowMap2"),
+            
+            // Fourth point light uniforms
+            pointShadowsEnabled3: gl.getUniformLocation(program, "uPointShadowsEnabled3"),
+            pointShadowMap3: gl.getUniformLocation(program, "uPointShadowMap3"),
             
             // Texture uniform
             textureArray: gl.getUniformLocation(program, isPBR ? tex.pbr : tex.standard)

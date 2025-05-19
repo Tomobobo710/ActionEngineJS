@@ -339,19 +339,30 @@ class ObjectShader {
     uniform sampler2D uShadowMap;
     ${isWebGL2 ? "uniform samplerCube uPointShadowMap;" : "uniform sampler2D uPointShadowMap;"}
     
-    // Main directional light
+    // Light counts
+    uniform int uDirectionalLightCount;
+    uniform int uPointLightCount;
+    uniform int uSpotLightCount;
+    
+    // Light data textures - each light has multiple pixels for all properties
+    uniform sampler2D uDirectionalLightData;
+    uniform vec2 uDirectionalLightTextureSize;
+    uniform sampler2D uPointLightData;
+    uniform vec2 uPointLightTextureSize;
+    
+    // Legacy directional light uniforms (for backward compatibility)
     uniform vec3 uLightPos;
     uniform vec3 uLightDir;
     uniform float uLightIntensity; 
     uniform vec3 uLightColor;
     
-    // Main point light (for backward compatibility)
-    uniform vec3 uPointLightPos; // Position for the first point light
-    uniform float uPointLightIntensity; // Intensity for the first point light 
-    uniform float uLightRadius; // Radius for the first point light
-    uniform vec3 uPointLightColor; // Color for the first point light
+    // Legacy point light uniforms (for backward compatibility)
+    uniform vec3 uPointLightPos; 
+    uniform float uPointLightIntensity;
+    uniform float uLightRadius; 
+    uniform vec3 uPointLightColor;
     
-    // Second point light (optional)
+    // Legacy second point light uniforms
     uniform vec3 uPointLightPos1;
     uniform float uPointLightIntensity1;
     uniform float uPointLightRadius1;
@@ -359,16 +370,102 @@ class ObjectShader {
     uniform samplerCube uPointShadowMap1;
     uniform bool uPointShadowsEnabled1;
     
+    // Additional point light shadow maps
+    uniform samplerCube uPointShadowMap2;
+    uniform bool uPointShadowsEnabled2;
+    uniform samplerCube uPointShadowMap3;
+    uniform bool uPointShadowsEnabled3;
+    
     uniform float uIntensityFactor; // Factor controlling intensity effect in default shader
     uniform bool uShadowsEnabled;
     uniform bool uPointShadowsEnabled; // Enable point light shadows
-    uniform int uPointLightCount; // Number of point lights
+    //uniform int uPointLightCount; // Number of point lights
     uniform float uShadowBias; // Shadow bias uniform for controlling shadow acne
     uniform float uShadowMapSize; // Shadow map size for texture calculations
     uniform float uShadowSoftness; // Controls shadow edge softness (0-1)
     uniform int uPCFSize; // Controls PCF kernel size (1, 3, 5, 7, 9)
     uniform bool uPCFEnabled; // Controls whether PCF filtering is enabled
     uniform float uFarPlane; // Far plane for point light shadows
+    
+    // Structures to hold light data
+    struct DirectionalLight {
+        vec3 position;
+        vec3 direction;
+        vec3 color;
+        float intensity;
+        bool shadowsEnabled;
+    };
+    
+    struct PointLight {
+        vec3 position;
+        vec3 color;
+        float intensity;
+        float radius;
+        bool shadowsEnabled;
+    };
+    
+    // Functions to extract light data from textures
+    DirectionalLight getDirectionalLight(int index) {
+        // Each light takes 3 pixels horizontally
+        int basePixel = index * 3;
+        
+        // Calculate UV coordinates for each pixel
+        // First pixel: position + enabled
+        float u1 = (float(basePixel) + 0.5) / uDirectionalLightTextureSize.x;
+        // Second pixel: direction + shadowEnabled
+        float u2 = (float(basePixel + 1) + 0.5) / uDirectionalLightTextureSize.x;
+        // Third pixel: color + intensity
+        float u3 = (float(basePixel + 2) + 0.5) / uDirectionalLightTextureSize.x;
+        
+        // Use centered V coordinate (there's only one row)
+        float v = 0.5 / uDirectionalLightTextureSize.y;
+        
+        // Sample pixels from texture
+        vec4 posData = texture(uDirectionalLightData, vec2(u1, v));
+        vec4 dirData = texture(uDirectionalLightData, vec2(u2, v));
+        vec4 colorData = texture(uDirectionalLightData, vec2(u3, v));
+        
+        // Create and populate the light structure
+        DirectionalLight light;
+        light.position = posData.xyz;
+        light.direction = dirData.xyz;
+        light.color = colorData.rgb;
+        light.intensity = colorData.a;
+        light.shadowsEnabled = dirData.a > 0.5;
+        
+        return light;
+    }
+    
+    PointLight getPointLight(int index) {
+        // Each light takes 3 pixels horizontally
+        int basePixel = index * 3;
+        
+        // Calculate UV coordinates for each pixel
+        // First pixel: position + enabled
+        float u1 = (float(basePixel) + 0.5) / uPointLightTextureSize.x;
+        // Second pixel: color + intensity
+        float u2 = (float(basePixel + 1) + 0.5) / uPointLightTextureSize.x;
+        // Third pixel: radius + shadowEnabled + padding
+        float u3 = (float(basePixel + 2) + 0.5) / uPointLightTextureSize.x;
+        
+        // Use centered V coordinate (there's only one row)
+        float v = 0.5 / uPointLightTextureSize.y;
+        
+        // Sample pixels from texture
+        vec4 posData = texture(uPointLightData, vec2(u1, v));
+        vec4 colorData = texture(uPointLightData, vec2(u2, v));
+        vec4 radiusData = texture(uPointLightData, vec2(u3, v));
+        
+        // Create and populate the light structure
+        PointLight light;
+        light.position = posData.xyz;
+        light.color = colorData.rgb;
+        light.intensity = colorData.a;
+        light.radius = radiusData.r;
+        light.shadowsEnabled = radiusData.g > 0.5;
+        
+        return light;
+    }
     
     ${isWebGL2 ? "out vec4 fragColor;" : ""}
     
@@ -596,71 +693,134 @@ class ObjectShader {
         // Calculate point light contributions
         vec3 pointLightColors = vec3(0.0);
         
-        // Only process lights if there are any
-        if (uPointLightCount > 0) {
-            // Note: Can't use console.log in GLSL, but adding comment to show number of lights
-            // First light - the main point light
-            {
-                vec3 lightDir = normalize(vFragPos - uPointLightPos);
-                float pointDiffuse = max(0.0, dot(normalize(vNormal), -lightDir));
-                
-                // Calculate distance attenuation
-                float distance = length(vFragPos - uPointLightPos);
-                float attenuation = 1.0 / (1.0 + (distance * distance) / (uLightRadius * uLightRadius));
-                
-                // Calculate shadow for point light
-                float pointShadow = 1.0;
-                if (uPointShadowsEnabled) {
-                    // The point shadow map
-                    float pointShadowFactor = pointShadowCalculationPCF(vFragPos, uPointLightPos, uPointShadowMap, uFarPlane);
-                    pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
+        // Process all point lights from the data texture
+        for (int i = 0; i < uPointLightCount; i++) {
+            if (i >= 100) break; // Reasonable safety limit
+            
+            // Extract light data from texture
+            PointLight light = getPointLight(i);
+            
+            vec3 lightDir = normalize(vFragPos - light.position);
+            float pointDiffuse = max(0.0, dot(normalize(vNormal), -lightDir));
+            
+            // Calculate distance attenuation
+            float distance = length(vFragPos - light.position);
+            float attenuation = 1.0 / (1.0 + (distance * distance) / (light.radius * light.radius));
+            
+            // Calculate shadow for point light
+            float pointShadow = 1.0;
+            if (light.shadowsEnabled) {
+                // Handle first 8 shadow maps with a switch statement
+                int lightIdx = i % 8; // Limit to 8 shadowed lights
+                switch(lightIdx) {
+                    case 0:
+                        if (uPointShadowsEnabled) {
+                            float pointShadowFactor = pointShadowCalculationPCF(vFragPos, light.position, uPointShadowMap, uFarPlane);
+                            pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
+                        }
+                        break;
+                    case 1:
+                        if (uPointShadowsEnabled1) {
+                            float pointShadowFactor = pointShadowCalculationPCF(vFragPos, light.position, uPointShadowMap1, uFarPlane);
+                            pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
+                        }
+                        break;
+                    case 2:
+                        if (uPointShadowsEnabled2) {
+                            float pointShadowFactor = pointShadowCalculationPCF(vFragPos, light.position, uPointShadowMap2, uFarPlane);
+                            pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
+                        }
+                        break;
+                    case 3:
+                        if (uPointShadowsEnabled3) {
+                            float pointShadowFactor = pointShadowCalculationPCF(vFragPos, light.position, uPointShadowMap3, uFarPlane);
+                            pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
+                        }
+                        break;
                 }
-                
-                // Calculate final point light contribution with proper attenuation and shadow
-                float pointLightFactor = max(0.0, pointDiffuse * attenuation * pointShadow);
-                
-                // Apply point light with proper color contribution
-                // Use a dedicated point light intensity uniform to avoid conflict with directional light
-                pointLightColors = baseColor.rgb * pointLightFactor * uPointLightColor * uPointLightIntensity;
             }
             
-            // Second light - only if we have more than one light
+            // Calculate final point light contribution
+            float pointLightFactor = max(0.0, pointDiffuse * attenuation * pointShadow);
+            
+            // Add contribution from this light
+            pointLightColors += baseColor.rgb * pointLightFactor * light.color * light.intensity;
+        }
+        
+        // Legacy point light handling - only use if no new lights are available
+        if (uPointLightCount == 0) {
+            // Backward compatibility for first point light
+            vec3 lightDir = normalize(vFragPos - uPointLightPos);
+            float pointDiffuse = max(0.0, dot(normalize(vNormal), -lightDir));
+            
+            float distance = length(vFragPos - uPointLightPos);
+            float attenuation = 1.0 / (1.0 + (distance * distance) / (uLightRadius * uLightRadius));
+            
+            float pointShadow = 1.0;
+            if (uPointShadowsEnabled) {
+                float pointShadowFactor = pointShadowCalculationPCF(vFragPos, uPointLightPos, uPointShadowMap, uFarPlane);
+                pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
+            }
+            
+            float pointLightFactor = max(0.0, pointDiffuse * attenuation * pointShadow);
+            pointLightColors = baseColor.rgb * pointLightFactor * uPointLightColor * uPointLightIntensity;
+            
+            // Legacy second point light
             if (uPointLightCount > 1) {
-                vec3 lightDir = normalize(vFragPos - uPointLightPos1);
-                float pointDiffuse = max(0.0, dot(normalize(vNormal), -lightDir));
+                lightDir = normalize(vFragPos - uPointLightPos1);
+                pointDiffuse = max(0.0, dot(normalize(vNormal), -lightDir));
                 
-                // Calculate distance attenuation
-                float distance = length(vFragPos - uPointLightPos1);
-                float attenuation = 1.0 / (1.0 + (distance * distance) / (uPointLightRadius1 * uPointLightRadius1));
+                distance = length(vFragPos - uPointLightPos1);
+                attenuation = 1.0 / (1.0 + (distance * distance) / (uPointLightRadius1 * uPointLightRadius1));
                 
-                // Calculate shadow for second point light
-                float pointShadow = 1.0;
+                pointShadow = 1.0;
                 if (uPointShadowsEnabled1) {
-                    // The second point shadow map 
                     float pointShadowFactor = pointShadowCalculationPCF(vFragPos, uPointLightPos1, uPointShadowMap1, uFarPlane);
                     pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
                 }
                 
-                // Calculate final point light contribution
-                float pointLightFactor = max(0.0, pointDiffuse * attenuation * pointShadow);
-                
-                // Add contribution from second light
+                pointLightFactor = max(0.0, pointDiffuse * attenuation * pointShadow);
                 pointLightColors += baseColor.rgb * pointLightFactor * uPointLightColor1 * uPointLightIntensity1;
             }
         }
         
-        // Only apply directional light if it's actually enabled (no sneaky calculations)
-        float lighting = ambient; // Start with just ambient
+        // Get total directional light contribution
+        float lighting = ambient; // Start with ambient
+        vec3 directionalContribution = vec3(0.0);
         
-        // Check if directional light is enabled and skip all calculations if not
-        if (uShadowsEnabled) {
-            // Calculate directional light contribution only if enabled
-            float directionalContribution = diffuse * shadow * uLightIntensity * uIntensityFactor;
-            lighting += directionalContribution;
+        // Process all directional lights from the data texture
+        for (int i = 0; i < uDirectionalLightCount; i++) {
+            if (i >= 100) break; // Reasonable safety limit
+            
+            // Extract light data from texture
+            DirectionalLight light = getDirectionalLight(i);
+            
+            // Calculate diffuse component
+            float lightDiffuse = max(0.0, dot(normalize(vNormal), normalize(-light.direction)));
+            
+            // Calculate shadow - currently only first light gets shadow mapping
+            float lightShadow = 1.0;
+            if (light.shadowsEnabled && i == 0 && uShadowsEnabled) {
+                lightShadow = shadow;
+            }
+            
+            // Add this light's contribution
+            float contribution = lightDiffuse * lightShadow * light.intensity * uIntensityFactor;
+            directionalContribution += baseColor.rgb * contribution * light.color;
         }
         
-        // Calculate directional light contribution
-        vec3 directionalContribution = baseColor.rgb * lighting;
+        // If there are no directional lights or for backward compatibility
+        if (uDirectionalLightCount == 0 && uShadowsEnabled) {
+            // Legacy directional light calculation
+            float legacyContribution = diffuse * shadow * uLightIntensity * uIntensityFactor;
+            directionalContribution = baseColor.rgb * (ambient + legacyContribution);
+        } else if (uDirectionalLightCount == 0) {
+            // Just ambient with no directional lights
+            directionalContribution = baseColor.rgb * ambient;
+        } else {
+            // Add ambient to the direct contribution
+            directionalContribution += baseColor.rgb * ambient;
+        }
         
         // Properly handle the combination of both light types
         // This ensures they're physically correctly combined and don't over-brighten
@@ -1165,6 +1325,26 @@ uniform bool uShadowsEnabled;
 uniform bool uPointShadowsEnabled; // Enable point light shadows
 uniform int uPointLightCount; // Number of point lights
 uniform float uLightRadius; // Point light radius
+
+// Additional light textures and data
+uniform sampler2D uDirectionalLightData;
+uniform vec2 uDirectionalLightTextureSize;
+uniform sampler2D uPointLightData;
+uniform vec2 uPointLightTextureSize;
+uniform int uDirectionalLightCount;
+
+// Additional point lights
+${isWebGL2 ? "uniform samplerCube uPointShadowMap1;" : "uniform sampler2D uPointShadowMap1;"}
+${isWebGL2 ? "uniform samplerCube uPointShadowMap2;" : "uniform sampler2D uPointShadowMap2;"}
+${isWebGL2 ? "uniform samplerCube uPointShadowMap3;" : "uniform sampler2D uPointShadowMap3;"}
+uniform bool uPointShadowsEnabled1; // Second point light shadows
+uniform bool uPointShadowsEnabled2; // Third point light shadows
+uniform bool uPointShadowsEnabled3; // Fourth point light shadows
+uniform float uPointLightIntensity1; // Second point light intensity
+uniform vec3 uPointLightPos1; // Second point light position
+
+uniform vec3 uPointLightColor1; // Second point light color
+uniform float uPointLightRadius1; // Second point light radius
 uniform float uShadowBias; // Shadow bias uniform for controlling shadow acne
 uniform float uShadowMapSize; // Shadow map size for texture calculations
 uniform float uShadowSoftness; // Controls shadow edge softness (0-1)
@@ -1174,13 +1354,7 @@ uniform float uFarPlane; // Far plane for point light shadows
 uniform vec3 uLightColor;      // Directional light color
 uniform vec3 uPointLightColor; // Point light color
 
-// Second light parameters (optional)
-uniform vec3 uPointLightPos1;
-uniform float uPointLightIntensity1;
-uniform float uPointLightRadius1;
-uniform vec3 uPointLightColor1;
-uniform samplerCube uPointShadowMap1;
-uniform bool uPointShadowsEnabled1;
+
 
 // Texture sampler
 uniform sampler2DArray uPBRTextureArray;
@@ -1190,6 +1364,86 @@ ${isWebGL2 ? "out vec4 fragColor;" : ""}
 // Constants for performance
 #define PI 3.14159265359
 #define RECIPROCAL_PI 0.31830988618
+
+// Structures to hold light data
+struct DirectionalLight {
+    vec3 position;
+    vec3 direction;
+    vec3 color;
+    float intensity;
+    bool shadowsEnabled;
+};
+
+struct PointLight {
+    vec3 position;
+    vec3 color;
+    float intensity;
+    float radius;
+    bool shadowsEnabled;
+};
+
+// Functions to extract light data from textures
+DirectionalLight getDirectionalLight(int index) {
+    // Each light takes 3 pixels horizontally
+    int basePixel = index * 3;
+    
+    // Calculate UV coordinates for each pixel
+    // First pixel: position + enabled
+    float u1 = (float(basePixel) + 0.5) / uDirectionalLightTextureSize.x;
+    // Second pixel: direction + shadowEnabled
+    float u2 = (float(basePixel + 1) + 0.5) / uDirectionalLightTextureSize.x;
+    // Third pixel: color + intensity
+    float u3 = (float(basePixel + 2) + 0.5) / uDirectionalLightTextureSize.x;
+    
+    // Use centered V coordinate (there's only one row)
+    float v = 0.5 / uDirectionalLightTextureSize.y;
+    
+    // Sample pixels from texture
+    vec4 posData = texture(uDirectionalLightData, vec2(u1, v));
+    vec4 dirData = texture(uDirectionalLightData, vec2(u2, v));
+    vec4 colorData = texture(uDirectionalLightData, vec2(u3, v));
+    
+    // Create and populate the light structure
+    DirectionalLight light;
+    light.position = posData.xyz;
+    light.direction = dirData.xyz;
+    light.color = colorData.rgb;
+    light.intensity = colorData.a;
+    light.shadowsEnabled = dirData.a > 0.5;
+    
+    return light;
+}
+
+PointLight getPointLight(int index) {
+    // Each light takes 3 pixels horizontally
+    int basePixel = index * 3;
+    
+    // Calculate UV coordinates for each pixel
+    // First pixel: position + enabled
+    float u1 = (float(basePixel) + 0.5) / uPointLightTextureSize.x;
+    // Second pixel: color + intensity
+    float u2 = (float(basePixel + 1) + 0.5) / uPointLightTextureSize.x;
+    // Third pixel: radius + shadowEnabled + padding
+    float u3 = (float(basePixel + 2) + 0.5) / uPointLightTextureSize.x;
+    
+    // Use centered V coordinate (there's only one row)
+    float v = 0.5 / uPointLightTextureSize.y;
+    
+    // Sample pixels from texture
+    vec4 posData = texture(uPointLightData, vec2(u1, v));
+    vec4 colorData = texture(uPointLightData, vec2(u2, v));
+    vec4 radiusData = texture(uPointLightData, vec2(u3, v));
+    
+    // Create and populate the light structure
+    PointLight light;
+    light.position = posData.xyz;
+    light.color = colorData.rgb;
+    light.intensity = colorData.a;
+    light.radius = radiusData.r;
+    light.shadowsEnabled = radiusData.g > 0.5;
+    
+    return light;
+}
 
 // Shadow mapping functions
 ${shadowFunctions}
@@ -1281,63 +1535,133 @@ void main() {
     // Calculate directional light contribution (if active)
     vec3 directionalColor = vec3(0.0);
     
-    // Check actual shadow flag rather than intensity to avoid sneaky calculations
-    if (uShadowsEnabled) {
-        // Only add directional light contribution if explicitly enabled
-        directionalColor = (kD * albedo * RECIPROCAL_PI + specular) * NdotL * uLightIntensity * distanceAttenuation * shadow * uLightColor;
+    // Process all directional lights from the data texture
+    if (uDirectionalLightCount > 0) {
+        for (int i = 0; i < uDirectionalLightCount; i++) {
+            if (i >= 100) break; // Reasonable safety limit
+            
+            // Extract light data from texture
+            DirectionalLight light = getDirectionalLight(i);
+            
+            // Calculate diffuse component
+            float lightDiffuse = max(0.0, dot(normalize(N), normalize(-light.direction)));
+            
+            // Calculate shadow - currently only first light gets shadow mapping
+            float lightShadow = 1.0;
+            if (light.shadowsEnabled && i == 0 && uShadowsEnabled) {
+                lightShadow = shadow;
+            }
+            
+            // Calculate light-specific attenuation
+            float lightDistance = length(vWorldPos - light.position);
+            float lightAttenuation = 1.0 / (1.0 + 0.0001 * lightDistance * lightDistance);
+            
+            // Add this light's contribution
+            directionalColor += (kD * albedo * RECIPROCAL_PI + specular) * lightDiffuse * 
+                               lightShadow * light.intensity * lightAttenuation * light.color;
+        }
+    } else if (uShadowsEnabled) { 
+        // Fallback to legacy directional light if no lights in texture
+        // Apply intensity scaling for PBR
+        float scaledLegacyIntensity = uLightIntensity * 0.00001;
+        directionalColor = (kD * albedo * RECIPROCAL_PI + specular) * NdotL * scaledLegacyIntensity * distanceAttenuation * shadow * uLightColor;
     }
     
     // Calculate point light contributions
     vec3 pointLightColors = vec3(0.0);
     
-    // Process all available point lights
-    if (uPointLightCount > 0) {
-        // First point light - main light
-        {
-            // Direction from fragment to point light (we need to negate for consistent lighting)
-            vec3 pointL = normalize(uPointLightPos - vWorldPos);
-            float pointNdotL = max(dot(N, pointL), 0.0);
-            
-            // Calculate distance attenuation for point light
-            float pointDistance = length(vWorldPos - uPointLightPos);
-            float pointAttenuation = 1.0 / (1.0 + (pointDistance * pointDistance) / (uLightRadius * uLightRadius));
-            
-            // Calculate specular for point light
-            vec3 pointSpecular = specularBRDF(N, pointL, V, baseF0, roughness);
-            vec3 pointKD = (vec3(1.0) - pointSpecular) * (1.0 - metallic);
-            
-            // Calculate point light shadow
-            float pointShadow = 1.0;
-            if (uPointShadowsEnabled) {
-                // Use PCF to sample point shadow map
-                float pointShadowFactor = pointShadowCalculationPCF(vFragPos, uPointLightPos, uPointShadowMap, uFarPlane);
-                pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
+    // Process all point lights from the data texture
+    for (int i = 0; i < uPointLightCount; i++) {
+        if (i >= 100) break; // Reasonable safety limit
+        
+        // Extract light data from texture
+        PointLight light = getPointLight(i);
+        
+        // Direction from fragment to point light (we need to negate for consistent lighting)
+        vec3 pointL = normalize(light.position - vWorldPos);
+        float pointNdotL = max(dot(N, pointL), 0.0);
+        
+        // Calculate distance attenuation for point light
+        float pointDistance = length(vWorldPos - light.position);
+        float pointAttenuation = 1.0 / (1.0 + (pointDistance * pointDistance) / (light.radius * light.radius));
+        
+        // Calculate specular for point light
+        vec3 pointSpecular = specularBRDF(N, pointL, V, baseF0, roughness);
+        vec3 pointKD = (vec3(1.0) - pointSpecular) * (1.0 - metallic);
+        
+        // Calculate shadow for point light
+        float pointShadow = 1.0;
+        if (light.shadowsEnabled) {
+            // Handle first 4 shadow maps with a switch statement
+            int lightIdx = i % 4; // Limit to 4 shadowed lights
+            switch(lightIdx) {
+                case 0:
+                    if (uPointShadowsEnabled) {
+                        float pointShadowFactor = pointShadowCalculationPCF(vFragPos, light.position, uPointShadowMap, uFarPlane);
+                        pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
+                    }
+                    break;
+                case 1:
+                    if (uPointShadowsEnabled1) {
+                        float pointShadowFactor = pointShadowCalculationPCF(vFragPos, light.position, uPointShadowMap1, uFarPlane);
+                        pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
+                    }
+                    break;
+                case 2:
+                    if (uPointShadowsEnabled2) {
+                        float pointShadowFactor = pointShadowCalculationPCF(vFragPos, light.position, uPointShadowMap2, uFarPlane);
+                        pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
+                    }
+                    break;
+                case 3:
+                    if (uPointShadowsEnabled3) {
+                        float pointShadowFactor = pointShadowCalculationPCF(vFragPos, light.position, uPointShadowMap3, uFarPlane);
+                        pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
+                    }
+                    break;
             }
-            
-            // Calculate point light color with proper PBR contribution
-            vec3 pointLightColorValue = uPointLightColor;
-            pointLightColors += (pointKD * albedo * RECIPROCAL_PI + pointSpecular) * pointNdotL * 
-                    uPointLightIntensity * pointAttenuation * pointShadow * pointLightColorValue;
         }
+        
+        // Calculate point light color with proper PBR contribution
+        pointLightColors += (pointKD * albedo * RECIPROCAL_PI + pointSpecular) * pointNdotL * 
+                light.intensity * pointAttenuation * pointShadow * light.color;
+    }
+    
+    // Legacy point light handling - only use if no new lights are available
+    if (uPointLightCount == 0) {
+        // Backward compatibility for first point light
+        vec3 pointL = normalize(uPointLightPos - vWorldPos);
+        float pointNdotL = max(dot(N, pointL), 0.0);
+        
+        float pointDistance = length(vWorldPos - uPointLightPos);
+        float pointAttenuation = 1.0 / (1.0 + (pointDistance * pointDistance) / (uLightRadius * uLightRadius));
+        
+        vec3 pointSpecular = specularBRDF(N, pointL, V, baseF0, roughness);
+        vec3 pointKD = (vec3(1.0) - pointSpecular) * (1.0 - metallic);
+        
+        float pointShadow = 1.0;
+        if (uPointShadowsEnabled) {
+            float pointShadowFactor = pointShadowCalculationPCF(vFragPos, uPointLightPos, uPointShadowMap, uFarPlane);
+            pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
+        }
+        
+        // First light contribution
+        pointLightColors += (pointKD * albedo * RECIPROCAL_PI + pointSpecular) * pointNdotL * 
+                uPointLightIntensity * pointAttenuation * pointShadow * uPointLightColor;
         
         // Second point light - only if more than one light is available
         if (uPointLightCount > 1) {
-            // Direction from fragment to second point light
-            vec3 pointL = normalize(uPointLightPos1 - vWorldPos);
-            float pointNdotL = max(dot(N, pointL), 0.0);
+            pointL = normalize(uPointLightPos1 - vWorldPos);
+            pointNdotL = max(dot(N, pointL), 0.0);
             
-            // Calculate distance attenuation for second point light
-            float pointDistance = length(vWorldPos - uPointLightPos1);
-            float pointAttenuation = 1.0 / (1.0 + (pointDistance * pointDistance) / (uPointLightRadius1 * uPointLightRadius1));
+            pointDistance = length(vWorldPos - uPointLightPos1);
+            pointAttenuation = 1.0 / (1.0 + (pointDistance * pointDistance) / (uPointLightRadius1 * uPointLightRadius1));
             
-            // Calculate specular for second point light
-            vec3 pointSpecular = specularBRDF(N, pointL, V, baseF0, roughness);
-            vec3 pointKD = (vec3(1.0) - pointSpecular) * (1.0 - metallic);
+            pointSpecular = specularBRDF(N, pointL, V, baseF0, roughness);
+            pointKD = (vec3(1.0) - pointSpecular) * (1.0 - metallic);
             
-            // Calculate point light shadow
-            float pointShadow = 1.0;
+            pointShadow = 1.0;
             if (uPointShadowsEnabled1) {
-                // Use PCF to sample point shadow map
                 float pointShadowFactor = pointShadowCalculationPCF(vFragPos, uPointLightPos1, uPointShadowMap1, uFarPlane);
                 pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
             }

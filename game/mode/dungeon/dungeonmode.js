@@ -44,6 +44,7 @@ class DungeonMode {
         this.generateDungeon();
         this.setupPointLight();
         this.setupGreenPointLight(); // Add a second point light (green) in the south room
+        this.setupBlueLight(); // Add a third point light (blue) in the north room
     }
     
     /**
@@ -66,7 +67,7 @@ class DungeonMode {
             this.pointLight = this.renderer3D.lightManager.createPointLight(
                 lightPos,         // Position
                 lightColor,       // Light color
-                2.0,              // Intensity - increase for better visibility with directional light
+                1.0,              // Intensity - increase for better visibility with directional light
                 500.0,            // Radius
                 true              // Cast shadows
             );
@@ -100,12 +101,45 @@ class DungeonMode {
         this.greenPointLight = this.renderer3D.lightManager.createPointLight(
             lightPos,         // Position
             lightColor,       // Light color
-            1.5,              // Intensity - slightly brighter than the first light
+            1.0,              // Intensity - slightly brighter than the first light
             400.0,            // Radius - slightly smaller than the first light
             true              // Cast shadows
         );
         
         console.log("[DungeonMode] Created green omnidirectional shadow light in south room");
+        console.log(`[DungeonMode] Light manager now has ${this.renderer3D.lightManager.pointLights.length} point lights`);
+    }
+    
+    /**
+     * Set up a blue omnidirectional point light in the north room
+     */
+    setupBlueLight() {
+        // Make sure north room and light manager exist
+        if (!this.northRoom || !this.renderer3D || !this.renderer3D.lightManager) {
+            console.warn("[DungeonMode] Cannot create blue light - north room or light manager not available");
+            return;
+        }
+            
+        // Position the light in the middle of the north room
+        const lightPos = new Vector3(
+            this.northRoom.position.x,
+            this.northRoom.position.y + this.northRoom.dimensions.height / 2,  // Position at half height
+            this.northRoom.position.z
+        );
+        
+        // Create a blue color for the light
+        const lightColor = new Vector3(0.2, 0.4, 1.0);
+        
+        // Create the point light
+        this.bluePointLight = this.renderer3D.lightManager.createPointLight(
+            lightPos,         // Position
+            lightColor,       // Light color
+            1.0,              // Intensity
+            350.0,            // Radius
+            true             // Don't cast shadows (to test non-shadow light)
+        );
+        
+        console.log("[DungeonMode] Created blue omnidirectional light in north room");
         console.log(`[DungeonMode] Light manager now has ${this.renderer3D.lightManager.pointLights.length} point lights`);
     }
 
@@ -378,6 +412,12 @@ class DungeonMode {
                 console.log("[DungeonMode] Removing green point light");
                 this.renderer3D.lightManager.removeLight(this.greenPointLight);
                 this.greenPointLight = null;
+            }
+            
+            if (this.bluePointLight) {
+                console.log("[DungeonMode] Removing blue point light");
+                this.renderer3D.lightManager.removeLight(this.bluePointLight);
+                this.bluePointLight = null;
             }
             
             // Log the remaining point lights after cleanup
