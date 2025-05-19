@@ -42,17 +42,17 @@ class LightingConstants {
         // Material properties
         this.MATERIAL = {
             ROUGHNESS: {
-                value: 0.2,
+                value: 1.0,
                 min: 0.0,
                 max: 1.0
             },
             METALLIC: {
-                value: 0.1,
+                value: 0.0,
                 min: 0.0,
                 max: 1.0
             },
             BASE_REFLECTIVITY: {
-                value: 0.5,
+                value: 0.0,
                 min: 0.0,
                 max: 1.0
             }

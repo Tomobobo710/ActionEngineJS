@@ -532,9 +532,8 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
             if (shadowsEnabledLoc !== null) {
                 gl.uniform1i(shadowsEnabledLoc, 1); // 1 = true
                 //console.log(`[PointLight:${index}] Set ${shadowsEnabledUniform} to true`);
-            } else {
-                console.warn(`[PointLight:${index}] Could not find uniform location for ${shadowsEnabledUniform}`);
             }
+            // Removed the console warning since it's expected for some shader variants like virtual boy
             
             // Set shadow bias
             if (shadowBiasLoc !== null) {

@@ -1451,6 +1451,10 @@ ${shadowFunctions}
 // Optimized PBR function that combines GGX and Fresnel calculations
 // This is faster than separate function calls
 vec3 specularBRDF(vec3 N, vec3 L, vec3 V, vec3 F0, float roughness) {
+    // Simple fix: ensure roughness is never exactly zero to prevent division issues
+    // Higher roughness (1.0) = diffuse/rough, Lower roughness (near 0) = mirror/reflective
+    //roughness = max(roughness, 0.001);
+    
     vec3 H = normalize(V + L);
     float NdotH = max(dot(N, H), 0.0);
     float NdotV = max(dot(N, V), 0.0);
@@ -1477,6 +1481,25 @@ vec3 specularBRDF(vec3 N, vec3 L, vec3 V, vec3 F0, float roughness) {
     
     // Combined specular term
     return (D * G * F) / (4.0 * NdotV * NdotL + 0.001);
+}
+// ACES filmic tonemapping (add this function before main)
+    vec3 ACESFilm(vec3 x) {
+        float a = 2.51;
+        float b = 0.03;
+        float c = 2.43;
+        float d = 0.59;
+        float e = 0.14;
+        return clamp((x*(a*x+b))/(x*(c*x+d)+e), 0.0, 1.0);
+    }
+    
+vec3 uncharted2Tonemap(vec3 x) {
+    float A = 0.15;
+    float B = 0.50;
+    float C = 0.10;
+    float D = 0.20;
+    float E = 0.02;
+    float F = 0.30;
+    return ((x*(A*x+C*B)+D*E)/(x*(A*x+B)+D*F))-E/F;
 }
 
 void main() {
@@ -1682,11 +1705,7 @@ void main() {
     }
 
     // Add ambient light (pre-computed constant)
-    color += vec3(0.03) * albedo;
-
-    // Optimized tonemapping and gamma in one step to reduce calculations
-    // This approximation is faster than doing them separately
-    color = pow(color / (color + 1.0), vec3(0.4545)); // 1/2.2 ≈ 0.4545
+    color += vec3(0.3) * albedo;
 
     ${isWebGL2 ? "fragColor" : "gl_FragColor"} = vec4(color, 1.0);
 }`;

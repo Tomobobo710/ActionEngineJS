@@ -8,10 +8,12 @@ class TextureRegistry {
 		this.materialProperties = new Map();
 
 		// Default material properties (used when not specified for a texture)
+		// Note: Roughness is from 0.0 (mirror-like) to 1.0 (completely rough/diffuse)
+		// The shader inverts roughness internally so 0 = reflective, 1 = diffuse
 		this.defaultMaterialProperties = {
-			roughness: 0.2,
-			metallic: 0.1,
-			baseReflectivity: 0.5
+			roughness: 0.0,  // Lower values = more reflective
+			metallic: 0.0,  // Higher values = more metallic
+			baseReflectivity: 0.0  // Higher values = more reflective at glancing angles
 		};
 
 		this.generateTextures();
@@ -55,15 +57,15 @@ class TextureRegistry {
 		snow.generateSnow();
 		this.addTexture("snow", snow);
 
-		this.setMaterialProperties("grass", { roughness: 0.6, metallic: 0.0, baseReflectivity: 0.3 });
-		this.setMaterialProperties("water", { roughness: 0.05, metallic: 0.0, baseReflectivity: 0.8 });
+		this.setMaterialProperties("grass", { roughness: 1.0, metallic: 0.0, baseReflectivity: 0.0 });
+		this.setMaterialProperties("water", { roughness: 0.08, metallic: 0.0, baseReflectivity: 0.72 });
 		this.setMaterialProperties("deepwater", { roughness: 0.05, metallic: 0.0, baseReflectivity: 0.8 });
-		this.setMaterialProperties("sand", { roughness: 0.8, metallic: 0.0, baseReflectivity: 0.2 });
-		this.setMaterialProperties("dunes", { roughness: 0.75, metallic: 0.0, baseReflectivity: 0.25 });
-		this.setMaterialProperties("rock", { roughness: 0.7, metallic: 0.05, baseReflectivity: 0.3 });
-		this.setMaterialProperties("highland", { roughness: 0.65, metallic: 0.0, baseReflectivity: 0.3 });
+		this.setMaterialProperties("sand", { roughness: 0.54, metallic: 0.0, baseReflectivity: 0.21 });
+		this.setMaterialProperties("dunes", { roughness: 0.75, metallic: 0.2, baseReflectivity: 0.42 });
+		this.setMaterialProperties("rock", { roughness: 0.9, metallic: 0.05, baseReflectivity: 0.3 });
+		this.setMaterialProperties("highland", { roughness: 0.0, metallic: 0.0, baseReflectivity: 0.0 });
 		this.setMaterialProperties("treeline", { roughness: 0.7, metallic: 0.0, baseReflectivity: 0.2 });
-		this.setMaterialProperties("snow", { roughness: 0.4, metallic: 0.0, baseReflectivity: 0.7 });
+		this.setMaterialProperties("snow", { roughness: 0.65, metallic: 0.1, baseReflectivity: 0.09 });
 	}
 
 	addTexture(name, texture) {
