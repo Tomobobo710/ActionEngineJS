@@ -106,19 +106,25 @@ class ActionRenderer3D {
             }
         }
         
-        // SHADOW MAP PASS (only if shadows are enabled)
-        if (this.shadowsEnabled && nonWaterObjects.length > 0) {
-            // Render all objects to shadow maps for all lights
-            this.lightManager.renderShadowMaps(nonWaterObjects);
-        }
-        
         // MAIN RENDER PASS
         this.canvasManager.resetToDefaultFramebuffer();
         this.canvasManager.clear();
 
         // Collect all objects into batch first
+        // This will call updateVisual() on each object, ensuring triangles are up-to-date
         for (const object of nonWaterObjects) {
             this.objectRenderer.queue(object, camera, this.currentTime);
+        }
+        
+        // SHADOW MAP PASS (only if shadows are enabled)
+        // Now that objects have been queued and their triangles updated,
+        // we can render accurate shadows
+        if (this.shadowsEnabled && nonWaterObjects.length > 0) {
+            // Render all objects to shadow maps for all lights
+            this.lightManager.renderShadowMaps(nonWaterObjects);
+            
+            // Ensure we're back to the default framebuffer after shadow rendering
+            this.canvasManager.resetToDefaultFramebuffer();
         }
         
         // Prepare for main rendering with shadows
