@@ -1,536 +1,286 @@
 // game/mode/scene/scenelayout.js
 
+/**
+ * SceneLayout - Base class for all scene layouts
+ * 
+ * This base class provides common functionality for creating physics objects,
+ * managing portals, and handling object collections that are shared between
+ * TownLayout, RoomLayout, and other layout types.
+ */
 class SceneLayout {
-    constructor(physicsWorld, position = new Vector3(0, 0, 0), dimensions = {width: 60, height: 30, depth: 60}) {
+    constructor(physicsWorld, position = new Vector3(0, 0, 0), dimensions = {width: 100, height: 30, depth: 100}) {
         this.physicsWorld = physicsWorld;
         this.position = position;
         this.dimensions = dimensions;
         
-        // Type color mapping
+        // Common type color mapping - can be extended by subclasses
         this.typeColors = {
+            // Structural elements
+            "ground": "#7CFC00",         // Lawn Green
             "floor": "#8B4513",          // Brown
             "ceiling": "#696969",        // Dim Gray
             "wall": "#A9A9A9",           // Dark Gray
-            "portal": "#0000FF80",       // Semi-transparent Blue
-            "world_portal": "#00FF0080", // Semi-transparent Green
-            "trigger": "#FFD70080",      // Semi-transparent Gold
+            "path": "#D2B48C",          // Tan
+            
+            // Buildings and structures
+            "building": "#CD853F",      // Peru
+            "building_roof": "#800000", // Maroon
+            
+            // Portals and triggers
+            "building_entrance": "#0000FF80", // Semi-transparent Blue
+            "doorway": "#0000FF80",       // Semi-transparent Blue
+            "exit_door": "#00FF0080",     // Semi-transparent Green
+            "world_exit": "#00FF0080",    // Semi-transparent Green
+            "trigger": "#FFD70080",       // Semi-transparent Gold
+            
+            // Decorative elements
             "decoration": "#FF6347",     // Tomato
+            "obstacle": "#A9A9A9",       // Dark Gray
+            "water": "#00BFFF",          // Deep Sky Blue
+            
+            // Furniture
             "chest": "#CD853F",          // Peru
             "chair": "#DEB887",          // Burlywood
             "table": "#D2B48C"           // Tan
         };
         
-        // Entry point for characters coming into this scene
-        this.entrancePosition = null;
+        // Portal management
+        this.portals = [];
         
-        // Camera position for this scene
-        this.cameraPosition = null;
+        // Object tracking
+        this.objects = this.initializeObjectCollections();
         
-        this.objects = {
-            floor: null,
-            ceiling: null,
-            walls: { north: [], south: [], east: [], west: [] },
-            portals: {},
-            triggers: [],
-            decorations: []
+        // Layout-specific properties that subclasses can override
+        this.spawnPosition = new Vector3(position.x, position.y + 2, position.z);
+    }
+    
+    /**
+     * Initialize object collections - can be overridden by subclasses
+     */
+    initializeObjectCollections() {
+        return {
+            structural: [], // floors, walls, ceilings
+            decorative: [], // decorations, furniture
+            interactive: [] // portals, triggers
         };
-        
-        this.portalStates = {};
-        this.connections = {};
-        this.entrances = {};
-        this.wallThickness = 2;
     }
     
-    createBasicStructure() {
-    const {width, height, depth} = this.dimensions;
-    const {x, y, z} = this.position;
-    const wallThickness = this.wallThickness;
-    
-    // Create floor
-    this.objects.floor = new ActionPhysicsBox3D(
-        this.physicsWorld,
-        width + wallThickness * 2,
-        wallThickness,
-        depth + wallThickness * 2,
-        0,
-        new Vector3(x, y - wallThickness/2, z),
-        this.typeColors["floor"]
-    );
-    this.objects.floor.objectType = "floor";
-    this.objects.floor.body.friction = 0.8;
-    this.physicsWorld.addObject(this.objects.floor);
-    
-    // Create ceiling
-    this.objects.ceiling = new ActionPhysicsBox3D(
-        this.physicsWorld,
-        width + wallThickness * 2,
-        wallThickness,
-        depth + wallThickness * 2,
-        0,
-        new Vector3(x, y + height + wallThickness/2, z),
-        this.typeColors["ceiling"]
-    );
-    this.objects.ceiling.objectType = "ceiling";
-    this.physicsWorld.addObject(this.objects.ceiling);
-    
-    // Create visible walls
-    this.createFullWall("east");
-    this.createFullWall("west");
-    
-    // Create invisible walls for north/south (for collision but not blocking camera)
-    this.createFullWall("north", true);
-    //this.createFullWall("south", true);
-    
-    return this;
-}
-
-createFullWall(direction, invisible = false) {
-    const {width, height, depth} = this.dimensions;
-    const {x, y, z} = this.position;
-    const wallThickness = this.wallThickness;
-    
-    let wall;
-    let options = { isVisible: !invisible };
-    
-    switch(direction) {
-        case "north":
-            wall = new ActionPhysicsBox3D(
-                this.physicsWorld,
-                width + wallThickness * 2,
-                height,
-                wallThickness,
-                0,
-                new Vector3(x, y + height/2, z + depth/2 + wallThickness/2),
-                this.typeColors["wall"],
-                options
-            );
-            break;
-        case "south":
-            wall = new ActionPhysicsBox3D(
-                this.physicsWorld,
-                width + wallThickness * 2,
-                height,
-                wallThickness,
-                0,
-                new Vector3(x, y + height/2, z - depth/2 - wallThickness/2),
-                this.typeColors["wall"],
-                options
-            );
-            break;
-        // Other cases remain the same...
-        case "east":
-            wall = new ActionPhysicsBox3D(
-                this.physicsWorld,
-                wallThickness,
-                height,
-                depth,
-                0,
-                new Vector3(x + width/2 + wallThickness/2, y + height/2, z),
-                this.typeColors["wall"],
-                options
-            );
-            break;
-        case "west":
-            wall = new ActionPhysicsBox3D(
-                this.physicsWorld,
-                wallThickness,
-                height,
-                depth,
-                0,
-                new Vector3(x - width/2 - wallThickness/2, y + height/2, z),
-                this.typeColors["wall"],
-                options
-            );
-            break;
-    }
-    
-    if (wall) {
-        wall.objectType = "wall";
-        wall.isInvisible = invisible; // Store for reference
-        this.physicsWorld.addObject(wall);
-        this.objects.walls[direction].push(wall);
-    }
-    
-    return wall;
-}
-    
-    createWallOpening(direction, openingWidth = 12, openingHeight = 16) {
-        const {width, height, depth} = this.dimensions;
-        const {x, y, z} = this.position;
-        const wallThickness = this.wallThickness;
-        
-        const maxWidth = (direction === "north" || direction === "south") ? 
-                         width - wallThickness * 2 : depth - wallThickness * 2;
-        openingWidth = Math.min(openingWidth, maxWidth);
-        openingHeight = Math.min(openingHeight, height - wallThickness);
-        
-        if (this.objects.walls[direction].length > 0) {
-            for (const wall of this.objects.walls[direction]) {
-                this.physicsWorld.removeObject(wall);
-            }
-            this.objects.walls[direction] = [];
-        }
-        
-        let openingPosition;
-        let leftWall, rightWall, header;
-        
-        switch(direction) {
-            case "north": {
-                const sideWallWidth = (width + wallThickness * 2 - openingWidth) / 2;
-                
-                leftWall = new ActionPhysicsBox3D(
-                    this.physicsWorld,
-                    sideWallWidth,
-                    height,
-                    wallThickness,
-                    0,
-                    new Vector3(x - openingWidth/2 - sideWallWidth/2, y + height/2, z + depth/2 + wallThickness/2),
-                    this.typeColors["wall"]
-                );
-                
-                rightWall = new ActionPhysicsBox3D(
-                    this.physicsWorld,
-                    sideWallWidth,
-                    height,
-                    wallThickness,
-                    0,
-                    new Vector3(x + openingWidth/2 + sideWallWidth/2, y + height/2, z + depth/2 + wallThickness/2),
-                    this.typeColors["wall"]
-                );
-                
-                header = new ActionPhysicsBox3D(
-                    this.physicsWorld,
-                    openingWidth,
-                    height - openingHeight,
-                    wallThickness,
-                    0,
-                    new Vector3(x, y + openingHeight + (height - openingHeight)/2, z + depth/2 + wallThickness/2),
-                    this.typeColors["wall"]
-                );
-                
-                openingPosition = new Vector3(x, y + openingHeight/2, z + depth/2 + wallThickness/2);
-                this.entrances[direction] = new Vector3(x, y + 1, z + depth/2 - 5);
-                break;
-            }
-            case "south": {
-                // Similar pattern for south direction
-                const sideWallWidth = (width + wallThickness * 2 - openingWidth) / 2;
-                
-                leftWall = new ActionPhysicsBox3D(
-                    this.physicsWorld,
-                    sideWallWidth,
-                    height,
-                    wallThickness,
-                    0,
-                    new Vector3(x + openingWidth/2 + sideWallWidth/2, y + height/2, z - depth/2 - wallThickness/2),
-                    this.typeColors["wall"]
-                );
-                
-                rightWall = new ActionPhysicsBox3D(
-                    this.physicsWorld,
-                    sideWallWidth,
-                    height,
-                    wallThickness,
-                    0,
-                    new Vector3(x - openingWidth/2 - sideWallWidth/2, y + height/2, z - depth/2 - wallThickness/2),
-                    this.typeColors["wall"]
-                );
-                
-                header = new ActionPhysicsBox3D(
-                    this.physicsWorld,
-                    openingWidth,
-                    height - openingHeight,
-                    wallThickness,
-                    0,
-                    new Vector3(x, y + openingHeight + (height - openingHeight)/2, z - depth/2 - wallThickness/2),
-                    this.typeColors["wall"]
-                );
-                
-                openingPosition = new Vector3(x, y + openingHeight/2, z - depth/2 - wallThickness/2);
-                this.entrances[direction] = new Vector3(x, y + 1, z - depth/2 + 5);
-                break;
-            }
-            case "east": {
-                // East opening
-                const sideWallDepth = (depth - openingWidth) / 2;
-                
-                leftWall = new ActionPhysicsBox3D(
-                    this.physicsWorld,
-                    wallThickness,
-                    height,
-                    sideWallDepth,
-                    0,
-                    new Vector3(x + width/2 + wallThickness/2, y + height/2, z + openingWidth/2 + sideWallDepth/2),
-                    this.typeColors["wall"]
-                );
-                
-                rightWall = new ActionPhysicsBox3D(
-                    this.physicsWorld,
-                    wallThickness,
-                    height,
-                    sideWallDepth,
-                    0,
-                    new Vector3(x + width/2 + wallThickness/2, y + height/2, z - openingWidth/2 - sideWallDepth/2),
-                    this.typeColors["wall"]
-                );
-                
-                header = new ActionPhysicsBox3D(
-                    this.physicsWorld,
-                    wallThickness,
-                    height - openingHeight,
-                    openingWidth,
-                    0,
-                    new Vector3(x + width/2 + wallThickness/2, y + openingHeight + (height - openingHeight)/2, z),
-                    this.typeColors["wall"]
-                );
-                
-                openingPosition = new Vector3(x + width/2 + wallThickness/2, y + openingHeight/2, z);
-                this.entrances[direction] = new Vector3(x + width/2 - 5, y + 1, z);
-                break;
-            }
-            case "west": {
-                // West opening
-                const sideWallDepth = (depth - openingWidth) / 2;
-                
-                leftWall = new ActionPhysicsBox3D(
-                    this.physicsWorld,
-                    wallThickness,
-                    height,
-                    sideWallDepth,
-                    0,
-                    new Vector3(x - width/2 - wallThickness/2, y + height/2, z - openingWidth/2 - sideWallDepth/2),
-                    this.typeColors["wall"]
-                );
-                
-                rightWall = new ActionPhysicsBox3D(
-                    this.physicsWorld,
-                    wallThickness,
-                    height,
-                    sideWallDepth,
-                    0,
-                    new Vector3(x - width/2 - wallThickness/2, y + height/2, z + openingWidth/2 + sideWallDepth/2),
-                    this.typeColors["wall"]
-                );
-                
-                header = new ActionPhysicsBox3D(
-                    this.physicsWorld,
-                    wallThickness,
-                    height - openingHeight,
-                    openingWidth,
-                    0,
-                    new Vector3(x - width/2 - wallThickness/2, y + openingHeight + (height - openingHeight)/2, z),
-                    this.typeColors["wall"]
-                );
-                
-                openingPosition = new Vector3(x - width/2 - wallThickness/2, y + openingHeight/2, z);
-                this.entrances[direction] = new Vector3(x - width/2 + 5, y + 1, z);
-                break;
-            }
-            default:
-                console.error(`Invalid direction: ${direction}`);
-                return null;
-        }
-        
-        leftWall.objectType = "wall";
-        rightWall.objectType = "wall";
-        header.objectType = "wall";
-        
-        this.physicsWorld.addObject(leftWall);
-        this.physicsWorld.addObject(rightWall);
-        this.physicsWorld.addObject(header);
-        this.objects.walls[direction].push(leftWall, rightWall, header);
-        
-        return openingPosition;
-    }
-    
-    addPortal(direction, targetSceneId, entryDirection, cameraPosition = null, portalWidth = 12, portalHeight = 16) {
-        const portalPosition = this.createWallOpening(direction, portalWidth, portalHeight);
-        if (!portalPosition) return this;
-        
-        const wallThickness = this.wallThickness;
-        
-        let portal;
-        
-        if (direction === "north" || direction === "south") {
-            portal = new ActionPhysicsBox3D(
-                this.physicsWorld,
-                portalWidth,
-                portalHeight,
-                wallThickness / 4,
-                0,
-                portalPosition,
-                this.typeColors["portal"]
-            );
-        } else {
-            portal = new ActionPhysicsBox3D(
-                this.physicsWorld,
-                wallThickness / 4,
-                portalHeight,
-                portalWidth,
-                0,
-                portalPosition,
-                this.typeColors["portal"]
-            );
-        }
-        
-        portal.objectType = "portal";
-        portal.targetSceneId = targetSceneId;
-        portal.entryDirection = entryDirection;
-        portal.cameraPosition = cameraPosition;
-        
-        // Add contact listener for player collision
-        portal.body.debugName = `ScenePortal_${targetSceneId}`;
-        
-        // Allow character to pass through
-        portal.body.addListener('preContact', (body, contact) => {
-            if (body.debugName && body.debugName.includes('Character')) {
-                contact.restitution = 0;
-                contact.friction = 0;
-                contact.disabled = true;
-            }
-        });
-        
-        portal.body.addListener(
-            'contact',
-            (other_body, contact) => {
-                // Only respond to player contacts
-                if (!other_body.debugName || !other_body.debugName.includes('Character')) return;
-                
-                console.log(`Scene Portal - Player contacted portal to scene ${targetSceneId}`);
-                
-                // Reference to scene mode for scene switching
-                if (this.sceneMode) {
-                    this.sceneMode.transitionToScene(targetSceneId, direction);
-                }
-            }
+    /**
+     * Create a standard physics box with common properties
+     */
+    createPhysicsBox(dimensions, mass, position, color, options = {}) {
+        const box = new ActionPhysicsBox3D(
+            this.physicsWorld,
+            dimensions.width,
+            dimensions.height,
+            dimensions.depth,
+            mass,
+            position,
+            color,
+            options
         );
         
-        this.objects.portals[direction] = portal;
-        this.physicsWorld.addObject(portal);
-        
-        return this;
+        return box;
     }
     
-    addWorldPortal(direction, portalWidth = 12, portalHeight = 16) {
-        const portalPosition = this.createWallOpening(direction, portalWidth, portalHeight);
-        if (!portalPosition) return this;
+    /**
+     * Add a physics object to the world with common setup
+     */
+    addPhysicsObject(physicsObject, objectType, collection = 'structural') {
+        physicsObject.objectType = objectType;
+        this.physicsWorld.addObject(physicsObject);
         
-        const wallThickness = this.wallThickness;
-        
-        let portal;
-        
-        if (direction === "north" || direction === "south") {
-            portal = new ActionPhysicsBox3D(
-                this.physicsWorld,
-                portalWidth,
-                portalHeight,
-                wallThickness / 4,
-                0,
-                portalPosition,
-                this.typeColors["world_portal"]
-            );
-        } else {
-            portal = new ActionPhysicsBox3D(
-                this.physicsWorld,
-                wallThickness / 4,
-                portalHeight,
-                portalWidth,
-                0,
-                portalPosition,
-                this.typeColors["world_portal"]
-            );
+        if (this.objects[collection]) {
+            this.objects[collection].push(physicsObject);
         }
         
-        portal.objectType = "world_portal";
+        return physicsObject;
+    }
+    
+    /**
+     * Create a decorative object (non-collidable)
+     */
+    addDecoration(position, dimensions = {width: 4, height: 4, depth: 4}, type = "decoration", options = {}) {
+        const color = this.typeColors[type] || this.typeColors["decoration"];
+        const decoration = this.createPhysicsBox(dimensions, 0, position, color, options);
         
-        // Allow character to pass through
-        portal.body.addListener('preContact', (body, contact) => {
-            if (body.debugName && body.debugName.includes('Character')) {
-                contact.restitution = 0;
-                contact.friction = 0;
-                contact.disabled = true;
-            }
-        });
+        // Set collision properties if specified
+        if (options.collidable) {
+            decoration.body.collision_groups = 2;
+        }
         
-        // Add contact listener for player collision
-        portal.body.debugName = 'WorldPortal';
-        portal.body.addListener(
-            'contact',
-            (other_body, contact) => {
-                // Only respond to player contacts
-                if (!other_body.debugName || !other_body.debugName.includes('Character')) return;
-                
-                console.log(`World Portal - Player contacted portal to world map`);
-                
-                // Reference to scene mode for mode switching
-                if (this.sceneMode && this.sceneMode.gameModeManager) {
-                    requestAnimationFrame(() => {
-                        this.sceneMode.gameModeManager.switchMode("world");
-                    });
-                }
-            }
-        );
+        return this.addPhysicsObject(decoration, type, 'decorative');
+    }
+    
+    /**
+     * Create an obstacle (collidable decoration)
+     */
+    addObstacle(position, dimensions = {width: 5, height: 5, depth: 5}, color = null) {
+        const obstacleColor = color || this.typeColors["obstacle"];
+        const obstacle = this.createPhysicsBox(dimensions, 0, position, obstacleColor);
+        obstacle.body.collision_groups = 2; // Make it collidable
         
-        this.objects.portals[direction] = portal;
-        this.physicsWorld.addObject(portal);
+        return this.addPhysicsObject(obstacle, "obstacle", 'structural');
+    }
+    
+    /**
+     * Create a portal using the TriggerPortal system
+     */
+    addPortal(portalData) {
+        const portal = new TriggerPortal(this.physicsWorld, portalData);
+        this.portals.push(portal);
+        
+        // Also track in objects for consistency
+        if (this.objects.interactive) {
+            this.objects.interactive.push(portal);
+        }
         
         return portal;
     }
     
-    addDecoration(position, dimensions = {width: 4, height: 4, depth: 4}, type = "decoration") {
-        const decoration = new ActionPhysicsBox3D(
-            this.physicsWorld,
-            dimensions.width,
-            dimensions.height,
-            dimensions.depth,
-            0,
-            position,
-            this.typeColors[type] || this.typeColors["decoration"]
+    /**
+     * Create a scene transition portal
+     */
+    addSceneTransitionPortal(position, dimensions, targetScene, sceneManager, options = {}) {
+        const portalData = TriggerPortal.createSceneTransitionData(
+            position, dimensions, targetScene, sceneManager, options
         );
-        
-        decoration.objectType = type;
-        this.physicsWorld.addObject(decoration);
-        this.objects.decorations.push(decoration);
-        
-        return decoration;
+        return this.addPortal(portalData);
     }
     
-    addTrigger(position, dimensions = {width: 6, height: 10, depth: 6}, type = "trigger", callback = null) {
-        const trigger = new ActionPhysicsBox3D(
-            this.physicsWorld,
-            dimensions.width,
-            dimensions.height,
-            dimensions.depth,
-            0,
-            position,
-            this.typeColors["trigger"]
+    /**
+     * Create a world exit portal
+     */
+    addWorldExitPortal(position, dimensions, gameModeManager, options = {}) {
+        const portalData = TriggerPortal.createWorldExitData(
+            position, dimensions, gameModeManager, options
         );
+        return this.addPortal(portalData);
+    }
+    
+    /**
+     * Create a scene exit portal
+     */
+    addSceneExitPortal(position, dimensions, sceneMode, options = {}) {
+        const portalData = TriggerPortal.createSceneExitData(
+            position, dimensions, sceneMode, options
+        );
+        return this.addPortal(portalData);
+    }
+    
+    /**
+     * Create a room transition portal (for indoor scenes)
+     */
+    addRoomTransitionPortal(position, dimensions, targetRoomId, entryDirection, sceneMode, options = {}) {
+        const portalData = TriggerPortal.createRoomTransitionData(
+            position, dimensions, targetRoomId, entryDirection, sceneMode, options
+        );
+        return this.addPortal(portalData);
+    }
+    
+    /**
+     * Create a custom portal with callback
+     */
+    addCustomPortal(position, dimensions, onActivate, options = {}) {
+        const portalData = TriggerPortal.createCustomData(
+            position, dimensions, onActivate, options
+        );
+        return this.addPortal(portalData);
+    }
+    
+    /**
+     * Set the spawn position for characters entering this layout
+     */
+    setSpawnPosition(position) {
+        this.spawnPosition = position;
+    }
+    
+    /**
+     * Get the spawn position for characters entering this layout
+     */
+    getSpawnPosition() {
+        return this.spawnPosition;
+    }
+    
+    /**
+     * Check if a point is within the layout boundaries
+     */
+    containsPoint(point) {
+        const halfWidth = this.dimensions.width / 2;
+        const halfDepth = this.dimensions.depth / 2;
         
-        trigger.objectType = "trigger";
-        trigger.type = type;
-        trigger.isActive = false;
-        trigger.id = Date.now() + Math.floor(Math.random() * 1000);
+        return (
+            point.x >= this.position.x - halfWidth &&
+            point.x <= this.position.x + halfWidth &&
+            point.z >= this.position.z - halfDepth &&
+            point.z <= this.position.z + halfDepth
+        );
+    }
+    
+    /**
+     * Get the bounds of this layout
+     */
+    getBounds() {
+        const halfWidth = this.dimensions.width / 2;
+        const halfDepth = this.dimensions.depth / 2;
         
-        // Add contact listener for player collision
-        trigger.body.debugName = `Trigger_${type}_${trigger.id}`;
-        trigger.body.addListener(
-            'contact',
-            (other_body, contact) => {
-                // Only respond to player contacts
-                if (!other_body.debugName || !other_body.debugName.includes('Character')) return;
-                
-                console.log(`Trigger ${trigger.id} - Player contacted trigger. Type: ${type}`);
-                
-                // Execute the callback if provided
-                if (callback) {
-                    callback(trigger, this);
+        return {
+            minX: this.position.x - halfWidth,
+            maxX: this.position.x + halfWidth,
+            minZ: this.position.z - halfDepth,
+            maxZ: this.position.z + halfDepth
+        };
+    }
+    
+    /**
+     * Clean up all objects in this layout
+     */
+    cleanup() {
+        // Clean up portals
+        for (const portal of this.portals) {
+            portal.destroy();
+        }
+        this.portals = [];
+        
+        // Clean up physics objects
+        for (const collection of Object.values(this.objects)) {
+            if (Array.isArray(collection)) {
+                for (const obj of collection) {
+                    if (obj && this.physicsWorld) {
+                        this.physicsWorld.removeObject(obj);
+                    }
                 }
+                collection.length = 0;
             }
-        );
+        }
+    }
+    
+    /**
+     * Abstract method that subclasses should implement to create their specific layout
+     */
+    createLayout() {
+        throw new Error('SceneLayout.createLayout() must be implemented by subclasses');
+    }
+    
+    /**
+     * Get all physics objects in this layout for rendering
+     */
+    getAllPhysicsObjects() {
+        const allObjects = [];
         
-        this.physicsWorld.addObject(trigger);
-        this.objects.triggers.push(trigger);
+        for (const collection of Object.values(this.objects)) {
+            if (Array.isArray(collection)) {
+                allObjects.push(...collection);
+            }
+        }
         
-        return trigger;
+        // Add portal physics objects
+        for (const portal of this.portals) {
+            if (portal.physicsObject) {
+                allObjects.push(portal.physicsObject);
+            }
+        }
+        
+        return allObjects;
     }
 }

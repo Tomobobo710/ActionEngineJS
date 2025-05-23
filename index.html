@@ -204,10 +204,29 @@
         <script src="game/mode/dungeon/dungeonroom.js"></script>
         <script src="game/mode/dungeon/dungeonmode.js"></script>
 
-        <!-- Scene Mode -->
+        <!-- Scene Mode - New Architecture -->
+        <!-- Base classes and systems -->
         <script src="game/mode/scene/scenelayout.js"></script>
+        <script src="game/mode/scene/triggerportal.js"></script>
+        <script src="game/mode/scene/basegamescene.js"></script>
+        
+        <!-- Character controller -->
         <script src="game/mode/scene/actionfixedperspectivecharacter3D.js"></script>
+        
+        <!-- Scene implementations -->
+        <script src="game/mode/scene/townscene.js"></script>
+        <script src="game/mode/scene/housescene.js"></script>
+        
+        <!-- Layout implementations -->
+        <script src="game/mode/scene/townlayout.js"></script>
+        <script src="game/mode/scene/roomlayout.js"></script>
+        
+        <!-- Scene coordination -->
+        <script src="game/mode/scene/scenemanager.js"></script>
         <script src="game/mode/scene/scenemode.js"></script>
+        
+        <!-- Legacy/deprecated -->
+        <script src="game/mode/scene/indoorscenemode.js"></script>
 
         # Game World Generator
         <script src="game/world/worldgen/biometypes.js"></script>

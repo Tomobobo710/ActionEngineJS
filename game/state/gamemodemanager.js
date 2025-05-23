@@ -9,6 +9,20 @@ class GameModeManager {
         this.currentModeIndex = 0;
     }
 
+    /**
+     * Switch to a different game mode
+     * @param {string} modeName - The name of the mode to switch to
+     * @param {object} params - Optional parameters to pass to the new mode
+     */
+    switchModeWithParams(modeName, params = null) {
+        this.switchModeParams = params;
+        this.switchMode(modeName);
+    }
+    
+    /**
+     * Switch to a different game mode
+     * @param {string} modeName - The name of the mode to switch to
+     */
     switchMode(modeName) {
         // Clean up current mode if it exists
         if (this.activeMode) {
@@ -51,6 +65,8 @@ class GameModeManager {
 
         // Create new mode
         switch (modeName) {
+            // NOTE: "indoor" mode has been consolidated into "scene" mode
+            // All indoor scenes are now handled by SceneManager within scene mode
             case "scene":
                 this.activeMode = new SceneMode(
                     this.gameMaster.canvases,
@@ -58,6 +74,9 @@ class GameModeManager {
                     this.gameMaster.audio,
                     this
                 );
+                
+                // Scene parameters are now handled by SceneManager internally
+                console.log("Scene mode initialized with params:", this.switchModeParams);
                 break;
             case "dungeon":
                 this.activeMode = new DungeonMode(
@@ -113,6 +132,11 @@ class GameModeManager {
 
         this.currentMode = modeName;
         console.log(`[GameModeManager] Switched to ${modeName} mode`);
+        
+        // Keep params available for the newly created mode to access
+        // Don't clear them immediately - let the mode decide when to clear them
+        
+        return this.activeMode; // Return the created mode for reference
     }
 
     cycleMode() {
@@ -139,7 +163,29 @@ class GameModeManager {
                 ) {
                     battleMode.battle.victoryHandled = true;
 
-                    this.switchMode("world");
+                    // Return to the mode we came from (stored in returnInfo)
+                    if (this.returnInfo && this.returnInfo.mode === 'scene') {
+                        console.log('GameModeManager: Returning to scene after battle victory:', this.returnInfo);
+                        console.log('GameModeManager: returnInfo.position details:', this.returnInfo.position);
+                        
+                        const sceneParams = {
+                            sceneType: this.returnInfo.sceneType,
+                            sceneId: this.returnInfo.sceneId,
+                            spawnPosition: this.returnInfo.position
+                        };
+                        
+                        console.log('GameModeManager: About to call switchModeWithParams with:', sceneParams);
+                        
+                        // Return to scene mode with the stored scene info
+                        this.switchModeWithParams('scene', sceneParams);
+                        
+                        // Clear return info after use
+                        this.returnInfo = null;
+                    } else {
+                        // Default fallback to world mode
+                        console.log('GameModeManager: No scene return info, defaulting to world mode');
+                        this.switchMode("world");
+                    }
                 }
             }
             // Check for fishing mode exit
@@ -167,5 +213,16 @@ class GameModeManager {
         if (this.activeMode) {
             this.activeMode.resume();
         }
+    }
+    
+    /**
+     * Get mode parameters - used by modes to access initialization parameters
+     */
+    getModeParams(modeName) {
+        // Return current switch mode params if they match the requested mode
+        if (this.currentMode === modeName) {
+            return this.switchModeParams;
+        }
+        return null;
     }
 }

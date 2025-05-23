@@ -16,6 +16,19 @@ class ActionFixedPerspectiveCharacter3D extends ActionCharacter {
         // Animation state tracking
         this.wasGroundedLastFrame = false;
         this.lastMoveDirection = new Vector3(0, 0, 1);
+        
+        // Random battle system (same as ThirdPersonActionCharacter)
+        this.movementTimer = 0;
+        this.battleThreshold = this.generateNewBattleThreshold();
+        this.isMoving = false;
+    }
+    
+    /**
+     * Generate a new random battle threshold (same as ThirdPersonActionCharacter)
+     */
+    generateNewBattleThreshold() {
+        // Generate threshold between 2-22 seconds of movement
+        return Math.random() * 20 + 2;
     }
 
     applyInput(input, deltaTime) {
@@ -66,6 +79,7 @@ class ActionFixedPerspectiveCharacter3D extends ActionCharacter {
             moveDir.normalize();
             this.lastMoveDirection.set(moveDir.x, 0, moveDir.z);
             this.hasMovedOnce = true;
+            isMovingThisFrame = true;
         }
 
         // Normalize the movement vector if moving diagonally
@@ -88,6 +102,23 @@ class ActionFixedPerspectiveCharacter3D extends ActionCharacter {
         // Debug toggle
         if (input.isKeyJustPressed("ActionDebugToggle")) {
             console.log("Character Debug:", this.controller.getDebugInfo());
+        }
+        
+        // Random battle encounter logic (same as ThirdPersonActionCharacter)
+        this.isMoving = isMovingThisFrame;
+        if (isMovingThisFrame) {
+            this.movementTimer += deltaTime;
+            // Check if we've hit the time threshold for random encounter
+            if (this.movementTimer >= this.battleThreshold) {
+                // Reset timer and generate new threshold
+                this.movementTimer = 0;
+                this.battleThreshold = this.generateNewBattleThreshold();
+                // Set pending battle transition only if random battles are enabled
+                if (this.game.enableRandomBattles !== false) {
+                    console.log('ActionFixedPerspectiveCharacter3D: Random encounter triggered!');
+                    this.game.pendingBattleTransition = true;
+                }
+            }
         }
     }
     
