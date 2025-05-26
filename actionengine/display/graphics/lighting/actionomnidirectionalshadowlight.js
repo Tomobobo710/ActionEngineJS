@@ -198,11 +198,127 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
      * Create reusable buffers for shadow rendering
      */
     createReusableBuffers() {
-        // Create persistent buffers instead of per-object temporary ones
+        // OPTIMIZED: Create shared shadow geometry buffer for static triangles
+        this.maxShadowTriangles = 500000; // Increased to 500k triangles to handle large scenes
+        this.maxShadowVertices = this.maxShadowTriangles * 3;
+        
+        // Create shared static geometry buffer
+        this.staticShadowGeometry = {
+            positions: new Float32Array(this.maxShadowVertices * 3),
+            indices: new Uint16Array(this.maxShadowVertices),
+            currentVertexOffset: 0,
+            currentIndexOffset: 0
+        };
+        
+        // Create GL buffers for static geometry
         this.shadowBuffers = {
             position: this.gl.createBuffer(),
             index: this.gl.createBuffer()
         };
+        
+        // Object geometry tracking (shared across all cubemap faces)
+        this.objectGeometry = new Map(); // object -> {vertexOffset, indexOffset, indexCount, originalTriangles}
+        
+        console.log(`[ActionOmnidirectionalShadowLight] Initialized static shadow geometry system for ${this.maxShadowTriangles} triangles`);
+    }
+    /**
+     * Initialize static shadow geometry for an object (called once per object)
+     * This uploads the object's original triangles to the shared static geometry buffer
+     * @param {Object} object - The object to initialize
+     */
+    initializeObjectShadowGeometry(object) {
+        // Skip if already initialized or no triangles
+        if (this.objectGeometry.has(object) || !object.triangles || object.triangles.length === 0) {
+            return;
+        }
+        
+        // Use original triangles if available (for transform via model matrix)
+        // Otherwise fall back to current triangles
+        let sourceTriangles;
+        if (object._originalTriangles && object._originalTriangles.length > 0) {
+            sourceTriangles = object._originalTriangles; // Use untransformed triangles for physics objects
+        } else if (object.characterModel && object.characterModel.triangles) {
+            sourceTriangles = object.characterModel.triangles; // Use character model triangles
+        } else {
+            sourceTriangles = object.triangles; // Fallback to current triangles
+        }
+        
+        const triangleCount = sourceTriangles.length;
+        const vertexCount = triangleCount * 3;
+        
+        // Check if we have space in the static buffer
+        if (this.staticShadowGeometry.currentVertexOffset + vertexCount > this.maxShadowVertices) {
+            console.warn(`[OmnidirectionalShadowLight] Not enough space in static shadow buffer for object with ${triangleCount} triangles. Using fallback rendering.`);
+            
+            // Mark this object to use fallback rendering (old method)
+            this.objectGeometry.set(object, { useFallback: true });
+            return;
+        }
+        
+        const gl = this.gl;
+        const geometry = this.staticShadowGeometry;
+        
+        // Store geometry info for this object
+        const geometryInfo = {
+            vertexOffset: geometry.currentVertexOffset,
+            indexOffset: geometry.currentIndexOffset,
+            indexCount: vertexCount,
+            triangleCount: triangleCount,
+            needsModelMatrix: true // Flag indicating this object needs model matrix transforms
+        };
+        
+        // Fill geometry arrays with original triangle data
+        for (let i = 0; i < triangleCount; i++) {
+            const triangle = sourceTriangles[i];
+            
+            for (let j = 0; j < 3; j++) {
+                const vertex = triangle.vertices[j];
+                const vertexIndex = (geometry.currentVertexOffset + i * 3 + j) * 3;
+                
+                // Store original vertex positions (before any transformations)
+                geometry.positions[vertexIndex] = vertex.x;
+                geometry.positions[vertexIndex + 1] = vertex.y;
+                geometry.positions[vertexIndex + 2] = vertex.z;
+                
+                // Set up indices
+                geometry.indices[geometry.currentIndexOffset + i * 3 + j] = geometry.currentVertexOffset + i * 3 + j;
+            }
+        }
+        
+        // Update offsets for next object
+        geometry.currentVertexOffset += vertexCount;
+        geometry.currentIndexOffset += vertexCount;
+        
+        // Store geometry info
+        this.objectGeometry.set(object, geometryInfo);
+        
+        console.log(`[OmnidirectionalShadowLight] Initialized shadow geometry for object: ${triangleCount} triangles at offset ${geometryInfo.indexOffset}`);
+        
+        // Mark that we need to upload the updated geometry buffer
+        this._geometryBufferDirty = true;
+    }
+    
+    /**
+     * Upload the static geometry buffer to GPU (called when geometry changes)
+     */
+    uploadStaticGeometry() {
+        if (!this._geometryBufferDirty) {
+            return;
+        }
+        
+        const gl = this.gl;
+        const geometry = this.staticShadowGeometry;
+        
+        // Upload position data
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.shadowBuffers.position);
+        gl.bufferData(gl.ARRAY_BUFFER, geometry.positions.subarray(0, geometry.currentVertexOffset * 3), gl.STATIC_DRAW);
+        
+        // Upload index data
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.shadowBuffers.index);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, geometry.indices.subarray(0, geometry.currentIndexOffset), gl.STATIC_DRAW);
+        
+        this._geometryBufferDirty = false;
+        console.log(`[OmnidirectionalShadowLight] Uploaded static shadow geometry: ${geometry.currentVertexOffset} vertices, ${geometry.currentIndexOffset} indices`);
     }
     
     /**
@@ -300,6 +416,9 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
         if (!this._savedViewport) {
             this._savedViewport = gl.getParameter(gl.VIEWPORT);
         }
+        
+        // Reset static geometry binding flag for this shadow pass
+        this._staticGeometryBound = false;
 
         // Create shadow maps on demand if they don't exist for this light
         if (!this.shadowFramebuffer && !this.shadowTexture) {
@@ -384,6 +503,99 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
      * Render a single object to the shadow map for a specific face
      * @param {Object} object - The object to render
      */
+    /**
+     * OPTIMIZED: Render multiple objects to shadow map in one batch
+     * This eliminates bufferData() calls for each object
+     * @param {Array} objects - Array of objects to render
+     */
+    renderObjectsToShadowMap(objects) {
+        if (!this.shadowsEnabled || !objects || objects.length === 0) {
+            return;
+        }
+        
+        const gl = this.gl;
+        
+        // Filter valid objects and calculate total vertices
+        const validObjects = [];
+        let totalVertices = 0;
+        
+        for (const object of objects) {
+            if (!object.triangles || object.triangles.length === 0) continue;
+            
+            const triangleCount = object.triangles.length;
+            const vertexCount = triangleCount * 3;
+            
+            if (totalVertices + vertexCount > this.maxShadowVertices) {
+                console.warn('[ActionOmnidirectionalShadowLight] Exceeding shadow buffer capacity');
+                break;
+            }
+            
+            validObjects.push({ object, triangleCount, startVertex: totalVertices });
+            totalVertices += vertexCount;
+        }
+        
+        if (validObjects.length === 0) return;
+        
+        // Fill buffer data for all objects
+        this.fillBatchedShadowData(validObjects);
+        
+        // Update buffers with single bufferSubData call
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.shadowBuffers.position);
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, 
+            this.persistentShadowArrays.positions.subarray(0, totalVertices * 3));
+        
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.shadowBuffers.index);
+        gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER, 0,
+            this.persistentShadowArrays.indices.subarray(0, totalVertices));
+        
+        // Set up shader uniforms
+        const modelMatrix = Matrix4.create(); // Identity matrix
+        gl.uniformMatrix4fv(this.shadowLocations.modelMatrix, false, modelMatrix);
+        
+        // Set up vertex attributes
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.shadowBuffers.position);
+        gl.vertexAttribPointer(this.shadowLocations.position, 3, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(this.shadowLocations.position);
+        
+        // Draw all objects in one call
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.shadowBuffers.index);
+        gl.drawElements(gl.TRIANGLES, totalVertices, gl.UNSIGNED_SHORT, 0);
+    }
+    
+    /**
+     * Helper method to fill batched shadow data
+     * @param {Array} validObjects - Array of valid objects with metadata
+     */
+    fillBatchedShadowData(validObjects) {
+        let vertexOffset = 0;
+        
+        for (const { object, triangleCount } of validObjects) {
+            const triangles = object.triangles;
+            
+            for (let i = 0; i < triangles.length; i++) {
+                const triangle = triangles[i];
+                
+                for (let j = 0; j < 3; j++) {
+                    const vertex = triangle.vertices[j];
+                    const baseIndex = (vertexOffset + i * 3 + j) * 3;
+                    
+                    this.persistentShadowArrays.positions[baseIndex] = vertex.x;
+                    this.persistentShadowArrays.positions[baseIndex + 1] = vertex.y;
+                    this.persistentShadowArrays.positions[baseIndex + 2] = vertex.z;
+                    
+                    this.persistentShadowArrays.indices[vertexOffset + i * 3 + j] = vertexOffset + i * 3 + j;
+                }
+            }
+            
+            vertexOffset += triangleCount * 3;
+        }
+    }
+    
+    /**
+     * DEPRECATED: Render single object to shadow map
+     * Use renderObjectsToShadowMap for better performance
+     * @param {Object} object - Single object to render
+     */
     renderObjectToShadowMap(object) {
         const gl = this.gl;
         const triangles = object.triangles;
@@ -393,11 +605,8 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
             return;
         }
 
-        // Set model matrix for this object
-        // For debugging, add an identity matrix to ensure proper transformation
+        // Use identity model matrix since triangles are already in world space
         const modelMatrix = Matrix4.create();
-        // If the object has a transformation matrix, we should use it
-        // For now using identity matrix to debug the basic case
         gl.uniformMatrix4fv(this.shadowLocations.modelMatrix, false, modelMatrix);
 
         // Calculate total vertices and indices
@@ -429,20 +638,127 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
             }
         }
 
-        // Bind and upload position data to our reusable buffer
+        // Use buffer orphaning to avoid stalls
         gl.bindBuffer(gl.ARRAY_BUFFER, this.shadowBuffers.position);
-        gl.bufferData(gl.ARRAY_BUFFER, this._positionsArray, gl.DYNAMIC_DRAW);
+        gl.bufferData(gl.ARRAY_BUFFER, this._positionsArray.byteLength, gl.DYNAMIC_DRAW);
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, this._positionsArray.subarray(0, totalVertices * 3));
 
         // Set up position attribute
         gl.vertexAttribPointer(this.shadowLocations.position, 3, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(this.shadowLocations.position);
 
-        // Bind and upload index data to our reusable buffer
+        // Upload index data
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.shadowBuffers.index);
-        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, this._indicesArray, gl.DYNAMIC_DRAW);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, this._indicesArray.byteLength, gl.DYNAMIC_DRAW);
+        gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER, 0, this._indicesArray.subarray(0, totalVertices));
 
         // Draw object
         gl.drawElements(gl.TRIANGLES, totalVertices, gl.UNSIGNED_SHORT, 0);
+    }
+    /**
+     * Get the model matrix for an object based on its current physics state
+     * @param {Object} object - The object to get matrix for
+     * @returns {Float32Array} - The model matrix
+     */
+    getObjectModelMatrix(object) {
+        const modelMatrix = Matrix4.create();
+        
+        // For physics objects, use the body's current position and rotation
+        if (object.body) {
+            const pos = object.body.position;
+            const rot = object.body.rotation;
+            
+            // Apply translation
+            Matrix4.translate(modelMatrix, modelMatrix, [pos.x, pos.y, pos.z]);
+            
+            // Apply rotation from physics body quaternion
+            const rotationMatrix = Matrix4.create();
+            Matrix4.fromQuat(rotationMatrix, [rot.x, rot.y, rot.z, rot.w]);
+            Matrix4.multiply(modelMatrix, modelMatrix, rotationMatrix);
+        }
+        // For objects with manual position/rotation
+        else if (object.position) {
+            Matrix4.translate(modelMatrix, modelMatrix, [object.position.x, object.position.y, object.position.z]);
+            
+            if (object.rotation !== undefined) {
+                Matrix4.rotateY(modelMatrix, modelMatrix, object.rotation);
+            }
+        }
+        
+        return modelMatrix;
+    }
+    /**
+     * Fallback rendering method for objects that don't fit in static buffer
+     * Uses the original dynamic triangle upload approach
+     * @param {Object} object - The object to render
+     */
+    renderObjectToShadowMapFallback(object) {
+        const gl = this.gl;
+        const triangles = object.triangles;
+
+        // Skip if object has no triangles
+        if (!triangles || triangles.length === 0) {
+            return;
+        }
+
+        // Set model matrix for this object (identity since triangles are already transformed)
+        const modelMatrix = Matrix4.create();
+        gl.uniformMatrix4fv(this.shadowLocations.modelMatrix, false, modelMatrix);
+
+        // Calculate total vertices and indices
+        const totalVertices = triangles.length * 3;
+        
+        // Only allocate new arrays if needed or if size has changed
+        if (!this._fallbackPositionsArray || this._fallbackPositionsArray.length < totalVertices * 3) {
+            this._fallbackPositionsArray = new Float32Array(totalVertices * 3);
+        }
+        if (!this._fallbackIndicesArray || this._fallbackIndicesArray.length < totalVertices) {
+            this._fallbackIndicesArray = new Uint16Array(totalVertices);
+        }
+
+        // Fill position and index arrays
+        for (let i = 0; i < triangles.length; i++) {
+            const triangle = triangles[i];
+
+            // Process vertices
+            for (let j = 0; j < 3; j++) {
+                const vertex = triangle.vertices[j];
+                const baseIndex = (i * 3 + j) * 3;
+
+                this._fallbackPositionsArray[baseIndex] = vertex.x;
+                this._fallbackPositionsArray[baseIndex + 1] = vertex.y;
+                this._fallbackPositionsArray[baseIndex + 2] = vertex.z;
+
+                // Set up indices
+                this._fallbackIndicesArray[i * 3 + j] = i * 3 + j;
+            }
+        }
+
+        // Create temporary buffers for fallback rendering
+        if (!this._fallbackBuffers) {
+            this._fallbackBuffers = {
+                position: gl.createBuffer(),
+                index: gl.createBuffer()
+            };
+        }
+
+        // Bind and upload position data to fallback buffer
+        gl.bindBuffer(gl.ARRAY_BUFFER, this._fallbackBuffers.position);
+        gl.bufferData(gl.ARRAY_BUFFER, this._fallbackPositionsArray, gl.DYNAMIC_DRAW);
+
+        // Set up position attribute
+        gl.vertexAttribPointer(this.shadowLocations.position, 3, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(this.shadowLocations.position);
+
+        // Bind and upload index data to fallback buffer
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this._fallbackBuffers.index);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, this._fallbackIndicesArray, gl.DYNAMIC_DRAW);
+
+        // Draw object using fallback method
+        gl.drawElements(gl.TRIANGLES, totalVertices, gl.UNSIGNED_SHORT, 0);
+        
+        // Reset static geometry binding flag since we used different buffers
+        this._staticGeometryBound = false;
     }
     
     

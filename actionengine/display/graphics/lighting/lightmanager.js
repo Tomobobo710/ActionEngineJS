@@ -356,43 +356,54 @@ class LightManager {
      * @param {Array} objects - Array of objects to render to shadow maps
      */
     renderShadowMaps(objects) {
+        // Early exit if no objects
+        if (!objects || objects.length === 0) {
+            return;
+        }
+        
+        // Filter objects that actually have triangles once
+        const validObjects = objects.filter(obj => obj && obj.triangles && obj.triangles.length > 0);
+        
+        if (validObjects.length === 0) {
+            return;
+        }
+        
         // Render directional light shadow maps
         for (const light of this.directionalLights) {
             if (light.getShadowsEnabled()) {
                 light.beginShadowPass();
-
+                
                 // Render objects to shadow map
-                for (const object of objects) {
-                    if (object && object.triangles && object.triangles.length > 0) {
-                        light.renderObjectToShadowMap(object);
-                    }
+                for (const object of validObjects) {
+                    light.renderObjectToShadowMap(object);
                 }
-
+                
                 light.endShadowPass();
             }
         }
 
-        // Render point light shadow maps - Important: create separate shadow maps for each light
+        // Render point light shadow maps
         for (let lightIndex = 0; lightIndex < this.pointLights.length; lightIndex++) {
             const light = this.pointLights[lightIndex];
             if (light.getShadowsEnabled()) {
                 // For omnidirectional lights, we need to render the shadow map for each face (6 faces)
                 for (let faceIndex = 0; faceIndex < 6; faceIndex++) {
-                    // Use light index as an identifier to ensure unique shadow maps per light
                     light.beginShadowPass(faceIndex, lightIndex);
-
+                    
                     // Render objects to shadow map for this face
-                    for (const object of objects) {
-                        if (object && object.triangles && object.triangles.length > 0) {
-                            light.renderObjectToShadowMap(object);
-                        }
+                    for (const object of validObjects) {
+                        light.renderObjectToShadowMap(object);
                     }
-
+                    
                     light.endShadowPass();
                 }
             }
         }
 
+        // Reset state after shadow rendering
+        this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
+        this.gl.useProgram(null);
+        
         // Render spot light shadow maps (future)
         // ...
     }
