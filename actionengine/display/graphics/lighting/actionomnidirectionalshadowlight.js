@@ -498,70 +498,7 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
             gl.viewport(this._savedViewport[0], this._savedViewport[1], this._savedViewport[2], this._savedViewport[3]);
         }
     }
-    
-    /**
-     * Render a single object to the shadow map for a specific face
-     * @param {Object} object - The object to render
-     */
-    /**
-     * OPTIMIZED: Render multiple objects to shadow map in one batch
-     * This eliminates bufferData() calls for each object
-     * @param {Array} objects - Array of objects to render
-     */
-    renderObjectsToShadowMap(objects) {
-        if (!this.shadowsEnabled || !objects || objects.length === 0) {
-            return;
-        }
         
-        const gl = this.gl;
-        
-        // Filter valid objects and calculate total vertices
-        const validObjects = [];
-        let totalVertices = 0;
-        
-        for (const object of objects) {
-            if (!object.triangles || object.triangles.length === 0) continue;
-            
-            const triangleCount = object.triangles.length;
-            const vertexCount = triangleCount * 3;
-            
-            if (totalVertices + vertexCount > this.maxShadowVertices) {
-                console.warn('[ActionOmnidirectionalShadowLight] Exceeding shadow buffer capacity');
-                break;
-            }
-            
-            validObjects.push({ object, triangleCount, startVertex: totalVertices });
-            totalVertices += vertexCount;
-        }
-        
-        if (validObjects.length === 0) return;
-        
-        // Fill buffer data for all objects
-        this.fillBatchedShadowData(validObjects);
-        
-        // Update buffers with single bufferSubData call
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.shadowBuffers.position);
-        gl.bufferSubData(gl.ARRAY_BUFFER, 0, 
-            this.persistentShadowArrays.positions.subarray(0, totalVertices * 3));
-        
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.shadowBuffers.index);
-        gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER, 0,
-            this.persistentShadowArrays.indices.subarray(0, totalVertices));
-        
-        // Set up shader uniforms
-        const modelMatrix = Matrix4.create(); // Identity matrix
-        gl.uniformMatrix4fv(this.shadowLocations.modelMatrix, false, modelMatrix);
-        
-        // Set up vertex attributes
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.shadowBuffers.position);
-        gl.vertexAttribPointer(this.shadowLocations.position, 3, gl.FLOAT, false, 0, 0);
-        gl.enableVertexAttribArray(this.shadowLocations.position);
-        
-        // Draw all objects in one call
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.shadowBuffers.index);
-        gl.drawElements(gl.TRIANGLES, totalVertices, gl.UNSIGNED_SHORT, 0);
-    }
-    
     /**
      * Helper method to fill batched shadow data
      * @param {Array} validObjects - Array of valid objects with metadata
@@ -592,8 +529,7 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
     }
     
     /**
-     * DEPRECATED: Render single object to shadow map
-     * Use renderObjectsToShadowMap for better performance
+     * Render a single object to the shadow map for a specific face
      * @param {Object} object - Single object to render
      */
     renderObjectToShadowMap(object) {
