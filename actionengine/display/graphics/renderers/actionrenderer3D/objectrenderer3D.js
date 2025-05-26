@@ -27,7 +27,7 @@ class ObjectRenderer3D {
         this.viewFrustum = new ViewFrustum();
         
         // Frustum culling is enabled by default
-        this.enableFrustumCulling = false;
+        this.enableFrustumCulling = true;
         
         // Add state tracking to avoid redundant texture bindings
         this._currentTextureUnit = -1;
