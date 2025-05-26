@@ -109,14 +109,6 @@ class ActionLight {
     }
     
     /**
-     * Check if this light casts shadows
-     * @returns {boolean} - Whether shadows are enabled
-     */
-    getShadowsEnabled() {
-        return this.castsShadows;
-    }
-    
-    /**
      * Update the light's internal state
      * This should be called once per frame
      * @returns {boolean} - Whether any properties changed this frame
