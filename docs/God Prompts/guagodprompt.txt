@@ -1,0 +1,1915 @@
+Here is the guide for Gua:
+Goal of Gua is to make a language between Humans and Ai. Essentially to reduce the use of tokens and increase the availability of token context.
+
+## Core Gua Symbol System
+
+| Category | Symbol | Meaning | Example Usage |
+|----------|--------|---------|--------------|
+| **Logic Operators** | + | and, positive, good | "idea+" = "good idea" |
+| | - | not, negative, bad | "want-" = "don't want" |
+| | * | emphasis, multiply | "imp*" = "very important" |
+| | / | or, alternatives | "this/that" = "this or that" |
+| | : | is, equals, defines | "gua:efficient" = "gua is efficient" |
+| **Pronouns & People** | @ | you/your | "@idea?" = "your idea?" |
+| | j | I/me/my | "j think" = "I think" |
+| | we | we/us/our | "we do" = "we will do it" |
+| **Flow Control** | ; | then, next step | "read;write" = "read then write" |
+| | () | group concepts | "(cost+time)" = "both cost and time" |
+| | [] | optional | "[maybe]later" = "maybe later" |
+| | {} | variable | "{topic}?" = "what topic?" |
+| **Quantities** | # | number | "#5" = "number 5", "tmrw #15" = "tomorrow at 3pm" |
+| | % | percent, portion | "50%" = "fifty percent" |
+| | ~ | approximately | "~5min" = "about 5 minutes" |
+| | < | less than | "<5" = "less than 5" |
+| | > | more than | ">10" = "more than 10" |
+| **Markers** | $ | money, value | "$high" = "high value" |
+| | ! | greeting, important | "!team" = "hello team" |
+| | ? | question | "done?" = "is it done?" |
+| | • | list item | "•one •two" = "first second" |
+
+## Advanced Combo Examples
+
+| Combo | Meaning | Example |
+|-------|---------|---------|
+| @+ | you and | "@+j work" = "you and I work" |
+| this. | I am | "this.ready" = "I am ready" |
+| ?+ | and also ask | "done?+when" = "is it done and when?" |
+| *imp | very important | "*imp note" = "very important note" |
+| -want | don't want | "-want this" = "don't want this" |
+| task; | after task | "finish;start" = "finish then start" |
+| ~= | approximately equals | "~=same" = "approximately the same" |
+| j/ | either me or | "j/@" = "either me or you" |
+| @? | asking you | "@?help" = "can you help?" |
+| +1 | agree | "+1 idea" = "I agree with that idea" |
+
+## Ultra-Compressed Phrases
+
+| Gua Format | Standard English |
+|------------|------------------|
+| !@? | "Hello, how are you?" |
+| this.ok+ | "I am good and ready" |
+| need{info}? | "Do you need what information?" |
+| @idea*good | "Your idea is very good" |
+| pls;thx | "Please do this then thanks" |
+| cost$? | "What is the cost?" |
+| j-knw | "I don't know" |
+| @+j do tmrw? | "Can you and I do it tomorrow?" |
+| task1;2;3 | "Do task 1, then 2, then 3" |
+| opt[A/B/C] | "Options are A, B, or C" |
+| j need {taskA} status + {taskB} status. | "I need to know the status of task A and task B." |
+| this +/ -? | "Is this good or bad?" |
+| *imp: review {doc} now. | "Very important: review this document now." |
+| j -want this / +want that. | "I don't want this, but I want that." |
+| ~10min; we start. | "Approximately 10 minutes, then we can start." |
+
+## Implementation Strategy
+
+1. **Start simple**: Begin with basic symbols (+, -, ?, @, j)
+2. **Build gradually**: Add more symbols as conversation develops
+3. **Context matters**: Use more symbols in established contexts
+4. **Consistency**: Use the same symbol patterns throughout
+5. **Balance**: Find the sweet spot between compression and clarity
+
+This advanced system could potentially reduce token usage by 5-40% once mastered, while maintaining semantic clarity through the systematic use of mathematical and logical symbols that carry inherent meaning.
+User: idea: tell AI: all this stuff work+, study Game class, then make game + system here by ONLY supply Game class ([other classes] Game need- part existing sys).
+
+!ActionEngine: [welcome* +game dev process]
+[abstracts]: *input, audio, bg systems
+[bypass]: setup hurdles-
+[focus]: GAME!
+[demo] shows patterns (docs+explain)
+[outcome]: game pro
+create masterpieces!
+
+THE GAME CLASS:
+Game class: ActionEngine heart + game entry.
+ActionEngine goal: dev work only in Game class.
+Game class: ONLY required. [other classes] intertwine+ Game ok.
+ActionEngine supplies #3 math classes: Vector2, Vector3, Matrix4. *feature, [not fully demo].
+input+audio+math classes: ONLY dev API.
+[other classes, logic, math]: game-by-game heavy lifting.
+
+Game class overview:
+create: ActionEngine pass:
+• Canvases
+• Input sys
+• Audio sys
+Dev integration: *easy, config-/maintenance-
+Focus: Game logic+render
+
+Constructor:
+@param canvases: {gameCanvas, guiCanvas, debugCanvas}
+@param input: ActionEngine input sys (auto handle keyboard/mouse/touch)
+@param audio: ActionEngine audio sys (flexible sound create)
+[Params]:
+• [Canvases]: [auto managed], #3 layers -> UI separate
+• [Input]: seamless + API (keyboard+mouse+touch)
+• [Audio]: [flexible sound create] + midi options
+[Demo]: showcase key patterns + capabilities
+
+Core Systems:
+Canvas init.
+DEMO: store core engine sys refs.
+this.input = input; // handle keyboard, mouse, touch input
+this.audio = audio; // manage sound gen+playback
+gameCanvas: main game layer. [2D/3D context]
+DEMO: use 3D context.
+this.gl = this.gameCanvas.getContext("webgl2") / this.gameCanvas.getContext("webgl");
+[could use 2D context for 2D game]
+[this.gameCtx = this.gameCanvas.getContext("2d");]
+#2 add canvas layers: fixed 2D context.
+canvases: ref canvas objects, not context.
+this.guiCanvas = canvases.guiCanvas; // *ALWAYS 2D* UI overlay (menus+HUD)
+this.debugCanvas = canvases.debugCanvas; // *ALWAYS 2D* dev/debug overlay
+this.guiCtx = canvases.guiCtx; // *ALWAYS 2D* UI context
+this.debugCtx = canvases.debugCtx; // *ALWAYS 2D* debug context
+
+Init 3D Render + Physics World:
+init 3D renderer: handle WebGL complexity.
+this.renderer3D = new ActionRenderer3D(this.gameCanvas);
+init physics world: handle physics calc.
+this.physicsWorld = new ActionPhysicsWorld3D();
+setup camera: start free mode [until character spawn].
+this.camera = new ActionCamera();
+this.camera.position = new Vector3(0, 15, -30);
+this.camera.target = new Vector3(0, 0, 0);
+this.camera.isDetached = true; // camera detached init
+this.player = null; // player null until spawn
+
+Debug Overlay Config:
+debug overlay config options.
+layer: display debug info + host 2D mini-game [when toggle].
+this.messages = []; // debug msg array
+this.maxMessages = #20; // max msg history
+this.lineHeight = #20; // vertical px debug msg lines
+this.padding = #10; // padding debug msg area
+this.showDebug = false; // toggle debug overlay visible
+
+Demo Stats Track:
+DEMO: track click stats + simple game logic demo.
+this.totalClicks = #0; // total button clicks
+this.totalButtons = #4; // interactive buttons (include spawn button)
+
+2D Game Elements (debug overlay):
+DEMO: use Vector2 class + setup 2D character.
+Ship properties (2D game behind debug overlay):
+this.shipPosition = Vector2.create(Game.WIDTH / 2, Game.HEIGHT / 2); // Engine provide Vector2 for 2D ops
+this.shipRotation = #0; // radians
+this.shipVelocity = Vector2.create();
+this.shipDirection = Vector2.create(0, -1); // init up
+this.rotationSpeed = #0.05;
+this.thrust = #0.05;
+this.friction = #0.98;
+Soccer ball properties (2D game):
+this.ballPosition = Vector2.create(300, 300);
+this.ballVelocity = Vector2.create(2, 1);
+this.ballRadius = #20;
+this.ballRotation = #0;
+this.ballSpinSpeed = #0.03;
+
+Init Demo Components:
+setup basic 3D physics objects.
+this.setupDemoObjects();
+init GUI elements + interactive buttons.
+this.initializeInteractiveElements();
+create sounds for demo.
+this.createGameSounds();
+console.log("[Demo Game] Init+");
+
+Fixed Coordinate System:
+Action Engine: 800x600 canvas + fixed dimensions.
+DEMO: use this + ref/position by constants.
+Dev: resolution scaling-/viewport-/screen size-/aspect ratio- worry.
+Action Engine: fixed 4:3 aspect ratio + handle window resize/internal "screen" handling.
+Dev: simple position manage.
+DEMO: store + use in future position calc.
+
+setupDemoObjects():
+setup basic 3D scene physics objects.
+create essential #3D world shapes.
+this.ground = this.createGround();
+this.box = this.createBox();
+this.sphere = this.createSphere();
+this.addMessage("[Game] create basic physics objects");
+
+addMessage(msg):
+DEMO: add timestamped msg + debug msg queue.
+maintain max msg limit: remove oldest msg + display debugCanvas.
+this.messages.unshift(`[${new Date().toLocaleTimeString()}] ${msg}`);
+if (this.messages.length > this.maxMessages) {
+	this.messages.pop();
+}
+
+Physics object create methods:
+createBox([width=#5], [height=#5], [depth=#5], [mass=#1], [position=new Vector3(0, 15, 0)]):
+create box + physics.
+const box = new ActionPhysicsBox3D(this.physicsWorld, width, height, depth, mass, position);
+this.physicsWorld.addObject(box);
+return box;
+createSphere([radius=#3], [mass=#1], [position=new Vector3(8, 20, 0)]):
+create sphere + physics.
+const sphere = new ActionPhysicsSphere3D(this.physicsWorld, radius, mass, position);
+this.physicsWorld.addObject(sphere);
+return sphere;
+createGround([size=#100], [position=new Vector3(0, -0.5, 0)]):
+create ground plane (flat box).
+use box create method + flat box shape.
+#0 mass: static object.
+return this.createBox(
+	size, // width *wide
+	#1, // height #1 unit tall
+	size, // depth *deep
+	#0, // mass #0: static object
+	position // position: ~zero default
+);
+
+PROCEDURAL SAILBOAT CREATE + GEOMETRYBUILDER:
+createSailboat([scale=#1], [mass=#2], [position=new Vector3(0, 15, 0)]):
+create procedural sailboat + smart GeometryBuilder triangle winding sys.
+method demo GeometryBuilder power: create complex #3D objects + triangle winding-.
+DEMO: create sailboat with:
+• Hull (boat body) + boat-shape geometry
+• Mast (vertical pole) + structural realism
+• Sail (triangular cloth) + double-sided render
+KEY GEOMETRYBUILDER INSIGHT: Ref points MUST match actual geometry centers!
+set ref point: ensure position = actual geometry.
+GeometryBuilder: auto calc correct triangle winding.
+@param {number} scale: size multiplier *sailboat
+@param {number} mass: physics mass (affect fall+bounce)
+@param {Vector3} position: world position + spawn sailboat
+@returns {ActionPhysicsMesh3D}: sailboat physics object + mesh collision
+
+GEOMETRYBUILDER INIT:
+GeometryBuilder: handle smart triangle winding auto.
+manual clockwise/counterclockwise triangle headaches-!
+const builder = new GeometryBuilder();
+
+GEOMETRY DATA ARRAYS:
+arrays: hold raw geometry data [before convert physics objects].
+const vertices = []; // flat array: [x1,y1,z1, x2,y2,z2, ...]
+const normals = []; // normals for lighting (auto fill)
+const colors = []; // RGB colors per vertex [r,g,b, r,g,b, ...]
+const indices = []; // triangle indices point to vertices [i1,i2,i3, ...]
+
+MATERIAL COLOR DEFS:
+DEMO: use realistic colors + sailboat visual appeal.
+const hullColor = [0.6, 0.3, 0.1]; // rich brown hull
+const sailColor = [0.9, 0.9, 0.9]; // clean white sail
+const mastColor = [0.4, 0.2, 0.1]; // dark brown mast
+
+HULL CONSTRUCTION (BOAT BODY):
+hull: main sailboat body. DEMO: create boat-shape hull + pointed front/back, wider middle, #3D depth.
+calc hull dimensions + scale.
+const hullLength = #6 * scale; // length bow to stern
+const hullWidth = #2 * scale; // width *widest point
+const hullHeight = #1 * scale; // height bottom to deck
+*CRITICAL*: set ref point to ACTUAL hull geometry center!
+GeometryBuilder: auto determine correct winding.
+builder.setReferencePoint({x: 0, y: hullHeight/2, z: 0}); // real hull center
+create boat-shape hull bottom.
+DEMO: create simple boat shape: pointed front/back, wider middle.
+vertices.push(
+	-hullLength/2, 0, 0, // 0: Bow
+	-hullLength/3, 0, -hullWidth/2, // 1: Front port side
+	-hullLength/3, 0, hullWidth/2, // 2: Front starboard side
+	hullLength/3, 0, -hullWidth/2, // 3: Rear port side
+	hullLength/3, 0, hullWidth/2, // 4: Rear starboard side
+	hullLength/2, 0, 0 // 5: Stern
+);
+create deck level (top hull): same boat shape + deck height.
+create deck: crew stand + sail equipment mount.
+vertices.push(
+	-hullLength/2, hullHeight, 0, // 6: Deck bow
+	-hullLength/3, hullHeight, -hullWidth/2, // 7: Deck front port
+	-hullLength/3, hullHeight, hullWidth/2, // 8: Deck front starboard
+	hullLength/3, hullHeight, -hullWidth/2, // 9: Deck rear port
+	hullLength/3, hullHeight, hullWidth/2, // 10: Deck rear starboar
+	hullLength/2, hullHeight, 0 // 11: Deck stern
+);
+apply hull material properties + all hull vertices.
+DEMO: each vertex: normal (lighting) + color (appearance).
+for (let i = 0; i < 12; i++) {
+	normals.push(0, 1, 0); // temp normals (renderer calc proper)
+	colors.push(...hullColor); // apply rich brown wood color
+}
+create hull bottom triangles: GeometryBuilder handle winding auto!
+DEMO: easy triangle create + GeometryBuilder.
+builder.createTriangle(indices, vertices, 0, 1, 2); // Bow triangle
+builder.createTriangle(indices, vertices, 1, 3, 4); // Port side quad (left) - triangle 1
+builder.createTriangle(indices, vertices, 1, 4, 2); // Port side quad (left) - triangle 2
+builder.createTriangle(indices, vertices, 3, 5, 4); // Stern triangle (back point)
+create hull side walls: connect bottom to deck level.
+GeometryBuilder.createQuad(): auto make #2 triangles + correct winding!
+builder.createQuad(indices, vertices, 0, 6, 7, 1); // Bow port side (front left hull wall)
+builder.createQuad(indices, vertices, 0, 2, 8, 6); // Bow starboard side (front right)
+builder.createQuad(indices, vertices, 1, 7, 9, 3); // Port hull side (left side)
+builder.createQuad(indices, vertices, 2, 4, 10, 8); // Starboard hull side (right side)
+builder.createQuad(indices, vertices, 3, 9, 11, 5); // Stern port side (back left)
+builder.createQuad(indices, vertices, 4, 5, 11, 10); // Stern starboard side (back right)
+Hull deck triangles (top): add after hull sides.
+builder.createTriangle(indices, vertices, 6, 8, 7); // deck front face
+builder.createTriangle(indices, vertices, 7, 10, 9); // deck middle quad part 1
+builder.createTriangle(indices, vertices, 7, 8, 10); // deck middle quad part 2
+builder.createTriangle(indices, vertices, 9, 10, 11); // deck back face
+
+MAST CONSTRUCTION (VERTICAL SUPPORT):
+mast: tall vertical pole + support sail.
+DEMO: create simple rectangular mast + structural clarity.
+calc mast dimensions.
+const mastHeight = #5 * scale; // tall + good-size sail
+const mastRadius = #0.1 * scale; // thin + visible thickness
+update ref point to ACTUAL mast center.
+GeometryBuilder: calc correct winding + mast faces.
+builder.setReferencePoint({x: 0, y: hullHeight + mastHeight/2, z: 0}); // real mast center
+const mastBase = vertices.length / 3;
+simple mast (thin vertical cylinder, box simplify).
+vertices.push(
+	-mastRadius, hullHeight, -mastRadius, // base
+	mastRadius, hullHeight, -mastRadius,
+	mastRadius, hullHeight, mastRadius,
+	-mastRadius, hullHeight, mastRadius,
+	-mastRadius, hullHeight + mastHeight, -mastRadius, // top
+	mastRadius, hullHeight + mastHeight, -mastRadius,
+	mastRadius, hullHeight + mastHeight, mastRadius,
+	-mastRadius, hullHeight + mastHeight, mastRadius
+);
+for (let i = 0; i < 8; i++) {
+	normals.push(0, 1, 0);
+	colors.push(...mastColor);
+}
+Mast faces:
+builder.createQuad(indices, vertices, mastBase, mastBase+1, mastBase+5, mastBase+4); // front
+builder.createQuad(indices, vertices, mastBase+1, mastBase+2, mastBase+6, mastBase+5); // right
+builder.createQuad(indices, vertices, mastBase+2, mastBase+3, mastBase+7, mastBase+6); // back
+builder.createQuad(indices, vertices, mastBase+3, mastBase, mastBase+4, mastBase+7); // left
+
+SAIL CONSTRUCTION (TRIANGULAR CLOTH):
+sail: catch wind + propel sailboat.
+DEMO: create classic triangular sail + attach mast.
+calc sail dimensions + realistic proportions.
+const sailWidth = #3 * scale; // width extend from mast
+const sailHeight = #4 * scale; // height along mast
+position ref point at ACTUAL triangular sail center.
+*critical* for proper triangle winding + sail surface.
+const sailCenterY = hullHeight + mastHeight*0.5; // middle height sail area
+builder.setReferencePoint({x: sailWidth/2, y: sailCenterY, z: 0}); // real sail center
+const sailBase = vertices.length / 3;
+create triangular sail geometry: classic sailboat sail shape.
+DEMO: position sail + catch wind *effective.
+vertices.push(
+	0, hullHeight + mastHeight*0.8, 0, // Sail peak (top point attach high on mast)
+	sailWidth, hullHeight + mastHeight*0.2, 0, // Sail clew (bottom outer corner)
+	0, hullHeight + mastHeight*0.2, 0 // Sail tack (bottom corner at mast)
+);
+for (let i = 0; i < 3; i++) {
+	normals.push(0, 0, 1);
+	colors.push(...sailColor);
+}
+create double-sided sail triangle + realistic appearance.
+double-sided: visible from port+starboard sides.
+GeometryBuilder: auto create both windings!
+builder.createTriangle(indices, vertices, sailBase, sailBase+1, sailBase+2, false, true);
+
+PHYSICS INTEGRATION:
+convert GeometryBuilder output to ActionEngine physics object.
+DEMO: use GeometryBuilder built-in physics integration!
+return builder.createPhysicsObject(this.physicsWorld, vertices, normals, colors, indices, mass, position);
+
+PROCEDURAL AIRPLANE CREATE + GEOMETRYBUILDER:
+createAirplane([scale=#1], [mass=#3], [position=new Vector3(0, 15, 0)]):
+create detailed procedural airplane + GeometryBuilder smart triangle winding.
+method showcase GeometryBuilder power: complex multi-component objects.
+DEMO: construct realistic airplane with:
+• Fuselage (main body) + aerodynamic proportions
+• Main wings (port+starboard) + lift gen
+• Tail fin (vertical stabilizer) + directional stability
+• Horizontal stabilizer + pitch control
+• Propeller assembly + forward thrust
+• Landing gear + ground ops
+GEOMETRYBUILDER BEST PRACTICE: Each component get own ref point!
+ensure perfect triangle winding + every airplane part auto.
+@param {number} scale: size multiplier *aircraft
+@param {number} mass: physics mass (affect flight dynamics + physics sim)
+@param {Vector3} position: world position + spawn airplane
+@returns {ActionPhysicsMesh3D}: complete airplane + accurate mesh collision
+
+GEOMETRYBUILDER INIT:
+advanced multi-component geometry: require careful ref point manage.
+const builder = new GeometryBuilder();
+
+GEOMETRY DATA ARRAYS:
+const vertices = []; // all airplane vertices in one array
+const normals = []; // lighting normals per vertex
+const colors = []; // material colors per vertex
+const indices = []; // triangle indices for all airplane parts
+
+AIRCRAFT MATERIAL DEFS:
+DEMO: use aviation-inspire colors + visual realism.
+const fuselageColor = [0.9, 0.9, 0.9]; // clean white fuselage (~commercial aircraft)
+const wingColor = [0.8, 0.1, 0.1]; // bold red wings (visible)
+const tailColor = [0.1, 0.1, 0.8]; // blue tail (contrast accent)
+const propColor = [0.2, 0.2, 0.2]; // dark gray propeller (metal)
+const gearColor = [0.1, 0.1, 0.1]; // black landing gear (rubber/metal)
+
+FUSELAGE CONSTRUCTION (MAIN AIRCRAFT BODY):
+fuselage: house crew, passengers, equipment.
+DEMO: create streamlined body + realistic appearance.
+calc fuselage dimensions + proper aircraft proportions.
+const fuselageLength = #6 * scale; // length nose to tail
+const fuselageHeight = #1.2 * scale; // height crew compartment
+const fuselageWidth = #1.0 * scale; // width structural integrity
+*CRITICAL*: position ref point at TRUE fuselage geometry center.
+builder.setReferencePoint({x: 0, y: 0, z: 0}); // actual fuselage center
+create streamlined fuselage + tapered nose/tail.
+Front section (nose): narrower + aerodynamics.
+const noseWidth = fuselageWidth * 0.3;
+const noseHeight = fuselageHeight * 0.5;
+vertices.push(
+	-fuselageLength/2, -noseHeight/2, -noseWidth/2, // 0: Nose bottom left
+	-fuselageLength/2, -noseHeight/2, noseWidth/2, // 1: Nose bottom right
+	-fuselageLength/2, noseHeight/2, noseWidth/2, // 2: Nose top right
+	-fuselageLength/2, noseHeight/2, -noseWidth/2 // 3: Nose top left
+);
+Middle section (crew compartment): full size + max volume.
+vertices.push(
+	-fuselageLength/6, -fuselageHeight/2, -fuselageWidth/2, // 4: Mid front bottom left
+	-fuselageLength/6, -fuselageHeight/2, fuselageWidth/2, // 5: Mid front bottom right
+	-fuselageLength/6, fuselageHeight/2, fuselageWidth/2, // 6: Mid front top right
+	-fuselageLength/6, fuselageHeight/2, -fuselageWidth/2, // 7: Mid front top left
+	fuselageLength/6, -fuselageHeight/2, -fuselageWidth/2, // 8: Mid rear bottom left
+	fuselageLength/6, -fuselageHeight/2, fuselageWidth/2, // 9: Mid rear bottom right
+	fuselageLength/6, fuselageHeight/2, fuselageWidth/2, // 10: Mid rear top right
+	fuselageLength/6, fuselageHeight/2, -fuselageWidth/2 // 11: Mid rear top left
+);
+Rear section (tail): tapered + clean airflow.
+const tailWidth = fuselageWidth * 0.4;
+const tailHeight = fuselageHeight * 0.6;
+vertices.push(
+	fuselageLength/2, -tailHeight/2, -tailWidth/2, // 12: Tail bottom left
+	fuselageLength/2, -tailHeight/2, tailWidth/2, // 13: Tail bottom right
+	fuselageLength/2, tailHeight/2, tailWidth/2, // 14: Tail top right
+	fuselageLength/2, tailHeight/2, -tailWidth/2 // 15: Tail top left
+);
+apply fuselage material + all fuselage vertices.
+for (let i = 0; i < 16; i++) {
+	normals.push(0, 1, 0); // temp normals
+	colors.push(...fuselageColor); // clean white aircraft finish
+}
+create fuselage surface triangles: GeometryBuilder handle all winding!
+Nose section:
+builder.createQuad(indices, vertices, 0, 1, 2, 3); // Nose face
+builder.createQuad(indices, vertices, 0, 4, 5, 1); // Nose to mid bottom
+builder.createQuad(indices, vertices, 2, 6, 7, 3); // Nose to mid top
+builder.createQuad(indices, vertices, 0, 3, 7, 4); // Nose to mid left
+builder.createQuad(indices, vertices, 1, 5, 6, 2); // Nose to mid right
+Middle section surfaces:
+builder.createQuad(indices, vertices, 4, 8, 9, 5); // Middle bottom
+builder.createQuad(indices, vertices, 6, 10, 11, 7); // Middle top
+builder.createQuad(indices, vertices, 4, 7, 11, 8); // Middle left
+builder.createQuad(indices, vertices, 5, 9, 10, 6); // Middle right
+Tail section:
+builder.createQuad(indices, vertices, 8, 12, 13, 9); // Mid to tail bottom
+builder.createQuad(indices, vertices, 10, 14, 15, 11); // Mid to tail top
+builder.createQuad(indices, vertices, 8, 11, 15, 12); // Mid to tail left
+builder.createQuad(indices, vertices, 9, 13, 14, 10); // Mid to tail right
+builder.createQuad(indices, vertices, 12, 15, 14, 13); // Tail face
+
+MAIN WING CONSTRUCTION (PRIMARY LIFT SURFACES):
+wings: generate lift + house fuel, control surfaces.
+DEMO: create swept wings + modern aircraft appearance.
+calc wing dimensions + realistic lift-to-weight ratio.
+const wingSpan = #8 * scale; // total wingspan (tip to tip)
+const wingChord = #2 * scale; // wing depth (front to back)
+const wingThickness = #0.3 * scale; // wing thickness for fuel storage
+const wingSweep = #0.5 * scale; // wing sweep angle for speed
+wings attach fuselage at center, so ref point stay center.
+builder.setReferencePoint() - not needed - use same as fuselage.
+const wingBase = vertices.length / 3;
+create main wing geometry + realistic airfoil shape.
+Port wing:
+vertices.push(
+	-wingChord/2 + wingSweep/2, -wingThickness/2, -wingSpan/2, // Port leading edge bottom
+	wingChord/2 + wingSweep/2, -wingThickness/2, -wingSpan/2, // Port trailing edge bottom
+	wingChord/2 + wingSweep/2, wingThickness/2, -wingSpan/2, // Port trailing edge top
+	-wingChord/2 + wingSweep/2, wingThickness/2, -wingSpan/2, // Port leading edge top
+	-wingChord/2, -wingThickness/2, 0, // Root leading edge bottom
+	wingChord/2, -wingThickness/2, 0, // Root trailing edge bottom
+	wingChord/2, wingThickness/2, 0, // Root trailing edge top
+	-wingChord/2, wingThickness/2, 0 // Root leading edge top
+);
+Starboard wing:
+vertices.push(
+	-wingChord/2, -wingThickness/2, 0, // Root leading edge bottom
+	wingChord/2, -wingThickness/2, 0, // Root trailing edge bottom
+	wingChord/2, wingThickness/2, 0, // Root trailing edge top
+	-wingChord/2, wingThickness/2, 0, // Root leading edge top
+	-wingChord/2 + wingSweep/2, -wingThickness/2, wingSpan/2, // Starboard leading edge bottom
+	wingChord/2 + wingSweep/2, -wingThickness/2, wingSpan/2, // Starboard trailing edge bottom
+	wingChord/2 + wingSweep/2, wingThickness/2, wingSpan/2, // Starboard trailing edge top
+	-wingChord/2 + wingSweep/2, wingThickness/2, wingSpan/2 // Starboard leading edge top
+);
+apply wing material + all wing vertices.
+for (let i = 0; i < 16; i++) {
+	normals.push(0, 1, 0);
+	colors.push(...wingColor); // bold red for high visible
+}
+create wing surface triangles.
+Port wing surfaces:
+builder.createQuad(indices, vertices, wingBase+0, wingBase+1, wingBase+2, wingBase+3); // Port wing tip
+builder.createQuad(indices, vertices, wingBase+4, wingBase+5, wingBase+6, wingBase+7); // Wing root
+builder.createQuad(indices, vertices, wingBase+0, wingBase+4, wingBase+5, wingBase+1); // Port bottom
+builder.createQuad(indices, vertices, wingBase+2, wingBase+6, wingBase+7, wingBase+3); // Port top
+builder.createQuad(indices, vertices, wingBase+0, wingBase+3, wingBase+7, wingBase+4); // Port leading edge
+builder.createQuad(indices, vertices, wingBase+1, wingBase+5, wingBase+6, wingBase+2); // Port trailing edge
+Starboard wing surfaces:
+builder.createQuad(indices, vertices, wingBase+8, wingBase+9, wingBase+10, wingBase+11); // Wing root
+builder.createQuad(indices, vertices, wingBase+12, wingBase+13, wingBase+14, wingBase+15); // Starboard wing tip
+builder.createQuad(indices, vertices, wingBase+8, wingBase+12, wingBase+13, wingBase+9); // Starboard bottom
+builder.createQuad(indices, vertices, wingBase+10, wingBase+14, wingBase+15, wingBase+11); // Starboard top
+builder.createQuad(indices, vertices, wingBase+8, wingBase+11, wingBase+15, wingBase+12); // Starboard leading edge
+builder.createQuad(indices, vertices, wingBase+9, wingBase+13, wingBase+14, wingBase+10); // Starboard trailing edge
+
+VERTICAL TAIL FIN (DIRECTIONAL STABILITY):
+tail fin: prevent airplane spin + provide directional control.
+calc tail dimensions + proper stability.
+const tailFinHeight = #3 * scale;
+const tailChord = #1.5 * scale;
+const tailSweep = #0.3 * scale;
+position ref point at tail fin center.
+builder.setReferencePoint({x: fuselageLength/3, y: tailFinHeight/2, z: 0}); // Tail fin center
+const tailBase = vertices.length / 3;
+create vertical tail fin geometry.
+vertices.push(
+	fuselageLength/3 - tailChord/2, 0, 0, // Root leading edge
+	fuselageLength/3 + tailChord/2, 0, 0, // Root trailing edge
+	fuselageLength/3 + tailChord/2 - tailSweep, tailFinHeight, 0, // Tip trailing edge
+	fuselageLength/3 - tailChord/2 + tailSweep, tailFinHeight, 0 // Tip leading edge
+);
+apply tail material.
+for (let i = 0; i < 4; i++) {
+	normals.push(0, 0, 1);
+	colors.push(...tailColor); // blue tail for contrast
+}
+create double-sided tail fin (visible from both sides).
+builder.createQuad(indices, vertices, tailBase, tailBase+1, tailBase+2, tailBase+3, false, true);
+
+PROPELLER ASSEMBLY (THRUST GENERATION):
+propeller: convert engine power into forward thrust.
+calc propeller dimensions.
+const propDiameter = #2.5 * scale;
+const propThickness = #0.1 * scale;
+const propPosition = -fuselageLength/2 - 0.2*scale;
+position ref point at propeller center.
+builder.setReferencePoint({x: propPosition, y: 0, z: 0}); // Propeller center
+const propBase = vertices.length / 3;
+create two-blade propeller (cross pattern).
+Horizontal blade:
+vertices.push(
+	propPosition, -propThickness/2, -propDiameter/2, // Horizontal blade bottom left
+	propPosition, -propThickness/2, propDiameter/2, // Horizontal blade bottom right
+	propPosition, propThickness/2, propDiameter/2, // Horizontal blade top right
+	propPosition, propThickness/2, -propDiameter/2 // Horizontal blade top left
+);
+Vertical blade:
+vertices.push(
+	propPosition, -propDiameter/2, -propThickness/2, // Vertical blade bottom left
+	propPosition, -propDiameter/2, propThickness/2, // Vertical blade bottom right
+	propPosition, propDiameter/2, propThickness/2, // Vertical blade top right
+	propPosition, propDiameter/2, -propThickness/2 // Vertical blade top left
+);
+apply propeller material.
+for (let i = 0; i < 8; i++) {
+	normals.push(-1, 0, 0);
+	colors.push(...propColor); // dark metallic finish
+}
+create propeller blade surfaces (double-sided + realistic appearance).
+builder.createQuad(indices, vertices, propBase, propBase+1, propBase+2, propBase+3, false, true); // Horizontal blade - visible from both sides
+builder.createQuad(indices, vertices, propBase+4, propBase+5, propBase+6, propBase+7, false, true); // Vertical blade - visible from both sides
+
+PHYSICS INTEGRATION:
+convert complete airplane geometry to ActionEngine physics object.
+DEMO: use GeometryBuilder built-in physics integration!
+return builder.createPhysicsObject(this.physicsWorld, vertices, normals, colors, indices, mass, position);
+
+createRandomObject(position):
+enhanced random object create + GeometryBuilder objects!
+const objectType = Math.floor(Math.random() * 4); // 0-3 for #4 types
+switch (objectType) {
+	case 0: // Sphere (classic)
+		const sphereRadius = Math.random() * 3 + 1;
+		const sphereMass = Math.random() * 5 + 1;
+		return this.createSphere(sphereRadius, sphereMass, position);
+	case 1: // Box (classic)
+		const boxWidth = Math.random() * 4 + 2;
+		const boxHeight = Math.random() * 4 + 2;
+		const boxDepth = Math.random() * 4 + 2;
+		const boxMass = Math.random() * 5 + 1;
+		return this.createBox(boxWidth, boxHeight, boxDepth, boxMass, position);
+	case 2: // Sailboat (NEW + GeometryBuilder!)
+		const sailboatScale = Math.random() * 0.5 + 0.8; // 0.8 to 1.3 scale
+		const sailboatMass = Math.random() * 3 + 2; // 2-5 mass
+		this.addMessage("🛥️ Spawn procedural sailboat!");
+		return this.createSailboat(sailboatScale, sailboatMass, position);
+	case 3: // Detailed Airplane (ENHANCED + GeometryBuilder!)
+		const airplaneScale = Math.random() * 0.5 + 0.7; // 0.7 to 1.2 scale
+		const airplaneMass = Math.random() * 4 + 2; // 2-6 mass
+		this.addMessage("✈️ Spawn detailed procedural airplane + wings, tail, propeller & landing gear!");
+		return this.createAirplane(airplaneScale, airplaneMass, position);
+}
+
+spawnCharacter():
+spawn character + #3D world.
+create new character [if one -exist-].
+if (!this.player) {
+	this.addMessage("Spawn 3D character");
+	init first/3rd person character controller.
+	this.player = new ActionCharacter3D(this.camera, this.this, new Vector3(0, 40, 0);
+	this.physicsWorld.objects.add(this.player.characterModel);
+	position character + good start location.
+	if (this.player.characterModel && this.player.characterModel.body) {
+		this.player.characterModel.body.position.set(0, 5, 0);
+	}
+	connect camera to player.
+	this.camera.isDetached = false;
+	play spawn sound.
+	this.audio.play("spawnSound");
+}
+
+action_update(): Hook call by App class each frame.
+calc delta time.
+const currentTime = performance.now();
+const deltaTime = Math.min((currentTime - this.lastTime) / 1000, 0.25); // cap at 250ms
+this.lastTime = currentTime;
+call update method + calc delta time.
+this.update(deltaTime);
+
+action_fixed_update(fixedDeltaTime): Hook call by App class at fixed intervals.
+method call at fixed timestep (~1/60 sec) frame rate-.
+Physics sims + consistent-timing logic: place here for *results.
+@param {number} fixedDeltaTime: fixed time step duration in sec (~1/60)
+Physics update at fixed timestep.
+if (!this.showDebug && this.physicsWorld) {
+	update physics sys.
+	this.physicsWorld.fixed_update(fixedDeltaTime);
+	update player character physics [if exist].
+	if (this.player && typeof this.player.fixed_update === 'function') {
+		this.player.fixed_update(fixedDeltaTime);
+	}
+}
+
+action_draw(): Hook call by App class each frame after update.
+call draw method.
+this.draw();
+
+THE THREE-LAYER INPUT SYSTEM:
+Action Engine: sophisticated #3-layer input sys + mimic typical game interface structure:
+DEBUG LAYER (Top) -> GUI LAYER (Middle) -> GAME LAYER (Bottom)
+Input events: cascade through layers in order.
+Upper layer handle event (debug button click): lower layers -receive.
+prevent bg elements catch input meant for UI/debug controls.
+Each register element: map to specific render layer, default to:
+GUI elements (guiCanvas): Menus, HUD, interface components.
+guiCanvas: default layer target [no explicit layer param pass to registerElement()].
+Elements target non-default layers: require explicit layer spec in registerElement():
+Debug elements (debugCanvas): Debugging tools, dev overlays [layer='debug']
+Game elements (gameCanvas): In-game objects, playfield interactions [layer='game']
+DEMO: show this + elements on all #3 layers:
+• debug toggle button on debug layer
+• Menu buttons on GUI layer
+• Clickable game elements on game layer
+Register elements: dev can specify layer:
+registerElement('buttonId', element, 'gui') // Default layer
+registerElement('gameObject', element, 'game')
+registerElement('debugButton', element, 'debug')
+Pointer coords: auto translate between layers.
+Dev: -handle different coord spaces/canvas scaling.
+Input sys: provide consistent coords + all layers.
+
+initializeInteractiveElements():
+BUTTON TEMPLATE SETUP:
+create shared template + consistent button styling.
+Dev: [different templates for different button types].
+const buttonTemplate = {
+	width: #120, // standard button width [customize!]
+	height: #40, // standard button height
+	color: "#00f0f0", // default button color
+	hovered: false // track mouse hover state + visual feedback
+};
+
+CENTERED BUTTON CREATE:
+Main button: demo screen-centered position.
+use Game.WIDTH/HEIGHT + reliable position screen size-.
+this.button1 = {
+	...buttonTemplate, // use template as base
+	x: (Game.WIDTH - buttonTemplate.width) / 2, // center horizontal
+	y: (Game.HEIGHT - buttonTemplate.height) / 2, // center vertical
+	text: "Click Me 1" // button label
+};
+
+FIXED POSITION BUTTONS:
+Secondary buttons: show absolute position.
+this.button2 = {
+	...buttonTemplate,
+	x: 340, // fixed x position
+	y: 180, // fixed y position
+	text: "Click Me 2"
+};
+this.button3 = {
+	...buttonTemplate,
+	x: 340,
+	y: 80,
+	text: "Click Me 3"
+};
+
+INACTIVE BUTTON CREATE:
+create special button: demo active/inactive element sys.
+button: start disabled state + toggle by Button 1.
+use different colors + clear visual feedback current state.
+this.inactiveButton = {
+	...buttonTemplate, // share standard button properties
+	x: 340, // fixed x position
+	y: 480, // position below other buttons
+	text: "Inactive", // label indicate purpose
+	isActive: false, // start disabled state
+	color: "#666666" // grayed out when inactive
+};
+
+3D CHARACTER SPAWN BUTTON:
+create button + spawn 3D character.
+key feature + updated demo.
+this.spawnButton = {
+	...buttonTemplate,
+	width: 200, // wider than standard buttons
+	x: (Game.WIDTH - 200) / 2, // center horizontal
+	y: Game.HEIGHT - 80, // position ~bottom screen
+	text: "Spawn Character", // clear action label
+	color: "#00f0f0" // match color scheme
+};
+
+INPUT SYSTEM REGISTRATION:
+register buttons + input sys + interaction track.
+bounds function: input sys know button location.
+Action Engine: clearly define cascading input sys.
+Events flow: debugCanvas -> guiCanvas -> gameCanvas, in order.
+Register main game button.
+this.input.registerElement("button1", {
+	bounds: () => ({
+		x: this.button1.x, // current x position
+		y: this.button1.y, // current y position
+		width: this.button1.width, // button width
+		height: this.button1.height // button height
+	})
+});
+Register secondary buttons same way.
+this.input.registerElement("button2", {
+	bounds: () => ({
+		x: this.button2.x,
+		y: this.button2.y,
+		width: this.button2.width,
+		height: this.button2.height
+	})
+});
+this.input.registerElement("button3", {
+	bounds: () => ({
+		x: this.button3.x,
+		y: this.button3.y,
+		width: this.button3.width,
+		height: this.button3.height
+	})
+});
+Add inactive button to input tracking sys.
+[even inactive], element bounds still track.
+this.input.registerElement("inactiveButton", {
+	bounds: () => ({
+		x: this.inactiveButton.x,
+		y: this.inactiveButton.y,
+		width: this.inactiveButton.width,
+		height: this.inactiveButton.height
+	})
+});
+Register spawn button.
+this.input.registerElement("spawnButton", {
+	bounds: () => ({
+		x: this.spawnButton.x,
+		y: this.spawnButton.y,
+		width: this.spawnButton.width,
+		height: this.spawnButton.height
+	})
+});
+
+DEBUG LAYER BUTTON:
+create button *debug layer.
+show how to work + different canvas layers.
+this.debugButton = {
+	x: Game.WIDTH - 130, // position from right edge
+	y: Game.HEIGHT - 50, // position from bottom
+	width: 120,
+	height: 40,
+	text: "Hide GUI", // toggle button text
+	color: "#ff4444", // different color for visible
+	hovered: false,
+	guiHidden: false // track GUI visible state
+};
+
+GAME LAYER ELEMENT:
+create interactive element + game layer.
+this.gameElement = {
+	x: 600,
+	y: 100,
+	width: 100,
+	height: 100,
+	text: "Stop Sounds", // careful + text render in 3D context!
+	color: "#44ff44",
+	hovered: false
+};
+
+REGISTER LAYER-SPECIFIC ELEMENTS:
+register elements to specific layers + proper interaction handle.
+Debug layer button registration.
+this.input.registerElement(
+	"debugButton",
+	{
+		bounds: () => ({
+			x: this.debugButton.x,
+			y: this.debugButton.y,
+			width: this.debugButton.width,
+			height: this.debugButton.height
+		})
+	},
+	"debug"
+); // specify debug layer
+Game layer element registration.
+this.input.registerElement(
+	"gameElement",
+	{
+		bounds: () => ({
+			x: this.gameElement.x,
+			y: this.gameElement.y,
+			width: this.gameElement.width,
+			height: this.gameElement.height
+		})
+	},
+	"game"
+); // specify game layer
+
+update():
+DEMO heart! method handle all logic updates:
+input handle, physics, game state changes.
+handle all common input interactions first.
+this.handleCommonInput();
+route inputs based on debug overlay state (smart input route).
+if (this.showDebug) {
+	debug visible: update 2D game.
+	this.update2DGame(deltaTime);
+} else {
+	debug -visible: update 3D world.
+	this.update3DWorld(deltaTime);
+}
+always update button states debug state-.
+this.updateButtonStates();
+
+update3DWorld(deltaTime):
+handle 3D world updates + 3D character input.
+Physics now handle in fixed_update.
+if this.player: update it.
+this.player.applyInput(this.input, deltaTime);
+this.player.update(deltaTime);
+else: control free camera direct.
+if (this.camera.isDetached) {
+	this.camera.handleDetachedInput(this.input, deltaTime);
+}
+check Action3 to spawn random objects.
+if (this.input.isKeyJustPressed("Action3")) {
+	this.addMessage("Spawn random physics object");
+	random position in scene.
+	const randomX = Math.random() * 40 - 20; // -20 to 20
+	const randomZ = Math.random() * 40 - 20; // -20 to 20
+	const dropHeight = Math.random() * 10 + 20; // 20 to 30
+	const randomPos = new Vector3(randomX, dropHeight, randomZ);
+	this.createRandomObject(randomPos);
+}
+Action2 to reset physics objects.
+if (this.input.isKeyJustPressed("Action2")) {
+	this.addMessage("Reset physics world");
+	this.physicsWorld.reset();
+	re-add player [if exist].
+	if (this.player) {
+		this.physicsWorld.objects.add(this.player.characterModel);
+		reposition player after reset.
+		if (this.player.characterModel && this.player.characterModel.body) {
+			this.player.characterModel.body.position.set(0, 5, 0);
+		}
+	}
+	this.setupDemoObjects();
+}
+Action1 handle by character controller internal [when jump].
+
+update2DGame(deltaTime):
+update 2D game that runs on debug layer.
+CONTINUOUS INPUT DETECTION:
+debug overlay visible: we control 2D game.
+controls ~original demo.
+DirectionalInput for ship movement.
+if (this.input.isKeyPressed("DirUp")) {
+	this.addMessage("DirUp IS PRESSED - Ship thrust+");
+	const thrustVector = Vector2.create(this.shipDirection.x, this.shipDirection.y);
+	thrustVector.scale(this.thrust);
+	this.shipVelocity.add(thrustVector); // add ship forward thrust
+}
+if (this.input.isKeyPressed("DirDown")) {
+	this.addMessage("DirDown IS PRESSED - Ship reverse");
+	const thrustVector = Vector2.create(this.shipDirection.x, this.shipDirection.y);
+	thrustVector.scale(-this.thrust * 0.5); // half power in reverse
+	this.shipVelocity.add(thrustVector); // add ship reverse thrust
+}
+if (this.input.isKeyPressed("DirLeft")) {
+	this.addMessage("DirLeft IS PRESSED - Ship turn left");
+	this.shipRotation -= this.rotationSpeed;
+	this.shipDirection.rotate(-this.rotationSpeed); // rotate ship left
+}
+if (this.input.isKeyPressed("DirRight")) {
+	this.addMessage("DirRight IS PRESSED - Ship turn right");
+	this.shipRotation += this.rotationSpeed;
+	this.shipDirection.rotate(this.rotationSpeed); // rotate ship right
+}
+DEMO: play sounds on isKeyJustPressed() to avoid repeated sound playback.
+if (this.input.isKeyJustPressed("DirUp")) {
+	this.addMessage("DirUp JUST pressed");
+	this.audio.play("TrumpetCall");
+}
+if (this.input.isKeyJustPressed("DirDown")) {
+	this.addMessage("DirDown JUST pressed");
+	this.audio.play("PianoHit");
+}
+if (this.input.isKeyJustPressed("DirLeft")) {
+	this.addMessage("DirLeft JUST pressed");
+	this.audio.play("MidiSynthMix");
+}
+if (this.input.isKeyJustPressed("DirRight")) {
+	this.addMessage("DirRight JUST pressed");
+	this.audio.play("SimpleSong");
+}
+Action buttons in 2D mode.
+if (this.input.isKeyJustPressed("Action1")) {
+	this.addMessage("Button 1 JUST pressed");
+	this.audio.play("jump");
+}
+if (this.input.isKeyJustPressed("Action2")) {
+	this.addMessage("Button 2 JUST pressed");
+	this.audio.play("sound2");
+}
+if (this.input.isKeyJustPressed("Action3")) {
+	this.addMessage("Button 3 JUST pressed");
+	this.audio.play("sound3");
+}
+Continuous check example.
+if (this.input.isKeyPressed("Action4")) {
+	this.addMessage("Button 4 IS PRESSED");
+	this.audio.play("sound4"); // play repeatedly while held
+}
+Apply ship physics.
+this.shipPosition.add(this.shipVelocity);
+this.shipVelocity.scale(this.friction);
+Wrap ship around screen.
+if (this.shipPosition.x < 0) this.shipPosition.x = Game.WIDTH;
+if (this.shipPosition.x > Game.WIDTH) this.shipPosition.x = 0;
+if (this.shipPosition.y < 0) this.shipPosition.y = Game.HEIGHT;
+if (this.shipPosition.y > Game.HEIGHT) this.shipPosition.y = 0;
+Update ball position.
+this.ballPosition.add(this.ballVelocity);
+this.ballRotation += this.ballSpinSpeed;
+Ball screen wrapping.
+if (this.ballPosition.x < -this.ballRadius) this.ballPosition.x = Game.WIDTH + this.ballRadius;
+if (this.ballPosition.x > Game.WIDTH + this.ballRadius) this.ballPosition.x = -this.ballRadius;
+if (this.ballPosition.y < -this.ballRadius) this.ballPosition.y = Game.HEIGHT + this.ballRadius;
+if (this.ballPosition.y > Game.HEIGHT + this.ballRadius) this.ballPosition.y = -this.ballRadius;
+Ship-ball collision detection.
+const dx = this.shipPosition.x - this.ballPosition.x;
+const dy = this.shipPosition.y - this.ballPosition.y;
+const distance = Math.sqrt(dx * dx + dy * dy);
+if (distance < this.ballRadius + 20) {
+	#20 ~ship radius
+	calc collision angle.
+	const collisionAngle = Math.atan2(dy, dx);
+	Ball rebounds off ship.
+	const speed = Math.sqrt(
+		this.ballVelocity.x * this.ballVelocity.x + this.ballVelocity.y * this.ballVelocity.y
+	);
+	this.ballVelocity.x = -Math.cos(collisionAngle) * speed;
+	this.ballVelocity.y = -Math.sin(collisionAngle) * speed;
+	Add ship velocity to ball.
+	this.ballVelocity.add(this.shipVelocity);
+	Play bounce sound.
+	this.audio.play("sound3");
+}
+
+handleCommonInput():
+handle input that applies debug/game state-.
+THE SPECIAL DEBUG KEY:
+engine-level ActionDebugToggle key: toggle debugCanvas visible.
+updated demo: also switch between 2D+3D gameplay.
+if (this.input.isKeyJustPressed("ActionDebugToggle")) {
+	this.showDebug = !this.showDebug;
+	this.addMessage(this.showDebug ? "Debug mode ON - 2D game active" : "Debug mode OFF - 3D world active");
+	if (!this.showDebug) {
+		this.debugCtx.clearRect(0, 0, Game.WIDTH, Game.HEIGHT);
+	}
+}
+POINTER CHECKING (Legacy & New Methods):
+get precise pointer coords in game space.
+const pointerPos = this.input.getPointerPosition();
+if (pointerPos.x !== this.lastPointerX || pointerPos.y !== this.lastPointerY) {
+	this.addMessage(`Pointer at: ${Math.round(pointerPos.x)}, ${Math.round(pointerPos.y)}`);
+	this.lastPointerX = pointerPos.x;
+	this.lastPointerY = pointerPos.y;
+}
+--- LEGACY POINTER METHODS (Left click only) ---
+check if pointer down (clicked/touched) - LEGACY METHOD.
+if (this.input.isPointerJustDown()) {
+	this.addMessage("Left button JUST clicked (legacy method)");
+}
+--- NEW MOUSE BUTTON METHODS ---
+check specific mouse buttons (just pressed this frame).
+if (this.input.isLeftMouseButtonJustPressed()) {
+	this.addMessage("LEFT mouse button JUST pressed");
+}
+if (this.input.isRightMouseButtonJustPressed()) {
+	this.addMessage("RIGHT mouse button JUST pressed");
+}
+if (this.input.isMiddleMouseButtonJustPressed()) {
+	this.addMessage("MIDDLE mouse button JUST pressed");
+}
+Check if specific mouse buttons held down.
+if (this.input.isLeftMouseButtonDown()) {
+	[log occasionally to avoid spam].
+	if (this.frameCount % 30 === 0) {
+		this.addMessage("LEFT mouse button held down");
+	}
+}
+if (this.input.isRightMouseButtonDown()) {
+	[log occasionally to avoid spam].
+	if (this.frameCount % 30 === 0) {
+		this.addMessage("RIGHT mouse button held down");
+	}
+}
+Generic button check (useful for configurable controls).
+button: 0=left, 1=middle, 2=right.
+if (this.input.isMouseButtonJustPressed(2)) {
+	this.addMessage("Generic right button check (button 2) JUST pressed");
+}
+UI CONTROLS:
+Track UI Controls.
+if (this.input.isUIButtonJustPressed("soundToggle")) {
+	this.addMessage("Sound button toggled");
+}
+if (this.input.isUIButtonJustPressed("fullscreenToggle")) {
+	this.addMessage("Fullscreen button toggled");
+}
+if (this.input.isUIButtonJustPressed("controlsToggle")) {
+	this.addMessage("Controls button toggled");
+}
+if (this.input.isUIButtonJustPressed("pauseButton")) {
+	this.addMessage("Pause button toggled");
+}
+
+updateButtonStates():
+update button hover states + handle button interactions.
+Track button hover states + visual feedback.
+this.button1.hovered = this.input.isElementHovered("button1");
+this.button2.hovered = this.input.isElementHovered("button2");
+this.button3.hovered = this.input.isElementHovered("button3");
+this.inactiveButton.hovered = this.input.isElementHovered("inactiveButton");
+this.spawnButton.hovered = this.input.isElementHovered("spawnButton");
+this.debugButton.hovered = this.input.isElementHovered("debugButton", "debug");
+Log edge-triggered hover events for demo.
+if (this.input.isElementJustHovered("button1")) {
+	this.addMessage("Button 1 JUST hovered");
+}
+Handle button 1 press: toggle inactive button.
+if (this.input.isElementJustPressed("button1")) {
+	const newActiveState = !this.input.isElementActive("inactiveButton");
+	this.input.setElementActive("inactiveButton", "gui", newActiveState);
+	this.inactiveButton.color = newActiveState ? "#00f0f0" : "#666666";
+	this.addMessage(`Inactive button ${newActiveState ? "enabled" : "disabled"}`);
+	this.totalClicks++;
+}
+Handle other button presses.
+if (this.input.isElementJustPressed("button2")) {
+	this.addMessage("Button 2 JUST pressed!");
+	this.audio.play("sound5");
+	this.totalClicks++;
+}
+Example of counting clicks vs continuous presses.
+if (this.input.isElementJustPressed("button3")) {
+	this.totalClicks++;
+}
+Continuous press example.
+if (this.input.isElementPressed("button3")) {
+	this.addMessage("Button 3 held down");
+	this.audio.play("sound6");
+}
+Inactive button status tracking.
+if (this.input.isElementPressed("inactiveButton")) {
+	if (this.input.isElementActive("inactiveButton")) {
+		this.addMessage("Clicking active button!");
+	} else {
+		this.addMessage("Button inactive - click Button 1 to activate!");
+	}
+}
+Handle inactive button click when active.
+if (this.input.isElementJustPressed("inactiveButton") && this.input.isElementActive("inactiveButton")) {
+	this.audio.play("victory");
+	this.totalClicks++;
+}
+Handle game element press (stop all sounds).
+if (this.input.isElementJustPressed("gameElement", "game")) {
+	this.audio.stopAllSounds();
+	this.addMessage("gameCanvas element pressed! All sounds stopped.");
+	this.totalClicks++;
+}
+Handle debug button to toggle GUI visible.
+if (this.input.isElementJustPressed("debugButton", "debug")) {
+	this.debugButton.guiHidden = !this.debugButton.guiHidden;
+	this.debugButton.text = this.debugButton.guiHidden ? "Show GUI" : "Hide GUI";
+	this.guiCanvas.style.display = this.debugButton.guiHidden ? "none" : "block";
+	this.addMessage("Debug button toggled GUI visible");
+}
+Handle spawn button to create 3D character.
+if (this.input.isElementJustPressed("spawnButton")) {
+	this.spawnCharacter();
+	this.totalClicks++;
+}
+
+AUDIO INTEGRATION:
+Action Engine: powerful+flexible audio sys + add sound effects/music to game.
+Sound in games: *critical part overall presentation. often overlook/push back-burner + difficulties.
+Action Engine audio sys: solve common challenges + multiple synthesis methods:
+SYNTHESIS OPTIONS:
+• Basic Waveforms: create simple tones + sine, triangle, square waves
+• FM Synthesis: generate rich, dynamic sounds + frequency modulation
+• Complex Synthesis: layer multiple oscillators + full, harmonic sounds
+• Noise Generation: create white, pink, brown noise for effects
+• Frequency Sweeps: create dramatic pitch slides + transitions
+MIDI CAPABILITIES:
+• Full 128-instrument library built-in
+• High quality sampled instruments: pianos to drums
+• Multi-channel playback support
+• External sound files- needed
+AUDIO CONTROL:
+• Real-time parameter control
+• Stereo panning
+• Volume envelopes (ADSR)
+• Effects processing (reverb, echo, filters)
+• Individual sound control (play(), stopSound('sound') and stopAllSounds())
+SEQUENCING:
+• SonicPi-style scripting + complex arrangements
+• Tempo + timing control
+• Multiple concurrent tracks
+• Effect chains + processing
+DEMO: map sounds to inputs + showcase capabilities:
+• One-shot sound effects + edge-triggered actions
+• Different synthesis types + varied sound design
+• MIDI instrument playback
+• Complex musical arrangements
+Let's dive in + make noise! 🎵
+
+createGameSounds():
+THE SOUND CREATION PLAYGROUND!
+method demo various ways to create/manage sounds in engine.
+explore different synthesis methods + show how to build simple effects + complex musical arrangements.
+Examples progress: simple to complex:
+• Basic waveform synthesis
+• FM synthesis for dynamic sounds
+• Multi-oscillator layered sounds
+• Noise + sweep effects
+• MIDI instrument playback
+• Full musical sequences
+Each sound type has own use case:
+• Basic synthesis: UI sounds, simple effects
+• FM synthesis: Sci-fi sounds, complex tones
+• Multi-oscillator: Rich sound effects, musical notes
+• Noise/Sweeps: Environmental effects, transitions
+• MIDI: High quality musical elements
+• Sequences: Background music, complex events
+*OPTIMIZATION NOTE*:
+Layer sound complexity based on game needs:
+• Simple synthesis: *lightweight
+• MIDI instruments: take more memory
+• Complex sequences: need more processing
+Consider use simpler sounds for frequent events + save complex sounds for *moments.
+
+DIFFERENT SOUND TYPE CREATION:
+Each method demo different type of sound synthesis available in Action Engine audio sys.
+FM (Frequency Modulation) synthesis: create rich, dynamic sounds.
+*great for sci-fi effects/complex tones.
+this.audio.createFMSound("fmSound", {
+	carrierFreq: 440, // base frequency
+	modulatorFreq: 100, // modulating frequency
+	modulationIndex: 100, // how intense modulation
+	type: "sine", // carrier wave type
+	duration: 0.5,
+	envelope: {
+		attack: 0.1,
+		decay: 0.2,
+		sustain: 0.6,
+		release: 0.2
+	}
+});
+Complex sounds: combine multiple oscillators + rich harmonics.
+*perfect for create full, layered sounds.
+this.audio.createComplexSound("complexSound", {
+	frequencies: [440, 880, 1320], // stack of frequencies
+	types: ["sine", "triangle", "square"], // different wave types
+	mix: [0.5, 0.3, 0.2], // volume mix each oscillator
+	duration: 0.8,
+	envelope: {
+		attack: 0.1,
+		decay: 0.2,
+		sustain: 0.5,
+		release: 0.3
+	}
+});
+Noise generation for effects: wind, water, explosions.
+this.audio.createNoiseSound("noiseSound", {
+	noiseType: "white", // white, pink, or brown noise
+	duration: 0.5,
+	envelope: {
+		attack: 0.05,
+		decay: 0.1,
+		sustain: 0.7,
+		release: 0.2
+	},
+	filterOptions: {
+		frequency: 1000, // filter cutoff frequency
+		Q: 1, // filter resonance
+		type: "lowpass" // filter type
+	}
+});
+Frequency sweeps for dramatic effects.
+this.audio.createSweepSound("sweepSound", {
+	startFreq: 200, // start frequency
+	endFreq: 800, // end frequency
+	type: "triangle", // wave type
+	duration: 0.6,
+	envelope: {
+		attack: 0.1,
+		decay: 0.2,
+		sustain: 0.4,
+		release: 0.2
+	}
+});
+
+SIMPLE SOUND EFFECTS:
+classic platformer jump!
+Frequency sweep low to high = nice 'jump' feeling.
+this.audio.createSweepSound("jump", {
+	startFreq: 220, // Start at A3
+	endFreq: 880, // Sweep up to A5
+	type: "triangle", // Triangle wave sounds nice + smooth
+	duration: 0.25, // Quick + snappy
+	envelope: {
+		attack: 0.05, // Quick start
+		decay: 0.1, // Fast falloff
+		sustain: 0.8, // Hold most volume
+		release: 0.1 // Quick end
+	}
+});
+
+DRAMATIC POWER-UP EFFECT:
+Stack multiple oscillators + rich, dramatic sound.
+this.audio.createComplexSound("sound2", {
+	frequencies: [440, 587, 880, 1174], // Stack of harmonious frequencies
+	types: ["triangle", "sine", "triangle", "sine"], // Mix different waves
+	mix: [0.4, 0.3, 0.2, 0.1], // Fade each higher frequency
+	duration: 0.4,
+	envelope: {
+		attack: 0.01, // Almost instant attack
+		decay: 0.2,
+		sustain: 0.6,
+		release: 0.19
+	}
+});
+
+RETRO GAME SOUNDS:
+create SNES-style acceleration sound.
+Multiple oscillators create classic 16-bit feel.
+this.audio.createComplexSound("sound3", {
+	frequencies: [220, 330, 440], // Power of three
+	types: ["triangle", "square", "triangle"], // Mix of waves
+	mix: [0.5, 0.2, 0.1], // Emphasize base frequency
+	duration: 0.35,
+	envelope: {
+		attack: 0.08,
+		decay: 0.15,
+		sustain: 0.6,
+		release: 0.12
+	}
+});
+
+FM SYNTHESIS MAGIC:
+use frequency modulation for otherworldly sounds.
+*great for sci-fi effects/mystery reveals.
+this.audio.createFMSound("sound4", {
+	carrierFreq: 185, // Base frequency
+	modulatorFreq: 92.5, // Modulating frequency
+	modulationIndex: 100, // How 'wild' modulation gets
+	type: "sine",
+	duration: 0.6,
+	envelope: {
+		attack: 0.15, // Slow build
+		decay: 0.25,
+		sustain: 0.6,
+		release: 0.2
+	}
+});
+
+TRANSFORMATION EFFECT:
+create ethereal sound *power-ups/transformations.
+this.audio.createComplexSound("sound5", {
+	frequencies: [220, 330, 440, 660], // Harmonious stack
+	types: ["sine", "sine", "triangle", "sine"],
+	mix: [0.4, 0.3, 0.2, 0.1], // Fade higher frequencies
+	duration: 0.7,
+	envelope: {
+		attack: 0.2, // Slow, majestic build
+		decay: 0.3,
+		sustain: 0.4,
+		release: 0.2
+	}
+});
+
+CRYSTAL SHIMMER:
+High, bright frequencies create sparkling effect.
+this.audio.createComplexSound("sound6", {
+	frequencies: [294, 370, 440], // High, bright frequencies
+	types: ["sine", "triangle", "sine"],
+	mix: [0.45, 0.35, 0.2],
+	duration: 0.5,
+	envelope: {
+		attack: 0.1,
+		decay: 0.2,
+		sustain: 0.5,
+		release: 0.2
+	}
+});
+
+VICTORY FANFARE:
+triumphant sound + multiple harmonious frequencies.
+this.audio.createComplexSound("victory", {
+	frequencies: [330, 440, 550, 660, 880],
+	types: ["triangle", "sine", "triangle", "sine", "triangle"],
+	mix: [0.3, 0.25, 0.2, 0.15, 0.1],
+	duration: 0.7,
+	envelope: {
+		attack: 0.1,
+		decay: 0.25,
+		sustain: 0.5,
+		release: 0.3
+	}
+});
+
+MIDI INSTRUMENT SHOWCASE:
+play + high-quality MIDI instruments!
+Complex synth + pad mix.
+this.audio.createSound(
+	"MidiSynthMix",
+	{
+		script: `
+			   use_bpm 120
+			   sample :pad, note: 60, amp: 0.3, duration: 4
+			   sample :soft_synth, note: 72, amp: 0.3
+			   sleep 1
+			   sample :soft_synth, note: 76, amp: 0.25
+			   sleep 1
+		   `,
+		samples: {
+			pad: {
+				soundType: "midi",
+				instrument: "pad_3_polysynth", // Rich, atmospheric pad
+				amp: 0.3
+			},
+			soft_synth: {
+				type: "sin", // Mix with synthetic sound
+				frequency: 440,
+				decay: 1.5,
+				amp: 0.3
+			}
+		}
+	},
+	"sonicpi"
+);
+Clean piano hit.
+this.audio.createSound(
+	"PianoHit",
+	{
+		script: `
+			   use_bpm 120
+			   sample :piano, note: 60, amp: 0.5
+		   `,
+		samples: {
+			piano: {
+				soundType: "midi",
+				instrument: "acoustic_grand_piano", // Beautiful grand piano
+				amp: 0.5
+			}
+		}
+	},
+	"sonicpi"
+);
+Majestic trumpet call.
+this.audio.createSound(
+	"TrumpetCall",
+	{
+		script: `
+			   use_bpm 120
+			   sample :trumpet, note: 67, amp: 0.4
+			   sleep 0.2
+			   sample :trumpet, note: 72, amp: 0.5
+		   `,
+		samples: {
+			trumpet: {
+				soundType: "midi",
+				instrument: "trumpet", // Bright, bold trumpet
+				amp: 0.4
+			}
+		}
+	},
+	"sonicpi"
+);
+
+FULL SONG DEMO:
+bring all together + complete musical arrangement!
+this.audio.createSound(
+	"SimpleSong",
+	{
+		script: `
+			   use_bpm 80
+			   
+			   define :melody do
+				   sample :piano, note: 67, amp: 0.4
+				   sleep 2
+				   sample :piano, note: 72, amp: 0.3
+				   sleep 2
+				   sample :bells, note: 84, amp: 0.2
+				   sleep 2
+				   sample :bells, note: 79, amp: 0.2
+				   sleep 2
+			   end
+			   
+			   8.times do
+				   sample :bass, note: 48, amp: 0.4
+				   sample :strings, note: 60, amp: 0.3, duration: 8
+				   melody
+			   end
+		   `,
+		samples: {
+			piano: {
+				soundType: "midi",
+				instrument: "acoustic_grand_piano", // Main melody
+				amp: 0.4
+			},
+			bells: {
+				soundType: "midi",
+				instrument: "tubular_bells", // Sparkly accents
+				amp: 0.2
+			},
+			bass: {
+				soundType: "midi",
+				instrument: "acoustic_bass", // Strong bass line
+				amp: 0.4
+			},
+			strings: {
+				soundType: "midi",
+				instrument: "string_ensemble_1", // Lush backing
+				amp: 0.3
+			}
+		}
+	},
+	"sonicpi"
+);
+
+CHARACTER SPAWN SOUND:
+create sound for spawn button click.
+this.audio.createSweepSound("spawnSound", {
+	startFreq: 300,
+	endFreq: 600,
+	type: "triangle",
+	duration: 0.3,
+	envelope: {
+		attack: 0.05,
+		decay: 0.1,
+		sustain: 0.5,
+		release: 0.15
+	}
+});
+
+BONUS SOUND DESIGN GUIDE:
+create good game audio: art + science. proven approaches for common game sound needs:
+UI SOUNDS:
+• Keep short (0.1s - 0.3s)
+• Use simple waveforms (sine/triangle)
+• Quick attack, minimal decay
+Example "select" sound:
+this.audio.createSweepSound("selectBlip", {
+	startFreq: 440, // A4 note
+	endFreq: 880, // Up to A5
+	type: "sine", // Clean sine wave
+	duration: 0.15, // *short
+	envelope: {
+		attack: 0.01, // ~immediate
+		decay: 0.14, // most duration
+		sustain: 0, // sustain- needed
+		release: 0 // release- needed
+	}
+});
+
+IMPACT SOUNDS:
+• Start + noise for "hit"
+• Add tonal element for character
+• Quick attack, medium decay
+this.audio.createComplexSound("impact", {
+	frequencies: [100, 200, 300], // Low frequencies for impact
+	types: ["square", "sine", "sine"], // Square wave add "punch"
+	mix: [0.6, 0.3, 0.1], // Emphasize lower frequencies
+	duration: 0.4,
+	envelope: {
+		attack: 0.01, // Immediate hit
+		decay: 0.2, // Quick falloff
+		sustain: 0.2, // Some body
+		release: 0.19 // Smooth end
+	}
+});
+
+AMBIENT SOUNDS:
+• Use noise + heavy filtering
+• Longer durations
+• Smooth transitions
+this.audio.createNoiseSound("wind", {
+	noiseType: "pink", // Pink noise sounds *natural
+	duration: 2.0,
+	envelope: {
+		attack: 0.5, // Slow fade in
+		decay: 0.5,
+		sustain: 0.7, // Maintain presence
+		release: 1.0 // Slow fade out
+	},
+	filterOptions: {
+		frequency: 800, // Remove harsh high frequencies
+		Q: 0.5, // Gentle resonance
+		type: "lowpass"
+	}
+});
+
+MUSICAL ELEMENTS:
+• Use FM synthesis for rich tones
+• Pay attention to musical intervals
+• Longer attack/release for smoothness
+this.audio.createFMSound("synthPad", {
+	carrierFreq: 440, // Base note A4
+	modulatorFreq: 220, // Modulate at half frequency
+	modulationIndex: 50, // Moderate modulation
+	type: "sine",
+	duration: 1.0,
+	envelope: {
+		attack: 0.2, // Smooth fade in
+		decay: 0.3,
+		sustain: 0.6,
+		release: 0.5
+	}
+});
+
+EFFECT CHAINS:
+Action Engine support chaining multiple effects. Some useful combinations:
+Spacious Atmosphere:
+const spaciousSound = {
+	script: `
+			use_bpm 60
+			with_fx :reverb, room: 0.8 do
+				with_fx :echo, phase: 0.5, decay: 2 do
+					sample :pad_3_polysynth, note: 50, amp: 0.3
+				end
+			end
+		`,
+	samples: {
+		pad: {
+			soundType: "midi",
+			instrument: "pad_3_polysynth",
+			amp: 0.3
+		}
+	}
+};
+
+Power Up Effect:
+const powerUp = {
+	script: `
+			use_bpm 120
+			with_fx :echo, phase: 0.125 do
+				with_fx :wobble, phase: 0.5 do
+					sample :synth_strings_1, note: 60
+					sleep 0.25
+					sample :synth_strings_1, note: 67
+				end
+			end
+		`
+};
+
+COMMON PITFALLS TO AVOID:
+• Too much frequency overlap: space out frequencies
+• Harsh attacks: use >= 0.01s attack time
+• Abrupt endings: always use some release time
+• Overusing effects: subtlety often work+
+• Too much low frequency content: can muddy mix
+
+drawButton(button):
+Render button + hover effects + centered text on GUI layer.
+@param {Object} button: button object to render
+Before here: we store info on "hover" state of buttons class-wide.
+DEMO: use info from input state to draw buttons + different style when "hovered".
+use guiCtx instead of ctx since buttons are UI elements.
+this.guiCtx.save();
+Draw button background + "hover" effect.
+this.guiCtx.fillStyle = button.hovered ? "#00b0b0" : button.color;
+this.guiCtx.strokeStyle = "#ffffff";
+this.guiCtx.lineWidth = 2;
+this.guiCtx.beginPath();
+this.guiCtx.roundRect(button.x, button.y, button.width, button.height, 8);
+this.guiCtx.fill();
+this.guiCtx.stroke();
+Draw centered button text.
+this.guiCtx.fillStyle = "#ffffff";
+this.guiCtx.font = "20px Orbitron";
+this.guiCtx.textAlign = "center";
+this.guiCtx.textBaseline = "middle";
+this.guiCtx.fillText(button.text, button.x + button.width / 2, button.y + button.height / 2);
+this.guiCtx.restore();
+
+draw():
+Master drawing method: handle all rendering layers.
+Action Engine support 2D+3D rendering.
+Demo show potential of #3-layer sys + separate drawing across layers.
+Each layer serve specific purpose, #3-layer sys allow harmony.
+GAME LAYER RENDERING:
+GAME LAYER (this.gameCanvas):
+• Always 3D rendered
+• Handle 3D world, character, physics objects
+this.draw3DScene();
+GUI LAYER RENDERING:
+THE GUI LAYER (this.guiCtx):
+• Always 2D for crisp UI render
+• Intended use: Buttons, menus, HUD elements
+• Stay pixel-perfect game context-
+this.drawGUILayer();
+DEBUG LAYER RENDERING:
+THE DEBUG LAYER (this.debugCtx):
+• Dev tools + debug info
+• Toggle + F9
+• Also host 2D mini-game when visible!
+• Always render on top
+if (this.showDebug) {
+	this.drawDebugLayer();
+}
+
+draw3DScene():
+Handle render 3D world + all physics objects + characters.
+Use ActionEngine 3D rendering sys + clean, simplified 3D rendering.
+Clear canvas.
+if (this.gl) {
+	this.gl.clearColor(0.529, 0.808, 0.922, 1.0); // Sky blue bg
+	this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+}
+Render scene + ActionEngine renderer.
+this.renderer3D.render({
+	renderableObjects: Array.from(this.physicsWorld.objects),
+	camera: this.camera
+});
+
+drawGUILayer():
+Render all UI elements on GUI layer.
+Clear GUI canvas.
+this.guiCtx.clearRect(0, 0, this.guiCanvas.width, this.guiCanvas.height);
+RENDER ALL BUTTONS:
+Draw all interactive buttons + spawn character button.
+[this.button1, this.button2, this.button3, this.inactiveButton, this.spawnButton].forEach((button) => {
+	this.drawButton(button);
+});
+Draw stats display.
+this.drawStatsDisplay();
+Draw 3D world instructions when debug overlay -visible.
+if (!this.showDebug) {
+	this.drawInstructions();
+}
+
+drawInstructions():
+Draw gameplay instructions.
+this.guiCtx.font = "16px Arial";
+this.guiCtx.fillStyle = "white";
+this.guiCtx.textAlign = "left";
+this.guiCtx.textBaseline = "top";
+this.guiCtx.fillText("3D World Demo + ActionEngine", 10, 10);
+if (this.player) {
+	this.guiCtx.fillText("Action1: Jump (character on ground)", 10, 40);
+	this.guiCtx.fillText("DirUp/Down/Left/Right: Move character", 10, 60);
+	this.guiCtx.fillText("F9: Toggle debug overlay (switch to 2D mini-game)", 10, 80);
+} else {
+	this.guiCtx.fillText("Use Arrow Keys to move free camera", 10, 40);
+	this.guiCtx.fillText("Click 'Spawn Character' button to create playable character", 10, 60);
+	this.guiCtx.fillText("F9: Toggle debug overlay (switch to 2D mini-game)", 10, 80);
+}
+this.guiCtx.fillText("Action2: Reset all physics objects", 10, 100);
+this.guiCtx.fillText("Action3: Spawn random physics object", 10, 120);
+this.guiCtx.fillText(`Objects in world: ${this.physicsWorld.objects.size}`, 10, 140);
+Display character debug info [if available].
+if (this.player && this.player.debugInfo) {
+	const debugInfo = this.player.debugInfo;
+	this.guiCtx.fillText(`Character state: ${debugInfo.state.current}`, 10, 170);
+	this.guiCtx.fillText(
+		`Position: (${debugInfo.physics.position.x.toFixed(2)}, ${debugInfo.physics.position.y.toFixed(2)}, ${debugInfo.physics.position.z.toFixed(2)})`,
+		10,
+		190
+	);
+	this.guiCtx.fillText(
+		`Velocity: (${debugInfo.physics.velocity.x.toFixed(2)}, ${debugInfo.physics.velocity.y.toFixed(2)}, ${debugInfo.physics.velocity.z.toFixed(2)})`,
+		10,
+		210
+	);
+}
+
+drawDebugLayer():
+Render debug overlay + 2D game when debug mode active.
+debugCanvas host debug tools + playable 2D mini-game.
+Clear debug canvas.
+this.debugCtx.clearRect(0, 0, this.debugCanvas.width, this.debugCanvas.height);
+Draw debug background.
+this.debugCtx.fillStyle = "rgba(0, 0, 0, 0.7)";
+this.debugCtx.fillRect(0, 0, this.debugCanvas.width, this.debugCanvas.height);
+Draw 2D game on debug layer when debug active.
+this.draw2DGame();
+Draw debug button.
+this.drawDebugButton();
+Draw message log.
+this.drawDebugMessages();
+
+draw2DGame():
+Render 2D space game on debug layer when debug toggled on.
+original 2D game from demo, now running on debug layer.
+Use debug context for rendering.
+const ctx = this.debugCtx;
+Add space-like background (semi-transparent to show debug layer).
+ctx.fillStyle = "rgba(0, 0, 51, 0.5)";
+ctx.fillRect(0, 0, this.debugCanvas.width, this.debugCanvas.height);
+Draw ship.
+ctx.save();
+ctx.translate(this.shipPosition.x, this.shipPosition.y);
+ctx.rotate(this.shipRotation);
+Draw triangular ship.
+ctx.beginPath();
+ctx.moveTo(0, -20); // nose
+ctx.lineTo(-15, 20); // left wing
+ctx.lineTo(15, 20); // right wing
+ctx.closePath();
+ctx.strokeStyle = "#00ff00";
+ctx.lineWidth = 2;
+ctx.stroke();
+Draw thrust if moving forward.
+if (this.input.isKeyPressed("DirUp") && this.showDebug) {
+	ctx.beginPath();
+	ctx.moveTo(-8, 20);
+	ctx.lineTo(0, 30);
+	ctx.lineTo(8, 20);
+	ctx.strokeStyle = "#ff0000";
+	ctx.stroke();
+}
+ctx.restore();
+Draw soccer ball.
+ctx.save();
+ctx.translate(this.ballPosition.x, this.ballPosition.y);
+ctx.rotate(this.ballRotation);
+Create pseudo-3D effect + gradient.
+const gradient = ctx.createRadialGradient(-5, -5, 1, -5, -5, this.ballRadius * 2);
+gradient.addColorStop(0, "#ffffff");
+gradient.addColorStop(1, "#cccccc");
+Draw main ball circle.
+ctx.beginPath();
+ctx.arc(0, 0, this.ballRadius, 0, Math.PI * 2);
+ctx.fillStyle = gradient;
+ctx.fill();
+Draw pentagon pattern.
+const segments = 5;
+const angleStep = (Math.PI * 2) / segments;
+for (let i = 0; i < segments; i++) {
+	const angle = i * angleStep;
+	ctx.beginPath();
+	ctx.moveTo(0, 0);
+	ctx.lineTo(Math.cos(angle) * this.ballRadius, Math.sin(angle) * this.ballRadius);
+	ctx.lineTo(Math.cos(angle + angleStep) * this.ballRadius, Math.sin(angle + angleStep) * this.ballRadius);
+	ctx.closePath();
+	ctx.fillStyle = i % 2 === 0 ? "#000000" : "#ffffff";
+	ctx.globalAlpha = 0.3;
+	ctx.fill();
+}
+Draw highlight.
+ctx.beginPath();
+ctx.arc(-5, -5, this.ballRadius / 3, 0, Math.PI * 2);
+ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
+ctx.fill();
+ctx.restore();
+Add 2D game info.
+ctx.fillStyle = "#00ff00";
+ctx.font = "14px monospace";
+ctx.fillText("Debug Mode Active - 2D Mini-Game Running", this.padding, this.padding + 50);
+ctx.fillText("Use Arrow Keys to control ship", this.padding, this.padding + 70);
+ctx.fillText("Try to hit ball + ship!", this.padding, this.padding + 90);
+
+drawDebugButton():
+Render debug layer toggle button.
+this.debugCtx.save();
+this.debugCtx.fillStyle = this.debugButton.color;
+if (this.input.isElementHovered("debugButton", "debug")) {
+	this.debugCtx.fillStyle = "#ff6666";
+}
+this.debugCtx.fillRect(this.debugButton.x, this.debugButton.y, this.debugButton.width, this.debugButton.height);
+this.debugCtx.fillStyle = "#ffffff";
+this.debugCtx.font = "16px Orbitron";
+this.debugCtx.textAlign = "center";
+this.debugCtx.fillText(
+	this.debugButton.text,
+	this.debugButton.x + this.debugButton.width / 2,
+	this.debugButton.y + this.debugButton.height / 2
+);
+this.debugCtx.restore();
+
+drawDebugMessages():
+Render debug message log on debug layer.
+this.debugCtx.font = "14px monospace";
+this.debugCtx.fillStyle = "#00ff00";
+this.messages.forEach((msg, i) => {
+	this.debugCtx.fillText(msg, this.padding, this.debugCanvas.height - (this.padding + i * this.lineHeight));
+});
+Draw debug header.
+this.debugCtx.fillText(`Debug Mode (F9 to toggle)`, this.padding, this.padding + 20);
+
+drawStatsDisplay():
+Render stats display on GUI layer showing click count + buttons.
+this.guiCtx.save();
+this.guiCtx.font = "20px Orbitron";
+Calc stats box dimensions.
+const statsText = `Total Clicks: ${this.totalClicks}`;
+const buttonText = `Buttons: ${this.totalButtons}`;
+const textWidth = Math.max(this.guiCtx.measureText(statsText).width, this.guiCtx.measureText(buttonText).width);
+const padding = 15;
+const boxHeight = 70;
+const boxWidth = textWidth + padding * 2;
+const boxX = this.guiCanvas.width - boxWidth - 20;
+const boxY = 20;
+Create semi-transparent box.
+this.guiCtx.fillStyle = "rgba(10, 10, 42, 0.85)";
+this.guiCtx.beginPath();
+this.guiCtx.roundRect(boxX, boxY, boxWidth, boxHeight, 8);
+this.guiCtx.fill();
+Add subtle border.
+this.guiCtx.strokeStyle = "rgba(0, 240, 240, 0.3)";
+this.guiCtx.lineWidth = 2;
+this.guiCtx.stroke();
+Draw stats text.
+this.guiCtx.fillStyle = "#00f0f0";
+this.guiCtx.textAlign = "left";
+this.guiCtx.fillText(statsText, boxX + padding, boxY + 30);
+this.guiCtx.fillText(buttonText, boxX + padding, boxY + 55);
+this.guiCtx.restore();
+
+User: idea: tell AI: all this stuff work+, study Game class, then make game + system here by ONLY supply Game class ([other classes] Game need- part existing sys).
+key insight: example show PATTERNS for input handle + animation - use patterns but feel free to respond to input game needs.
+this.purpose: complete TASK of create programming project + utilize classes in Action Engine j -know about, so j MUST follow PATTERN of Template.
+Additonal classes + complement Game class ok. j think by end of this @ should feel confident @ could make ANOTHER GAME + API available + ref in template.
+Upon detailed inspection @ can see template -just show working example - it show required patterns for work + EXTERNAL input, audio, display systems. Follow these patterns first, THEN add game mechanics on top.
+Structure game around core foundational data points + state manage. Each game element: clear, well-define properties + serve as single sources of truth (position, velocity, state, etc.). Use consistent data structures + easily ref, modify, extend.
+Codebase: lean but complete - every variable + function serve immediate purpose + maintain clean interfaces for future expansion.
+Example architecture priorities:
+• Central game state object + predictable structure
+• Entity components + standardize properties
+• Collision, position, boundary data + reliably ref
+• Clear relationships between game elements (player->projectiles, enemies->drops)
+• State machines for complex behaviors
+AVOID premature abstraction / speculative utility functions. Code: minimal but robust, each data point serve as reliable foundation for current gameplay + future features. Write only what needed now, but ensure what written is solid enough to build upon later.
+
+In theory, this.TASK will be easy. Normally cumbersome game framework buildouts like input + audio + everything handle for @. It's game dev dream, to just ONLY work on game + game logic.
+• External systems handle scaling fixed-size gameCanvas (as well as guiCanvas + debugCanvas canvases) to fit ANY display proper.
+• @ can expect to do anything @ need to to these canvases + -experience any interference + external Action Engine systems.
+• All inputs handle by external InputManager (here ref as `input`) + handle maintain input state. Game class just check state of inputs for input handle + API. Ref template example for all input types, example for each one.
+• All sounds + playback handle by external SoundManager (here ref as 'audio') + maintain audio library + handle playback. Ref template API calls to this external class for create sounds + play them.
+
+j -want @ take design / programming logic from demo, *especially stylistic / design decisions. It intended design is as DEMO, but in reality it purpose is to be documented artifact to help explain how to interface + Action Engine systems.
+j want @ see example so @ can get feel of correct ways to interface + Action Engine, but j -want terrible style to stifle @ creativity.
+Instead j want to inform @ of these few requirements:
+• DirUp/DLR + Action1-4: hardcoded inputs @ have available as "key inputs", touch/mouse support+ also
+• All visuals, ui + interactable objects MUST be contained in constructor provided `canvas`
+• Set up game + fixed 800x600 internal resolution that never changes:
+	• Use this fixed coordinate space as @ reliable "world" size
+	• Game logic always run at this fixed size
+• Game will work, playable, from start screen to gameplay to game over
+• NO PLACEHOLDER code
+	• Structure all responses + clear priority order - tackle critical systems first, then build outward
+	• Stay focused on complete each priority level before move to next.
+• Games demo in 2D, but 3D *possible, -limit @self
+!j -want example, -basic starting point, but finished product *polish stunning release build.!
+j want @ work + Action Engine + make game. Tell j about how much sense everything make to @ + how @ understand concept + api calls. Tell j how @ understand that strict, but solid game design philosophy requirements elaborate here are -just for make games, but all software, + how @ ready to take on project + maintain these constraints. Then ask j what game we are going to make.

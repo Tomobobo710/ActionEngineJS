@@ -807,7 +807,7 @@ class Game {
 			this.addMessage("Spawning 3D character");
 
 			// Initialize first/3rd person character controller
-			this.player = new ActionCharacter3D(this.camera, this);
+			this.player = new ActionCharacter3D(this.camera, this, new Vector3(0, 40, 0);
 			this.physicsWorld.objects.add(this.player.characterModel);
 
 			// Position the character in a good starting location
