@@ -6,6 +6,9 @@
  * The following DEMO is just an EXAMPLE of how to work with the Action Engine. All systems are well documented and heavily explained so there's no guesswork. By the end of this reading, you'll be a game making pro.
  * So dive in and start creating a masterpiece!
  */
+// Import our new GeometryBuilder for creating cool 3D objects
+// This replaces basic box/sphere creation with smart triangle winding
+
 
 /** THE GAME CLASS
  * The Game class is the heart of the Action Engine and serves as the entry point for your game.
@@ -30,6 +33,7 @@ class Game {
 		 * Action Engine requires the Game constructor to accept the following parameters:
 		 *
 		 * `canvases`: An object with three properties - gameCanvas, guiCanvas, and debugCanvas
+		 *
 		 * These are the three layers that make up the Action Engine canvas rendering system
 		 * The canvases are automatically created and managed in the background, no need to setup your screen or anything related to window sizes or anything, it's all handled
 		 * This system allows for easy and clear separation of UI elements and actual game content, which is often a headache especially when prototyping and needing to come back to add additional layers
@@ -38,12 +42,14 @@ class Game {
 		 * This separation allows for the developer to choose whether they want a 2d or 3d game with 2d overlays, there is plenty of room for everything
 		 *
 		 * `input`: The input system of the Action Engine
+		 *
 		 * This system seamlessly handles keyboard, mouse, and touch input in the background
 		 * It provides an automatic and intuitive way for developers to detect input from a variety ofstandard input devices
 		 * This allows the developer to worry less about what key does what or how the UI is handled, or the hassles of trying to implement addtional input device support, it's already done!
 		 * To interface with the input system, Action Engine has a simple to use API which we will be showcased here in this DEMO.
 		 *
 		 * `audio`: The audio system of the Action Engine
+		 *
 		 * Sound really AMPS up a game's presentation!
 		 * Action Engine handles sound generation and playback, and provides a simple and intuitive way for developers to add sound effects and music to their game.
 		 * The audio setup is alreay handled at the engine level. Sound creation is very flexible, there is even midi instrument sample support for high quality sounds, so you don't need to search around on any sketchy sites for questionably royalty free .wav files
@@ -59,10 +65,17 @@ class Game {
 		this.input = input; // Handles keyboard, mouse, and touch input
 		this.audio = audio; // Manages sound generation and playback
 
-		// The main "game" layer
-		this.canvas = canvases.gameCanvas; // This will always be 3D
-
-		// The two additional canvases
+		// The main "game" canvas layer
+		this.gameCanvas = canvases.gameCanvas; // This is the game canvas. We can grab a 2D or 3D (webgl) context from it, whichever is appropriate for your game.
+		
+		 // For our DEMO we will be using a 3D context
+		this.gl = this.gameCanvas.getContext("webgl2") || this.gameCanvas.getContext("webgl");
+		
+		// But you could just as easily use a 2D context for a 2D game
+		// this.gameCtx = this.gameCanvas.getContext("2d");
+		
+		// The two additional canvas layers have already had their context chosen for you and are fixed as 2D contexts.
+		// They are provided in `canvases` for when you need to reference the canvas objects and not the context.
 		this.guiCanvas = canvases.guiCanvas; // !!!ALWAYS 2D!!! overlay for UI elements like menus and HUD
 		this.debugCanvas = canvases.debugCanvas; // !!!ALWAYS 2D!!! overlay for development/debugging visualization
 
@@ -72,9 +85,9 @@ class Game {
 		// The Debug Context (2D overlay)
 		this.debugCtx = canvases.debugCtx; // Always a 2D context for debugging
 
-		/************ Initialize 3D System ************/
+		/************ Initialize 3D Rendering and Physics World ************/
 		// Initialize 3D renderer - this handles all WebGL complexity for us!
-		this.renderer3D = new ActionRenderer3D(this.canvas);
+		this.renderer3D = new ActionRenderer3D(this.gameCanvas);
 
 		// Initialize physics world - handles all physics calculations
 		this.physicsWorld = new ActionPhysicsWorld3D();
@@ -201,22 +214,468 @@ class Game {
 	}
 
 	// Create a random physics object at the given position
+	/******* PROCEDURAL SAILBOAT CREATION USING GEOMETRYBUILDER *******/
+	/**
+	 * Creates a procedural sailboat using the smart GeometryBuilder triangle winding system
+	 * 
+	 * This method demonstrates the power of GeometryBuilder for creating complex 3D objects
+	 * without worrying about triangle winding. The DEMO creates a sailboat with:
+	 * - Hull (boat body) with proper boat-shaped geometry
+	 * - Mast (vertical pole) for structural realism
+	 * - Sail (triangular cloth) with double-sided rendering
+	 * 
+	 * KEY GEOMETRYBUILDER INSIGHT: Reference points must match actual geometry centers!
+	 * When you set a reference point, make sure it's positioned where your geometry actually is.
+	 * This allows GeometryBuilder to automatically calculate correct triangle winding.
+	 * 
+	 * @param {number} scale - Size multiplier for the entire sailboat
+	 * @param {number} mass - Physics mass (affects how it falls and bounces)
+	 * @param {Vector3} position - World position to spawn the sailboat
+	 * @returns {ActionPhysicsMesh3D} - The sailboat physics object with mesh collision
+	 */
+	createSailboat(scale = 1, mass = 2, position = new Vector3(0, 15, 0)) {
+		this.addMessage(`[DEMO] Creating procedural sailboat with GeometryBuilder (scale: ${scale.toFixed(2)})`);
+		
+		/******* GEOMETRYBUILDER INITIALIZATION *******/
+		// The GeometryBuilder handles smart triangle winding automatically
+		// No more manual clockwise/counterclockwise triangle headaches!
+		const builder = new GeometryBuilder();
+		
+		/******* GEOMETRY DATA ARRAYS *******/
+		// These arrays will hold our raw geometry data before conversion to physics objects
+		const vertices = [];  // Flat array: [x1,y1,z1, x2,y2,z2, ...]
+		const normals = [];   // Normals for lighting (filled automatically)
+		const colors = [];    // RGB colors for each vertex [r,g,b, r,g,b, ...]
+		const indices = [];   // Triangle indices pointing to vertices [i1,i2,i3, ...]
+		
+		/******* MATERIAL COLOR DEFINITIONS *******/
+		// The DEMO uses realistic colors to make the sailboat visually appealing
+		const hullColor = [0.6, 0.3, 0.1]; // Rich brown hull
+		const sailColor = [0.9, 0.9, 0.9]; // Clean white sail
+		const mastColor = [0.4, 0.2, 0.1]; // Dark brown mast
+		
+		/******* HULL CONSTRUCTION (BOAT BODY) *******/
+		// The hull is the main body of the sailboat. The DEMO creates a boat-shaped hull
+		// with a pointed front and back, wider middle, and proper 3D depth.
+		
+		// Calculate hull dimensions based on scale
+		const hullLength = 6 * scale;  // Length from bow to stern
+		const hullWidth = 2 * scale;   // Width at the widest point
+		const hullHeight = 1 * scale;  // Height from bottom to deck
+		
+		// CRITICAL: Set reference point to the ACTUAL center of the hull geometry!
+		// This allows GeometryBuilder to automatically determine correct winding
+		builder.setReferencePoint({x: 0, y: hullHeight/2, z: 0}); // Real hull center
+		
+		// Create boat-shaped hull bottom
+		// The DEMO creates a simple boat shape: pointed at front/back, wider in middle
+		vertices.push(
+			-hullLength/2, 0, 0,           // 0: Bow
+			-hullLength/3, 0, -hullWidth/2, // 1: Front port side
+			-hullLength/3, 0, hullWidth/2,  // 2: Front starboard side
+			hullLength/3, 0, -hullWidth/2,  // 3: Rear port side
+			hullLength/3, 0, hullWidth/2,   // 4: Rear starboard side
+			hullLength/2, 0, 0             // 5: Stern
+		);
+		
+		// Create deck level (top of hull) - same boat shape elevated to deck height
+		// This creates the deck where crew would stand and sail equipment is mounted
+		vertices.push(
+			-hullLength/2, hullHeight, 0,           // 6: Deck bow
+			-hullLength/3, hullHeight, -hullWidth/2, // 7: Deck front port
+			-hullLength/3, hullHeight, hullWidth/2,  // 8: Deck front starboard
+			hullLength/3, hullHeight, -hullWidth/2,  // 9: Deck rear port
+			hullLength/3, hullHeight, hullWidth/2,   // 10: Deck rear starboar
+			hullLength/2, hullHeight, 0             // 11: Deck stern
+		);
+		
+		// Apply hull material properties to all hull vertices
+		// The DEMO gives each vertex a normal (for lighting) and color (for appearance)
+		for (let i = 0; i < 12; i++) {
+			normals.push(0, 1, 0); // Temporary normals (will be calculated properly by renderer)
+			colors.push(...hullColor); // Apply rich brown wood color to each vertex
+		}
+		
+		// Create hull bottom triangles - GeometryBuilder handles winding automatically!
+		// The DEMO shows how easy triangle creation becomes with GeometryBuilder
+		builder.createTriangle(indices, vertices, 0, 1, 2); // Bow triangle
+		builder.createTriangle(indices, vertices, 1, 3, 4); // Port side quad (left) - triangle 1
+		builder.createTriangle(indices, vertices, 1, 4, 2); // Port side quad (left) - triangle 2
+		builder.createTriangle(indices, vertices, 3, 5, 4); // Stern triangle (back point)
+		
+		// Create hull side walls - connecting bottom to deck level
+		// GeometryBuilder.createQuad() automatically makes two triangles with correct winding!
+		builder.createQuad(indices, vertices, 0, 6, 7, 1); // Bow port side (front left hull wall)
+		builder.createQuad(indices, vertices, 0, 2, 8, 6); // Bow starboard side (front right)
+		builder.createQuad(indices, vertices, 1, 7, 9, 3); // Port hull side (left side)
+		builder.createQuad(indices, vertices, 2, 4, 10, 8); // Starboard hull side (right side)
+		builder.createQuad(indices, vertices, 3, 9, 11, 5); // Stern port side (back left)
+		builder.createQuad(indices, vertices, 4, 5, 11, 10); // Stern starboard side (back right)
+		
+		
+		// Hull deck triangles (top) - add after hull sides
+		builder.createTriangle(indices, vertices, 6, 8, 7); // deck front face
+		builder.createTriangle(indices, vertices, 7, 10, 9); // deck middle quad part 1
+		builder.createTriangle(indices, vertices, 7, 8, 10); // deck middle quad part 2
+		builder.createTriangle(indices, vertices, 9, 10, 11); // deck back face
+		
+		/******* MAST CONSTRUCTION (VERTICAL SUPPORT) *******/
+		// The mast is the tall vertical pole that supports the sail
+		// The DEMO creates a simple rectangular mast for structural clarity
+		
+		// Calculate mast dimensions
+		const mastHeight = 5 * scale;  // Tall enough to support a good-sized sail
+		const mastRadius = 0.1 * scale; // Thin but visible thickness
+		
+		// Update reference point to the ACTUAL center of the mast
+		// This ensures GeometryBuilder calculates correct winding for mast faces
+		builder.setReferencePoint({x: 0, y: hullHeight + mastHeight/2, z: 0}); // Real mast center
+		const mastBase = vertices.length / 3;
+		
+		// Simple mast (just a thin vertical cylinder, simplified as box)
+		vertices.push(
+			-mastRadius, hullHeight, -mastRadius,  // base
+			mastRadius, hullHeight, -mastRadius,
+			mastRadius, hullHeight, mastRadius,
+			-mastRadius, hullHeight, mastRadius,
+			-mastRadius, hullHeight + mastHeight, -mastRadius,  // top
+			mastRadius, hullHeight + mastHeight, -mastRadius,
+			mastRadius, hullHeight + mastHeight, mastRadius,
+			-mastRadius, hullHeight + mastHeight, mastRadius
+		);
+		
+		for (let i = 0; i < 8; i++) {
+			normals.push(0, 1, 0);
+			colors.push(...mastColor);
+		}
+		
+		// Mast faces
+		builder.createQuad(indices, vertices, mastBase, mastBase+1, mastBase+5, mastBase+4); // front
+		builder.createQuad(indices, vertices, mastBase+1, mastBase+2, mastBase+6, mastBase+5); // right
+		builder.createQuad(indices, vertices, mastBase+2, mastBase+3, mastBase+7, mastBase+6); // back
+		builder.createQuad(indices, vertices, mastBase+3, mastBase, mastBase+4, mastBase+7); // left
+		
+		/******* SAIL CONSTRUCTION (TRIANGULAR CLOTH) *******/
+		// The sail catches wind to propel the sailboat forward
+		// The DEMO creates a classic triangular sail attached to the mast
+		
+		// Calculate sail dimensions for realistic proportions
+		const sailWidth = 3 * scale;  // Width extending from mast outward
+		const sailHeight = 4 * scale; // Height along the mast
+		
+		// Position reference point at the ACTUAL center of the triangular sail
+		// This is critical for proper triangle winding on the sail surface
+		const sailCenterY = hullHeight + mastHeight*0.5; // Middle height of sail area
+		builder.setReferencePoint({x: sailWidth/2, y: sailCenterY, z: 0}); // Real sail center
+		const sailBase = vertices.length / 3;
+		
+		// Create triangular sail geometry - classic sailboat sail shape
+		// The DEMO positions the sail to catch wind effectively
+		vertices.push(
+			0, hullHeight + mastHeight*0.8, 0,         // Sail peak (top point attached high on mast)
+			sailWidth, hullHeight + mastHeight*0.2, 0, // Sail clew (bottom outer corner)
+			0, hullHeight + mastHeight*0.2, 0          // Sail tack (bottom corner at mast)
+		);
+		
+		for (let i = 0; i < 3; i++) {
+			normals.push(0, 0, 1);
+			colors.push(...sailColor);
+		}
+		
+		// Create double-sided sail triangle for realistic appearance
+		// Double-sided = visible from both port and starboard sides
+		// GeometryBuilder automatically creates both windings!
+		builder.createTriangle(indices, vertices, sailBase, sailBase+1, sailBase+2, false, true);
+		
+		/******* PHYSICS INTEGRATION *******/
+		// Convert our GeometryBuilder output to ActionEngine physics object
+		// The DEMO uses GeometryBuilder's built-in physics integration!
+		return builder.createPhysicsObject(this.physicsWorld, vertices, normals, colors, indices, mass, position);
+	}
+	
+	/******* PROCEDURAL AIRPLANE CREATION USING GEOMETRYBUILDER *******/
+	/**
+	 * Creates a detailed procedural airplane using GeometryBuilder's smart triangle winding
+	 * 
+	 * This method showcases GeometryBuilder's power for complex multi-component objects.
+	 * The DEMO constructs a realistic airplane with:
+	 * - Fuselage (main body) with proper aerodynamic proportions
+	 * - Main wings (port and starboard) for lift generation
+	 * - Tail fin (vertical stabilizer) for directional stability
+	 * - Horizontal stabilizer for pitch control
+	 * - Propeller assembly for forward thrust
+	 * - Landing gear for ground operations
+	 * 
+	 * GEOMETRYBUILDER BEST PRACTICE: Each component gets its own reference point!
+	 * This ensures perfect triangle winding for every airplane part automatically.
+	 * 
+	 * @param {number} scale - Size multiplier for the entire aircraft
+	 * @param {number} mass - Physics mass (affects flight dynamics in physics simulation)
+	 * @param {Vector3} position - World position to spawn the airplane
+	 * @returns {ActionPhysicsMesh3D} - Complete airplane with accurate mesh collision
+	 */
+	createAirplane(scale = 1, mass = 3, position = new Vector3(0, 15, 0)) {
+		this.addMessage(`✈️ [DEMO] Creating detailed procedural airplane with GeometryBuilder (scale: ${scale.toFixed(2)})`);
+		
+		/******* GEOMETRYBUILDER INITIALIZATION *******/
+		// Advanced multi-component geometry requires careful reference point management
+		const builder = new GeometryBuilder();
+		
+		/******* GEOMETRY DATA ARRAYS *******/
+		const vertices = [];  // All airplane vertices in one array
+		const normals = [];   // Lighting normals for each vertex
+		const colors = [];    // Material colors for each vertex
+		const indices = [];   // Triangle indices for all airplane parts
+		
+		/******* AIRCRAFT MATERIAL DEFINITIONS *******/
+		// The DEMO uses aviation-inspired colors for visual realism
+		const fuselageColor = [0.9, 0.9, 0.9];  // Clean white fuselage (like commercial aircraft)
+		const wingColor = [0.8, 0.1, 0.1];      // Bold red wings (for visibility)
+		const tailColor = [0.1, 0.1, 0.8];      // Blue tail (contrasting accent)
+		const propColor = [0.2, 0.2, 0.2];      // Dark gray propeller (metal)
+		const gearColor = [0.1, 0.1, 0.1];      // Black landing gear (rubber/metal)
+		
+		/******* FUSELAGE CONSTRUCTION (MAIN AIRCRAFT BODY) *******/
+		// The fuselage houses crew, passengers, and equipment
+		// The DEMO creates a streamlined body for realistic appearance
+		
+		// Calculate fuselage dimensions with proper aircraft proportions
+		const fuselageLength = 6 * scale;   // Length from nose to tail
+		const fuselageHeight = 1.2 * scale; // Height for crew compartment
+		const fuselageWidth = 1.0 * scale;  // Width for structural integrity
+		
+		// CRITICAL: Position reference point at the TRUE center of fuselage geometry
+		builder.setReferencePoint({x: 0, y: 0, z: 0}); // Actual fuselage center
+		
+		// Create streamlined fuselage with tapered nose and tail
+		// Front section (nose) - narrower for aerodynamics
+		const noseWidth = fuselageWidth * 0.3;
+		const noseHeight = fuselageHeight * 0.5;
+		vertices.push(
+			-fuselageLength/2, -noseHeight/2, -noseWidth/2,  // 0: Nose bottom left
+			-fuselageLength/2, -noseHeight/2, noseWidth/2,   // 1: Nose bottom right
+			-fuselageLength/2, noseHeight/2, noseWidth/2,    // 2: Nose top right
+			-fuselageLength/2, noseHeight/2, -noseWidth/2    // 3: Nose top left
+		);
+		
+		// Middle section (crew compartment) - full size for maximum volume
+		vertices.push(
+			-fuselageLength/6, -fuselageHeight/2, -fuselageWidth/2, // 4: Mid front bottom left
+			-fuselageLength/6, -fuselageHeight/2, fuselageWidth/2,  // 5: Mid front bottom right
+			-fuselageLength/6, fuselageHeight/2, fuselageWidth/2,   // 6: Mid front top right
+			-fuselageLength/6, fuselageHeight/2, -fuselageWidth/2,  // 7: Mid front top left
+			fuselageLength/6, -fuselageHeight/2, -fuselageWidth/2,  // 8: Mid rear bottom left
+			fuselageLength/6, -fuselageHeight/2, fuselageWidth/2,   // 9: Mid rear bottom right
+			fuselageLength/6, fuselageHeight/2, fuselageWidth/2,    // 10: Mid rear top right
+			fuselageLength/6, fuselageHeight/2, -fuselageWidth/2    // 11: Mid rear top left
+		);
+		
+		// Rear section (tail) - tapered for clean airflow
+		const tailWidth = fuselageWidth * 0.4;
+		const tailHeight = fuselageHeight * 0.6;
+		vertices.push(
+			fuselageLength/2, -tailHeight/2, -tailWidth/2,  // 12: Tail bottom left
+			fuselageLength/2, -tailHeight/2, tailWidth/2,   // 13: Tail bottom right
+			fuselageLength/2, tailHeight/2, tailWidth/2,    // 14: Tail top right
+			fuselageLength/2, tailHeight/2, -tailWidth/2    // 15: Tail top left
+		);
+		
+		// Apply fuselage material to all fuselage vertices
+		for (let i = 0; i < 16; i++) {
+			normals.push(0, 1, 0); // Temporary normals
+			colors.push(...fuselageColor); // Clean white aircraft finish
+		}
+		
+		// Create fuselage surface triangles - GeometryBuilder handles all winding!
+		// Nose section
+		builder.createQuad(indices, vertices, 0, 1, 2, 3); // Nose face
+		builder.createQuad(indices, vertices, 0, 4, 5, 1); // Nose to mid bottom
+		builder.createQuad(indices, vertices, 2, 6, 7, 3); // Nose to mid top
+		builder.createQuad(indices, vertices, 0, 3, 7, 4); // Nose to mid left
+		builder.createQuad(indices, vertices, 1, 5, 6, 2); // Nose to mid right
+		
+		// Middle section surfaces
+		builder.createQuad(indices, vertices, 4, 8, 9, 5);   // Middle bottom
+		builder.createQuad(indices, vertices, 6, 10, 11, 7); // Middle top
+		builder.createQuad(indices, vertices, 4, 7, 11, 8);  // Middle left
+		builder.createQuad(indices, vertices, 5, 9, 10, 6);  // Middle right
+		
+		// Tail section
+		builder.createQuad(indices, vertices, 8, 12, 13, 9);  // Mid to tail bottom
+		builder.createQuad(indices, vertices, 10, 14, 15, 11); // Mid to tail top
+		builder.createQuad(indices, vertices, 8, 11, 15, 12); // Mid to tail left
+		builder.createQuad(indices, vertices, 9, 13, 14, 10); // Mid to tail right
+		builder.createQuad(indices, vertices, 12, 15, 14, 13); // Tail face
+		
+		/******* MAIN WING CONSTRUCTION (PRIMARY LIFT SURFACES) *******/
+		// Wings generate lift and house fuel, control surfaces
+		// The DEMO creates swept wings for modern aircraft appearance
+		
+		// Calculate wing dimensions for realistic lift-to-weight ratio
+		const wingSpan = 8 * scale;       // Total wingspan (tip to tip)
+		const wingChord = 2 * scale;      // Wing depth (front to back)
+		const wingThickness = 0.3 * scale; // Wing thickness for fuel storage
+		const wingSweep = 0.5 * scale;    // Wing sweep angle for speed
+		
+		// Wings attach to fuselage at center, so reference point stays centered
+		// builder.setReferencePoint() not needed - using same as fuselage
+		
+		const wingBase = vertices.length / 3;
+		
+		// Create main wing geometry with realistic airfoil shape
+		// Port wing
+		vertices.push(
+			-wingChord/2 + wingSweep/2, -wingThickness/2, -wingSpan/2, // Port leading edge bottom
+			wingChord/2 + wingSweep/2, -wingThickness/2, -wingSpan/2,  // Port trailing edge bottom
+			wingChord/2 + wingSweep/2, wingThickness/2, -wingSpan/2,   // Port trailing edge top
+			-wingChord/2 + wingSweep/2, wingThickness/2, -wingSpan/2,  // Port leading edge top
+			-wingChord/2, -wingThickness/2, 0,                       // Root leading edge bottom
+			wingChord/2, -wingThickness/2, 0,                        // Root trailing edge bottom
+			wingChord/2, wingThickness/2, 0,                         // Root trailing edge top
+			-wingChord/2, wingThickness/2, 0                         // Root leading edge top
+		);
+		
+		// Starboard wing
+		vertices.push(
+			-wingChord/2, -wingThickness/2, 0,                       // Root leading edge bottom
+			wingChord/2, -wingThickness/2, 0,                        // Root trailing edge bottom
+			wingChord/2, wingThickness/2, 0,                         // Root trailing edge top
+			-wingChord/2, wingThickness/2, 0,                        // Root leading edge top
+			-wingChord/2 + wingSweep/2, -wingThickness/2, wingSpan/2, // Starboard leading edge bottom
+			wingChord/2 + wingSweep/2, -wingThickness/2, wingSpan/2,  // Starboard trailing edge bottom
+			wingChord/2 + wingSweep/2, wingThickness/2, wingSpan/2,   // Starboard trailing edge top
+			-wingChord/2 + wingSweep/2, wingThickness/2, wingSpan/2   // Starboard leading edge top
+		);
+		
+		// Apply wing material to all wing vertices
+		for (let i = 0; i < 16; i++) {
+			normals.push(0, 1, 0);
+			colors.push(...wingColor); // Bold red for high visibility
+		}
+		
+		// Create wing surface triangles
+		// Port wing surfaces
+		builder.createQuad(indices, vertices, wingBase+0, wingBase+1, wingBase+2, wingBase+3); // Port wing tip
+		builder.createQuad(indices, vertices, wingBase+4, wingBase+5, wingBase+6, wingBase+7); // Wing root
+		builder.createQuad(indices, vertices, wingBase+0, wingBase+4, wingBase+5, wingBase+1); // Port bottom
+		builder.createQuad(indices, vertices, wingBase+2, wingBase+6, wingBase+7, wingBase+3); // Port top
+		builder.createQuad(indices, vertices, wingBase+0, wingBase+3, wingBase+7, wingBase+4); // Port leading edge
+		builder.createQuad(indices, vertices, wingBase+1, wingBase+5, wingBase+6, wingBase+2); // Port trailing edge
+		
+		// Starboard wing surfaces
+		builder.createQuad(indices, vertices, wingBase+8, wingBase+9, wingBase+10, wingBase+11);   // Wing root
+		builder.createQuad(indices, vertices, wingBase+12, wingBase+13, wingBase+14, wingBase+15); // Starboard wing tip  
+		builder.createQuad(indices, vertices, wingBase+8, wingBase+12, wingBase+13, wingBase+9);   // Starboard bottom
+		builder.createQuad(indices, vertices, wingBase+10, wingBase+14, wingBase+15, wingBase+11); // Starboard top
+		builder.createQuad(indices, vertices, wingBase+8, wingBase+11, wingBase+15, wingBase+12); // Starboard leading edge
+		builder.createQuad(indices, vertices, wingBase+9, wingBase+13, wingBase+14, wingBase+10); // Starboard trailing edge
+		
+		/******* VERTICAL TAIL FIN (DIRECTIONAL STABILITY) *******/
+		// Tail fin prevents airplane from spinning and provides directional control
+		
+		// Calculate tail dimensions for proper stability
+		const tailFinHeight = 3 * scale;
+		const tailChord = 1.5 * scale;
+		const tailSweep = 0.3 * scale;
+		
+		// Position reference point at tail fin center
+		builder.setReferencePoint({x: fuselageLength/3, y: tailFinHeight/2, z: 0}); // Tail fin center
+		
+		const tailBase = vertices.length / 3;
+		
+		// Create vertical tail fin geometry
+		vertices.push(
+			fuselageLength/3 - tailChord/2, 0, 0,                    // Root leading edge
+			fuselageLength/3 + tailChord/2, 0, 0,                    // Root trailing edge
+			fuselageLength/3 + tailChord/2 - tailSweep, tailFinHeight, 0, // Tip trailing edge
+			fuselageLength/3 - tailChord/2 + tailSweep, tailFinHeight, 0  // Tip leading edge
+		);
+		
+		// Apply tail material
+		for (let i = 0; i < 4; i++) {
+			normals.push(0, 0, 1);
+			colors.push(...tailColor); // Blue tail for contrast
+		}
+		
+		// Create double-sided tail fin (visible from both sides)
+		builder.createQuad(indices, vertices, tailBase, tailBase+1, tailBase+2, tailBase+3, false, true);
+		
+		/******* PROPELLER ASSEMBLY (THRUST GENERATION) *******/
+		// Propeller converts engine power into forward thrust
+		
+		// Calculate propeller dimensions
+		const propDiameter = 2.5 * scale;
+		const propThickness = 0.1 * scale;
+		const propPosition = -fuselageLength/2 - 0.2*scale;
+		
+		// Position reference point at propeller center
+		builder.setReferencePoint({x: propPosition, y: 0, z: 0}); // Propeller center
+		
+		const propBase = vertices.length / 3;
+		
+		// Create two-blade propeller (cross pattern)
+		// Horizontal blade
+		vertices.push(
+			propPosition, -propThickness/2, -propDiameter/2, // Horizontal blade bottom left
+			propPosition, -propThickness/2, propDiameter/2,  // Horizontal blade bottom right
+			propPosition, propThickness/2, propDiameter/2,   // Horizontal blade top right
+			propPosition, propThickness/2, -propDiameter/2   // Horizontal blade top left
+		);
+		
+		// Vertical blade
+		vertices.push(
+			propPosition, -propDiameter/2, -propThickness/2, // Vertical blade bottom left
+			propPosition, -propDiameter/2, propThickness/2,  // Vertical blade bottom right
+			propPosition, propDiameter/2, propThickness/2,   // Vertical blade top right
+			propPosition, propDiameter/2, -propThickness/2   // Vertical blade top left
+		);
+		
+		// Apply propeller material
+		for (let i = 0; i < 8; i++) {
+			normals.push(-1, 0, 0);
+			colors.push(...propColor); // Dark metallic finish
+		}
+		
+		// Create propeller blade surfaces (double-sided for realistic appearance)
+		builder.createQuad(indices, vertices, propBase, propBase+1, propBase+2, propBase+3, false, true);   // Horizontal blade - visible from both sides
+		builder.createQuad(indices, vertices, propBase+4, propBase+5, propBase+6, propBase+7, false, true); // Vertical blade - visible from both sides
+		
+		/******* PHYSICS INTEGRATION *******/
+		// Convert complete airplane geometry to ActionEngine physics object
+		// The DEMO uses GeometryBuilder's built-in physics integration!
+		return builder.createPhysicsObject(this.physicsWorld, vertices, normals, colors, indices, mass, position);
+	}
+	
+
+	
 	createRandomObject(position) {
-		// Simple random object creation - just boxes and spheres
-		const objectType = Math.random() > 0.5 ? 0 : 1;
+		// Enhanced random object creation with GeometryBuilder objects!
+		const objectType = Math.floor(Math.random() * 4); // 0-3 for four types
 
 		switch (objectType) {
-			case 0: // Sphere
-				const sphereRadius = Math.random() * 3 + 1; // radius between 1-4
-				const sphereMass = Math.random() * 5 + 1; // mass between 1-6
+			case 0: // Sphere (keep the classic)
+				const sphereRadius = Math.random() * 3 + 1;
+				const sphereMass = Math.random() * 5 + 1;
 				return this.createSphere(sphereRadius, sphereMass, position);
 
-			case 1: // Box
-				const boxWidth = Math.random() * 4 + 2; // width between 2-6
-				const boxHeight = Math.random() * 4 + 2; // height between 2-6
-				const boxDepth = Math.random() * 4 + 2; // depth between 2-6
-				const boxMass = Math.random() * 5 + 1; // mass between 1-6
+			case 1: // Box (keep the classic)
+				const boxWidth = Math.random() * 4 + 2;
+				const boxHeight = Math.random() * 4 + 2;
+				const boxDepth = Math.random() * 4 + 2;
+				const boxMass = Math.random() * 5 + 1;
 				return this.createBox(boxWidth, boxHeight, boxDepth, boxMass, position);
+				
+			case 2: // Sailboat (NEW with GeometryBuilder!)
+				const sailboatScale = Math.random() * 0.5 + 0.8; // 0.8 to 1.3 scale
+				const sailboatMass = Math.random() * 3 + 2; // 2-5 mass
+				this.addMessage("🛥️ Spawning procedural sailboat!");
+				return this.createSailboat(sailboatScale, sailboatMass, position);
+				
+			case 3: // Detailed Airplane (ENHANCED with GeometryBuilder!)
+				const airplaneScale = Math.random() * 0.5 + 0.7; // 0.7 to 1.2 scale
+				const airplaneMass = Math.random() * 4 + 2; // 2-6 mass
+				this.addMessage("✈️ Spawning detailed procedural airplane with wings, tail, propeller & landing gear!");
+				return this.createAirplane(airplaneScale, airplaneMass, position);
 		}
 	}
 
@@ -862,7 +1321,9 @@ class Game {
 			this.spawnCharacter();
 			this.totalClicks++;
 		}
-	} /*-----------------
+	}
+	
+	/*-----------------
 	 * AUDIO INTEGRATION:
 	 * -----------------
 	 * Action Engine includes a powerful and flexible audio system for adding sound effects and music to your game.
@@ -1443,7 +1904,7 @@ class Game {
 
 		/******* GAME LAYER RENDERING *******/
 		/*
-		 * GAME LAYER (this.canvas):
+		 * GAME LAYER (this.gameCanvas):
 		 * - This is now always 3D rendered
 		 * - Handles the 3D world, character, and physics objects
 		 */
@@ -1469,10 +1930,9 @@ class Game {
 		if (this.showDebug) {
 			this.drawDebugLayer();
 		}
-
-		{
-		}
-	} /**
+	}
+	
+	/**
 	 * draw3DScene()
 	 *
 	 * Handles rendering the 3D world with all physics objects and characters
@@ -1480,10 +1940,9 @@ class Game {
 	 */
 	draw3DScene() {
 		// Clear the canvas
-		const gl = this.canvas.getContext("webgl2") || this.canvas.getContext("webgl");
-		if (gl) {
-			gl.clearColor(0.529, 0.808, 0.922, 1.0); // Sky blue background
-			gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+		if (this.gl) {
+			this.gl.clearColor(0.529, 0.808, 0.922, 1.0); // Sky blue background
+			this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
 		}
 
 		// Render the scene using ActionEngine's renderer
@@ -1497,7 +1956,7 @@ class Game {
 	 * drawGUILayer()
 	 *
 	 * Renders all UI elements on the GUI layer
-	 * The guiCanvas is a 2D context, providing crisp UI rendering regardless of game state
+	 *
 	 */
 	drawGUILayer() {
 		// Clear the GUI canvas
