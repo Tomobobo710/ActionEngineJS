@@ -1,33 +1,40 @@
+/**
+ * ActionPhysicsBox3D - 3D Box Physics Object with Single Color System
+ * 
+ * BREAKING CHANGE: Previously used rainbow faces by default.
+ * Now uses single green color system for consistency with other shapes.
+ * 
+ * @param {ActionPhysicsWorld3D} physicsWorld - The physics world
+ * @param {number} width - Box width (default: 10)
+ * @param {number} height - Box height (default: 10)
+ * @param {number} depth - Box depth (default: 10)
+ * @param {number} mass - Physics mass (default: 1)
+ * @param {Vector3} initialPosition - Starting position (default: 0,500,0)
+ * @param {string|Array} color - Single hex color "#228B22" or array of 6 colors for faces (default: "#228B22" green)
+ */
 class ActionPhysicsBox3D extends ActionPhysicsObject3D {
     constructor(physicsWorld, width = 10, height = 10, depth = 10, mass = 1, 
-                initialPosition = new Vector3(0, 500, 0), color = null, options = {}) {
+                initialPosition = new Vector3(0, 500, 0), color = "#228B22", options = {}) {
         // Create visual mesh with triangles
         const triangles = [];
-        
-        // Default colors for each face (used when no color is provided)
-        const defaultColors = [
-            "#FF0000", "#00FF00", "#0000FF", 
-            "#FFFF00", "#FF00FF", "#00FFFF"
-        ];
         
         // Determine what colors to use
         let faceColors;
         
-        if (color === null) {
-            // Use default multi-colored faces
-            faceColors = defaultColors;
-        } else if (typeof color === 'string') {
-            // Single color for all faces
+        if (typeof color === 'string') {
+            // Single color for all faces (including default green)
             faceColors = Array(6).fill(color);
         } else if (Array.isArray(color)) {
             // Array of colors provided - use them for corresponding faces
             faceColors = color.slice(0, 6);
+            // Fill missing colors with first provided color or default green
+            const fillColor = color[0] || "#228B22";
             while (faceColors.length < 6) {
-                faceColors.push(defaultColors[faceColors.length]);
+                faceColors.push(fillColor);
             }
         } else {
-            // Fallback to defaults for any other case
-            faceColors = defaultColors;
+            // Fallback to green for any other case
+            faceColors = Array(6).fill("#228B22");
         }
         
         // Helper to create face vertices

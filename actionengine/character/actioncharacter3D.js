@@ -6,8 +6,8 @@
  */
 
 class ActionCharacter3D extends ActionCharacter {
-    constructor(camera, game) {
-        super(camera, game);
+    constructor(camera, game, position) {
+        super(camera, game, position);
                 
         // Set additional properties needed by the parent class
         this.firstPersonHeight = this.height * 0.5;
@@ -15,16 +15,12 @@ class ActionCharacter3D extends ActionCharacter {
         // Create a capsule physics model
         this.characterModel = new ActionPhysicsCapsule3D(
             this.game.physicsWorld,
-            this.radius,
-            this.height,
+            2,
+            6,
             0, // mass
-            new Vector3(0, 10, 0), // position
-            "#4488FF", // primary color
-            "#8899FF"  // secondary color
+            new Vector3(0, 0, 0), // position
+            "#4488FF" // character color
         );
-        
-        // Set up character position and properties - start higher to avoid ground collision issues
-        this.body.position.set(0, 40, 0);
         
         console.log("[ActionCharacter3D] Initialized");
     }
@@ -37,7 +33,7 @@ class ActionCharacter3D extends ActionCharacter {
     update(deltaTime) {
         super.update(deltaTime);
         
-        // Update the visual representation (capsule) to match the character controller
+        // Update the visual representation to match the character controller
         if (this.characterModel && this.body) {
             // Copy position from character controller to our visual model
             this.characterModel.body.position.x = this.body.position.x;

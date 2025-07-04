@@ -1,4 +1,25 @@
 // actionengine/math/physics/actionphysicscapsule3D.js
+/**
+ * ActionPhysicsCapsule3D - 3D Capsule Physics Object with Single Color System
+ * 
+ * BREAKING CHANGE: Previously used two-color checkerboard pattern (color1, color2).
+ * Now uses single color system for consistent developer experience.
+ * 
+ * IMPORTANT GEOMETRY CONSTRAINT:
+ * Total height MUST be greater than 2 × radius!
+ * 
+ * Why? A capsule = cylinder + 2 hemisphere caps
+ * - Cylinder height = total height - (2 × radius)
+ * - If total height < 2 × radius, cylinder height becomes negative = impossible!
+ * - This constraint is enforced by the Goblin physics library
+ * 
+ * @param {ActionPhysicsWorld3D} physicsWorld - The physics world
+ * @param {number} radius - Capsule radius (default: 2)
+ * @param {number} height - Total height including caps - MUST be > 2×radius (default: 10)
+ * @param {number} mass - Physics mass (default: 1)
+ * @param {Vector3} initialPosition - Starting position (default: 0,10,0)
+ * @param {string} color - Hex color string like "#FF0000" (default: "#E94B3C" red)
+ */
 class ActionPhysicsCapsule3D extends ActionPhysicsObject3D {
     constructor(
         physicsWorld,
@@ -6,13 +27,13 @@ class ActionPhysicsCapsule3D extends ActionPhysicsObject3D {
         height = 10,
         mass = 1,
         initialPosition = new Vector3(0, 10, 0),
-        color1 = "#FF0000",
-        color2 = "#0000FF"
+        color = "#E94B3C"
     ) {
-        // Create visual mesh with triangles
+        // Create visual mesh with triangles using single color system
         const triangles = [];
         
         // Calculate the cylinder height (total height minus the two hemisphere caps)
+        // This will be negative if height < 2*radius, causing physics library to throw error
         const cylinderHeight = height - 2 * radius;
         const halfCylinderHeight = cylinderHeight * 0.5;
         
@@ -20,6 +41,9 @@ class ActionPhysicsCapsule3D extends ActionPhysicsObject3D {
         const radialSegments = 12;
         const heightSegments = 4;
         const capSegments = 6;
+        
+        // Use single color for all triangles (no more checkerboard)
+        const capsuleColor = color;
         
         // Helper function to create cylinder and cap vertices
         const createVertex = (theta, y, radius) => {
@@ -29,9 +53,6 @@ class ActionPhysicsCapsule3D extends ActionPhysicsObject3D {
                 radius * Math.sin(theta)
             );
         };
-        
-        // Helper to alternate colors for triangle checkerboard pattern
-        const getColor = (x, y) => ((x + y) % 2 === 0) ? color1 : color2;
         
         // 1. Create Cylinder Body - FIXED WINDING ORDER
         for (let y = 0; y < heightSegments; y++) {
@@ -49,8 +70,8 @@ class ActionPhysicsCapsule3D extends ActionPhysicsObject3D {
                 const v4 = createVertex(theta, yTop, radius);
                 
                 // FIXED: Reversed winding order for outward-facing normals
-                triangles.push(new Triangle(v1, v3, v2, getColor(x, y)));
-                triangles.push(new Triangle(v1, v4, v3, getColor(x, y)));
+                triangles.push(new Triangle(v1, v3, v2, capsuleColor));
+                triangles.push(new Triangle(v1, v4, v3, capsuleColor));
             }
         }
         
@@ -76,7 +97,7 @@ class ActionPhysicsCapsule3D extends ActionPhysicsObject3D {
                     const v2 = createVertex(thetaNext, yAtPhi, radiusAtPhi);
                     
                     // FIXED: Reversed winding order for top pole triangles
-                    triangles.push(new Triangle(v1, topCenter, v2, getColor(x, y + heightSegments)));
+                    triangles.push(new Triangle(v1, topCenter, v2, capsuleColor));
                 }
             } else {
                 for (let x = 0; x < radialSegments; x++) {
@@ -90,8 +111,8 @@ class ActionPhysicsCapsule3D extends ActionPhysicsObject3D {
                     const v4 = createVertex(theta, yAtPhiNext, radiusAtPhiNext);
                     
                     // FIXED: Reversed winding order for top hemisphere
-                    triangles.push(new Triangle(v1, v3, v2, getColor(x, y + heightSegments)));
-                    triangles.push(new Triangle(v1, v4, v3, getColor(x, y + heightSegments)));
+                    triangles.push(new Triangle(v1, v3, v2, capsuleColor));
+                    triangles.push(new Triangle(v1, v4, v3, capsuleColor));
                 }
             }
         }
@@ -118,7 +139,7 @@ class ActionPhysicsCapsule3D extends ActionPhysicsObject3D {
                     const v2 = createVertex(thetaNext, yAtPhi, radiusAtPhi);
                     
                     // FIXED: Correct winding order for bottom pole
-                    triangles.push(new Triangle(v1, v2, bottomCenter, getColor(x, y)));
+                    triangles.push(new Triangle(v1, v2, bottomCenter, capsuleColor));
                 }
             } else {
                 for (let x = 0; x < radialSegments; x++) {
@@ -132,8 +153,8 @@ class ActionPhysicsCapsule3D extends ActionPhysicsObject3D {
                     const v4 = createVertex(theta, yAtPhiNext, radiusAtPhiNext);
                     
                     // FIXED: Correct winding order for bottom hemisphere
-                    triangles.push(new Triangle(v1, v2, v3, getColor(x, y)));
-                    triangles.push(new Triangle(v1, v3, v4, getColor(x, y)));
+                    triangles.push(new Triangle(v1, v2, v3, capsuleColor));
+                    triangles.push(new Triangle(v1, v3, v4, capsuleColor));
                 }
             }
         }

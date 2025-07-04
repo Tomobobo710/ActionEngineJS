@@ -1,7 +1,7 @@
 // game/character/basecharacter/actioncharacter.js
 
 class ActionCharacter extends RenderableObject {
-    constructor(camera, game) {
+    constructor(camera, game, position) {
         super();
 
         this.game = game;
@@ -37,7 +37,12 @@ class ActionCharacter extends RenderableObject {
         this.controller = new Goblin.CharacterController(this.game.physicsWorld.getWorld());
         // Get the character body from the controller
         this.body = this.controller.body;
-        this.body.position.set(0, 500, 0);
+        
+        if(position){
+            this.body.position.set(position.x, position.y, position.z);   
+        } else {
+            this.body.position.set(0, 500, 0);
+        }
 
         // Add debug tracking
         this.body.debugName = `CharacterBody_${Date.now()}`;

@@ -1,4 +1,17 @@
 // actionengine/math/physics/actionphysicscone3D.js
+/**
+ * ActionPhysicsCone3D - 3D Cone Physics Object with Single Color System
+ * 
+ * BREAKING CHANGE: Previously used two-color checkerboard pattern (color1, color2).
+ * Now uses single color system for consistency with other shapes.
+ * 
+ * @param {ActionPhysicsWorld3D} physicsWorld - The physics world
+ * @param {number} radius - Cone base radius (default: 2)
+ * @param {number} height - Cone height (default: 10)
+ * @param {number} mass - Physics mass (default: 1)
+ * @param {Vector3} initialPosition - Starting position (default: 0,10,0)
+ * @param {string} color - Hex color string like "#FF0000" (default: "#FFA500" orange)
+ */
 class ActionPhysicsCone3D extends ActionPhysicsObject3D {
     constructor(
         physicsWorld,
@@ -6,15 +19,17 @@ class ActionPhysicsCone3D extends ActionPhysicsObject3D {
         height = 10,
         mass = 1,
         initialPosition = new Vector3(0, 10, 0),
-        color1 = "#FF0000",
-        color2 = "#0000FF"
+        color = "#FFA500"
     ) {
-        // Create visual mesh with triangles
+        // Create visual mesh with triangles using single color system
         const triangles = [];
         
         // Segments for mesh detail
         const radialSegments = 12;
         const heightSegments = 6;
+        
+        // Use single color for all triangles (changed from checkerboard pattern)
+        const coneColor = color;
         
         // Helper function to create vertices
         const createVertex = (theta, heightPercent, radiusPercent) => {
@@ -25,9 +40,6 @@ class ActionPhysicsCone3D extends ActionPhysicsObject3D {
                 currentRadius * Math.sin(theta)
             );
         };
-        
-        // Helper to alternate colors for triangle checkerboard pattern
-        const getColor = (x, y) => ((x + y) % 2 === 0) ? color1 : color2;
         
         // 1. Create Cone Body
         const tip = new Vector3(0, height/2, 0);
@@ -48,7 +60,7 @@ class ActionPhysicsCone3D extends ActionPhysicsObject3D {
                     const v2 = createVertex(thetaNext, yBottom, 1);
                     
                     // Correct winding order for outward-facing normal
-                    triangles.push(new Triangle(v1, tip, v2, getColor(x, y)));
+                    triangles.push(new Triangle(v1, tip, v2, coneColor));
                 } else {
                     // Regular segment
                     const v1 = createVertex(theta, yBottom, 1);
@@ -57,8 +69,8 @@ class ActionPhysicsCone3D extends ActionPhysicsObject3D {
                     const v4 = createVertex(theta, yTop, 1);
                     
                     // Correct winding order for outward-facing normals
-                    triangles.push(new Triangle(v1, v3, v2, getColor(x, y)));
-                    triangles.push(new Triangle(v1, v4, v3, getColor(x, y)));
+                    triangles.push(new Triangle(v1, v3, v2, coneColor));
+                    triangles.push(new Triangle(v1, v4, v3, coneColor));
                 }
             }
         }
@@ -71,7 +83,7 @@ class ActionPhysicsCone3D extends ActionPhysicsObject3D {
             const v1 = createVertex(theta, 0, 1);
             const v2 = createVertex(thetaNext, 0, 1);
             
-            triangles.push(new Triangle(v1, v2, base, getColor(x, heightSegments)));
+            triangles.push(new Triangle(v1, v2, base, coneColor));
         }
         
         super(physicsWorld, triangles);

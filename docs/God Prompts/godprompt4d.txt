@@ -1,3 +1,6 @@
+User: So, I have this demo/document for a game engine I have been working on:
+
+```
 /**
  * Welcome to the Action Engine!
  * The Action Engine simplifies the game development process by abstracting away the complexities of setting up and managing common "video game" software components. These vital systems can be tedious to implement, and really take the fun out of game development.
@@ -802,9 +805,9 @@ class Game {
 		// Create new character if one doesn't exist
 		if (!this.player) {
 			this.addMessage("Spawning 3D character");
-			
+
 			// Initialize first/3rd person character controller
-			this.player = new ActionCharacter3D(this.camera, this, new Vector3(0, 40, 0));
+			this.player = new ActionCharacter3D(this.camera, this);
 			this.physicsWorld.objects.add(this.player.characterModel);
 
 			// Position the character in a good starting location
@@ -2327,3 +2330,67 @@ class Game {
 		this.guiCtx.restore();
 	}
 }
+```
+
+So like, the idea was to be able to tell AI like, yo, all this stuff is working great, study how the Game class works and then make a game using the system we've built here by ONLY supplying the Game class (and any other classes Game needs that aren't part of the existing system).
+
+The key insight is: The example shows the PATTERNS for input handling and animation - use those patterns but feel free to respond to input however your game needs to.
+
+Your purpose is to complete a TASK of creating a programming project by utilizing the classes in the Action Engine that you have no idea about, so you must follow the PATTERN of the Template.
+
+Additonal classes which complement the Game class is ok. I think by the end of this you should feel confident that you could make ANOTHER GAME using the API available and referenced in the template.
+
+Upon detailed inspection you can see that the template isn't just showing a working example - it's showing the required patterns for working with the EXTERNAL input, audio, and display systems. Follow these patterns first, THEN add your game mechanics on top.
+
+Structure the game around core foundational data points and state management. Each game element should have clear, well-defined properties that serve as single sources of truth (position, velocity, state, etc.). Use consistent data structures that can be easily referenced, modified, and extended.
+
+The codebase should be lean but complete - every variable and function should serve an immediate purpose while maintaining clean interfaces for future expansion.
+
+Example architecture priorities:
+	- Central game state object with predictable structure
+	- Entity components with standardized properties
+	- Collision, position, and boundary data that can be reliably referenced
+	- Clear relationships between game elements (player->projectiles, enemies->drops)
+	- State machines for complex behaviors
+
+AVOID premature abstraction or speculative utility functions. Code should be minimal but robust, with each data point serving as a reliable foundation for current gameplay and future features. Write only what's needed now, but ensure what's written is solid enough to build upon later.
+
+
+
+
+It theory, your TASK will be easy. Normally cumbersome game framework buildouts like input and audio and everything are handled for you. It's the game developer's dream, to just ONLY work on the game and game logic.
+
+	- External systems handle scaling the fixed-size gameCanvas (as well as guiCanvas and debugCanvas canvases) to fit ANY display properly. 
+	
+	- You can expect to do anything you need to to these canvases and not experience any interference with external Action Engine systems.
+
+	- All the inputs will be handled by the external InputManager (here refered to as `input`) which handles maintaining an input state. The Game class will just check the state of inputs for input handling through an API. Reference the template example for all input types, there is an example for each one.
+
+	- All sounds and playback will be handled by the external SoundManager (here refered to as 'audio') wich maintains an audio library and handles playback. Reference the template API calls to this external class for creating your sounds and playing them.
+
+
+I don't want you to take any design or programming logic from the demo, especially any sytlistic or design decisions. It's intended design is as a DEMO, but in reality it's purpose is to be a documented artifact to help explain how to interface with Action Engine's systems.
+
+I want you to see the example so you can get a feel of the correct ways to interface with Action Engine, but I don't want the terrible style to like to stifle your creativity.
+
+Instead I want to inform you of these few requirements:
+
+	- DirUp/DLR and Action1-4 are the hardcoded inputs you have available as far as "key inputs" go, touch/mouse is supported also
+
+	- All visuals, ui and interactable objects MUST be contained in the constructor's provided `canvas`
+
+	- Set up the game with a fixed 800x600 internal resolution that never changes:
+		- Use this fixed coordinate space as your reliable "world" size
+		- Game logic always runs at this fixed size
+		
+	- The game will work, and be playable, from start screen to gameplay to game over
+
+    - There will be NO PLACEHOLDER code
+       - Structure all responses with clear priority order - tackle critical systems first, then build outward
+       - Stay focused on completing each priority level before moving to the next.
+
+	- The games demonstrated are in 2D, but 3D is totally possible, don't limit yourself
+
+!!!I don't want an example, not a basic starting point, but a finished product fully polished stunning release build.!!!
+
+I want you to work with the Action Engine and make a game.  Tell me about how much sense everything makes to you and how you understand the concept and the api calls. Tell me how you understand that the strict, but solid game design philosophy requirements elaborated here are not just for making not just games, but all software, and how you're ready to take on a project that maintains these constraints. Then ask me what game we are going to make.
