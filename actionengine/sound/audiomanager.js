@@ -15,6 +15,10 @@ class ActionAudioManager {
         this.midiReady = false;
         this.sf2Player = null;
         this.activeSounds = new Map();
+        // Enhanced sound tracking for new features
+        this.soundInstances = new Map(); // Track individual sound instances
+        this.soundVolumes = new Map();   // Individual sound volumes
+        this.repeatTimeouts = new Map(); // Track repeat timeouts for cleanup
         this.midiChannels = new Array(16).fill(null).map(() => ({
             volume: 127,
             pan: 64,
@@ -548,7 +552,39 @@ class ActionAudioManager {
         return 440 * Math.pow(2, (note - 69) / 12);
     }
 
-    // Enhanced play method to handle all sound types
+    /**
+     * Set individual sound volume
+     * @param {string} name - Sound name
+     * @param {number} volume - Volume level (0.0 to 1.0)
+     */
+    setSoundVolume(name, volume) {
+        volume = Math.max(0, Math.min(1, volume)); // Clamp between 0 and 1
+        this.soundVolumes.set(name, volume);
+        
+        // Update any currently playing instances
+        const instances = this.soundInstances.get(name) || [];
+        instances.forEach(instance => {
+            if (instance.gainNode && instance.gainNode.gain) {
+                const currentTime = this.context.currentTime;
+                const masterVol = this.masterGain ? this.masterGain.gain.value / this.baseVolume : 1.0;
+                const finalVolume = volume * masterVol;
+                instance.gainNode.gain.setValueAtTime(finalVolume, currentTime);
+            }
+        });
+        
+        console.log(`[AudioManager] Sound volume set: ${name} = ${volume}`);
+    }
+
+    /**
+     * Get individual sound volume
+     * @param {string} name - Sound name
+     * @returns {number} Volume level (0.0 to 1.0)
+     */
+    getSoundVolume(name) {
+        return this.soundVolumes.get(name) || 1.0;
+    }
+
+    // Enhanced play method to handle all sound types with new options
     play(name, options = {}) {
         console.log(`[AudioManager] Playing sound...`);
         if (!this.enabled || !this.context) return;
@@ -556,27 +592,57 @@ class ActionAudioManager {
         const sound = this.sounds.get(name);
         if (!sound) return;
 
+        // Always prevent sound stacking - stop any existing instances of this sound
+        const instances = this.soundInstances.get(name) || [];
+        if (instances.length > 0) {
+            console.log(`[AudioManager] Preventing sound stacking for: ${name}`);
+            // Stop existing instances
+            instances.forEach(instance => this.stopSoundInstance(instance));
+            this.soundInstances.set(name, []);
+        }
+
+        // Set up repeat tracking
+        const repeatInfo = {
+            count: options.repeat || 1,
+            current: 0,
+            onEnd: options.onEnd || null
+        };
+
+        // Play the first instance
+        const controlObject = this.playInstance(name, sound, options, repeatInfo);
+        
+        return controlObject;
+    }
+
+    /**
+     * Play a single instance of a sound
+     */
+    playInstance(name, sound, options, repeatInfo) {
         let controlObject;
+
+        // Apply individual sound volume if set
+        const soundVolume = options.volume !== undefined ? options.volume : this.getSoundVolume(name);
+        const enhancedOptions = { ...options, volume: soundVolume };
 
         switch (sound.type) {
             case "simple":
-                controlObject = this.playSimple(sound, options);
+                controlObject = this.playSimple(sound, enhancedOptions);
                 break;
             case "fm":
-                controlObject = this.playFM(sound, options);
+                controlObject = this.playFM(sound, enhancedOptions);
                 break;
             case "complex":
-                controlObject = this.playComplex(sound, options);
+                controlObject = this.playComplex(sound, enhancedOptions);
                 break;
             case "noise":
-                controlObject = this.playNoise(sound, options);
+                controlObject = this.playNoise(sound, enhancedOptions);
                 break;
             case "sweep":
-                controlObject = this.playSweep(sound, options);
+                controlObject = this.playSweep(sound, enhancedOptions);
                 break;
             case "sonicpi":
                 console.log(`[AudioManager] Playing Pi sound... ${sound}`);
-                controlObject = this.playSonicPi(sound, options);
+                controlObject = this.playSonicPi(sound, enhancedOptions);
                 break;
             default:
                 console.warn(`[AudioManager] Unknown sound type for ${name}`);
@@ -584,12 +650,142 @@ class ActionAudioManager {
         }
 
         if (controlObject) {
+            // Track this instance
+            const instances = this.soundInstances.get(name) || [];
+            const instanceData = {
+                ...controlObject,
+                name: name,
+                startTime: this.context.currentTime,
+                repeatInfo: repeatInfo
+            };
+            instances.push(instanceData);
+            this.soundInstances.set(name, instances);
+            
+            // Set up sound end detection for callbacks and repeats
+            this.setupSoundEndDetection(name, sound, instanceData);
+            
             this.activeSounds.set(name, controlObject);
         }
         return controlObject;
     }
 
+    /**
+     * Set up sound end detection for callbacks and repeat functionality
+     */
+    setupSoundEndDetection(name, sound, instanceData) {
+        // Calculate sound duration
+        let duration = sound.duration || 1;
+        if (sound.envelope) {
+            const env = sound.envelope;
+            duration = (env.attack || 0.1) + (env.decay || 0.2) + (env.release || 0.3);
+        }
+
+        // Set timeout to handle sound end
+        const endTimeout = setTimeout(() => {
+            this.handleSoundEnd(name, instanceData);
+        }, duration * 1000);
+
+        instanceData.endTimeout = endTimeout;
+    }
+
+    /**
+     * Handle sound end - cleanup, callbacks, and repeat logic
+     */
+    handleSoundEnd(name, instanceData) {
+        // Remove this instance from tracking
+        const instances = this.soundInstances.get(name) || [];
+        const index = instances.indexOf(instanceData);
+        if (index > -1) {
+            instances.splice(index, 1);
+            this.soundInstances.set(name, instances);
+        }
+
+        const repeatInfo = instanceData.repeatInfo;
+        repeatInfo.current++;
+
+        // Check if we should repeat
+        const shouldRepeat = (repeatInfo.count === -1) || (repeatInfo.current < repeatInfo.count);
+        
+        if (shouldRepeat) {
+            // Schedule next repeat
+            const repeatTimeout = setTimeout(() => {
+                const sound = this.sounds.get(name);
+                if (sound) {
+                    this.playInstance(name, sound, instanceData.options || {}, repeatInfo);
+                }
+            }, 50); // Small delay between repeats
+
+            // Track repeat timeout for cleanup
+            const repeatTimeouts = this.repeatTimeouts.get(name) || [];
+            repeatTimeouts.push(repeatTimeout);
+            this.repeatTimeouts.set(name, repeatTimeouts);
+        } else {
+            // Sound is completely finished, call onEnd callback
+            if (repeatInfo.onEnd) {
+                try {
+                    repeatInfo.onEnd({
+                        soundName: name,
+                        totalRepeats: repeatInfo.current
+                    });
+                } catch (error) {
+                    console.error(`[AudioManager] Error in onEnd callback for ${name}:`, error);
+                }
+            }
+        }
+    }
+
+    /**
+     * Stop a specific sound instance
+     */
+    stopSoundInstance(instanceData) {
+        const now = this.context.currentTime;
+        
+        // Clear end timeout
+        if (instanceData.endTimeout) {
+            clearTimeout(instanceData.endTimeout);
+        }
+
+        // Stop audio nodes
+        if (instanceData.nodes) {
+            instanceData.nodes.forEach((node) => {
+                if (node.gain) {
+                    node.gain.setValueAtTime(node.gain.value, now);
+                    node.gain.linearRampToValueAtTime(0, now + 0.05);
+                }
+                setTimeout(() => {
+                    try {
+                        if (node.stop) node.stop();
+                    } catch (e) {
+                        // Node might have already stopped
+                    }
+                }, 50);
+            });
+        }
+
+        // Handle MIDI notes
+        if (instanceData.midiNotes) {
+            instanceData.midiNotes.forEach((note) => {
+                if (this.sf2Player) {
+                    this.sf2Player.noteOff(note.note, note.velocity || 127, note.channel || 0);
+                }
+            });
+        }
+    }
+
     stopSound(name) {
+        // Stop all instances of this sound
+        const instances = this.soundInstances.get(name) || [];
+        instances.forEach(instance => {
+            this.stopSoundInstance(instance);
+        });
+        this.soundInstances.set(name, []);
+
+        // Clear any pending repeat timeouts
+        const repeatTimeouts = this.repeatTimeouts.get(name) || [];
+        repeatTimeouts.forEach(timeout => clearTimeout(timeout));
+        this.repeatTimeouts.set(name, []);
+
+        // Original stopSound logic for backward compatibility
         const sound = this.activeSounds.get(name);
         if (sound) {
             const now = this.context.currentTime;
@@ -627,7 +823,21 @@ class ActionAudioManager {
     }
 
     stopAllSounds() {
-        // Stop all active sounds
+        // Stop all sound instances
+        this.soundInstances.forEach((instances, name) => {
+            instances.forEach(instance => {
+                this.stopSoundInstance(instance);
+            });
+        });
+        this.soundInstances.clear();
+
+        // Clear all repeat timeouts
+        this.repeatTimeouts.forEach((timeouts) => {
+            timeouts.forEach(timeout => clearTimeout(timeout));
+        });
+        this.repeatTimeouts.clear();
+
+        // Stop all active sounds (original logic)
         this.activeSounds.forEach((sound, name) => {
             this.stopSound(name);
         });
@@ -648,8 +858,8 @@ class ActionAudioManager {
         this.activeSounds.clear();
     }
 
-    // Original simple oscillator playback (maintained for compatibility)
-    playSimple(sound, { pan = 0 } = {}) {
+    // Original simple oscillator playback (enhanced with volume support)
+    playSimple(sound, { pan = 0, volume = 1.0 } = {}) {
         const oscillator = this.context.createOscillator();
         console.log("[AudioManager] Sound config:", sound);
         console.log("[AudioManager] Setting oscillator type to:", sound.oscillatorType);
@@ -663,14 +873,22 @@ class ActionAudioManager {
 
         stereoPanner.pan.value = pan;
 
-        // Apply the ADSR envelope
+        // Apply the ADSR envelope with individual volume
         const now = this.context.currentTime;
         const envelope = sound.envelope;
+        const finalAmp = sound.amp * volume; // Apply individual sound volume
 
         gainNode.gain.setValueAtTime(0, now);
-        gainNode.gain.linearRampToValueAtTime(sound.amp, now + envelope.attack);
-        gainNode.gain.linearRampToValueAtTime(sound.amp * envelope.sustain, now + envelope.attack + envelope.decay);
+        gainNode.gain.linearRampToValueAtTime(finalAmp, now + envelope.attack);
+        gainNode.gain.linearRampToValueAtTime(finalAmp * envelope.sustain, now + envelope.attack + envelope.decay);
         gainNode.gain.linearRampToValueAtTime(0, now + envelope.attack + envelope.decay + envelope.release);
+
+        // Store gain node for potential volume changes
+        const controlObject = {
+            oscillator,
+            gainNode,
+            nodes: [oscillator, gainNode, stereoPanner]
+        };
 
         oscillator.connect(gainNode);
         gainNode.connect(stereoPanner);
@@ -679,14 +897,11 @@ class ActionAudioManager {
         oscillator.start();
         oscillator.stop(now + envelope.attack + envelope.decay + envelope.release);
 
-        return {
-            oscillator,
-            nodes: [oscillator, gainNode, stereoPanner]
-        };
+        return controlObject;
     }
 
-    // FM synthesis playback
-    playFM(sound, { pan = 0 } = {}) {
+    // FM synthesis playback (enhanced with volume support)
+    playFM(sound, { pan = 0, volume = 1.0 } = {}) {
         const carrier = this.context.createOscillator();
         const modulator = this.context.createOscillator();
         const modulatorGain = this.context.createGain();
@@ -708,18 +923,22 @@ class ActionAudioManager {
         gainNode.connect(stereoPanner);
         stereoPanner.connect(this.masterGain);
 
-        this.applyEnvelope(gainNode.gain, sound.envelope, sound.duration);
+        this.applyEnvelope(gainNode.gain, sound.envelope, sound.duration, volume);
 
         carrier.start();
         modulator.start();
         carrier.stop(this.context.currentTime + sound.duration);
         modulator.stop(this.context.currentTime + sound.duration);
 
-        return carrier;
+        return {
+            oscillator: carrier,
+            gainNode,
+            nodes: [carrier, modulator, gainNode, stereoPanner]
+        };
     }
 
-    // Multi-oscillator playback
-    playComplex(sound, { pan = 0 } = {}) {
+    // Multi-oscillator playback (enhanced with volume support)
+    playComplex(sound, { pan = 0, volume = 1.0 } = {}) {
         const stereoPanner = this.context.createStereoPanner();
         const masterGain = this.context.createGain();
         const oscillators = [];
@@ -741,18 +960,22 @@ class ActionAudioManager {
             oscillators.push(osc);
         });
 
-        this.applyEnvelope(masterGain.gain, sound.envelope, sound.duration);
+        this.applyEnvelope(masterGain.gain, sound.envelope, sound.duration, volume);
 
         oscillators.forEach((osc) => {
             osc.start();
             osc.stop(this.context.currentTime + sound.duration);
         });
 
-        return oscillators;
+        return {
+            oscillator: oscillators[0], // For compatibility
+            gainNode: masterGain,
+            nodes: [masterGain, stereoPanner, ...oscillators]
+        };
     }
 
-    // Noise generation and playback
-    playNoise(sound, { pan = 0 } = {}) {
+    // Noise generation and playback (enhanced with volume support)
+    playNoise(sound, { pan = 0, volume = 1.0 } = {}) {
         const bufferSize = this.context.sampleRate * sound.duration;
         const buffer = this.context.createBuffer(1, bufferSize, this.context.sampleRate);
         const data = buffer.getChannelData(0);
@@ -812,14 +1035,18 @@ class ActionAudioManager {
         gainNode.connect(stereoPanner);
         stereoPanner.connect(this.masterGain);
 
-        this.applyEnvelope(gainNode.gain, sound.envelope, sound.duration);
+        this.applyEnvelope(gainNode.gain, sound.envelope, sound.duration, volume);
 
         noise.start();
-        return noise;
+        return {
+            oscillator: noise,
+            gainNode,
+            nodes: [noise, filter, gainNode, stereoPanner]
+        };
     }
 
-    // Frequency sweep playback
-    playSweep(sound, { pan = 0 } = {}) {
+    // Frequency sweep playback (enhanced with volume support)
+    playSweep(sound, { pan = 0, volume = 1.0 } = {}) {
         const oscillator = this.context.createOscillator();
         const gainNode = this.context.createGain();
         const stereoPanner = this.context.createStereoPanner();
@@ -834,12 +1061,16 @@ class ActionAudioManager {
         gainNode.connect(stereoPanner);
         stereoPanner.connect(this.masterGain);
 
-        this.applyEnvelope(gainNode.gain, sound.envelope, sound.duration);
+        this.applyEnvelope(gainNode.gain, sound.envelope, sound.duration, volume);
 
         oscillator.start();
         oscillator.stop(this.context.currentTime + sound.duration);
 
-        return oscillator;
+        return {
+            oscillator,
+            gainNode,
+            nodes: [oscillator, gainNode, stereoPanner]
+        };
     }
 
     parseSonicPi(script, samples) {
@@ -1186,14 +1417,14 @@ class ActionAudioManager {
         };
     }
 
-    // ADSR envelope utility
-    applyEnvelope(gainParam, envelope, duration) {
+    // ADSR envelope utility (enhanced with volume support)
+    applyEnvelope(gainParam, envelope, duration, volume = 1.0) {
         const { attack, decay, sustain, release } = envelope;
         const now = this.context.currentTime;
 
         gainParam.setValueAtTime(0, now);
-        gainParam.linearRampToValueAtTime(1, now + attack);
-        gainParam.linearRampToValueAtTime(sustain, now + attack + decay);
+        gainParam.linearRampToValueAtTime(volume, now + attack);
+        gainParam.linearRampToValueAtTime(volume * sustain, now + attack + decay);
         gainParam.linearRampToValueAtTime(0, now + duration);
     }
 

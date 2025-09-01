@@ -48,10 +48,11 @@ class Game {
 		 * `audio`: The audio system of the Action Engine
 		 *
 		 * Sound really AMPS up a game's presentation!
-		 * Action Engine handles sound generation and playback, and provides a simple and intuitive way for developers to add sound effects and music to their game.
-		 * The audio setup is alreay handled at the engine level. Sound creation is very flexible, there is even midi instrument sample support for high quality sounds, so you don't need to search around on any sketchy sites for questionably royalty free .wav files
-		 * But that's not all! The developer can get creative with the synth sampling and other sound types through an easy to use API, which will be demonstrated in the sound creation part of this demo
-		 * All that in one line?!?!? That's the power of Action Engine. Let's go on a journey through the demo together!
+		 * Action Engine handles sound generation and playback with comprehensive volume control, callback support, and repeat functionality built right in.
+		 * The audio system provides individual sound volume control, automatic stacking prevention, sound completion callbacks, and flexible repeat options.
+		 * Sound creation is very flexible, with midi instrument sample support for high quality sounds, so you don't need to search around on any sketchy sites for questionably royalty free .wav files
+		 * The developer can get creative with the synth sampling and other sound types through an easy to use API, which will be demonstrated throughout this demo
+		 * All that with full control over every aspect of audio playback? That's the power of Action Engine!
 		 **/
 
 		/************ Core Systems ************/
@@ -815,8 +816,11 @@ class Game {
 			// Connect camera to player
 			this.camera.isDetached = false;
 
-			// Play spawn sound
-			this.audio.play("spawnSound");
+			// Play spawn sound with completion callback
+			this.audio.play("spawnSound", {
+				volume: 0.8,
+				onEnd: () => this.addMessage("Character spawned successfully!")
+			});
 		}
 	}
 
@@ -1188,47 +1192,71 @@ class Game {
 			this.shipDirection.rotate(this.rotationSpeed); // Rotate ship right
 		}
 
-		// The DEMO plays sounds on isKeyJustPressed() to avoid repeated sound playback
+		// ActionEngine's audio system includes automatic stacking prevention, so sounds won't overlap
+		// Individual sound volumes and callbacks can be set per sound for precise control
 		if (this.input.isKeyJustPressed("DirUp")) {
 			this.addMessage("DirUp JUST pressed");
-			this.audio.play("TrumpetCall");
+			// Play at reduced volume with completion callback
+			this.audio.play("TrumpetCall", {
+				volume: 0.7,
+				onEnd: (info) => this.addMessage(`${info.soundName} finished playing`)
+			});
 		}
 
 		if (this.input.isKeyJustPressed("DirDown")) {
 			this.addMessage("DirDown JUST pressed");
-			this.audio.play("PianoHit");
+			// Demonstrate repeat functionality
+			this.audio.play("PianoHit", {
+				repeat: 2,
+				volume: 0.8
+			});
 		}
 
 		if (this.input.isKeyJustPressed("DirLeft")) {
 			this.addMessage("DirLeft JUST pressed");
-			this.audio.play("MidiSynthMix");
+			// Complex sound with individual volume control
+			this.audio.play("MidiSynthMix", { volume: 0.6 });
 		}
 
 		if (this.input.isKeyJustPressed("DirRight")) {
 			this.addMessage("DirRight JUST pressed");
-			this.audio.play("SimpleSong");
+			// Background music with infinite repeat
+			this.audio.play("SimpleSong", {
+				repeat: -1,
+				volume: 0.3,
+				onEnd: (info) => this.addMessage("Background music loop started")
+			});
 		}
 
-		// Action buttons in 2D mode
+		// Action buttons demonstrate various audio features
 		if (this.input.isKeyJustPressed("Action1")) {
 			this.addMessage("Button 1 JUST pressed");
-			this.audio.play("jump");
+			// Standard jump sound with callback
+			this.audio.play("jump", {
+				onEnd: () => this.addMessage("Jump sound completed")
+			});
 		}
 
 		if (this.input.isKeyJustPressed("Action2")) {
 			this.addMessage("Button 2 JUST pressed");
-			this.audio.play("sound2");
+			// Power-up sound with repeat
+			this.audio.play("sound2", {
+				repeat: 3,
+				volume: 0.8
+			});
 		}
 
 		if (this.input.isKeyJustPressed("Action3")) {
 			this.addMessage("Button 3 JUST pressed");
-			this.audio.play("sound3");
+			// Collision sound at specific volume
+			this.audio.play("sound3", { volume: 0.9 });
 		}
 
-		// Continuous check example
+		// Continuous press with volume control demonstration
 		if (this.input.isKeyPressed("Action4")) {
 			this.addMessage("Button 4 IS PRESSED");
-			this.audio.play("sound4"); // Will play repeatedly while held
+			// ActionEngine prevents stacking automatically - only one instance plays
+			this.audio.play("sound4", { volume: 0.5 });
 		}
 
 		// Apply ship physics
@@ -1271,8 +1299,11 @@ class Game {
 			// Add ship's velocity to ball
 			this.ballVelocity.add(this.shipVelocity);
 
-			// Play bounce sound
-			this.audio.play("sound3");
+			// Play bounce sound with collision feedback
+			this.audio.play("sound3", {
+				volume: 0.7,
+				onEnd: () => this.addMessage("Ball collision sound completed")
+			});
 		}
 	}
 
@@ -1382,9 +1413,11 @@ class Game {
 			this.totalClicks++;
 		}
 
-		// Handle other button presses
+		// Handle other button presses with audio control examples
 		if (this.input.isElementJustPressed("button2")) {
 			this.addMessage("Button 2 was just pressed!");
+			// Demonstrate individual sound volume control
+			this.audio.setSoundVolume("sound5", 0.7); // Set this sound to 70% volume
 			this.audio.play("sound5");
 			this.totalClicks++;
 		}
@@ -1394,10 +1427,11 @@ class Game {
 			this.totalClicks++;
 		}
 
-		// Continuous press example
+		// Continuous press example with repeat demonstration
 		if (this.input.isElementPressed("button3")) {
 			this.addMessage("Button 3 is being held down");
-			this.audio.play("sound6");
+			// Automatic stacking prevention means this won't create overlapping sounds
+			this.audio.play("sound6", { volume: 0.6 });
 		}
 
 		// Inactive button status tracking
@@ -1411,7 +1445,12 @@ class Game {
 
 		// Handle inactive button click when active
 		if (this.input.isElementJustPressed("inactiveButton") && this.input.isElementActive("inactiveButton")) {
-			this.audio.play("victory");
+			// Victory sound with celebration repeat
+			this.audio.play("victory", {
+				repeat: 2,
+				volume: 0.9,
+				onEnd: (info) => this.addMessage(`Victory fanfare completed after ${info.totalRepeats} plays!`)
+			});
 			this.totalClicks++;
 		}
 
@@ -1433,6 +1472,7 @@ class Game {
 		// Handle spawn button to create 3D character
 		if (this.input.isElementJustPressed("spawnButton")) {
 			this.spawnCharacter();
+			// The spawn sound is played in spawnCharacter() with callback support
 			this.totalClicks++;
 		}
 	}
@@ -1461,10 +1501,15 @@ class Game {
 	 *
 	 * AUDIO CONTROL:
 	 * - Real-time parameter control
+	 * - Individual sound volume control (setSoundVolume)
+	 * - Master volume control (setVolume)
+	 * - Automatic sound stacking prevention
+	 * - Sound completion callbacks (onEnd)
+	 * - Flexible repeat and looping (repeat: number or -1 for infinite)
 	 * - Stereo panning
 	 * - Volume envelopes (ADSR)
 	 * - Effects processing (reverb, echo, filters)
-	 * - Individual sound control (play(), stopSound('sound') and stopAllSounds())
+	 * - Complete playback control (play(), stopSound(), stopAllSounds())
 	 *
 	 * SEQUENCING:
 	 * - SonicPi-style scripting for complex arrangements
