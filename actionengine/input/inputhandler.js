@@ -215,11 +215,8 @@ class ActionInputHandler {
             // Update raw state immediately
             this.rawState.keys.set(e.code, true);
             
-            // Prevent default browser behavior for any keys we care about
-            if (this.actionMap.has(e.code) ||
-                e.code === 'F5' ||
-                (e.ctrlKey && (e.code === 'KeyS' || e.code === 'KeyP' || e.code === 'KeyR')) ||
-                (e.altKey && e.code === 'ArrowLeft')) {
+            // Conditionally prevent default based on context
+            if (this.shouldPreventDefault(e)) {
                 e.preventDefault();
             }
         }, false);
@@ -228,15 +225,31 @@ class ActionInputHandler {
             // Update raw state immediately
             this.rawState.keys.set(e.code, false);
             
-            // Prevent default browser behavior
-            if (this.actionMap.has(e.code) ||
-                e.code === 'F5') {
+            // Conditionally prevent default based on context
+            if (this.shouldPreventDefault(e)) {
                 e.preventDefault();
             }
         }, false);
         
         // Block context menu when we want to use right click
         document.addEventListener('contextmenu', (e) => e.preventDefault());
+    }
+
+    shouldPreventDefault(event) {
+        // If ANY standard text input is focused, don't capture ANYTHING
+        const textInputFocused = document.activeElement?.matches(
+            'input[type="text"], input[type="password"], input[type="search"], input[type="email"], input[type="url"], textarea, [contenteditable="true"]'
+        );
+        
+        if (textInputFocused) {
+            return false; // Let ALL keys through to text input
+        }
+        
+        // Otherwise, prevent default for game keys and special browser keys
+        return this.actionMap.has(event.code) ||
+               event.code === 'F5' ||
+               (event.ctrlKey && (event.code === 'KeyS' || event.code === 'KeyP' || event.code === 'KeyR')) ||
+               (event.altKey && event.code === 'ArrowLeft');
     }
 
     // Called by the engine at the start of each frame
@@ -1271,5 +1284,49 @@ class ActionInputHandler {
             actionsList.forEach(action => actions.add(action));
         }
         return Array.from(actions);
+    }
+
+    // Raw key access methods
+    isRawKeyPressed(keyCode) {
+        const { current } = this.getSnapshots();
+        return current.keys.has(keyCode);
+    }
+
+    isRawKeyJustPressed(keyCode) {
+        const { current, previous } = this.getSnapshots();
+        
+        const isCurrentlyPressed = current.keys.has(keyCode);
+        const wasPreviouslyPressed = previous.keys.has(keyCode);
+        
+        // Key is pressed now but wasn't in the previous frame/fixed frame step
+        return isCurrentlyPressed && !wasPreviouslyPressed;
+    }
+
+    // Dynamic action registration
+    registerAction(actionName, keyCodes) {
+        // Allow developers to register new actions dynamically
+        if (typeof keyCodes === 'string') keyCodes = [keyCodes];
+        
+        for (const keyCode of keyCodes) {
+            if (!this.actionMap.has(keyCode)) {
+                this.actionMap.set(keyCode, []);
+            }
+            this.actionMap.get(keyCode).push(actionName);
+            this.gameKeyCodes.add(keyCode); // Add to blocked keys
+        }
+    }
+
+    unregisterAction(actionName) {
+        // Remove an action from all key mappings
+        for (const [keyCode, actions] of this.actionMap) {
+            const index = actions.indexOf(actionName);
+            if (index !== -1) {
+                actions.splice(index, 1);
+                if (actions.length === 0) {
+                    this.actionMap.delete(keyCode);
+                    this.gameKeyCodes.delete(keyCode);
+                }
+            }
+        }
     }
 }

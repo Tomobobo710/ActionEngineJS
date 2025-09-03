@@ -113,6 +113,13 @@ class Game {
 		this.totalClicks = 0; // Count of total button clicks
 		this.totalButtons = 4; // Number of interactive buttons (includes spawn button)
 
+		/*********** Simple Text Input ************/
+		// Canvas-based text input that respects the 800x600 coordinate system
+		this.textInputVisible = false;
+		this.textInputValue = '';
+		this.textInputCursor = 0;
+		this.textInputBlinkTime = 0;
+
 		/*********** 2D Game Elements (for debug overlay) ************/
 		// Here the DEMO utilizes the built-in Vector2 class to setup the playable 2D character
 		// Ship properties (for the 2D game that appears behind debug overlay)
@@ -140,6 +147,9 @@ class Game {
 
 		// Initialize GUI elements and interactive buttons
 		this.initializeInteractiveElements();
+
+		// Setup simple text input
+		this.setupTextInput();
 
 		// Create sounds for the demo
 		this.createGameSounds();
@@ -797,6 +807,40 @@ class Game {
 	}
 
 	/**
+	 * Setup canvas-based text input handling
+	 */
+	setupTextInput() {
+		// Add keydown listener for text input when it's visible
+		window.addEventListener('keydown', (e) => {
+			if (!this.textInputVisible) return;
+			
+			if (e.key === 'Enter') {
+				if (this.textInputValue.trim()) {
+					this.addMessage(`[Input] ${this.textInputValue.trim()}`);
+					this.textInputValue = '';
+					this.textInputCursor = 0;
+				}
+			} else if (e.key === 'Backspace') {
+				if (this.textInputCursor > 0) {
+					this.textInputValue = this.textInputValue.slice(0, this.textInputCursor - 1) + 
+					                     this.textInputValue.slice(this.textInputCursor);
+					this.textInputCursor--;
+				}
+			} else if (e.key === 'ArrowLeft') {
+				this.textInputCursor = Math.max(0, this.textInputCursor - 1);
+			} else if (e.key === 'ArrowRight') {
+				this.textInputCursor = Math.min(this.textInputValue.length, this.textInputCursor + 1);
+			} else if (e.key.length === 1) {
+				// Regular character input
+				this.textInputValue = this.textInputValue.slice(0, this.textInputCursor) + 
+				                     e.key + 
+				                     this.textInputValue.slice(this.textInputCursor);
+				this.textInputCursor++;
+			}
+		});
+	}
+
+	/**
 	 * Spawn a character in the 3D world
 	 */
 	spawnCharacter() {
@@ -1102,6 +1146,11 @@ class Game {
 
 		// Always update button states regardless of debug state
 		this.updateButtonStates();
+		
+		// Update text input cursor blink
+		if (this.textInputVisible) {
+			this.textInputBlinkTime += deltaTime;
+		}
 	}
 
 	/**
@@ -1319,6 +1368,14 @@ class Game {
 			this.addMessage(this.showDebug ? "Debug mode ON - 2D game active" : "Debug mode OFF - 3D world active");
 			if (!this.showDebug) {
 				this.debugCtx.clearRect(0, 0, Game.WIDTH, Game.HEIGHT);
+			}
+			
+			// Show/hide canvas text input with debug overlay
+			this.textInputVisible = this.showDebug;
+			if (this.showDebug) {
+				this.addMessage('Text input available at bottom - type and press Enter');
+				this.textInputValue = '';
+				this.textInputCursor = 0;
 			}
 		}
 
@@ -2200,6 +2257,11 @@ class Game {
 
 		// Draw message log
 		this.drawDebugMessages();
+		
+		// Draw text input if visible
+		if (this.textInputVisible) {
+			this.drawTextInput();
+		}
 	}
 
 	/**
@@ -2290,6 +2352,7 @@ class Game {
 		ctx.fillText("Debug Mode Active - 2D Mini-Game Running", this.padding, this.padding + 50);
 		ctx.fillText("Use Arrow Keys to control the ship", this.padding, this.padding + 70);
 		ctx.fillText("Try to hit the ball with your ship!", this.padding, this.padding + 90);
+		ctx.fillText("Type in the text box below to add messages!", this.padding, this.padding + 110);
 	}
 
 	/**
@@ -2330,6 +2393,51 @@ class Game {
 
 		// Draw debug header
 		this.debugCtx.fillText(`Debug Mode (F9 to toggle)`, this.padding, this.padding + 20);
+	}
+
+	/**
+	 * drawTextInput()
+	 *
+	 * Renders the canvas-based text input field at the bottom of debug overlay
+	 */
+	drawTextInput() {
+		const ctx = this.debugCtx;
+		
+		// Input box dimensions and position (respecting 800x600)
+		const inputHeight = 30;
+		const inputY = Game.HEIGHT - inputHeight - 10;
+		const inputX = 10;
+		const inputWidth = Game.WIDTH - 20;
+		
+		// Draw input box background
+		ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
+		ctx.fillRect(inputX, inputY, inputWidth, inputHeight);
+		
+		// Draw input box border
+		ctx.strokeStyle = "#00ff00";
+		ctx.lineWidth = 2;
+		ctx.strokeRect(inputX, inputY, inputWidth, inputHeight);
+		
+		// Draw the text content
+		ctx.fillStyle = "#00ff00";
+		ctx.font = "14px monospace";
+		ctx.textAlign = "left";
+		ctx.textBaseline = "middle";
+		
+		// Draw placeholder or actual text
+		const displayText = this.textInputValue || "Type a message and press Enter...";
+		const textColor = this.textInputValue ? "#00ff00" : "#006600";
+		ctx.fillStyle = textColor;
+		ctx.fillText(displayText, inputX + 8, inputY + inputHeight / 2);
+		
+		// Draw cursor if there's text and it should blink
+		if (this.textInputValue && Math.floor(this.textInputBlinkTime * 2) % 2 === 0) {
+			const textBeforeCursor = this.textInputValue.substring(0, this.textInputCursor);
+			const cursorX = inputX + 8 + ctx.measureText(textBeforeCursor).width;
+			
+			ctx.fillStyle = "#00ff00";
+			ctx.fillRect(cursorX, inputY + 6, 2, inputHeight - 12);
+		}
 	}
 
 	/**
