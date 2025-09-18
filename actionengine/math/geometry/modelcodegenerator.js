@@ -1,16 +1,15 @@
 // actionengine/math/geometry/modelcodegenerator.js
 
 /**
- * ModelCodeGenerator converts GLB models into ActionEngine procedural geometry code.
- * Creates human-readable, git-friendly, debuggable geometry definitions.
- * This becomes the ActionEngine Model Format - clean code instead of base64.
+ * ModelCodeGenerator converts GLB models into ActionEngine Triangle-based code.
+ * This outputs ActionEngine Model Format - clean Triangle[] code instead of base64.
  */
 class ModelCodeGenerator {
     
     /**
-     * Generate ActionEngine geometry code from GLB file
+     * Generate ActionEngine Triangle code from GLB file
      * @param {string} base64Data - GLB file as base64 string
-     * @param {string} modelName - Name for the generated function (optional)
+     * @param {string} modelName - Name for the generated function
      * @param {Object} options - Generation options
      * @returns {string} Complete JavaScript code for the model
      */
@@ -20,226 +19,79 @@ class ModelCodeGenerator {
             const timestamp = Date.now().toString(36);
             modelName = `Model_${timestamp}`;
         }
+        
         try {
-            // Load GLB model
+            // Load GLB model using ActionEngine GLBLoader
             const glbModel = GLBLoader.loadModel(base64Data);
             
-            // Convert to ActionEngine geometry format
-            const geometry = ModelCodeGenerator.convertGLBToGeometry(glbModel);
-            
-            // Generate code
-            return ModelCodeGenerator.generateGeometryCode(geometry, modelName, options);
+            // Generate Triangle-based code directly from GLB triangles
+            return ModelCodeGenerator.generateTriangleCode(glbModel.triangles, modelName, options);
         } catch (error) {
-            console.error('Model code generation failed:', error);
+            console.error('ActionEngine model code generation failed:', error);
             throw error;
         }
     }
     
     /**
-     * Convert GLB model to ActionEngine geometry format
-     * @param {Object} glbModel - Loaded GLB model
-     * @returns {Object} ActionEngine geometry object
-     */
-    static convertGLBToGeometry(glbModel) {
-        const vertices = [];
-        const colorGroups = new Map();
-        
-        glbModel.triangles.forEach((triangle) => {
-            const startIndex = vertices.length;
-            
-            // Add vertices
-            vertices.push(
-                triangle.vertices[0],
-                triangle.vertices[1],
-                triangle.vertices[2]
-            );
-            
-            const face = [startIndex, startIndex + 1, startIndex + 2];
-            const color = triangle.color || '#808080';
-            
-            // Group faces by color
-            if (!colorGroups.has(color)) {
-                colorGroups.set(color, []);
-            }
-            colorGroups.get(color).push(face);
-        });
-        
-        // Convert to ActionEngine format
-        if (colorGroups.size > 1) {
-            const coloredFaces = [];
-            for (const [color, faces] of colorGroups) {
-                coloredFaces.push({ faces, color });
-            }
-            
-            return {
-                vertices,
-                coloredFaces,
-                multiColor: true
-            };
-        } else {
-            const allFaces = [];
-            for (const faces of colorGroups.values()) {
-                allFaces.push(...faces);
-            }
-            
-            return {
-                vertices,
-                faces: allFaces,
-                color: colorGroups.keys().next().value || '#808080'
-            };
-        }
-    }
-    
-    /**
-     * Generate JavaScript code for geometry
-     * @param {Object} geometry - ActionEngine geometry object
+     * Generate ActionEngine Triangle code from Triangle array
+     * @param {Triangle[]} triangles - Array of Triangle objects
      * @param {string} modelName - Function name for the model
      * @param {Object} options - Code generation options
      * @returns {string} Complete JavaScript function code
      */
-    static generateGeometryCode(geometry, modelName, options = {}) {
-        const {
-            addComments = false,
-            indentation = '    '
-        } = options;
+    static generateTriangleCode(triangles, modelName, options = {}) {
+        const timestamp = new Date().toISOString();
         
-        let code = [];
+        let code = `// Generated ActionEngine Model: ${modelName}\n`;
+        code += `// Created: ${timestamp}\n`;
+        code += `createTriangles() {\n`;
+        code += `    return [\n`;
         
-        // Function header
-        code.push(`// Generated ActionEngine Model: ${modelName}`);
-        code.push(`// Created: ${new Date().toISOString()}`);
-        code.push(`createGeometry() {`);
-        
-        // Generate vertices array
-        code.push(`${indentation}const vertices = [`);
-        geometry.vertices.forEach((vertex, index) => {
-            const comment = addComments ? `${indentation}${indentation}// ${index}` : '';
-            code.push(`${indentation}${indentation}new Vector3(${vertex.x.toFixed(6)}, ${vertex.y.toFixed(6)}, ${vertex.z.toFixed(6)}),${comment}`);
+        triangles.forEach((triangle, i) => {
+            const v1 = triangle.vertices[0];
+            const v2 = triangle.vertices[1];
+            const v3 = triangle.vertices[2];
+            const color = triangle.color || "#808080";
+            
+            code += `        new Triangle(\n`;
+            code += `            new Vector3(${v1.x.toFixed(6)}, ${v1.y.toFixed(6)}, ${v1.z.toFixed(6)}),\n`;
+            code += `            new Vector3(${v2.x.toFixed(6)}, ${v2.y.toFixed(6)}, ${v2.z.toFixed(6)}),\n`;
+            code += `            new Vector3(${v3.x.toFixed(6)}, ${v3.y.toFixed(6)}, ${v3.z.toFixed(6)}),\n`;
+            code += `            "${color}"\n`;
+            code += `        )${i < triangles.length - 1 ? ',' : ''}\n`;
         });
-        code.push(`${indentation}];`);
-        code.push('');
         
-        // Generate faces or coloredFaces
-        if (geometry.coloredFaces) {
-            // Multi-color model
-            code.push(`${indentation}const coloredFaces = [`);
-            
-            geometry.coloredFaces.forEach((colorGroup, groupIndex) => {
-                const comment = addComments ? '' : '';
-                
-                code.push(`${indentation}${indentation}{`);
-                code.push(`${indentation}${indentation}${indentation}faces: [`);
-                
-                colorGroup.faces.forEach((face, faceIndex) => {
-                    const isLast = faceIndex === colorGroup.faces.length - 1;
-                    code.push(`${indentation}${indentation}${indentation}${indentation}[${face.join(', ')}]${isLast ? '' : ','}`);
-                });
-                
-                code.push(`${indentation}${indentation}${indentation}],`);
-                code.push(`${indentation}${indentation}${indentation}color: '${colorGroup.color}'${comment}`);
-                
-                const isLastGroup = groupIndex === geometry.coloredFaces.length - 1;
-                code.push(`${indentation}${indentation}}${isLastGroup ? '' : ','}`);
-                
-                if (!isLastGroup) code.push('');
-            });
-            
-            code.push(`${indentation}];`);
-            code.push('');
-            
-            // Return statement
-            code.push(`${indentation}return {`);
-            code.push(`${indentation}${indentation}vertices: vertices,`);
-            code.push(`${indentation}${indentation}coloredFaces: coloredFaces,`);
-            code.push(`${indentation}${indentation}multiColor: true`);
-            code.push(`${indentation}};`);
-            
-        } else {
-            // Single-color model
-            code.push(`${indentation}const faces = [`);
-            geometry.faces.forEach((face, index) => {
-                const comment = addComments ? `${indentation}${indentation}// ${index}` : '';
-                code.push(`${indentation}${indentation}[${face.join(', ')}],${comment}`);
-            });
-            code.push(`${indentation}];`);
-            code.push('');
-            
-            // Return statement
-            code.push(`${indentation}return {`);
-            code.push(`${indentation}${indentation}vertices: vertices,`);
-            code.push(`${indentation}${indentation}faces: faces,`);
-            code.push(`${indentation}${indentation}color: '${geometry.color}'`);
-            code.push(`${indentation}};`);
-        }
+        code += `    ];\n`;
+        code += `}\n`;
         
-        code.push('}');
-        
-        return code.join('\n');
+        return code;
     }
     
     /**
-     * Generate and download model code as .js file
-     * @param {string} base64Data - GLB file as base64
-     * @param {string} modelName - Model name (optional)
-     * @param {Object} options - Generation options
+     * Export Triangle code as downloadable file
+     * @param {Triangle[]} triangles - Array of Triangle objects
+     * @param {string} modelName - Name for the model
      */
-    static exportModelCode(base64Data, modelName = null, options = {}) {
-        // Generate generic name if none provided
-        if (!modelName) {
-            const timestamp = Date.now().toString(36);
-            modelName = `Model_${timestamp}`;
-        }
-        const code = ModelCodeGenerator.generateFromGLB(base64Data, modelName, options);
+    static exportTriangleCode(triangles, modelName) {
+        const code = ModelCodeGenerator.generateTriangleCode(triangles, modelName);
         
-        // Download as .js file
+        // Download the file
         const blob = new Blob([code], { type: 'text/javascript' });
         const url = URL.createObjectURL(blob);
-        
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `${modelName}Geometry.js`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${modelName}.js`;
+        a.click();
         URL.revokeObjectURL(url);
-        
-        console.log(`Generated ActionEngine model code: ${modelName}Geometry.js`);
     }
     
     /**
-     * Generate and download model code directly from geometry object
-     * @param {Object} geometry - ActionEngine geometry object
-     * @param {string} modelName - Model name (optional)
-     * @param {Object} options - Generation options
+     * Export GLB model as ActionEngine Triangle code
+     * @param {string} base64Data - GLB file as base64 string
+     * @param {string} modelName - Name for the model
      */
-    static exportGeometry(geometry, modelName = null, options = {}) {
-        // Generate generic name if none provided
-        if (!modelName) {
-            const timestamp = Date.now().toString(36);
-            modelName = `Model_${timestamp}`;
-        }
-        
-        // Generate code directly from geometry
-        const code = ModelCodeGenerator.generateGeometryCode(geometry, modelName, options);
-        
-        // Download as .js file
-        const blob = new Blob([code], { type: 'text/javascript' });
-        const url = URL.createObjectURL(blob);
-        
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `${modelName}Geometry.js`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        URL.revokeObjectURL(url);
-        
-        console.log(`Generated ActionEngine model code: ${modelName}Geometry.js`);
+    static exportGLBAsCode(base64Data, modelName) {
+        const glbModel = GLBLoader.loadModel(base64Data);
+        ModelCodeGenerator.exportTriangleCode(glbModel.triangles, modelName);
     }
-    
-
-    
-
 }

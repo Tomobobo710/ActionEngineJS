@@ -2,7 +2,8 @@ class ActionPhysicsObject3D extends RenderableObject {
      constructor(physicsWorld, triangles, options = {}) {
         super();
         if (!physicsWorld) {
-            throw new Error("[ActionPhysicsObject3D] Physics world is required");
+            console.error("[ActionPhysicsObject3D] Physics world is required. Stack trace:", new Error().stack);
+            throw new Error("[ActionPhysicsObject3D] Physics world is required - check console for stack trace");
         }
         this.physicsWorld = physicsWorld;
         

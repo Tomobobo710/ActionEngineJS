@@ -1,9 +1,9 @@
 // actionengine/math/geometry/glbexporter.js
 
 /**
- * GLBExporter handles exporting ActionEngine geometry to GLTF/GLB format.
- * Supports both single-color and multi-color geometry with material-based colors.
- * Compatible with ActionEngine's GLBLoader for complete roundtrip workflows.
+ * GLBExporter handles exporting ActionEngine Triangle arrays to GLTF/GLB format.
+ * Uses materials for each color with proper primitive separation.
+ * Pure ActionEngine format.
  */
 class GLBExporter {
     constructor() {
@@ -11,15 +11,16 @@ class GLBExporter {
     }
     
     /**
-     * Export geometry to GLB file and trigger download
-     * @param {Object} geometry - ActionEngine geometry object
+     * Export Triangle array to GLB file and trigger download
+     * @param {Triangle[]} triangles - Array of Triangle objects
      * @param {string} filename - Output filename (without extension)
      */
-    exportModel(geometry, filename = 'model') {
+    static exportTriangles(triangles, filename = 'model') {
         try {
-            const glbBuffer = this.createGLB(geometry, filename);
-            this.downloadFile(glbBuffer, `${filename}.glb`);
-            console.log(`Exported ${filename}.glb`);
+            const exporter = new GLBExporter();
+            const glbBuffer = exporter.createGLBFromTriangles(triangles, filename);
+            exporter.downloadFile(glbBuffer, `${filename}.glb`);
+            console.log(`Exported ${filename}.glb from ${triangles.length} triangles`);
         } catch (error) {
             console.error('GLB export failed:', error);
             throw error;
@@ -27,254 +28,253 @@ class GLBExporter {
     }
     
     /**
-     * Create GLB binary from ActionEngine geometry format
-     * @param {Object} geometry - Geometry with vertices and faces/coloredFaces
-     * @param {string} modelName - Name for the model
-     * @returns {ArrayBuffer} GLB binary data
+     * Create GLB from triangles using materials for each color
      */
-    createGLB(geometry, modelName) {
-        // Create GLTF JSON structure
-        const gltf = this.createGLTFStructure(geometry, modelName);
+    createGLBFromTriangles(triangles, modelName) {
+        // Group triangles by color
+        const colorGroups = new Map();
+        const allVertices = [];
         
-        // Create binary vertex data
-        const binaryData = this.createBinaryData(geometry);
+        triangles.forEach((triangle, triIndex) => {
+            const color = triangle.color || '#808080';
+            
+            if (!colorGroups.has(color)) {
+                colorGroups.set(color, {
+                    triangles: [],
+                    indices: []
+                });
+            }
+            
+            // Add vertices to global array
+            const startIndex = allVertices.length;
+            triangle.vertices.forEach(vertex => {
+                allVertices.push(vertex);
+            });
+            
+            // Store indices for this color group
+            colorGroups.get(color).indices.push(startIndex, startIndex + 1, startIndex + 2);
+            colorGroups.get(color).triangles.push(triangle);
+        });
         
-        // Combine into GLB format
+        console.log(`GLB Export: ${triangles.length} triangles, ${colorGroups.size} colors:`, Array.from(colorGroups.keys()));
+        
+        // Create GLTF structure
+        const gltf = this.createGLTFWithMaterials(allVertices, colorGroups, modelName);
+        
+        // Create binary data
+        const binaryData = this.createBinaryData(allVertices, colorGroups);
+        
         return this.assembleGLB(gltf, binaryData);
     }
     
     /**
-     * Create GLTF JSON structure with materials and primitives
-     * @param {Object} geometry - ActionEngine geometry
-     * @param {string} modelName - Model name
-     * @returns {Object} GLTF JSON structure
+     * Create GLTF structure with separate materials and primitives
      */
-    createGLTFStructure(geometry, modelName) {
-        const vertexCount = geometry.vertices.length;
-        
-        // Create materials and primitives for each color group
-        const { materials, primitives, totalIndexCount } = this.createMaterialsAndPrimitives(geometry);
+    createGLTFWithMaterials(allVertices, colorGroups, modelName) {
+        const vertexCount = allVertices.length;
         
         // Calculate buffer sizes
-        const positionBufferSize = vertexCount * 3 * 4; // 3 floats * 4 bytes each
-        const indexBufferSize = totalIndexCount * 2; // Uint16 indices * 2 bytes each
-        const totalBufferSize = positionBufferSize + indexBufferSize;
+        const positionsSize = vertexCount * 3 * 4; // Float32
+        const normalsSize = vertexCount * 3 * 4;   // Float32
+        
+        // Calculate index buffer sizes for each color group
+        let totalIndicesSize = 0;
+        for (const group of colorGroups.values()) {
+            totalIndicesSize += group.indices.length * 2; // Uint16
+        }
+        
+        const totalBufferSize = positionsSize + normalsSize + totalIndicesSize;
+        
+        let bufferOffset = 0;
+        let accessorIndex = 0;
+        let bufferViewIndex = 0;
         
         const gltf = {
             asset: {
                 version: "2.0",
-                generator: "ActionEngine GLB Exporter"
+                generator: "ActionEngine GLBExporter"
             },
             scene: 0,
-            scenes: [{
-                nodes: [0]
-            }],
-            nodes: [{
-                mesh: 0,
-                name: modelName
-            }],
+            scenes: [{ nodes: [0] }],
+            nodes: [{ mesh: 0, name: modelName }],
             meshes: [{
-                primitives: primitives
+                name: modelName,
+                primitives: []
             }],
-            materials: materials,
-            accessors: [
-                // Position accessor (accessor 0)
-                {
-                    bufferView: 0,
-                    componentType: 5126, // FLOAT
-                    count: vertexCount,
-                    type: "VEC3",
-                    max: this.getVertexMax(geometry.vertices),
-                    min: this.getVertexMin(geometry.vertices)
-                }
-                // Index accessors will be added dynamically for each primitive
-            ].concat(this.createIndexAccessors(geometry, totalIndexCount)),
-            bufferViews: [
-                // Position buffer view
-                {
-                    buffer: 0,
-                    byteOffset: 0,
-                    byteLength: positionBufferSize,
-                    target: 34962 // ARRAY_BUFFER
-                }
-                // Index buffer views will be added dynamically for each primitive
-            ].concat(this.createIndexBufferViews(geometry, positionBufferSize)),
-            buffers: [{
-                byteLength: totalBufferSize
-            }]
+            materials: [],
+            buffers: [{ byteLength: totalBufferSize }],
+            bufferViews: [],
+            accessors: []
         };
+        
+        // Create shared position and normal accessors
+        // Positions buffer view
+        gltf.bufferViews.push({
+            buffer: 0,
+            byteOffset: bufferOffset,
+            byteLength: positionsSize,
+            target: 34962 // ARRAY_BUFFER
+        });
+        bufferOffset += positionsSize;
+        
+        // Positions accessor
+        gltf.accessors.push({
+            bufferView: bufferViewIndex++,
+            componentType: 5126, // FLOAT
+            count: vertexCount,
+            type: "VEC3",
+            min: this.calculateMinVertices(allVertices),
+            max: this.calculateMaxVertices(allVertices)
+        });
+        const positionAccessor = accessorIndex++;
+        
+        // Normals buffer view
+        gltf.bufferViews.push({
+            buffer: 0,
+            byteOffset: bufferOffset,
+            byteLength: normalsSize,
+            target: 34962 // ARRAY_BUFFER
+        });
+        bufferOffset += normalsSize;
+        
+        // Normals accessor
+        gltf.accessors.push({
+            bufferView: bufferViewIndex++,
+            componentType: 5126, // FLOAT
+            count: vertexCount,
+            type: "VEC3"
+        });
+        const normalAccessor = accessorIndex++;
+        
+        // Create material and primitive for each color group
+        let materialIndex = 0;
+        for (const [color, group] of colorGroups) {
+            // Create material
+            const rgb = this.hexToRgb(color);
+            gltf.materials.push({
+                name: `Material_${color.slice(1)}`,
+                pbrMetallicRoughness: {
+                    baseColorFactor: [rgb.r / 255, rgb.g / 255, rgb.b / 255, 1.0],
+                    metallicFactor: 0.0,
+                    roughnessFactor: 1.0
+                }
+            });
+            
+            // Create indices buffer view for this color group
+            const indicesSize = group.indices.length * 2;
+            gltf.bufferViews.push({
+                buffer: 0,
+                byteOffset: bufferOffset,
+                byteLength: indicesSize,
+                target: 34963 // ELEMENT_ARRAY_BUFFER
+            });
+            bufferOffset += indicesSize;
+            
+            // Create indices accessor
+            gltf.accessors.push({
+                bufferView: bufferViewIndex++,
+                componentType: 5123, // UNSIGNED_SHORT
+                count: group.indices.length,
+                type: "SCALAR"
+            });
+            
+            // Create primitive
+            gltf.meshes[0].primitives.push({
+                attributes: {
+                    POSITION: positionAccessor,
+                    NORMAL: normalAccessor
+                },
+                indices: accessorIndex++,
+                material: materialIndex++,
+                mode: 4 // TRIANGLES
+            });
+        }
         
         return gltf;
     }
     
     /**
-     * Create materials and mesh primitives based on geometry color structure
-     * @param {Object} geometry - ActionEngine geometry
-     * @returns {Object} Materials, primitives, and total index count
+     * Create binary data with shared vertices and separate indices
      */
-    createMaterialsAndPrimitives(geometry) {
-        const materials = [];
-        const primitives = [];
-        let accessorIndex = 1; // Start after position accessor (0)
-        let totalIndexCount = 0;
+    createBinaryData(allVertices, colorGroups) {
+        // Create position data
+        const positions = new Float32Array(allVertices.length * 3);
+        const normals = new Float32Array(allVertices.length * 3);
         
-        if (geometry.coloredFaces) {
-            // Multi-color geometry - create material and primitive for each color group
-            geometry.coloredFaces.forEach((colorGroup, groupIndex) => {
-                // Create material with baseColorFactor
-                const material = {
-                    name: `Material_${groupIndex}`,
-                    pbrMetallicRoughness: {
-                        baseColorFactor: this.hexToRGBA(colorGroup.color),
-                        metallicFactor: 0.1,
-                        roughnessFactor: 0.8
-                    }
-                };
-                materials.push(material);
-                
-                // Create primitive referencing this material
-                const primitive = {
-                    attributes: {
-                        POSITION: 0
-                    },
-                    indices: accessorIndex,
-                    material: groupIndex
-                };
-                primitives.push(primitive);
-                
-                totalIndexCount += colorGroup.faces.length * 3;
-                accessorIndex++;
-            });
-        } else {
-            // Single color geometry - one material and primitive
-            const material = {
-                name: 'Material_0',
-                pbrMetallicRoughness: {
-                    baseColorFactor: this.hexToRGBA(geometry.color || '#808080'),
-                    metallicFactor: 0.1,
-                    roughnessFactor: 0.8
+        // We need to calculate normals from triangles since vertices are shared
+        const vertexNormals = new Array(allVertices.length).fill(null).map(() => new Vector3(0, 0, 0));
+        const vertexCounts = new Array(allVertices.length).fill(0);
+        
+        // Calculate normals by averaging triangle normals
+        let vertexIndex = 0;
+        for (const [color, group] of colorGroups) {
+            group.triangles.forEach(triangle => {
+                for (let i = 0; i < 3; i++) {
+                    vertexNormals[vertexIndex].x += triangle.normal.x;
+                    vertexNormals[vertexIndex].y += triangle.normal.y;
+                    vertexNormals[vertexIndex].z += triangle.normal.z;
+                    vertexCounts[vertexIndex]++;
+                    vertexIndex++;
                 }
-            };
-            materials.push(material);
+            });
+        }
+        
+        // Normalize and fill arrays
+        for (let i = 0; i < allVertices.length; i++) {
+            const vertex = allVertices[i];
+            positions[i * 3] = vertex.x;
+            positions[i * 3 + 1] = vertex.y;
+            positions[i * 3 + 2] = vertex.z;
             
-            const primitive = {
-                attributes: {
-                    POSITION: 0
-                },
-                indices: 1,
-                material: 0
-            };
-            primitives.push(primitive);
+            // Normalize the accumulated normal
+            if (vertexCounts[i] > 0) {
+                vertexNormals[i].x /= vertexCounts[i];
+                vertexNormals[i].y /= vertexCounts[i];
+                vertexNormals[i].z /= vertexCounts[i];
+                const length = Math.sqrt(
+                    vertexNormals[i].x * vertexNormals[i].x +
+                    vertexNormals[i].y * vertexNormals[i].y +
+                    vertexNormals[i].z * vertexNormals[i].z
+                );
+                if (length > 0) {
+                    vertexNormals[i].x /= length;
+                    vertexNormals[i].y /= length;
+                    vertexNormals[i].z /= length;
+                }
+            }
             
-            totalIndexCount = geometry.faces.length * 3;
+            normals[i * 3] = vertexNormals[i].x;
+            normals[i * 3 + 1] = vertexNormals[i].y;
+            normals[i * 3 + 2] = vertexNormals[i].z;
         }
         
-        return { materials, primitives, totalIndexCount };
-    }
-    
-    /**
-     * Create index accessors for each primitive
-     * @param {Object} geometry - ActionEngine geometry
-     * @param {number} totalIndexCount - Total number of indices
-     * @returns {Array} Index accessor definitions
-     */
-    createIndexAccessors(geometry, totalIndexCount) {
-        const accessors = [];
-        
-        if (geometry.coloredFaces) {
-            geometry.coloredFaces.forEach((colorGroup, groupIndex) => {
-                const indexCount = colorGroup.faces.length * 3;
-                accessors.push({
-                    bufferView: groupIndex + 1, // +1 because position is bufferView 0
-                    componentType: 5123, // UNSIGNED_SHORT
-                    count: indexCount,
-                    type: "SCALAR"
-                });
-            });
-        } else {
-            accessors.push({
-                bufferView: 1,
-                componentType: 5123, // UNSIGNED_SHORT
-                count: geometry.faces.length * 3,
-                type: "SCALAR"
-            });
+        // Create index buffers for each color group
+        const indexBuffers = [];
+        for (const [color, group] of colorGroups) {
+            const indices = new Uint16Array(group.indices);
+            indexBuffers.push(indices);
         }
         
-        return accessors;
-    }
-    
-    /**
-     * Create buffer views for index data
-     * @param {Object} geometry - ActionEngine geometry
-     * @param {number} positionBufferSize - Size of position buffer
-     * @returns {Array} Buffer view definitions
-     */
-    createIndexBufferViews(geometry, positionBufferSize) {
-        const bufferViews = [];
-        let byteOffset = positionBufferSize;
+        // Combine all buffers
+        const totalSize = positions.byteLength + normals.byteLength + 
+                         indexBuffers.reduce((sum, buf) => sum + buf.byteLength, 0);
         
-        if (geometry.coloredFaces) {
-            geometry.coloredFaces.forEach((colorGroup) => {
-                const indexCount = colorGroup.faces.length * 3;
-                const byteLength = indexCount * 2; // Uint16 indices
-                
-                bufferViews.push({
-                    buffer: 0,
-                    byteOffset: byteOffset,
-                    byteLength: byteLength,
-                    target: 34963 // ELEMENT_ARRAY_BUFFER
-                });
-                
-                byteOffset += byteLength;
-            });
-        } else {
-            const indexCount = geometry.faces.length * 3;
-            const byteLength = indexCount * 2;
-            
-            bufferViews.push({
-                buffer: 0,
-                byteOffset: byteOffset,
-                byteLength: byteLength,
-                target: 34963 // ELEMENT_ARRAY_BUFFER
-            });
-        }
-        
-        return bufferViews;
-    }
-    
-    /**
-     * Create binary data buffer with positions and indices
-     * @param {Object} geometry - ActionEngine geometry
-     * @returns {ArrayBuffer} Combined binary data
-     */
-    createBinaryData(geometry) {
-        const vertexCount = geometry.vertices.length;
-        
-        // Create position buffer (Float32Array)
-        const positionBuffer = new Float32Array(vertexCount * 3);
-        for (let i = 0; i < geometry.vertices.length; i++) {
-            const vertex = geometry.vertices[i];
-            positionBuffer[i * 3] = vertex.x;
-            positionBuffer[i * 3 + 1] = vertex.y;
-            positionBuffer[i * 3 + 2] = vertex.z;
-        }
-        
-        // Create separate index buffers for each color group
-        const indexBuffers = this.createIndexBuffers(geometry);
-        
-        // Calculate total size and combine buffers
-        const indexBuffersSize = indexBuffers.reduce((total, buffer) => total + buffer.byteLength, 0);
-        const totalSize = positionBuffer.byteLength + indexBuffersSize;
         const combinedBuffer = new ArrayBuffer(totalSize);
-        const combinedView = new Uint8Array(combinedBuffer);
+        const view = new Uint8Array(combinedBuffer);
         
-        // Copy position data
-        combinedView.set(new Uint8Array(positionBuffer.buffer), 0);
+        let offset = 0;
+        
+        // Copy positions
+        view.set(new Uint8Array(positions.buffer), offset);
+        offset += positions.byteLength;
+        
+        // Copy normals
+        view.set(new Uint8Array(normals.buffer), offset);
+        offset += normals.byteLength;
         
         // Copy index buffers
-        let offset = positionBuffer.byteLength;
         for (const indexBuffer of indexBuffers) {
-            combinedView.set(new Uint8Array(indexBuffer.buffer), offset);
+            view.set(new Uint8Array(indexBuffer.buffer), offset);
             offset += indexBuffer.byteLength;
         }
         
@@ -282,148 +282,83 @@ class GLBExporter {
     }
     
     /**
-     * Create index buffers for each color group
-     * @param {Object} geometry - ActionEngine geometry
-     * @returns {Array<Uint16Array>} Index buffers
-     */
-    createIndexBuffers(geometry) {
-        const indexBuffers = [];
-        
-        if (geometry.coloredFaces) {
-            geometry.coloredFaces.forEach((colorGroup) => {
-                const indexCount = colorGroup.faces.length * 3;
-                const indexBuffer = new Uint16Array(indexCount);
-                
-                let bufferOffset = 0;
-                colorGroup.faces.forEach((face) => {
-                    indexBuffer[bufferOffset++] = face[0];
-                    indexBuffer[bufferOffset++] = face[1];
-                    indexBuffer[bufferOffset++] = face[2];
-                });
-                
-                indexBuffers.push(indexBuffer);
-            });
-        } else {
-            const indexCount = geometry.faces ? geometry.faces.length * 3 : 0;
-            const indexBuffer = new Uint16Array(indexCount);
-            
-            let bufferOffset = 0;
-            geometry.faces.forEach((face) => {
-                indexBuffer[bufferOffset++] = face[0];
-                indexBuffer[bufferOffset++] = face[1];
-                indexBuffer[bufferOffset++] = face[2];
-            });
-            
-            indexBuffers.push(indexBuffer);
-        }
-        
-        return indexBuffers;
-    }
-    
-    /**
-     * Assemble final GLB binary format
-     * @param {Object} gltf - GLTF JSON structure
-     * @param {ArrayBuffer} binaryData - Binary geometry data
-     * @returns {ArrayBuffer} Complete GLB file
+     * Standard GLB assembly
      */
     assembleGLB(gltf, binaryData) {
-        // Convert JSON to buffer
         const jsonString = JSON.stringify(gltf);
         const jsonBuffer = this.textEncoder.encode(jsonString);
         
-        // Pad JSON to 4-byte boundary
         const jsonPadding = (4 - (jsonBuffer.length % 4)) % 4;
         const paddedJsonLength = jsonBuffer.length + jsonPadding;
         
-        // Pad binary data to 4-byte boundary
         const binaryPadding = (4 - (binaryData.byteLength % 4)) % 4;
         const paddedBinaryLength = binaryData.byteLength + binaryPadding;
         
-        // Calculate total GLB size
-        const headerSize = 12;
-        const jsonChunkHeaderSize = 8;
-        const binaryChunkHeaderSize = 8;
-        const totalSize = headerSize + jsonChunkHeaderSize + paddedJsonLength + 
-                         binaryChunkHeaderSize + paddedBinaryLength;
+        const totalSize = 12 + 8 + paddedJsonLength + 8 + paddedBinaryLength;
         
-        // Create GLB buffer
-        const glbBuffer = new ArrayBuffer(totalSize);
-        const view = new DataView(glbBuffer);
-        const uint8View = new Uint8Array(glbBuffer);
+        const glb = new ArrayBuffer(totalSize);
+        const view = new DataView(glb);
+        const bytes = new Uint8Array(glb);
         
         let offset = 0;
         
-        // GLB Header
-        view.setUint32(offset, 0x46546C67, true); // Magic: 'glTF'
-        view.setUint32(offset + 4, 2, true);       // Version: 2
-        view.setUint32(offset + 8, totalSize, true); // Total length
+        // GLB header
+        view.setUint32(offset, 0x46546C67, true); // 'glTF'
+        view.setUint32(offset + 4, 2, true); // version
+        view.setUint32(offset + 8, totalSize, true);
         offset += 12;
         
-        // JSON Chunk Header
-        view.setUint32(offset, paddedJsonLength, true); // JSON length
-        view.setUint32(offset + 4, 0x4E4F534A, true);   // Type: 'JSON'
+        // JSON chunk
+        view.setUint32(offset, paddedJsonLength, true);
+        view.setUint32(offset + 4, 0x4E4F534A, true); // 'JSON'
         offset += 8;
-        
-        // JSON Chunk Data
-        uint8View.set(jsonBuffer, offset);
-        // Pad JSON with spaces
+        bytes.set(jsonBuffer, offset);
+        offset += jsonBuffer.length;
         for (let i = 0; i < jsonPadding; i++) {
-            uint8View[offset + jsonBuffer.length + i] = 0x20; // Space
+            bytes[offset++] = 0x20;
         }
-        offset += paddedJsonLength;
         
-        // Binary Chunk Header
-        view.setUint32(offset, paddedBinaryLength, true); // Binary length
-        view.setUint32(offset + 4, 0x004E4942, true);     // Type: 'BIN\0'
+        // Binary chunk
+        view.setUint32(offset, paddedBinaryLength, true);
+        view.setUint32(offset + 4, 0x004E4942, true); // 'BIN\0'
         offset += 8;
+        bytes.set(new Uint8Array(binaryData), offset);
         
-        // Binary Chunk Data
-        uint8View.set(new Uint8Array(binaryData), offset);
-        // Binary padding with zeros (already initialized to 0)
-        
-        return glbBuffer;
+        return glb;
     }
     
-    /**
-     * Download file as blob
-     * @param {ArrayBuffer} buffer - File data
-     * @param {string} filename - Output filename
-     */
     downloadFile(buffer, filename) {
         const blob = new Blob([buffer], { type: 'application/octet-stream' });
         const url = URL.createObjectURL(blob);
-        
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
         URL.revokeObjectURL(url);
     }
     
-    // Helper methods
-    hexToRGBA(hex) {
-        const r = parseInt(hex.slice(1, 3), 16) / 255;
-        const g = parseInt(hex.slice(3, 5), 16) / 255;
-        const b = parseInt(hex.slice(5, 7), 16) / 255;
-        return [r, g, b, 1.0];
+    hexToRgb(hex) {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? {
+            r: parseInt(result[1], 16),
+            g: parseInt(result[2], 16),
+            b: parseInt(result[3], 16)
+        } : { r: 128, g: 128, b: 128 };
     }
     
-    getVertexMax(vertices) {
-        return [
-            Math.max(...vertices.map(v => v.x)),
-            Math.max(...vertices.map(v => v.y)),
-            Math.max(...vertices.map(v => v.z))
-        ];
-    }
-    
-    getVertexMin(vertices) {
+    calculateMinVertices(vertices) {
         return [
             Math.min(...vertices.map(v => v.x)),
             Math.min(...vertices.map(v => v.y)),
             Math.min(...vertices.map(v => v.z))
+        ];
+    }
+    
+    calculateMaxVertices(vertices) {
+        return [
+            Math.max(...vertices.map(v => v.x)),
+            Math.max(...vertices.map(v => v.y)),
+            Math.max(...vertices.map(v => v.z))
         ];
     }
 }
