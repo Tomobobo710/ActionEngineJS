@@ -22,6 +22,7 @@ class ActionRenderer3D {
         
         this.objectRenderer = new ObjectRenderer3D(this, this.gl, this.programManager, this.lightManager);
         this.waterRenderer = new WaterRenderer3D(this.gl, this.programManager);
+        this.spriteRenderer = new SpriteRenderer3D(this.gl, this.programManager, this.canvasManager.isWebGL2());
         
         // Time tracking
         this.startTime = performance.now();
@@ -91,8 +92,9 @@ class ActionRenderer3D {
             }
         }
 
-        // Create empty array for water objects if they exist
+        // Create empty arrays for different object types
         let waterObjects = [];
+        let spriteObjects = [];
         let nonWaterObjects = [];
         
         // Fast pre-sorting of objects for better performance
@@ -100,6 +102,9 @@ class ActionRenderer3D {
             for (const object of renderableObjects) {
                 if (typeof Ocean !== 'undefined' && object instanceof Ocean) {
                     waterObjects.push(object);
+                } else if (object && object.constructor.name === 'ActionSprite3D') {
+                    // All ActionSprite3D objects go to sprite renderer (billboard and non-billboard)
+                    spriteObjects.push(object);
                 } else if (object) {
                     nonWaterObjects.push(object);
                 }
@@ -214,6 +219,34 @@ class ActionRenderer3D {
             const lightPos = mainLight ? mainLight.getPosition() : new Vector3(0, 5000, 0);
             const isVirtualBoyMode = (this._cachedVariant === "virtualboy");
             this.sunRenderer.render(camera, lightPos, isVirtualBoyMode);
+        }
+        
+        // Render sprites (ActionSprite3D objects - both billboard and non-billboard)
+        if (spriteObjects.length > 0) {
+            // Get matrices for sprite rendering
+            const projectionMatrix = Matrix4.create();
+            const viewMatrix = Matrix4.create();
+
+            // Create projection matrix using same parameters as ObjectRenderer3D for consistent depth values
+            const aspectRatio = Game.WIDTH / Game.HEIGHT;
+            Matrix4.perspective(
+                projectionMatrix,
+                camera.fov,
+                aspectRatio,
+                0.1,      // Same near plane as ObjectRenderer3D
+                10000.0   // Same far plane as ObjectRenderer3D
+            );
+
+            // Create view matrix
+            Matrix4.lookAt(
+                viewMatrix,
+                camera.position.toArray(),
+                camera.target.toArray(),
+                camera.up.toArray()
+            );
+
+            // Render sprites
+            this.spriteRenderer.render(spriteObjects, camera, projectionMatrix, viewMatrix);
         }
         
         // Debug visualization if enabled
