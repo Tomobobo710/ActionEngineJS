@@ -20,6 +20,7 @@ class ActionInputHandler {
         this.gamepads = new Map(); // Store gamepad states by index
         this.gamepadDeadzone = 0.15; // Default deadzone for analog sticks
         this.gamepadConnected = false;
+        this.gamepadKeyboardMirroring = true; // Default: gamepad inputs map to keyboard actions
         
         // Raw state - continuously updated by events
         this.rawState = {
@@ -1375,25 +1376,29 @@ class ActionInputHandler {
         return this.rawState.virtualControlsVisible;
     }
 
-    // Gamepad Methods
+    // Gamepad Methods - Direct per-gamepad access
     
     isGamepadButtonPressed(buttonIndex, gamepadIndex = 0) {
-        const gamepad = this.gamepads.get(gamepadIndex);
-        if (!gamepad) return false;
+        const { current } = this.getSnapshots();
         
-        const button = gamepad.buttons.get(buttonIndex);
-        return button ? button.pressed : false;
+        // Check if this gamepad exists
+        if (!this.gamepads.has(gamepadIndex)) return false;
+        
+        // Check snapshot for this specific gamepad button
+        const gamepadKey = `Gamepad${gamepadIndex}_Button${buttonIndex}`;
+        return current.keys.has(gamepadKey);
     }
     
     isGamepadButtonJustPressed(buttonIndex, gamepadIndex = 0) {
-        const gamepad = this.gamepads.get(gamepadIndex);
-        if (!gamepad) return false;
+        const { current, previous } = this.getSnapshots();
         
-        const currentButton = gamepad.buttons.get(buttonIndex);
-        const previousButton = gamepad.previousButtons.get(buttonIndex);
+        // Check if this gamepad exists
+        if (!this.gamepads.has(gamepadIndex)) return false;
         
-        const isCurrentlyPressed = currentButton ? currentButton.pressed : false;
-        const wasPreviouslyPressed = previousButton ? previousButton.pressed : false;
+        // Check snapshot for just pressed on this specific gamepad
+        const gamepadKey = `Gamepad${gamepadIndex}_Button${buttonIndex}`;
+        const isCurrentlyPressed = current.keys.has(gamepadKey);
+        const wasPreviouslyPressed = previous.keys.has(gamepadKey);
         
         return isCurrentlyPressed && !wasPreviouslyPressed;
     }
@@ -1431,6 +1436,14 @@ class ActionInputHandler {
         this.gamepadDeadzone = Math.max(0, Math.min(1, deadzone));
     }
     
+    setGamepadKeyboardMirroring(enabled) {
+        this.gamepadKeyboardMirroring = enabled;
+    }
+    
+    isGamepadKeyboardMirroringEnabled() {
+        return this.gamepadKeyboardMirroring;
+    }
+    
     // Map gamepad button to custom action
     mapGamepadButton(buttonIndex, action) {
         if (!this.gamepadActionMap.has(buttonIndex)) {
@@ -1465,6 +1478,11 @@ class ActionInputHandler {
             if (actions.includes(action)) {
                 if (current.keys.has(key)) return true;
             }
+        }
+        
+        // Only check gamepad if mirroring is enabled
+        if (!this.gamepadKeyboardMirroring) {
+            return false;
         }
         
         // Check gamepad buttons via the snapshot system
@@ -1511,6 +1529,11 @@ class ActionInputHandler {
                     return true;
                 }
             }
+        }
+        
+        // Only check gamepad if mirroring is enabled
+        if (!this.gamepadKeyboardMirroring) {
+            return false;
         }
         
         // Check gamepad buttons via snapshot system
