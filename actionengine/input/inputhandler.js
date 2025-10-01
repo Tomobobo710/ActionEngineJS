@@ -14,6 +14,12 @@ class ActionInputHandler {
 
         // Setup action mappings
         this.setupActionMap();
+        this.setupGamepadActionMap();
+        
+        // Gamepad state
+        this.gamepads = new Map(); // Store gamepad states by index
+        this.gamepadDeadzone = 0.15; // Default deadzone for analog sticks
+        this.gamepadConnected = false;
         
         // Raw state - continuously updated by events
         this.rawState = {
@@ -150,6 +156,7 @@ class ActionInputHandler {
         this.setupPointerListeners();
         this.setupVirtualButtons();
         this.setupUIButtons();
+        this.setupGamepadListeners();
 
         // Make game canvas focusable
         if (this.canvases.gameCanvas) {
@@ -161,6 +168,47 @@ class ActionInputHandler {
     // Set the current execution context (update or fixed_update)
     setContext(context) {
         this.currentContext = context;
+    }
+
+    setupGamepadActionMap() {
+        // Standard gamepad button mapping (based on standard gamepad layout)
+        // Button indices follow the W3C Gamepad API standard mapping
+        this.gamepadActionMap = new Map([
+            // Face buttons (Xbox layout: A=0, B=1, X=2, Y=3)
+            [0, ["Action1"]],  // A / Cross - Primary action
+            [1, ["Action2"]],  // B / Circle - Secondary action
+            [2, ["Action3"]],  // X / Square
+            [3, ["Action4"]],  // Y / Triangle
+            
+            // Shoulder buttons
+            [4, ["Action5"]],  // Left Bumper (LB)
+            [5, ["Action6"]],  // Right Bumper (RB)
+            [6, ["Action7"]],  // Left Trigger (LT) when pressed as button
+            [7, ["Action8"]],  // Right Trigger (RT) when pressed as button
+            
+            // Menu buttons
+            [8, ["Action7"]],  // Back/Select
+            [9, ["Action8"]],  // Start
+            
+            // Stick clicks
+            [10, ["Action9"]],  // Left stick click (L3)
+            [11, ["Action10"]], // Right stick click (R3)
+            
+            // D-pad
+            [12, ["DirUp"]],
+            [13, ["DirDown"]],
+            [14, ["DirLeft"]],
+            [15, ["DirRight"]]
+        ]);
+        
+        // Axis mapping for analog sticks
+        // Standard gamepad axes: 0-1 = left stick (x, y), 2-3 = right stick (x, y)
+        this.gamepadAxisMap = new Map([
+            [0, { action: "AxisLeftX", inverted: false }],
+            [1, { action: "AxisLeftY", inverted: false }],
+            [2, { action: "AxisRightX", inverted: false }],
+            [3, { action: "AxisRightY", inverted: false }]
+        ]);
     }
 
     setupActionMap() {
@@ -209,6 +257,114 @@ class ActionInputHandler {
         additionalBlockedKeys.forEach(key => this.gameKeyCodes.add(key));
     }
 
+    setupGamepadListeners() {
+        // Listen for gamepad connection events
+        window.addEventListener("gamepadconnected", (e) => {
+            console.log(`[ActionInputHandler] Gamepad connected: ${e.gamepad.id} (index: ${e.gamepad.index})`);
+            this.gamepadConnected = true;
+            this.initializeGamepad(e.gamepad.index);
+        });
+        
+        window.addEventListener("gamepaddisconnected", (e) => {
+            console.log(`[ActionInputHandler] Gamepad disconnected: ${e.gamepad.id} (index: ${e.gamepad.index})`);
+            this.gamepads.delete(e.gamepad.index);
+            if (this.gamepads.size === 0) {
+                this.gamepadConnected = false;
+            }
+        });
+    }
+    
+    initializeGamepad(index) {
+        this.gamepads.set(index, {
+            buttons: new Map(),
+            axes: new Map(),
+            previousButtons: new Map(),
+            previousAxes: new Map()
+        });
+    }
+    
+    pollGamepads() {
+        // Get current gamepad states from browser
+        const gamepads = navigator.getGamepads();
+        
+        for (let i = 0; i < gamepads.length; i++) {
+            const gamepad = gamepads[i];
+            if (!gamepad) continue;
+            
+            // Initialize if this is a new gamepad
+            if (!this.gamepads.has(i)) {
+                this.initializeGamepad(i);
+            }
+            
+            const state = this.gamepads.get(i);
+            
+            // Store previous state
+            state.previousButtons = new Map(state.buttons);
+            state.previousAxes = new Map(state.axes);
+            
+            // Update button states AND inject into rawState.keys
+            gamepad.buttons.forEach((button, index) => {
+                state.buttons.set(index, {
+                    pressed: button.pressed,
+                    value: button.value
+                });
+                
+                // Create a unique key for this gamepad button
+                const gamepadKey = `Gamepad${i}_Button${index}`;
+                
+                // Update rawState.keys so it goes through snapshot system
+                if (button.pressed) {
+                    this.rawState.keys.set(gamepadKey, true);
+                } else {
+                    this.rawState.keys.delete(gamepadKey);
+                }
+            });
+            
+            // Update axis states with deadzone
+            gamepad.axes.forEach((value, index) => {
+                const processedValue = Math.abs(value) < this.gamepadDeadzone ? 0 : value;
+                state.axes.set(index, processedValue);
+            });
+            
+            // Map analog sticks to directional keys in rawState
+            const leftStick = {
+                x: state.axes.get(0) || 0,
+                y: state.axes.get(1) || 0
+            };
+            
+            const threshold = 0.5;
+            const stickUpKey = `Gamepad${i}_StickUp`;
+            const stickDownKey = `Gamepad${i}_StickDown`;
+            const stickLeftKey = `Gamepad${i}_StickLeft`;
+            const stickRightKey = `Gamepad${i}_StickRight`;
+            
+            // Update rawState based on stick position
+            if (leftStick.y < -threshold) {
+                this.rawState.keys.set(stickUpKey, true);
+            } else {
+                this.rawState.keys.delete(stickUpKey);
+            }
+            
+            if (leftStick.y > threshold) {
+                this.rawState.keys.set(stickDownKey, true);
+            } else {
+                this.rawState.keys.delete(stickDownKey);
+            }
+            
+            if (leftStick.x < -threshold) {
+                this.rawState.keys.set(stickLeftKey, true);
+            } else {
+                this.rawState.keys.delete(stickLeftKey);
+            }
+            
+            if (leftStick.x > threshold) {
+                this.rawState.keys.set(stickRightKey, true);
+            } else {
+                this.rawState.keys.delete(stickRightKey);
+            }
+        }
+    }
+
     setupEventListeners() {
         // Keyboard event listeners
         window.addEventListener("keydown", (e) => {
@@ -254,6 +410,8 @@ class ActionInputHandler {
 
     // Called by the engine at the start of each frame
     captureKeyState() {
+        // Poll gamepads first
+        this.pollGamepads();
         // Save current as previous - properly preserving Map objects
         // Create deep copies of each component
         
@@ -321,6 +479,8 @@ class ActionInputHandler {
 
     // Called by the engine before fixed updates begin
     captureFixedKeyState() {
+        // Poll gamepads for fixed update as well
+        this.pollGamepads();
         // Save current fixed state as previous fixed state - properly preserving Map objects
         
         // Copy key maps
@@ -1215,33 +1375,159 @@ class ActionInputHandler {
         return this.rawState.virtualControlsVisible;
     }
 
-    // Key check methods
+    // Gamepad Methods
+    
+    isGamepadButtonPressed(buttonIndex, gamepadIndex = 0) {
+        const gamepad = this.gamepads.get(gamepadIndex);
+        if (!gamepad) return false;
+        
+        const button = gamepad.buttons.get(buttonIndex);
+        return button ? button.pressed : false;
+    }
+    
+    isGamepadButtonJustPressed(buttonIndex, gamepadIndex = 0) {
+        const gamepad = this.gamepads.get(gamepadIndex);
+        if (!gamepad) return false;
+        
+        const currentButton = gamepad.buttons.get(buttonIndex);
+        const previousButton = gamepad.previousButtons.get(buttonIndex);
+        
+        const isCurrentlyPressed = currentButton ? currentButton.pressed : false;
+        const wasPreviouslyPressed = previousButton ? previousButton.pressed : false;
+        
+        return isCurrentlyPressed && !wasPreviouslyPressed;
+    }
+    
+    getGamepadAxis(axisIndex, gamepadIndex = 0) {
+        const gamepad = this.gamepads.get(gamepadIndex);
+        if (!gamepad) return 0;
+        
+        return gamepad.axes.get(axisIndex) || 0;
+    }
+    
+    getGamepadLeftStick(gamepadIndex = 0) {
+        return {
+            x: this.getGamepadAxis(0, gamepadIndex),
+            y: this.getGamepadAxis(1, gamepadIndex)
+        };
+    }
+    
+    getGamepadRightStick(gamepadIndex = 0) {
+        return {
+            x: this.getGamepadAxis(2, gamepadIndex),
+            y: this.getGamepadAxis(3, gamepadIndex)
+        };
+    }
+    
+    isGamepadConnected(gamepadIndex = 0) {
+        return this.gamepads.has(gamepadIndex);
+    }
+    
+    getConnectedGamepads() {
+        return Array.from(this.gamepads.keys());
+    }
+    
+    setGamepadDeadzone(deadzone) {
+        this.gamepadDeadzone = Math.max(0, Math.min(1, deadzone));
+    }
+    
+    // Map gamepad button to custom action
+    mapGamepadButton(buttonIndex, action) {
+        if (!this.gamepadActionMap.has(buttonIndex)) {
+            this.gamepadActionMap.set(buttonIndex, []);
+        }
+        const actions = this.gamepadActionMap.get(buttonIndex);
+        if (!actions.includes(action)) {
+            actions.push(action);
+        }
+    }
+    
+    // Remove gamepad button mapping
+    unmapGamepadButton(buttonIndex, action) {
+        if (!this.gamepadActionMap.has(buttonIndex)) return;
+        
+        const actions = this.gamepadActionMap.get(buttonIndex);
+        const index = actions.indexOf(action);
+        if (index !== -1) {
+            actions.splice(index, 1);
+            if (actions.length === 0) {
+                this.gamepadActionMap.delete(buttonIndex);
+            }
+        }
+    }
+
+    // Key check methods (now includes gamepad support)
     isKeyPressed(action) {
         const { current } = this.getSnapshots();
         
+        // Check keyboard
         for (const [key, actions] of this.actionMap) {
             if (actions.includes(action)) {
-                return current.keys.has(key);
+                if (current.keys.has(key)) return true;
             }
         }
+        
+        // Check gamepad buttons via the snapshot system
+        for (const [buttonIndex, actions] of this.gamepadActionMap) {
+            if (actions.includes(action)) {
+                // Check all connected gamepads
+                for (const gamepadIndex of this.gamepads.keys()) {
+                    const gamepadKey = `Gamepad${gamepadIndex}_Button${buttonIndex}`;
+                    if (current.keys.has(gamepadKey)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        
+        // Check analog stick as directional input via snapshot system
+        if (action === "DirUp" || action === "DirDown" || action === "DirLeft" || action === "DirRight") {
+            for (const gamepadIndex of this.gamepads.keys()) {
+                let stickKey;
+                if (action === "DirUp") stickKey = `Gamepad${gamepadIndex}_StickUp`;
+                if (action === "DirDown") stickKey = `Gamepad${gamepadIndex}_StickDown`;
+                if (action === "DirLeft") stickKey = `Gamepad${gamepadIndex}_StickLeft`;
+                if (action === "DirRight") stickKey = `Gamepad${gamepadIndex}_StickRight`;
+                
+                if (current.keys.has(stickKey)) {
+                    return true;
+                }
+            }
+        }
+        
         return false;
     }
 
     isKeyJustPressed(action) {
         const { current, previous } = this.getSnapshots();
         
+        // Check keyboard
         for (const [key, actions] of this.actionMap) {
             if (actions.includes(action)) {
-                // Check if key was just pressed this frame/fixed frame step
                 const isCurrentlyPressed = current.keys.has(key);
                 const wasPreviouslyPressed = previous.keys.has(key);
                 
-                // Key is pressed now but wasn't in the previous frame/fixed frame step
                 if (isCurrentlyPressed && !wasPreviouslyPressed) {
                     return true;
                 }
             }
         }
+        
+        // Check gamepad buttons via snapshot system
+        for (const [buttonIndex, actions] of this.gamepadActionMap) {
+            if (actions.includes(action)) {
+                for (const gamepadIndex of this.gamepads.keys()) {
+                    const gamepadKey = `Gamepad${gamepadIndex}_Button${buttonIndex}`;
+                    const isCurrentlyPressed = current.keys.has(gamepadKey);
+                    const wasPreviouslyPressed = previous.keys.has(gamepadKey);
+                    
+                    if (isCurrentlyPressed && !wasPreviouslyPressed) {
+                        return true;
+                    }
+                }
+            }
+        }
+        
         return false;
     }
 
