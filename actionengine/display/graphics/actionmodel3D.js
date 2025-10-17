@@ -1,7 +1,8 @@
-class ActionModel3D {
-    constructor() {
+class ActionModel3D extends RenderableObject {
+    constructor(geometry = null) {
+        super(); // Call parent constructor
         // Node structure
-        this.nodes = [];  // All nodes with full properties 
+        this.nodes = [];  // All nodes with full properties
         this.rootNodes = [];  // Top-level node indices
         this.meshNodes = [];  // Nodes with meshes
         this.jointNodes = []; // Nodes used as bones
@@ -13,7 +14,7 @@ class ActionModel3D {
         this.originalTriangles = [];  // Initial triangle geometry
         this.triangles = [];  // Current triangle geometry
         
-        // Original skin definitions 
+        // Original skin definitions
         this.skins = [];      // Complete skin definitions from GLB
 
         // Bone/joint relationships
@@ -30,6 +31,19 @@ class ActionModel3D {
         
         this.vertexToTriangleMap = {}; // Maps vertex positions to array of triangle indices that use that vertex
         this.nodeToVertexMap = {}; // Maps node indices to Set of vertex positions influenced by that node based on skinning data
+
+        // Initialize position and color
+        this.position = new Vector3(0, 0, 0);
+        this.color = [1.0, 1.0, 1.0]; // Default to white
+
+        // Store geometry if provided (for simple blocks)
+        this.geometry = geometry;
+
+        console.log('ActionModel3D constructor: position initialized as', this.position);
+    }
+
+    setColor(r, g, b) {
+        this.color = [r, g, b];
     }
     
     createBoxModel(size, height) {

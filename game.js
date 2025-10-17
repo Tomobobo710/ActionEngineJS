@@ -121,19 +121,31 @@ class WebGLGeometryBuilder {
     addBox(x, y, z, width, height, depth, color) {
         const baseIndex = this.vertices.length / 3;
 
+        const halfWidth = width / 2;
+        const halfHeight = height / 2;
+        const halfDepth = depth / 2;
+
+        // Calculate actual min/max coordinates for centering
+        const minX = x - halfWidth;
+        const maxX = x + halfWidth;
+        const minY = y - halfHeight;
+        const maxY = y + halfHeight;
+        const minZ = z - halfDepth;
+        const maxZ = z + halfDepth;
+
         // Eight corners of box (vertices stay the same)
         const vertices = [
             // Bottom face
-            x, y, z,
-            x + width, y, z,
-            x + width, y, z + depth,
-            x, y, z + depth,
+            minX, minY, minZ,
+            maxX, minY, minZ,
+            maxX, minY, maxZ,
+            minX, minY, maxZ,
 
             // Top face
-            x, y + height, z,
-            x + width, y + height, z,
-            x + width, y + height, z + depth,
-            x, y + height, z + depth
+            minX, maxY, minZ,
+            maxX, maxY, minZ,
+            maxX, maxY, maxZ,
+            minX, maxY, maxZ
         ];
 
         // Add vertices
@@ -326,34 +338,31 @@ class Renderer {
 
 // Memory Block class for 3D WebGL rendering
 class MemoryBlock {
-	constructor(position, type = "cube") {
+	constructor(gl, position, type = "cube", blockSize = 5) { // Add gl and blockSize parameters
+		this.gl = gl; // Store gl context
 		this.id = `block_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 		this.position = position.clone();
 		this.type = type;
 		this.text = "";
+        this.blockSize = blockSize; // Store blockSize
 
 		// Create the 3D visual representation
-		this.mesh = null;
+		this.model = null;
 		this.createVisual();
 	}
 
 	createVisual() {
 		// Create 3D geometry for WebGL rendering
-		if (typeof document !== 'undefined') {
-			const canvas = document.createElement('canvas');
-			const gl = canvas.getContext('webgl');
-			if (gl) {
-				const builder = new WebGLGeometryBuilder(gl);
-				builder.addBox(
-					this.position.x - 2.5, // half of blockSize
-					this.position.y - 2.5,
-					this.position.z - 2.5,
-					5, 5, 5, // blockSize
-					[0.545, 0.451, 0.333] // brownish color like wood
-				);
-				this.mesh = builder.build();
-			}
-		}
+		const builder = new WebGLGeometryBuilder(this.gl); // Use stored gl context
+		builder.addBox(
+			0, 0, 0, // Position relative to block's own position
+			this.blockSize, this.blockSize, this.blockSize, // Use this.blockSize
+			[0.545, 0.451, 0.333] // brownish color like wood
+		);
+		const geometry = builder.build();
+        this.model = new ActionModel3D(geometry);
+        this.model.position.copy(this.position); // Set model's position
+        this.model.setColor(0.545, 0.451, 0.333); // Set model's color
 	}
 
 	setText(text) {
@@ -373,14 +382,17 @@ class MemoryBlock {
 				z: this.position.z
 			},
 			type: this.type,
-			text: this.text
+			text: this.text,
+            blockSize: this.blockSize // Add blockSize to JSON
 		};
 	}
 
-	static fromJSON(data) {
+	static fromJSON(gl, data) { // Add gl parameter
 		const block = new MemoryBlock(
+            gl, // Pass gl to constructor
 			new Vector3(data.position.x, data.position.y, data.position.z),
-			data.type
+			data.type,
+            data.blockSize // Pass blockSize from JSON
 		);
 		block.id = data.id;
 		block.text = data.text;
@@ -388,18 +400,18 @@ class MemoryBlock {
 	}
 
 	draw(renderer, viewMatrix, projectionMatrix) {
-		if (!this.mesh) return;
+		if (!this.model || !this.model.geometry) return; // Use this.model
 
 		// Create model matrix for block position
 		const modelMatrix = Matrix4.create();
 		Matrix4.translate(modelMatrix, modelMatrix, [
-			this.position.x,
-			this.position.y,
-			this.position.z
+			this.model.position.x, // Use model's position
+			this.model.position.y,
+			this.model.position.z
 		]);
 
 		// Draw the block mesh
-		renderer.drawMesh(this.mesh, "basic", modelMatrix, viewMatrix, projectionMatrix);
+		renderer.drawMesh(this.model.geometry, "basic", modelMatrix, viewMatrix, projectionMatrix);
 	}
 }
 
@@ -990,6 +1002,7 @@ class Game {
             if (block && block.model) {
                 try {
                     block.draw(this.renderer, viewMatrix, this.projectionMatrix);
+                    console.log(`Game.draw: Block ${id} model position: (${block.model.position.x.toFixed(1)}, ${block.model.position.y.toFixed(1)}, ${block.model.position.z.toFixed(1)})`);
                 } catch (error) {
                     console.error('❌ Error drawing block:', id, error);
                 }
@@ -1007,9 +1020,9 @@ class Game {
         }
 
         // Draw persistent highlight - always visible if we have a stored position
-        if (this.persistentHighlightPosition) {  // CHANGED: Use persistent position instead of hoveredBlock
-            this.drawHoveredBlockHighlight(this.renderer, viewMatrix, this.projectionMatrix);
-        }
+        // if (this.persistentHighlightPosition) {  // CHANGED: Use persistent position instead of hoveredBlock
+        //     this.drawHoveredBlockHighlight(this.renderer, viewMatrix, this.projectionMatrix);
+        // }
 
         // Draw 2D UI elements
         this.drawUI();
@@ -1249,83 +1262,120 @@ class Game {
         };
     }
 
-    placeBlock() {
-        // Debug: Check if we have the required data
-        console.log('🎯 Place block attempt:', {
-            cursorLocked: this.cursorLocked,
-            hasPersistentPosition: !!this.persistentHighlightPosition,
-            position: this.persistentHighlightPosition
-        });
+placeBlock() {
+    // Debug: Check if we have the required data
+    console.log('🎯 Place block attempt:', {
+        cursorLocked: this.cursorLocked,
+        hasPersistentPosition: !!this.persistentHighlightPosition,
+        position: this.persistentHighlightPosition
+    });
 
-        if (!this.cursorLocked) {
-            this.addMessage("🔒 Click canvas to lock mouse first!");
-            return;
-        }
-
-        if (!this.persistentHighlightPosition) {
-            this.addMessage("🎯 Point at a surface (wall/floor/ceiling)");
-            return;
-        }
-
-        // Calculate placement position based on face and hit point
-        const offset = this.blockSize;
-        let newPos = this.persistentHighlightPosition.clone();
-
-        // Adjust position based on which face was hit
-        switch (this.hoveredFace) {
-            case "top": newPos.y += offset / 2; break;
-            case "bottom": newPos.y -= offset / 2; break;
-            case "north": newPos.z -= offset / 2; break;
-            case "south": newPos.z += offset / 2; break;
-            case "east": newPos.x += offset / 2; break;
-            case "west": newPos.x -= offset / 2; break;
-        }
-
-        // Round to grid
-        newPos.x = Math.round(newPos.x);
-        newPos.y = Math.round(newPos.y);
-        newPos.z = Math.round(newPos.z);
-
-        // Check if position is already occupied
-        for (let [id, block] of this.blocks) {
-            if (block.position.distanceTo(newPos) < this.blockSize * 0.5) {
-                this.addMessage("❌ Position already occupied!");
-                return;
-            }
-        }
-
-        // Create new block
-        const block = new MemoryBlock(newPos, this.selectedBlockType);
-        this.blocks.set(block.id, block);
-
-        // Ensure block is visible in 3D scene
-        if (block.model) {
-            block.model.setColor(0.0, 1.0, 0.0); // Bright green for high visibility
-            block.model.position.set(newPos.x, newPos.y, newPos.z);
-            console.log('🎁 New block model created:', {
-                id: block.id,
-                position: newPos,
-                model: !!block.model,
-                color: 'bright green'
-            });
-        } else {
-            console.error('❌ Block model not created!');
-            // Try alternative approach
-            console.log('🔄 Attempting alternative block creation...');
-            const geometry = GeometryBuilder.createCube(1, 1, 1);
-            const model = new ActionModel3D(geometry);
-            model.position.set(newPos.x, newPos.y, newPos.z);
-            model.setColor(1.0, 0.0, 0.0); // Red as fallback
-            block.model = model;
-            this.addObject(model);
-            console.log('✅ Alternative block creation successful');
-        }
-
-        this.audio.play("placeBlock");
-        this.addMessage(`✅ Block placed at (${Math.round(newPos.x)}, ${Math.round(newPos.y)}, ${Math.round(newPos.z)})`);
-
-        this.saveToStorage();
+    if (!this.cursorLocked) {
+        this.addMessage("🔒 Click canvas to lock mouse first!");
+        return;
     }
+
+    if (!this.persistentHighlightPosition) {
+        this.addMessage("🎯 Point at a surface (wall/floor/ceiling)");
+        return;
+    }
+
+    // Calculate placement position based on face and hit point
+    const offset = this.blockSize;
+    let newPos = this.persistentHighlightPosition.clone();
+    console.log('placeBlock: initial newPos from highlight:', newPos.toArray());
+
+    // Adjust position based on which face was hit
+    switch (this.hoveredFace) {
+        case "top": newPos.y += offset / 2; break;
+        case "bottom": newPos.y += offset / 2; break; // Adjust up by half block size to sit on the floor
+        case "north": newPos.z -= offset / 2; break;
+        case "south": newPos.z += offset / 2; break;
+        case "east": newPos.x += offset / 2; break;
+        case "west": newPos.x -= offset / 2; break;
+    }
+    console.log('placeBlock: newPos after face adjustment:', newPos.toArray());
+
+    // Round to grid
+    newPos.x = Math.round(newPos.x);
+    newPos.y = Math.round(newPos.y);
+    newPos.z = Math.round(newPos.z);
+    console.log('placeBlock: newPos after rounding:', newPos.toArray());
+
+    // Check if position is already occupied
+    for (let [id, block] of this.blocks) {
+        if (block.position.distanceTo(newPos) < this.blockSize * 0.5) {
+            this.addMessage("❌ Position already occupied!");
+            return;
+        }
+    }
+
+    // Create new block
+    const block = new MemoryBlock(this.gl, newPos.clone(), this.selectedBlockType, this.blockSize); // Pass this.gl
+    this.blocks.set(block.id, block);
+
+    // Ensure block is visible in 3D scene
+    if (block.model) {
+        block.model.setColor(0.0, 1.0, 0.0); // Bright green for high visibility
+        block.model.position.set(newPos.x, newPos.y, newPos.z);
+        console.log('🎁 New block model created:', {
+            id: block.id,
+            position: newPos,
+            model: !!block.model,
+            color: 'bright green'
+        });
+    } else {
+        console.error('❌ Block model not created!');
+        // Try manual geometry creation
+        console.log('🔄 Creating block with manual geometry...');
+        
+        // Create simple cube geometry manually
+        const size = 0.5;
+        const vertices = new Float32Array([
+            // Front face
+            -size, -size,  size,  size, -size,  size,  size,  size,  size, -size,  size,  size,
+            // Back face
+            -size, -size, -size, -size,  size, -size,  size,  size, -size,  size, -size, -size,
+            // Top face
+            -size,  size, -size, -size,  size,  size,  size,  size,  size,  size,  size, -size,
+            // Bottom face
+            -size, -size, -size,  size, -size, -size,  size, -size,  size, -size, -size,  size,
+            // Right face
+             size, -size, -size,  size,  size, -size,  size,  size,  size,  size, -size,  size,
+            // Left face
+            -size, -size, -size, -size, -size,  size, -size,  size,  size, -size,  size, -size
+        ]);
+
+        const indices = new Uint16Array([
+            0,  1,  2,    0,  2,  3,    // front
+            4,  5,  6,    4,  6,  7,    // back
+            8,  9,  10,   8,  10, 11,   // top
+            12, 13, 14,   12, 14, 15,   // bottom
+            16, 17, 18,   16, 18, 19,   // right
+            20, 21, 22,   20, 22, 23    // left
+        ]);
+
+        const geometry = {
+            vertices: vertices,
+            indices: indices,
+            vertexCount: vertices.length / 3,
+            indexCount: indices.length
+        };
+
+        const model = new ActionModel3D(geometry);
+        model.position.set(newPos.x, newPos.y, newPos.z);
+        model.setColor(1.0, 0.0, 0.0); // Red as fallback
+        block.model = model;
+        block.position = newPos.clone(); // Ensure position is set
+        this.addObject(model);
+        console.log('✅ Manual block creation successful');
+    }
+
+    this.audio.play("placeBlock");
+    this.addMessage(`✅ Block placed at (${Math.round(newPos.x)}, ${Math.round(newPos.y)}, ${Math.round(newPos.z)})`);
+
+    this.saveToStorage();
+}
 
     // Alternative block placement method (fallback) - press B key
     placeBlockAtCameraPosition() {
@@ -1484,10 +1534,21 @@ class Game {
         // Load blocks
         if (data.blocks && Array.isArray(data.blocks)) {
             data.blocks.forEach(blockData => {
-                const block = MemoryBlock.fromJSON(blockData);
+                const block = MemoryBlock.fromJSON(this.gl, blockData); // Pass this.gl
+
+                // Adjust block position to sit on the floor if it was saved at y=0
+                if (block.position.y === 0) {
+                    block.position.y += block.blockSize / 2;
+                }
 
                 // Create 3D model
-                const geometry = GeometryBuilder.createCube(1, 1, 1);
+                const builder = new WebGLGeometryBuilder(this.gl); // Use this.gl
+                builder.addBox(
+                    0, 0, 0, // Position relative to block's own position
+                    block.blockSize, block.blockSize, block.blockSize, // Use block's blockSize
+                    [0.0, 1.0, 0.0] // Bright green for high visibility
+                );
+                const geometry = builder.build();
                 const model = new ActionModel3D(geometry);
                 model.position.copy(block.position);
                 model.setColor(0.0, 1.0, 0.0); // Bright green for high visibility
