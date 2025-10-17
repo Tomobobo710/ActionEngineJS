@@ -462,8 +462,8 @@ class TextEditor {
 			})
 		}, "gui");
 
-		// Delete button
-		this.game.input.registerElement("editorDelete", {
+		// Delete Note button
+		this.game.input.registerElement("editorDeleteNote", { // Changed ID
 			bounds: () => ({
 				x: this.x + this.padding + this.buttonWidth + 20,
 				y: this.buttonY,
@@ -471,6 +471,16 @@ class TextEditor {
 				height: this.buttonHeight
 			})
 		}, "gui");
+
+		      // Delete Block button
+		      this.game.input.registerElement("editorDeleteBlock", {
+		          bounds: () => ({
+		              x: this.x + this.padding + (this.buttonWidth + 20) * 2, // Position next to delete note
+		              y: this.buttonY,
+		              width: this.buttonWidth,
+		              height: this.buttonHeight
+		          })
+		      }, "gui");
 
 		// Close button
 		this.game.input.registerElement("editorClose", {
@@ -519,14 +529,22 @@ class TextEditor {
 		this.close();
 	}
 
-	delete() {
+	deleteNote() {
 		if (this.currentBlock) {
 			this.currentBlock.setText("");
-			this.game.saveToLocalStorage();
+			this.game.saveToStorage(); // Use game.saveToStorage
 			this.game.addMessage("Note deleted!");
 		}
 		this.close();
 	}
+
+	   deleteBlock() {
+	       if (this.currentBlock) {
+	           this.game.deleteBlock(this.currentBlock.id); // Call game method to delete block
+	           this.game.addMessage("Block deleted!");
+	       }
+	       this.close();
+	   }
 
 	handleInput() {
 		if (!this.isOpen) return;
@@ -537,10 +555,15 @@ class TextEditor {
 			return;
 		}
 
-		if (this.game.input.isElementJustPressed("editorDelete", "gui")) {
-			this.delete();
+		if (this.game.input.isElementJustPressed("editorDeleteNote", "gui")) { // Changed ID
+			this.deleteNote();
 			return;
 		}
+
+	       if (this.game.input.isElementJustPressed("editorDeleteBlock", "gui")) { // New button
+	           this.deleteBlock();
+	           return;
+	       }
 
 		if (this.game.input.isElementJustPressed("editorClose", "gui")) {
 			this.close();
@@ -652,8 +675,11 @@ class TextEditor {
 		this.drawButton(ctx, "Save", this.x + this.padding, this.buttonY,
 			this.game.input.isElementHovered("editorSave", "gui"));
 
-		this.drawButton(ctx, "Delete", this.x + this.padding + this.buttonWidth + 20, this.buttonY,
-			this.game.input.isElementHovered("editorDelete", "gui"));
+		this.drawButton(ctx, "Clear Note", this.x + this.padding + this.buttonWidth + 20, this.buttonY, // Changed text and ID
+			this.game.input.isElementHovered("editorDeleteNote", "gui"));
+
+		      this.drawButton(ctx, "Delete Block", this.x + this.padding + (this.buttonWidth + 20) * 2, this.buttonY, // New button
+		          this.game.input.isElementHovered("editorDeleteBlock", "gui"));
 
 		this.drawButton(ctx, "Close", this.x + this.width - this.padding - this.buttonWidth, this.buttonY,
 			this.game.input.isElementHovered("editorClose", "gui"));
@@ -985,6 +1011,25 @@ class Game {
         if (this.input.isKeyJustPressed('b') && this.cursorLocked) {
             this.placeBlockAtCameraPosition();
         }
+
+        // Delete block (for testing) - press Delete key
+        if (this.input.isKeyJustPressed('Delete') && this.cursorLocked && this.hoveredBlock && !this.hoveredBlock.isFloor) {
+            this.deleteBlock(this.hoveredBlock.id);
+        }
+    }
+
+    deleteBlock(blockId) {
+        const blockToDelete = this.blocks.get(blockId);
+        if (blockToDelete) {
+            if (blockToDelete.model) {
+                this.removeObject(blockToDelete.model); // Remove from 3D scene
+            }
+            this.blocks.delete(blockId); // Remove from map
+            this.saveToStorage(); // Save changes
+            this.addMessage(`🗑️ Block ${blockId} deleted.`);
+            this.hoveredBlock = null; // Clear hovered block if it was deleted
+            this.persistentHighlightPosition = null; // Clear highlight
+        }
     }
 
     draw() {
@@ -1038,25 +1083,50 @@ class Game {
         if (!this.cursorLocked) {
             this.persistentHighlightPosition = null;
             this.hoveredFace = null;
+            this.hoveredBlock = null; // Ensure hoveredBlock is cleared
             return;
         }
 
         const ray = this.getRayFromCamera();
-        const hitResult = this.castRayIntoRoom(ray);
+        let closestDistance = Infinity;
+        let closestHit = null;
+        let closestFace = null;
+        let closestBlock = null;
 
-        if (hitResult) {
-            this.persistentHighlightPosition = hitResult.position;
-            this.hoveredFace = hitResult.face;
+        // 1. Raycast against room geometry
+        const roomHitResult = this.castRayIntoRoom(ray);
+        if (roomHitResult) {
+            closestDistance = roomHitResult.distance;
+            closestHit = roomHitResult.position;
+            closestFace = roomHitResult.face;
+        }
 
-            // Debug logging to help troubleshoot
+        // 2. Raycast against placed blocks
+        for (let [id, block] of this.blocks) {
+            const blockHitResult = this.rayBoxIntersection(ray, block);
+            if (blockHitResult && blockHitResult.distance < closestDistance) {
+                closestDistance = blockHitResult.distance;
+                closestHit = blockHitResult.hitPoint;
+                closestFace = blockHitResult.face;
+                closestBlock = block;
+            }
+        }
+
+        if (closestHit) {
+            this.persistentHighlightPosition = closestHit;
+            this.hoveredFace = closestFace;
+            this.hoveredBlock = closestBlock; // Set hoveredBlock if a block was hit
             console.log('🎯 Raycast hit:', {
-                position: hitResult.position,
-                face: hitResult.face,
-                distance: hitResult.distance
+                position: closestHit.toArray(),
+                face: closestFace,
+                distance: closestDistance,
+                hoveredBlockId: closestBlock ? closestBlock.id : 'none'
             });
         } else {
             this.persistentHighlightPosition = null;
             this.hoveredFace = null;
+            this.hoveredBlock = null;
+            console.log('🎯 Raycast: No hit');
         }
     }
 
@@ -1412,10 +1482,18 @@ placeBlock() {
     }
 
     openBlockEditor() {
-        if (!this.hoveredBlock || this.hoveredBlock.isFloor) return;
+        console.log('Attempting to open block editor:', {
+            hoveredBlock: this.hoveredBlock ? this.hoveredBlock.id : 'none',
+            isFloor: this.hoveredBlock ? this.hoveredBlock.isFloor : 'N/A'
+        });
+        if (!this.hoveredBlock || this.hoveredBlock.isFloor) {
+            this.addMessage("❌ Point at a block to edit notes!");
+            return;
+        }
 
         this.textEditor.open(this.hoveredBlock);
         this.audio.play("uiClick");
+        console.log('✅ Block editor opened for block:', this.hoveredBlock.id);
     }
 
     drawHoveredBlockHighlight(renderer, viewMatrix, projectionMatrix) {
@@ -1535,10 +1613,12 @@ placeBlock() {
         if (data.blocks && Array.isArray(data.blocks)) {
             data.blocks.forEach(blockData => {
                 const block = MemoryBlock.fromJSON(this.gl, blockData); // Pass this.gl
+                console.log(`loadFromStorage: Block ${block.id} initial position: (${block.position.x.toFixed(1)}, ${block.position.y.toFixed(1)}, ${block.position.z.toFixed(1)})`);
 
                 // Adjust block position to sit on the floor if it was saved at y=0
                 if (block.position.y === 0) {
                     block.position.y += block.blockSize / 2;
+                    console.log(`loadFromStorage: Block ${block.id} adjusted position (y=0 fix): (${block.position.x.toFixed(1)}, ${block.position.y.toFixed(1)}, ${block.position.z.toFixed(1)})`);
                 }
 
                 // Create 3D model
@@ -1732,6 +1812,7 @@ placeBlock() {
         ctx.fillText("C: Toggle Mouse Lock", 500, y); y += 20;
         ctx.fillText("Left Click: Place Block", 500, y); y += 20;
         ctx.fillText("Right Click: Edit Notes", 500, y); y += 20;
+        ctx.fillText("Delete Key: Delete Hovered Block", 500, y); y += 20; // New control
         ctx.fillText("B: Place Block (Camera)", 500, y); y += 20;
         ctx.fillText("Action2: Manual Save", 500, y); y += 20;
         ctx.fillText("F9: Toggle Debug", 500, y);
