@@ -7,7 +7,7 @@ class BlockController {
 
         db.all(sql, [], (err, rows) => {
             if (err) {
-                console.error('Error fetching blocks:', err);
+                // console.error('Error fetching blocks:', err);
                 return res.status(500).json({ error: err.message });
             }
 
@@ -20,6 +20,7 @@ class BlockController {
                 },
                 type: row.type,
                 text: row.text,
+                blockSize: row.blockSize, // Include blockSize
                 created_at: row.created_at,
                 updated_at: row.updated_at
             }));
@@ -59,15 +60,15 @@ class BlockController {
 
     // Create new block
     static createBlock(req, res) {
-        const { id, position, type, text } = req.body;
+        const { id, position, type, text, blockSize } = req.body; // Add blockSize
 
         if (!id || !position) {
             return res.status(400).json({ error: 'Missing required fields: id, position' });
         }
 
         const sql = `
-            INSERT INTO blocks (id, position_x, position_y, position_z, type, text)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO blocks (id, position_x, position_y, position_z, type, text, blockSize)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         `;
 
         db.run(sql, [
@@ -76,10 +77,11 @@ class BlockController {
             position.y,
             position.z,
             type || 'cube',
-            text || ''
+            text || '',
+            blockSize || 5.0 // Use provided blockSize or default
         ], function(err) {
             if (err) {
-                console.error('Error creating block:', err);
+                // console.error('Error creating block:', err);
                 return res.status(500).json({ error: err.message });
             }
 
@@ -88,6 +90,7 @@ class BlockController {
                 position,
                 type: type || 'cube',
                 text: text || '',
+                blockSize: blockSize || 5.0, // Include blockSize in response
                 message: 'Block created successfully'
             });
         });
@@ -95,7 +98,7 @@ class BlockController {
 
     // Update block
     static updateBlock(req, res) {
-        const { position, type, text } = req.body;
+        const { position, type, text, blockSize } = req.body; // Add blockSize
         const { id } = req.params;
 
         const sql = `
@@ -105,6 +108,7 @@ class BlockController {
                 position_z = COALESCE(?, position_z),
                 type = COALESCE(?, type),
                 text = COALESCE(?, text),
+                blockSize = COALESCE(?, blockSize), -- Update blockSize
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         `;
@@ -115,6 +119,7 @@ class BlockController {
             position?.z,
             type,
             text,
+            blockSize, // Pass blockSize
             id
         ], function(err) {
             if (err) {
@@ -172,8 +177,8 @@ class BlockController {
 
                 // Insert all blocks
                 const stmt = db.prepare(`
-                    INSERT INTO blocks (id, position_x, position_y, position_z, type, text)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    INSERT INTO blocks (id, position_x, position_y, position_z, type, text, blockSize)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                 `);
 
                 let insertCount = 0;
@@ -187,6 +192,7 @@ class BlockController {
                         block.position.z,
                         block.type || 'cube',
                         block.text || '',
+                        block.blockSize || 5.0, // Include blockSize
                         (err) => {
                             if (err && !hasError) {
                                 hasError = true;
@@ -280,11 +286,14 @@ class BlockController {
 
     // Get statistics
     static getStatistics(req, res) {
+        // console.log('BlockController.getStatistics: Fetching statistics...');
         db.get('SELECT COUNT(*) as total FROM blocks', [], (err, row) => {
             if (err) {
+                // console.error('BlockController.getStatistics: Error fetching statistics:', err);
                 return res.status(500).json({ error: err.message });
             }
 
+            // console.log(`BlockController.getStatistics: Total blocks: ${row.total}`);
             res.json({
                 totalBlocks: row.total,
                 timestamp: new Date().toISOString()

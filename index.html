@@ -200,37 +200,35 @@
         <script src="actionengine/math/physics/actionphysics.js"></script>
 
         # Action Engine Sound
-        <script src="actionengine/sound/audiomanager.js"></script>
+        <!-- <script src="actionengine/sound/audiomanager.js"></script> -->
 
         # Action Engine Input
-        <script src="actionengine/input/inputhandler.js"></script>
+        <!-- <script src="actionengine/input/inputhandler.js"></script> -->
 
         # Action Engine Camera
         <script src="actionengine/camera/actioncamera.js"></script>
-		<script src="actionengine/camera/cameracollisionhandler.js"></script>
+  <script src="actionengine/camera/cameracollisionhandler.js"></script>
 
         # Action Engine 3-Layer Canvas System
-        <script src="actionengine/display/canvasmanager.js"></script>
+        <!-- <script src="actionengine/display/canvasmanager.js"></script> -->
 
-		# Action Engine Character Controller
-		<script src="actionengine/character/actioncharacter.js"></script>
-		<script src="actionengine/character/actioncharacter3D.js"></script>
+  # Action Engine Character Controller
+  <script src="actionengine/character/actioncharacter.js"></script>
+  <script src="actionengine/character/actioncharacter3D.js"></script>
 
         # Action Engine Bootstrap
-        <script type="module" src="actionengine/core/app.js"></script>
+        <!-- <script type="module" src="actionengine/core/app.js"></script> -->
         #############################
         
         ####Game Specific Modules####
         <!-- Memory Palace API Client -->
         <script type="module" src="api.js"></script>
-
-        <!-- Memory Palace Game Logic -->
-        <script type="module" src="game.js"></script>
         #############################
 
         <script type="module">
             import { App } from './actionengine/core/app.js'; // Import App class
             import { MemoryPalaceAPI } from './api.js'; // Import MemoryPalaceAPI
+            import { Game } from './game.js'; // Import Game class - Keep this import
 
             // Memory Palace 3D Initialization Script
             console.log('🏛️ Memory Palace 3D - Starting initialization...');
@@ -297,6 +295,13 @@
 
                         // Add playing class to body
                         document.body.classList.add('playing');
+
+                        // The App class handles its own canvas, input, and audio initialization.
+                        // We just need to instantiate it and pass the Game class.
+                        // The game instance is now accessible via window.game.game
+                        // (App creates game, App is assigned to window.game)
+                        window.game = new App({}, Game, backendAvailable);
+
                     }, 800);
 
                     console.log('✅ Memory Palace 3D initialized successfully');

@@ -27,22 +27,31 @@ const db = new sqlite3.Database(dbPath, (err) => {
 function initializeDatabase() {
     db.serialize(() => {
         // Blocks table
-        db.run(`
-            CREATE TABLE IF NOT EXISTS blocks (
-                id TEXT PRIMARY KEY,
-                position_x REAL NOT NULL,
-                position_y REAL NOT NULL,
-                position_z REAL NOT NULL,
-                type TEXT DEFAULT 'cube',
-                text TEXT DEFAULT '',
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        `, (err) => {
+        console.warn('⚠️ Dropping and recreating blocks table. ALL EXISTING BLOCKS WILL BE DELETED.');
+        db.run(`DROP TABLE IF EXISTS blocks;`, (err) => {
             if (err) {
-                console.error('❌ Error creating blocks table:', err);
+                console.error('❌ Error dropping blocks table:', err);
             } else {
-                console.log('✅ Blocks table ready');
+                console.log('✅ Blocks table dropped (if existed)');
+                db.run(`
+                    CREATE TABLE blocks (
+                        id TEXT PRIMARY KEY,
+                        position_x REAL NOT NULL,
+                        position_y REAL NOT NULL,
+                        position_z REAL NOT NULL,
+                        type TEXT DEFAULT 'cube',
+                        text TEXT DEFAULT '',
+                        blockSize REAL DEFAULT 5.0,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    );
+                `, (err) => {
+                    if (err) {
+                        console.error('❌ Error creating blocks table:', err);
+                    } else {
+                        console.log('✅ Blocks table ready with blockSize column');
+                    }
+                });
             }
         });
 

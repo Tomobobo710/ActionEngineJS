@@ -22,7 +22,22 @@ class MemoryPalaceAPI {
             }
             return await response.json();
         } catch (error) {
-            console.error(`MemoryPalaceAPI Error (${method} ${url}):`, error);
+            // console.error(`MemoryPalaceAPI Error (${method} ${url}):`, error);
+            throw error;
+        }
+    }
+
+    // Health check
+    static async healthCheck() {
+        try {
+            const response = await fetch('/api/health', { method: 'GET' });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `API health check failed with status ${response.status}`);
+            }
+            return await response.json();
+        } catch (error) {
+            // console.error(`MemoryPalaceAPI Error (healthCheck):`, error);
             throw error;
         }
     }

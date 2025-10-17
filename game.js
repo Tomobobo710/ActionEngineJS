@@ -513,12 +513,14 @@ class TextEditor {
 
 		// Capture keyboard input
 		this.game.capturingTextInput = true;
+		this.game.toggleCursorLock(false); // Unlock cursor when editor opens
 	}
 
 	close() {
 		this.isOpen = false;
 		this.currentBlock = null;
 		this.game.capturingTextInput = false;
+		this.game.toggleCursorLock(true); // Re-lock cursor when editor closes
 	}
 
 	save() {
@@ -733,7 +735,7 @@ class Game {
     static WIDTH = 800;
     static HEIGHT = 600;
 
-    constructor(canvases, input, audio) {
+    constructor(canvases, input, audio, backendAvailable) { // Add backendAvailable parameter
         // Store Action Engine references
         this.input = input;
         this.audio = audio;
@@ -774,8 +776,8 @@ class Game {
         this.maxMessages = 10;
 
         // Backend integration
-        this.useBackend = true;
-        this.backendAvailable = window.BACKEND_AVAILABLE || false;
+        this.useBackend = true; // Still use backend if available
+        this.backendAvailable = backendAvailable; // Set from parameter
 
         this.createBlocks();
 
@@ -848,13 +850,26 @@ class Game {
         );
     }
 
-    toggleCursorLock() {
-        if (!this.cursorLocked) {
-            this.canvas.requestPointerLock();
-            console.log('🔒 Requesting pointer lock...');
+    toggleCursorLock(forceLock = undefined) {
+        if (forceLock === true) {
+            if (!this.cursorLocked) {
+                this.canvas.requestPointerLock();
+                console.log('🔒 Requesting pointer lock (forced)...');
+            }
+        } else if (forceLock === false) {
+            if (this.cursorLocked) {
+                document.exitPointerLock();
+                console.log('🔓 Exiting pointer lock (forced)...');
+            }
         } else {
-            document.exitPointerLock();
-            console.log('🔓 Exiting pointer lock...');
+            // Toggle behavior
+            if (!this.cursorLocked) {
+                this.canvas.requestPointerLock();
+                console.log('🔒 Requesting pointer lock...');
+            } else {
+                document.exitPointerLock();
+                console.log('🔓 Exiting pointer lock...');
+            }
         }
     }
 
@@ -995,8 +1010,16 @@ class Game {
         this.textEditor.handleInput();
         this.textEditor.update(deltaTime);
 
-        // Don't handle game input if editor is open
-        if (this.textEditor.isOpen) return;
+        // Don't handle game input if editor is open or cursor is not locked
+        if (this.textEditor.isOpen || !this.cursorLocked) {
+            // If editor is open, ensure raycast is cleared
+            if (this.textEditor.isOpen) {
+                this.persistentHighlightPosition = null;
+                this.hoveredFace = null;
+                this.hoveredBlock = null;
+            }
+            return;
+        }
 
         // Update player
         this.player.update(this.input, deltaTime);
@@ -1005,12 +1028,12 @@ class Game {
         this.raycastBlocks();
 
         // Block placement (left click)
-        if (this.input.isLeftMouseButtonJustPressed() && this.cursorLocked) {
+        if (this.input.isLeftMouseButtonJustPressed()) { // cursorLocked check moved to outer if
             this.placeBlock();
         }
 
         // Block editor (right click)
-        if (this.input.isRightMouseButtonJustPressed() && this.cursorLocked) {
+        if (this.input.isRightMouseButtonJustPressed()) { // cursorLocked check moved to outer if
             this.openBlockEditor();
         }
 
@@ -1090,12 +1113,12 @@ class Game {
         });
 
         // Debug: Show block count and positions
-        if (this.blocks.size > 0) {
-            console.log('🎲 Drawing blocks:', this.blocks.size);
-            this.blocks.forEach((block, id) => {
-                console.log(`  Block ${id}: pos(${block.position.x.toFixed(1)}, ${block.position.y.toFixed(1)}, ${block.position.z.toFixed(1)})`);
-            });
-        }
+        // if (this.blocks.size > 0) {
+        //     console.log('🎲 Drawing blocks:', this.blocks.size);
+        //     this.blocks.forEach((block, id) => {
+        //         console.log(`  Block ${id}: pos(${block.position.x.toFixed(1)}, ${block.position.y.toFixed(1)}, ${block.position.z.toFixed(1)})`);
+        //     });
+        // }
 
         // Draw persistent highlight - always visible if we have a stored position
         if (this.persistentHighlightPosition) {  // CHANGED: Use persistent position instead of hoveredBlock
@@ -1149,17 +1172,10 @@ class Game {
             this.persistentHighlightPosition = closestHit;
             this.hoveredFace = closestFace;
             this.hoveredBlock = closestBlock; // Set hoveredBlock if a block was hit
-            console.log('🎯 Raycast hit:', {
-                position: closestHit.toArray(),
-                face: closestFace,
-                distance: closestDistance,
-                hoveredBlockId: closestBlock ? closestBlock.id : 'none'
-            });
         } else {
             this.persistentHighlightPosition = null;
             this.hoveredFace = null;
             this.hoveredBlock = null;
-            console.log('🎯 Raycast: No hit');
         }
     }
 
@@ -1168,7 +1184,7 @@ class Game {
         const lookDistance = 50;
 
         // Debug: Log current rotation values
-        console.log(`Player rotation - pitch(x): ${this.player.rotation.x.toFixed(3)}, yaw(y): ${this.player.rotation.y.toFixed(3)}`);
+        // console.log(`Player rotation - pitch(x): ${this.player.rotation.x.toFixed(3)}, yaw(y): ${this.player.rotation.y.toFixed(3)}`);
 
         // Calculate forward direction based on camera rotation
         // Fix Z coordinate system - when moving +Z, raycast should hit +Z, not -Z
@@ -1178,10 +1194,7 @@ class Game {
             -Math.cos(this.player.rotation.y) * Math.cos(this.player.rotation.x) * lookDistance  // FLIP Z for correct coordinate system
         );
 
-        console.log(`Calculated forward vector: (${forward.x.toFixed(2)}, ${forward.y.toFixed(2)}, ${forward.z.toFixed(2)})`);
-
         const normalized = forward.normalize();
-        console.log(`Normalized direction: (${normalized.x.toFixed(2)}, ${normalized.y.toFixed(2)}, ${normalized.z.toFixed(2)})`);
 
         return {
             origin: this.player.position.clone(),
@@ -1366,13 +1379,6 @@ class Game {
     }
 
 placeBlock() {
-    // Debug: Check if we have the required data
-    console.log('🎯 Place block attempt:', {
-        cursorLocked: this.cursorLocked,
-        hasPersistentPosition: !!this.persistentHighlightPosition,
-        position: this.persistentHighlightPosition
-    });
-
     if (!this.cursorLocked) {
         this.addMessage("🔒 Click canvas to lock mouse first!");
         return;
@@ -1386,7 +1392,6 @@ placeBlock() {
     // Calculate placement position based on face and hit point
     const offset = this.blockSize;
     let newPos = this.persistentHighlightPosition.clone();
-    console.log('placeBlock: initial newPos from highlight:', newPos.toArray());
 
     // Determine the final position based on the hovered face and whether it's a block or the room
     if (this.hoveredBlock) {
@@ -1410,13 +1415,11 @@ placeBlock() {
             case "west": newPos.x = -this.level.halfRoomSize - offset / 2; break; // Place on west wall
         }
     }
-    console.log('placeBlock: newPos after face adjustment:', newPos.toArray());
 
     // Round to grid for X and Z, but keep Y precise
     newPos.x = Math.round(newPos.x);
     // newPos.y = Math.round(newPos.y); // Keep Y precise, do not round
     newPos.z = Math.round(newPos.z);
-    console.log('placeBlock: newPos after rounding:', newPos.toArray());
 
     // Check if position is already occupied
     for (let [id, block] of this.blocks) {
@@ -1435,16 +1438,9 @@ placeBlock() {
         block.model.setColor(0.0, 1.0, 0.0); // Bright green for high visibility
         block.model.position.set(newPos.x, newPos.y, newPos.z);
         this.addObject(block.model); // ADDED: Add block model to scene objects
-        console.log('🎁 New block model created:', {
-            id: block.id,
-            position: newPos,
-            model: !!block.model,
-            color: 'bright green'
-        });
     } else {
         console.error('❌ Block model not created!');
         // Try manual geometry creation
-        console.log('🔄 Creating block with manual geometry...');
         
         // Create simple cube geometry manually
         const size = 0.5;
@@ -1485,7 +1481,6 @@ placeBlock() {
         block.model = model;
         block.position = newPos.clone(); // Ensure position is set
         this.addObject(model);
-        console.log('✅ Manual block creation successful');
     }
 
     this.audio.play("placeBlock");
@@ -1518,9 +1513,18 @@ placeBlock() {
             }
         }
 
-        // Create new block
-        const block = new MemoryBlock(newPos, this.selectedBlockType);
+        // Create new block, passing this.gl and this.blockSize
+        const block = new MemoryBlock(this.gl, newPos, this.selectedBlockType, this.blockSize);
         this.blocks.set(block.id, block);
+
+        // Ensure block is visible in 3D scene
+        if (block.model) {
+            block.model.setColor(0.0, 1.0, 0.0); // Bright green for high visibility
+            block.model.position.set(newPos.x, newPos.y, newPos.z);
+            this.addObject(block.model);
+        } else {
+            console.error('❌ Block model not created for camera position placement!');
+        }
 
         this.audio.play("placeBlock");
         this.addMessage(`✅ Block placed at (${Math.round(newPos.x)}, ${Math.round(newPos.y)}, ${Math.round(newPos.z)})`);
@@ -1529,10 +1533,10 @@ placeBlock() {
     }
 
     openBlockEditor() {
-        console.log('Attempting to open block editor:', {
-            hoveredBlock: this.hoveredBlock ? this.hoveredBlock.id : 'none',
-            isFloor: this.hoveredBlock ? this.hoveredBlock.isFloor : 'N/A'
-        });
+        // console.log('Attempting to open block editor:', {
+        //     hoveredBlock: this.hoveredBlock ? this.hoveredBlock.id : 'none',
+        //     isFloor: this.hoveredBlock ? this.hoveredBlock.isFloor : 'N/A'
+        // });
         if (!this.hoveredBlock || this.hoveredBlock.isFloor) {
             this.addMessage("❌ Point at a block to edit notes!");
             return;
@@ -1540,7 +1544,7 @@ placeBlock() {
 
         this.textEditor.open(this.hoveredBlock);
         this.audio.play("uiClick");
-        console.log('✅ Block editor opened for block:', this.hoveredBlock.id);
+        // console.log('✅ Block editor opened for block:', this.hoveredBlock.id);
     }
 
     drawHoveredBlockHighlight(renderer, viewMatrix, projectionMatrix) {
@@ -1583,27 +1587,19 @@ placeBlock() {
             timestamp: Date.now()
         };
 
-        // Save to localStorage
-        try {
-            localStorage.setItem('memoryPalace', JSON.stringify(data));
-            console.log('💾 Saved to localStorage');
-        } catch (error) {
-            console.error('❌ Failed to save to localStorage:', error);
-        }
-
         // Save to backend if available
         if (this.backendAvailable && this.useBackend) {
             try {
                 await MemoryPalaceAPI.bulkSaveBlocks(data.blocks);
                 await MemoryPalaceAPI.saveCameraState(data.camera.position, data.camera.rotation);
                 this.addMessage("💾 Saved to server");
-                console.log('💾 Saved to backend');
             } catch (error) {
                 console.error('❌ Failed to save to backend:', error);
                 this.addMessage("⚠️ Server save failed");
             }
         } else {
-            this.addMessage("💾 Saved locally");
+            this.addMessage("⚠️ Backend not available or not in use. Data not saved.");
+            console.warn('⚠️ Backend not available or not in use. Data not saved.');
         }
     }
 
@@ -1622,25 +1618,14 @@ placeBlock() {
                 };
 
                 this.addMessage("📥 Loaded from server");
-                console.log('📥 Loaded from backend');
             } catch (error) {
                 console.error('❌ Failed to load from backend:', error);
-                this.addMessage("⚠️ Server load failed, trying local");
+                this.addMessage("⚠️ Server load failed or no data found.");
+                console.warn('⚠️ Server load failed or no data found.');
             }
-        }
-
-        // Fallback to localStorage
-        if (!data) {
-            try {
-                const saved = localStorage.getItem('memoryPalace');
-                if (saved) {
-                    data = JSON.parse(saved);
-                    this.addMessage("📥 Loaded from local storage");
-                    console.log('📥 Loaded from localStorage');
-                }
-            } catch (error) {
-                console.error('❌ Failed to load from localStorage:', error);
-            }
+        } else {
+            this.addMessage("⚠️ Backend not available or not in use. No data loaded.");
+            console.warn('⚠️ Backend not available or not in use. No data loaded.');
         }
 
         if (!data) {
@@ -1659,7 +1644,8 @@ placeBlock() {
 // Load blocks
 if (data.blocks && Array.isArray(data.blocks)) {
     data.blocks.forEach(blockData => {
-        const block = MemoryBlock.fromJSON(this.gl, blockData); // Pass this.gl
+        // Ensure blockSize is passed when creating block from JSON
+        const block = MemoryBlock.fromJSON(this.gl, blockData);
         
         // Re-create 3D model for imported block
         const builder = new WebGLGeometryBuilder(this.gl);
@@ -1712,7 +1698,6 @@ if (data.blocks && Array.isArray(data.blocks)) {
         this.autoSaveInterval = 30000; // 30 seconds
         this.lastAutoSave = Date.now();
         this.autoSaveIntervalId = null;
-        this.startAutoSave();
     }
 
     addMessage(msg) {
@@ -1725,33 +1710,42 @@ if (data.blocks && Array.isArray(data.blocks)) {
     drawUI() {
         this.guiCtx.clearRect(0, 0, Game.WIDTH, Game.HEIGHT);
 
-        // Draw enhanced crosshair
-        if (this.cursorLocked && this.persistentHighlightPosition) {
-            // Green crosshair when ready to place
-            this.guiCtx.strokeStyle = "#00ff00";
-            this.guiCtx.lineWidth = 3;
-            this.guiCtx.shadowColor = "#00ff00";
-            this.guiCtx.shadowBlur = 5;
-        } else if (this.cursorLocked) {
-            // Yellow crosshair when locked but no target
-            this.guiCtx.strokeStyle = "#ffff00";
-            this.guiCtx.lineWidth = 2;
-        } else {
-            // White crosshair when unlocked
+        // Draw crosshair only if cursor is locked AND editor is not open
+        if (this.cursorLocked && !this.textEditor.isOpen) {
+            if (this.persistentHighlightPosition) {
+                // Green crosshair when ready to place
+                this.guiCtx.strokeStyle = "#00ff00";
+                this.guiCtx.lineWidth = 3;
+                this.guiCtx.shadowColor = "#00ff00";
+                this.guiCtx.shadowBlur = 5;
+            } else {
+                // Yellow crosshair when locked but no target
+                this.guiCtx.strokeStyle = "#ffff00";
+                this.guiCtx.lineWidth = 2;
+            }
+
+            this.guiCtx.beginPath();
+            this.guiCtx.moveTo(395, 300);
+            this.guiCtx.lineTo(405, 300);
+            this.guiCtx.moveTo(400, 295);
+            this.guiCtx.lineTo(400, 305);
+            this.guiCtx.stroke();
+
+            // Reset shadow
+            this.guiCtx.shadowBlur = 0;
+        } else if (!this.cursorLocked && !this.textEditor.isOpen) {
+            // White crosshair when unlocked and editor not open
             this.guiCtx.strokeStyle = "#ffffff";
             this.guiCtx.lineWidth = 2;
             this.guiCtx.shadowBlur = 0;
+            this.guiCtx.beginPath();
+            this.guiCtx.moveTo(395, 300);
+            this.guiCtx.lineTo(405, 300);
+            this.guiCtx.moveTo(400, 295);
+            this.guiCtx.lineTo(400, 305);
+            this.guiCtx.stroke();
         }
 
-        this.guiCtx.beginPath();
-        this.guiCtx.moveTo(395, 300);
-        this.guiCtx.lineTo(405, 300);
-        this.guiCtx.moveTo(400, 295);
-        this.guiCtx.lineTo(400, 305);
-        this.guiCtx.stroke();
-
-        // Reset shadow
-        this.guiCtx.shadowBlur = 0;
 
         // Always draw HUD (position, controls, etc.)
         this.drawHUD();
@@ -1941,14 +1935,14 @@ if (data.blocks && Array.isArray(data.blocks)) {
     addObject(model) {
         if (model && model.geometry) {
             this.sceneObjects.add(model);
-            console.log('✅ Added object to scene:', model);
+            // console.log('✅ Added object to scene:', model);
         }
     }
 
     removeObject(model) {
         if (model) {
             this.sceneObjects.delete(model);
-            console.log('✅ Removed object from scene:', model);
+            // console.log('✅ Removed object from scene:', model);
         }
     }
 }
@@ -2129,7 +2123,7 @@ class Player {
             if (currentTime - this.lastSpaceTapTime < this.doubleTapWindow) {
                 this.isFlying = !this.isFlying;
                 this.flyingVelocity = new Vector3(0, 0, 0);
-                console.log('Flying toggled:', this.isFlying ? 'ON' : 'OFF');
+                // console.log('Flying toggled:', this.isFlying ? 'ON' : 'OFF');
             }
             this.lastSpaceTapTime = currentTime;
         }
@@ -2152,10 +2146,10 @@ class Player {
         if (this.isFlying) {
             if (input.isKeyPressed("Action3")) { // E - Up
                 this.velocity.y = this.moveSpeed;
-                console.log('Flying UP - E pressed');
+                // console.log('Flying UP - E pressed');
             } else if (input.isKeyPressed("Action4")) { // Q - Down
                 this.velocity.y = -this.moveSpeed;
-                console.log('Flying DOWN - Q pressed');
+                // console.log('Flying DOWN - Q pressed');
             } else if (!input.isKeyPressed("Action3") && !input.isKeyPressed("Action4")) {
                 // No vertical input - maintain current Y velocity but slow it down
                 this.velocity.y *= 0.9;
@@ -2484,7 +2478,7 @@ class Player {
             this.saveToStorage();
         }, this.autoSaveInterval);
 
-        console.log('💾 Auto-save started');
+        // console.log('💾 Auto-save started');
     }
 
     stopAutoSave() {
@@ -2493,20 +2487,20 @@ class Player {
             this.autoSaveIntervalId = null;
         }
 
-        console.log('⏹️ Auto-save stopped');
+        // console.log('⏹️ Auto-save stopped');
     }
 
     addObject(model) {
         if (model && model.geometry) {
             this.sceneObjects.add(model);
-            console.log('✅ Added object to scene:', model);
+            // console.log('✅ Added object to scene:', model);
         }
     }
 
     removeObject(model) {
         if (model) {
             this.sceneObjects.delete(model);
-            console.log('✅ Removed object from scene:', model);
+            // console.log('✅ Removed object from scene:', model);
         }
     }
 }

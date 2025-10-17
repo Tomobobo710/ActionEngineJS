@@ -1,4 +1,4 @@
-class ActionInputHandler {
+export class ActionInputHandler {
     constructor(audio, canvases) {
         this.audio = audio;
         this.canvases = canvases;

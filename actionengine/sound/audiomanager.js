@@ -1,5 +1,5 @@
 // actionengine/sound/audiomanager.js
-class ActionAudioManager {
+export class ActionAudioManager {
     constructor() {
         this.context = null;
         this.enabled = true;
@@ -1608,4 +1608,4 @@ class SonicPiParser {
         });
         return params;
     }
-}
+    }

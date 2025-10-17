@@ -1,23 +1,27 @@
-import { Game } from '../../game.js'; // Import Game class
-
 // actionengine/core/app.js
+import { ActionAudioManager } from "../sound/audiomanager.js";
+import { CanvasManager } from "../display/canvasmanager.js";
+import { ActionInputHandler } from "../input/inputhandler.js";
+
 class App {
-    constructor(options = {}) {
+    constructor(options = {}, gameClass, backendAvailable = false) {
         this.threelayersystem = new CanvasManager();
         const canvases = this.threelayersystem.getCanvases();
         this.audio = new ActionAudioManager();
         this.input = new ActionInputHandler(this.audio, canvases);
-        this.game = new Game(canvases, this.input, this.audio);
+        this.game = new gameClass(canvases, this.input, this.audio, backendAvailable);
         
-        // Fixed timestep configuration
-        this.fixedTimeStep = options.fixedTimeStep || 1/60; // Default 60Hz
-        this.maxAccumulatedTime = options.maxAccumulatedTime || 0.2; // Prevent spiral of death
+        this.fixedTimeStep = options.fixedTimeStep || 1/60;
+        this.maxAccumulatedTime = options.maxAccumulatedTime || 0.2;
         this.accumulatedTime = 0;
         
         this.lastTime = null;
-        // Start the game loop
         console.log("[App] Starting game loop...");
         this.loop();
+        // Call startAutoSave after the game is fully initialized
+        if (this.game && typeof this.game.startAutoSave === "function") {
+            this.game.startAutoSave();
+        }
     }
     
     // Engine-driven loop
@@ -96,6 +100,4 @@ class App {
 
 export { App }; // Export App class
 
-window.addEventListener("load", () => {
-    window.game = new App();
-});
+// The App is now instantiated in index.html

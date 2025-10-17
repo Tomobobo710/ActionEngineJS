@@ -1,5 +1,5 @@
 // actionengine/display/canvasmanager.js
-class CanvasManager {
+export class CanvasManager {
     static get WIDTH() { return 800; }
     static get HEIGHT() { return 600; }
 
