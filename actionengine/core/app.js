@@ -1,3 +1,5 @@
+import { Game } from '../../game.js'; // Import Game class
+
 // actionengine/core/app.js
 class App {
     constructor(options = {}) {
@@ -91,6 +93,8 @@ class App {
         requestAnimationFrame((timestamp) => this.loop(timestamp));
     }
 }
+
+export { App }; // Export App class
 
 window.addEventListener("load", () => {
     window.game = new App();

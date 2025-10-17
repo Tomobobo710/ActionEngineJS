@@ -217,18 +217,21 @@
 		<script src="actionengine/character/actioncharacter3D.js"></script>
 
         # Action Engine Bootstrap
-        <script src="actionengine/core/app.js"></script>
+        <script type="module" src="actionengine/core/app.js"></script>
         #############################
         
         ####Game Specific Modules####
         <!-- Memory Palace API Client -->
-        <script src="api.js"></script>
+        <script type="module" src="api.js"></script>
 
         <!-- Memory Palace Game Logic -->
-        <script src="game.js"></script>
+        <script type="module" src="game.js"></script>
         #############################
 
-        <script>
+        <script type="module">
+            import { App } from './actionengine/core/app.js'; // Import App class
+            import { MemoryPalaceAPI } from './api.js'; // Import MemoryPalaceAPI
+
             // Memory Palace 3D Initialization Script
             console.log('🏛️ Memory Palace 3D - Starting initialization...');
 
@@ -247,11 +250,10 @@
                     updateLoadingStatus('Checking ActionEngine...');
 
                     // Verify ActionEngine is loaded
-                    if (typeof App === 'undefined') {
-                        throw new Error('ActionEngine App not found. Ensure actionengine/core/app.js is loaded.');
-                    }
-
-                    console.log('✅ ActionEngine loaded successfully');
+                    // if (typeof App === 'undefined') { // No longer needed with module import
+                    //     throw new Error('ActionEngine App not found. Ensure actionengine/core/app.js is loaded.');
+                    // }
+                    // console.log('✅ ActionEngine loaded successfully'); // No longer needed
                     updateLoadingStatus('ActionEngine loaded');
 
                     // Check backend connection
@@ -259,14 +261,14 @@
                     updateLoadingStatus('Connecting to server...');
 
                     try {
-                        if (typeof MemoryPalaceAPI !== 'undefined') {
-                            const health = await MemoryPalaceAPI.healthCheck();
+                        // if (typeof MemoryPalaceAPI !== 'undefined') { // No longer needed with module import
+                            const health = await MemoryPalaceAPI.healthCheck(); // Call healthCheck on the imported module
                             backendAvailable = true;
                             console.log('✅ Backend connected:', health);
                             updateLoadingStatus('Server connected');
-                        } else {
-                            throw new Error('API client not loaded');
-                        }
+                        // } else { // No longer needed
+                        //     throw new Error('API client not loaded');
+                        // }
                     } catch (error) {
                         console.warn('⚠️ Backend not available:', error.message);
                         console.warn('📦 Using localStorage only');

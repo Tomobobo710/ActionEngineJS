@@ -7,6 +7,7 @@
  * - Attach long-form notes to blocks
  * - Save/load their memory palace
  */
+import { MemoryPalaceAPI } from './api.js';
 
 // WebGL Utilities for common operations
 class WebGLUtils {
@@ -547,50 +548,69 @@ class TextEditor {
 	   }
 
 	handleInput() {
-		if (!this.isOpen) return;
+	   if (!this.isOpen) return;
 
-		// Handle button clicks
-		if (this.game.input.isElementJustPressed("editorSave", "gui")) {
-			this.save();
-			return;
-		}
+	   // Handle button clicks
+	   if (this.game.input.isElementJustPressed("editorSave", "gui")) {
+	       this.save();
+	       return;
+	   }
 
-		if (this.game.input.isElementJustPressed("editorDeleteNote", "gui")) { // Changed ID
-			this.deleteNote();
-			return;
-		}
+	   if (this.game.input.isElementJustPressed("editorDeleteNote", "gui")) {
+	       this.deleteNote();
+	       return;
+	   }
 
-	       if (this.game.input.isElementJustPressed("editorDeleteBlock", "gui")) { // New button
-	           this.deleteBlock();
-	           return;
-	       }
+	   if (this.game.input.isElementJustPressed("editorDeleteBlock", "gui")) {
+	       this.deleteBlock();
+	       return;
+	   }
 
-		if (this.game.input.isElementJustPressed("editorClose", "gui")) {
-			this.close();
-			return;
-		}
+	   if (this.game.input.isElementJustPressed("editorClose", "gui")) {
+	       this.close();
+	       return;
+	   }
 
-		// Handle text input (we'll use a simple system)
-		// Note: In a real implementation, you'd want proper keyboard event handling
-		// For this demo, we'll simulate with action keys
+	   // Handle text input when editor is open
+	   if (this.isOpen && !this.textarea) { // Only create textarea once
+	       this.textarea = document.createElement('textarea');
+	       this.textarea.style.position = 'absolute';
+	       this.textarea.style.left = '-9999px';
+	       this.textarea.style.top = '-9999px';
+	       this.textarea.style.width = '1px';
+	       this.textarea.style.height = '1px';
+	       this.textarea.style.opacity = '0';
+	       this.textarea.style.pointerEvents = 'none';
+	       this.textarea.style.zIndex = '-1';
+	       document.body.appendChild(this.textarea);
 
-		// Backspace simulation with Action2
-		if (this.game.input.isKeyJustPressed("Action2") && this.cursorPosition > 0) {
-			this.textContent =
-				this.textContent.slice(0, this.cursorPosition - 1) +
-				this.textContent.slice(this.cursorPosition);
-			this.cursorPosition--;
-		}
+	       this.textarea.addEventListener('input', (e) => {
+	           this.textContent = e.target.value;
+	           this.cursorPosition = e.target.selectionStart;
+	       });
 
-		// Add newline with Action1
-		if (this.game.input.isKeyJustPressed("Action1")) {
-			this.textContent =
-				this.textContent.slice(0, this.cursorPosition) +
-				"\n" +
-				this.textContent.slice(this.cursorPosition);
-			this.cursorPosition++;
-		}
-	}
+	       this.textarea.addEventListener('keydown', (e) => {
+	           if (e.key === 'Enter' && !e.shiftKey) { // Regular Enter for new line
+	               e.preventDefault();
+	               this.textContent = this.textContent.slice(0, this.cursorPosition) +
+	                                '\n' + this.textContent.slice(this.cursorPosition);
+	               this.cursorPosition++;
+	           } else if (e.key === 'Enter' && e.shiftKey) { // Shift+Enter to save/close
+	               e.preventDefault();
+	               this.save();
+	           } else if (e.key === 'Backspace') {
+	               // Handled by default textarea behavior
+	           }
+	       });
+	   }
+
+	   if (this.isOpen && this.textarea) {
+	       // Focus the hidden textarea
+	       this.textarea.focus();
+	       this.textarea.value = this.textContent;
+	       this.textarea.setSelectionRange(this.cursorPosition, this.cursorPosition);
+	   }
+}
 
 	update(deltaTime) {
 		if (!this.isOpen) return;
@@ -798,6 +818,12 @@ class Game {
         // Text editor
         this.textEditor = new TextEditor(this);
         this.capturingTextInput = false;
+
+        // Scene object management
+        this.sceneObjects = new Set(); // Track 3D objects in the scene
+
+        // Scene object management
+        this.sceneObjects = new Set(); // Track 3D objects in the scene
 
         // Auto-save system
         this.autoSaveInterval = 30000; // 30 seconds
@@ -1042,17 +1068,24 @@ class Game {
         // Draw level
         this.level.draw(this.renderer, viewMatrix, this.projectionMatrix);
 
-        // Draw all blocks
-        this.blocks.forEach((block, id) => {
-            if (block && block.model) {
+        // Draw all scene objects
+        this.sceneObjects.forEach((model) => {
+            if (model && model.geometry) {
                 try {
-                    block.draw(this.renderer, viewMatrix, this.projectionMatrix);
-                    console.log(`Game.draw: Block ${id} model position: (${block.model.position.x.toFixed(1)}, ${block.model.position.y.toFixed(1)}, ${block.model.position.z.toFixed(1)})`);
+                    // Assuming model has a draw method or can be drawn directly by renderer
+                    // For now, we'll draw it using the basic shader
+                    const modelMatrix = Matrix4.create();
+                    Matrix4.translate(modelMatrix, modelMatrix, [
+                        model.position.x,
+                        model.position.y,
+                        model.position.z
+                    ]);
+                    this.renderer.drawMesh(model.geometry, "basic", modelMatrix, viewMatrix, this.projectionMatrix);
                 } catch (error) {
-                    console.error('❌ Error drawing block:', id, error);
+                    console.error('❌ Error drawing scene object:', model, error);
                 }
             } else {
-                console.warn('⚠️ Block missing model:', id, !!block, !!block?.model);
+                console.warn('⚠️ Scene object missing model or geometry:', model);
             }
         });
 
@@ -1065,9 +1098,9 @@ class Game {
         }
 
         // Draw persistent highlight - always visible if we have a stored position
-        // if (this.persistentHighlightPosition) {  // CHANGED: Use persistent position instead of hoveredBlock
-        //     this.drawHoveredBlockHighlight(this.renderer, viewMatrix, this.projectionMatrix);
-        // }
+        if (this.persistentHighlightPosition) {  // CHANGED: Use persistent position instead of hoveredBlock
+            this.drawHoveredBlockHighlight(this.renderer, viewMatrix, this.projectionMatrix);
+        }
 
         // Draw 2D UI elements
         this.drawUI();
@@ -1355,20 +1388,33 @@ placeBlock() {
     let newPos = this.persistentHighlightPosition.clone();
     console.log('placeBlock: initial newPos from highlight:', newPos.toArray());
 
-    // Adjust position based on which face was hit
-    switch (this.hoveredFace) {
-        case "top": newPos.y += offset / 2; break;
-        case "bottom": newPos.y += offset / 2; break; // Adjust up by half block size to sit on the floor
-        case "north": newPos.z -= offset / 2; break;
-        case "south": newPos.z += offset / 2; break;
-        case "east": newPos.x += offset / 2; break;
-        case "west": newPos.x -= offset / 2; break;
+    // Determine the final position based on the hovered face and whether it's a block or the room
+    if (this.hoveredBlock) {
+        // Hit an existing block
+        switch (this.hoveredFace) {
+            case "top": newPos.y = this.hoveredBlock.position.y + offset; break; // Place above
+            case "bottom": newPos.y = this.hoveredBlock.position.y - offset; break; // Place below
+            case "north": newPos.z = this.hoveredBlock.position.z - offset; break; // Place in front
+            case "south": newPos.z = this.hoveredBlock.position.z + offset; break; // Place behind
+            case "east": newPos.x = this.hoveredBlock.position.x + offset; break; // Place right
+            case "west": newPos.x = this.hoveredBlock.position.x - offset; break; // Place left
+        }
+    } else {
+        // Hit room geometry (floor, wall, ceiling)
+        switch (this.hoveredFace) {
+            case "floor": newPos.y = offset / 2; break; // Place on floor (center at half block size)
+            case "ceiling": newPos.y = 125 - offset / 2; break; // Place hanging from ceiling
+            case "north": newPos.z = -this.level.halfRoomSize - offset / 2; break; // Place on north wall
+            case "south": newPos.z = this.level.halfRoomSize + offset / 2; break; // Place on south wall
+            case "east": newPos.x = this.level.halfRoomSize + offset / 2; break; // Place on east wall
+            case "west": newPos.x = -this.level.halfRoomSize - offset / 2; break; // Place on west wall
+        }
     }
     console.log('placeBlock: newPos after face adjustment:', newPos.toArray());
 
-    // Round to grid
+    // Round to grid for X and Z, but keep Y precise
     newPos.x = Math.round(newPos.x);
-    newPos.y = Math.round(newPos.y);
+    // newPos.y = Math.round(newPos.y); // Keep Y precise, do not round
     newPos.z = Math.round(newPos.z);
     console.log('placeBlock: newPos after rounding:', newPos.toArray());
 
@@ -1388,6 +1434,7 @@ placeBlock() {
     if (block.model) {
         block.model.setColor(0.0, 1.0, 0.0); // Bright green for high visibility
         block.model.position.set(newPos.x, newPos.y, newPos.z);
+        this.addObject(block.model); // ADDED: Add block model to scene objects
         console.log('🎁 New block model created:', {
             id: block.id,
             position: newPos,
@@ -1609,40 +1656,27 @@ placeBlock() {
         });
         this.blocks.clear();
 
-        // Load blocks
-        if (data.blocks && Array.isArray(data.blocks)) {
-            data.blocks.forEach(blockData => {
-                const block = MemoryBlock.fromJSON(this.gl, blockData); // Pass this.gl
-                console.log(`loadFromStorage: Block ${block.id} initial position: (${block.position.x.toFixed(1)}, ${block.position.y.toFixed(1)}, ${block.position.z.toFixed(1)})`);
+// Load blocks
+if (data.blocks && Array.isArray(data.blocks)) {
+    data.blocks.forEach(blockData => {
+        const block = MemoryBlock.fromJSON(this.gl, blockData); // Pass this.gl
+        
+        // Re-create 3D model for imported block
+        const builder = new WebGLGeometryBuilder(this.gl);
+        builder.addBox(
+            0, 0, 0,
+            block.blockSize, block.blockSize, block.blockSize,
+            [0.0, 1.0, 0.0] // Bright green for high visibility
+        );
+        const geometry = builder.build();
+        const model = new ActionModel3D(geometry);
+        model.position.copy(block.position);
+        model.setColor(0.0, 1.0, 0.0); // Bright green for high visibility
 
-                // Adjust block position to sit on the floor if it was saved at y=0
-                if (block.position.y === 0) {
-                    block.position.y += block.blockSize / 2;
-                    console.log(`loadFromStorage: Block ${block.id} adjusted position (y=0 fix): (${block.position.x.toFixed(1)}, ${block.position.y.toFixed(1)}, ${block.position.z.toFixed(1)})`);
-                }
-
-                // Create 3D model
-                const builder = new WebGLGeometryBuilder(this.gl); // Use this.gl
-                builder.addBox(
-                    0, 0, 0, // Position relative to block's own position
-                    block.blockSize, block.blockSize, block.blockSize, // Use block's blockSize
-                    [0.0, 1.0, 0.0] // Bright green for high visibility
-                );
-                const geometry = builder.build();
-                const model = new ActionModel3D(geometry);
-                model.position.copy(block.position);
-                model.setColor(0.0, 1.0, 0.0); // Bright green for high visibility
-
-                block.model = model;
-                this.addObject(model);
-                this.blocks.set(block.id, block);
-
-                console.log('🎁 Loaded existing block:', {
-                    id: block.id,
-                    position: block.position,
-                    model: !!model
-                });
-            });
+        block.model = model;
+        this.addObject(model); // Add to scene objects
+        this.blocks.set(block.id, block);
+    });
 
             // Update block ID counter
             const maxId = Math.max(
@@ -1903,7 +1937,23 @@ placeBlock() {
         this.draw();
         requestAnimationFrame(() => this.loop());
     }
+
+    addObject(model) {
+        if (model && model.geometry) {
+            this.sceneObjects.add(model);
+            console.log('✅ Added object to scene:', model);
+        }
+    }
+
+    removeObject(model) {
+        if (model) {
+            this.sceneObjects.delete(model);
+            console.log('✅ Removed object from scene:', model);
+        }
+    }
 }
+
+export { Game };
 
 // Level class for 3D WebGL rendering
 class Level {
@@ -2444,5 +2494,19 @@ class Player {
         }
 
         console.log('⏹️ Auto-save stopped');
+    }
+
+    addObject(model) {
+        if (model && model.geometry) {
+            this.sceneObjects.add(model);
+            console.log('✅ Added object to scene:', model);
+        }
+    }
+
+    removeObject(model) {
+        if (model) {
+            this.sceneObjects.delete(model);
+            console.log('✅ Removed object from scene:', model);
+        }
     }
 }

@@ -72,9 +72,9 @@ class BlockController {
 
         db.run(sql, [
             id,
-            position.x || 0,
-            position.y || 0,
-            position.z || 0,
+            position.x,
+            position.y,
+            position.z,
             type || 'cube',
             text || ''
         ], function(err) {
@@ -182,9 +182,9 @@ class BlockController {
                 blocks.forEach((block, index) => {
                     stmt.run(
                         block.id,
-                        block.position.x || 0,
-                        block.position.y || 0,
-                        block.position.z || 0,
+                        block.position.x,
+                        block.position.y,
+                        block.position.z,
                         block.type || 'cube',
                         block.text || '',
                         (err) => {
