@@ -331,19 +331,393 @@ canvas {
 }
 
 @media (orientation: landscape) and (max-height: 600px) {
-  #virtualControls {
-      bottom: var(--space-md);
-  }
-  
-  .dpad-button {
-      width: 40px;
-      height: 40px;
-      font-size: 1.2rem;
-  }
-  
-  .action-button {
-      width: 60px;
-      height: 60px;
-      font-size: 1.5rem;
-  }
+   #virtualControls {
+       bottom: var(--space-md);
+   }
+
+   .dpad-button {
+       width: 40px;
+       height: 40px;
+       font-size: 1.2rem;
+   }
+
+   .action-button {
+       width: 60px;
+       height: 60px;
+       font-size: 1.5rem;
+   }
+}
+
+/* ============================================================================
+   MEMORY PALACE 3D - Additional Styles
+   ============================================================================ */
+
+/* Prevent text selection during gameplay */
+body.playing {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+/* Cursor styles for pointer lock */
+body.cursor-locked {
+    cursor: none;
+}
+
+/* Scrollbar styling for better aesthetics */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--surface);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--primary);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-dark);
+}
+
+/* Memory Palace specific HUD styles */
+.memory-palace-hud {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: rgba(0, 0, 0, 0.7);
+    border: 2px solid var(--primary);
+    border-radius: 8px;
+    padding: 15px;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    color: var(--text);
+    min-width: 250px;
+    z-index: 1000;
+}
+
+.memory-palace-hud h3 {
+    color: var(--primary);
+    margin-bottom: 10px;
+    font-size: 16px;
+}
+
+.memory-palace-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+    margin-bottom: 10px;
+}
+
+.memory-palace-stat {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 5px;
+    border-radius: 3px;
+}
+
+.memory-palace-controls {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.memory-palace-controls div {
+    margin-bottom: 3px;
+    font-size: 12px;
+}
+
+/* Crosshair styles */
+.crosshair {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 20px;
+    height: 20px;
+    z-index: 1000;
+    pointer-events: none;
+}
+
+.crosshair::before,
+.crosshair::after {
+    content: '';
+    position: absolute;
+    background: rgba(255, 255, 255, 0.8);
+}
+
+.crosshair::before {
+    width: 20px;
+    height: 2px;
+    top: 9px;
+    left: 0;
+}
+
+.crosshair::after {
+    width: 2px;
+    height: 20px;
+    top: 0;
+    left: 9px;
+}
+
+.crosshair.targeting {
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 0.8; }
+    50% { opacity: 1; }
+}
+
+/* Message system styles */
+.memory-messages {
+    position: absolute;
+    bottom: 100px;
+    left: 10px;
+    max-width: 400px;
+    z-index: 1000;
+}
+
+.memory-message {
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid var(--primary);
+    border-radius: 5px;
+    padding: 8px 12px;
+    margin-bottom: 5px;
+    font-family: monospace;
+    font-size: 12px;
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(-100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* Block info panel */
+.block-info-panel {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(0, 0, 0, 0.8);
+    border: 2px solid #4a9eff;
+    border-radius: 8px;
+    padding: 15px;
+    font-family: monospace;
+    font-size: 12px;
+    color: #ffffff;
+    min-width: 200px;
+    max-width: 300px;
+    z-index: 1000;
+}
+
+.block-info-panel h4 {
+    color: #4a9eff;
+    margin-bottom: 10px;
+    font-size: 14px;
+}
+
+.block-info-stat {
+    margin-bottom: 5px;
+    padding: 3px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Text editor overlay styles */
+.text-editor-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+}
+
+.text-editor {
+    background: #1a1a1a;
+    border: 2px solid #4a9eff;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 600px;
+    height: 70%;
+    max-height: 400px;
+    display: flex;
+    flex-direction: column;
+}
+
+.text-editor-header {
+    background: #2a2a2a;
+    padding: 10px 15px;
+    border-bottom: 1px solid #4a4eff;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.text-editor-title {
+    color: #4a9eff;
+    font-weight: bold;
+    font-size: 14px;
+    font-family: monospace;
+}
+
+.text-editor-instructions {
+    color: #888;
+    font-size: 12px;
+    font-family: monospace;
+}
+
+.text-editor-body {
+    flex: 1;
+    padding: 15px;
+    background: #0a0a0a;
+    border: 1px solid #333;
+    margin: 10px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 14px;
+    color: #ffffff;
+    white-space: pre-wrap;
+    overflow-y: auto;
+    position: relative;
+}
+
+.text-editor-cursor {
+    position: absolute;
+    background: #4a9eff;
+    width: 2px;
+    height: 18px;
+    animation: blink 1s infinite;
+}
+
+@keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+}
+
+.text-editor-footer {
+    background: #2a2a2a;
+    padding: 10px 15px;
+    border-top: 1px solid #4a9eff;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.text-editor-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.text-editor-button {
+    background: #4a9eff;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: bold;
+    transition: background 0.3s;
+}
+
+.text-editor-button:hover {
+    background: #3a8eef;
+}
+
+.text-editor-button.delete {
+    background: #ff4444;
+}
+
+.text-editor-button.delete:hover {
+    background: #ee3333;
+}
+
+.text-editor-info {
+    color: #666;
+    font-size: 11px;
+}
+
+/* Responsive design for mobile */
+@media (max-width: 768px) {
+    .memory-palace-hud {
+        font-size: 12px;
+        min-width: 200px;
+        padding: 10px;
+    }
+
+    .block-info-panel {
+        font-size: 10px;
+        min-width: 150px;
+        max-width: 200px;
+        padding: 10px;
+    }
+
+    .text-editor {
+        width: 95%;
+        height: 80%;
+        max-width: none;
+        max-height: none;
+    }
+
+    .text-editor-body {
+        font-size: 12px;
+    }
+}
+
+/* Print styles */
+@media print {
+    body {
+        display: none;
+    }
+}
+
+/* Focus styles for accessibility */
+button:focus,
+input:focus,
+textarea:focus {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+/* Animation utilities */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.fade-in {
+    animation: fadeIn 0.3s ease-out;
+}
+
+.slide-up {
+    animation: slideUp 0.3s ease-out;
 }

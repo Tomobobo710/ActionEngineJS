@@ -1,0 +1,32 @@
+{
+  "name": "memory-palace-3d",
+  "version": "1.0.0",
+  "description": "3D Spatial Memory Palace using Method of Loci with ActionEngine",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "nodemon server/server.js",
+    "init-db": "node server/config/database.js"
+  },
+  "keywords": [
+    "memory",
+    "3d",
+    "webgl",
+    "method-of-loci",
+    "actionengine"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "compression": "^1.7.4",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "helmet": "^7.1.0",
+    "node": "^25.0.0",
+    "sqlite3": "^5.1.6"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}

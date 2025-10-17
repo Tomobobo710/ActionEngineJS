@@ -7,15 +7,108 @@
             content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <title>ActionEngine Game</title>
+        <title>Memory Palace 3D - Method of Loci</title>
         <link rel="stylesheet" href="css/styles.css" />
+        <style>
+            /* Memory Palace specific inline styles */
+            #loading-screen {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: linear-gradient(135deg, #1a1a2e 0%, #0f0f1e 100%);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 9999;
+                transition: opacity 0.5s ease-out;
+            }
+
+            #loading-screen.hidden {
+                opacity: 0;
+                pointer-events: none;
+            }
+
+            .loading-content {
+                text-align: center;
+                color: #ffffff;
+            }
+
+            .loading-content h1 {
+                font-size: 48px;
+                margin-bottom: 20px;
+                color: #4a9eff;
+                text-shadow: 0 0 20px rgba(74, 158, 255, 0.5);
+            }
+
+            .loading-content p {
+                font-size: 18px;
+                color: #aaa;
+                margin-bottom: 30px;
+            }
+
+            .spinner {
+                width: 50px;
+                height: 50px;
+                border: 5px solid #333;
+                border-top-color: #4a9eff;
+                border-radius: 50%;
+                animation: spin 1s linear infinite;
+                margin: 0 auto;
+            }
+
+            @keyframes spin {
+                to { transform: rotate(360deg); }
+            }
+
+            /* Hidden textarea for text input capture */
+            #textInput {
+                position: absolute;
+                left: -9999px;
+                top: -9999px;
+                width: 1px;
+                height: 1px;
+                opacity: 0;
+                pointer-events: none;
+                z-index: -1;
+            }
+
+            /* Cursor locked state */
+            body.cursor-locked {
+                cursor: none;
+            }
+
+            /* Prevent text selection during gameplay */
+            body.playing {
+                user-select: none;
+                -webkit-user-select: none;
+                -moz-user-select: none;
+                -ms-user-select: none;
+            }
+        </style>
     </head>
     <body>
+        <!-- Loading Screen -->
+        <div id="loading-screen">
+            <div class="loading-content">
+                <h1>🏛️ Memory Palace 3D</h1>
+                <p>Loading your spatial memory environment...</p>
+                <div class="spinner"></div>
+                <p id="loading-status" style="font-size: 14px; color: #666; margin-top: 20px;">Initializing...</p>
+            </div>
+        </div>
+
+        <!-- Main App Container -->
         <div id="appContainer">
             <div id="UIControlsContainer"></div>
         </div>
 
-        # 3rd party libs # sf2-player https://github.com/JanVeb/sf2-player
+        <!-- Hidden textarea for text input capture -->
+        <textarea id="textInput" aria-hidden="true" tabindex="-1"></textarea>
+
+        <!-- 3rd party libs -->
+        <!-- sf2-player https://github.com/JanVeb/sf2-player -->
         <script src="lib/sf2-player/parser.js"></script>
         <script src="lib/sf2-player/riff.js"></script>
         <script src="lib/sf2-player/reverb.js"></script>
@@ -127,8 +220,182 @@
         <script src="actionengine/core/app.js"></script>
         #############################
         
-        ####Game Specific Modules#### 
+        ####Game Specific Modules####
+        <!-- Memory Palace API Client -->
+        <script src="api.js"></script>
+
+        <!-- Memory Palace Game Logic -->
         <script src="game.js"></script>
         #############################
+
+        <script>
+            // Memory Palace 3D Initialization Script
+            console.log('🏛️ Memory Palace 3D - Starting initialization...');
+
+            let loadingStatus = document.getElementById('loading-status');
+
+            function updateLoadingStatus(message) {
+                if (loadingStatus) {
+                    loadingStatus.textContent = message;
+                }
+                console.log('📊', message);
+            }
+
+            // Wait for all scripts to load
+            window.addEventListener('load', async () => {
+                try {
+                    updateLoadingStatus('Checking ActionEngine...');
+
+                    // Verify ActionEngine is loaded
+                    if (typeof App === 'undefined') {
+                        throw new Error('ActionEngine App not found. Ensure actionengine/core/app.js is loaded.');
+                    }
+
+                    console.log('✅ ActionEngine loaded successfully');
+                    updateLoadingStatus('ActionEngine loaded');
+
+                    // Check backend connection
+                    let backendAvailable = false;
+                    updateLoadingStatus('Connecting to server...');
+
+                    try {
+                        if (typeof MemoryPalaceAPI !== 'undefined') {
+                            const health = await MemoryPalaceAPI.healthCheck();
+                            backendAvailable = true;
+                            console.log('✅ Backend connected:', health);
+                            updateLoadingStatus('Server connected');
+                        } else {
+                            throw new Error('API client not loaded');
+                        }
+                    } catch (error) {
+                        console.warn('⚠️ Backend not available:', error.message);
+                        console.warn('📦 Using localStorage only');
+                        updateLoadingStatus('Offline mode - using local storage');
+                        backendAvailable = false;
+                    }
+
+                    // Store backend availability globally
+                    window.BACKEND_AVAILABLE = backendAvailable;
+
+                    updateLoadingStatus('Initializing game...');
+
+                    // Give the game a moment to initialize
+                    await new Promise(resolve => setTimeout(resolve, 500));
+
+                    // Hide loading screen
+                    updateLoadingStatus('Ready!');
+                    setTimeout(() => {
+                        const loadingScreen = document.getElementById('loading-screen');
+                        if (loadingScreen) {
+                            loadingScreen.classList.add('hidden');
+                            setTimeout(() => {
+                                loadingScreen.style.display = 'none';
+                            }, 500);
+                        }
+
+                        // Add playing class to body
+                        document.body.classList.add('playing');
+                    }, 800);
+
+                    console.log('✅ Memory Palace 3D initialized successfully');
+
+                } catch (error) {
+                    console.error('❌ Initialization error:', error);
+
+                    // Show error to user
+                    const loadingScreen = document.getElementById('loading-screen');
+                    if (loadingScreen) {
+                        const content = loadingScreen.querySelector('.loading-content');
+                        content.innerHTML = `
+                            <h1 style="color: #ff4444;">⚠️ Initialization Error</h1>
+                            <p>Failed to initialize Memory Palace 3D</p>
+                            <p style="font-size: 14px; color: #ff6666; max-width: 500px; margin: 20px auto;">${error.message}</p>
+                            <button onclick="location.reload()" style="
+                                margin-top: 20px;
+                                padding: 12px 24px;
+                                background: #4a9eff;
+                                color: white;
+                                border: none;
+                                border-radius: 5px;
+                                cursor: pointer;
+                                font-size: 16px;
+                                font-weight: bold;
+                                transition: background 0.3s;
+                            " onmouseover="this.style.background='#3a8eef'" onmouseout="this.style.background='#4a9eff'">
+                                🔄 Reload Page
+                            </button>
+                            <p style="font-size: 12px; color: #666; margin-top: 20px;">
+                                Make sure the backend server is running:<br>
+                                <code style="background: #222; padding: 5px 10px; border-radius: 3px; display: inline-block; margin-top: 10px;">npm start</code>
+                            </p>
+                        `;
+                    }
+                }
+            });
+
+            // Handle pointer lock for mouse control
+            document.addEventListener('pointerlockchange', () => {
+                if (document.pointerLockElement) {
+                    document.body.classList.add('cursor-locked');
+                    console.log('🔒 Pointer locked');
+                } else {
+                    document.body.classList.remove('cursor-locked');
+                    console.log('🔓 Pointer unlocked');
+                }
+            });
+
+            // Prevent context menu on canvas
+            document.addEventListener('contextmenu', (e) => {
+                const target = e.target;
+                if (target.tagName === 'CANVAS') {
+                    e.preventDefault();
+                }
+            });
+
+            // Handle visibility change (pause when tab is hidden)
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden) {
+                    console.log('🔇 Tab hidden - game may pause');
+                } else {
+                    console.log('🔊 Tab visible - game resumed');
+                }
+            });
+
+            // Global error handling
+            window.addEventListener('error', (e) => {
+                console.error('💥 Runtime error:', e.error);
+            });
+
+            window.addEventListener('unhandledrejection', (e) => {
+                console.error('💥 Unhandled promise rejection:', e.reason);
+            });
+
+            // Keyboard shortcuts info
+            console.log(`
+╔════════════════════════════════════════════════════╗
+║   🏛️  Memory Palace 3D - Controls                 ║
+║                                                    ║
+║   Movement:                                        ║
+║   • WASD - Move around                            ║
+║   • Mouse - Look around                           ║
+║   • Space - Jump / Fly up                         ║
+║   • Shift - Sprint / Fly down                     ║
+║   • F - Toggle flying mode                        ║
+║                                                    ║
+║   Actions:                                         ║
+║   • Left Click - Place block                      ║
+║   • Right Click - Edit block text                 ║
+║   • Middle Click - Delete block                   ║
+║   • E - Edit selected block                       ║
+║   • Delete - Remove selected block                ║
+║                                                    ║
+║   System:                                          ║
+║   • Ctrl+S - Save                                 ║
+║   • Ctrl+L - Load                                 ║
+║   • Escape - Release mouse                        ║
+║                                                    ║
+╚════════════════════════════════════════════════════╝
+            `);
+        </script>
     </body>
 </html>

@@ -1,0 +1,8 @@
+node_modules/
+database/*.db
+database/*.db-journal
+.env
+.DS_Store
+npm-debug.log
+*.log
+.vscode/

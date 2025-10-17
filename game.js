@@ -500,9 +500,9 @@ class TextEditor {
 
 	save() {
 		if (this.currentBlock) {
-			this.currentBlock.setText(this.textContent);
-			this.game.saveToLocalStorage();
-			this.game.addMessage("Note saved!");
+		    this.currentBlock.setText(this.textContent);
+		    this.game.saveToStorage();
+		    this.game.addMessage("Note saved!");
 		}
 		this.close();
 	}
@@ -715,6 +715,10 @@ class Game {
         this.messages = [];
         this.maxMessages = 10;
 
+        // Backend integration
+        this.useBackend = true;
+        this.backendAvailable = window.BACKEND_AVAILABLE || false;
+
         this.createBlocks();
 
         // Start game loop
@@ -733,7 +737,14 @@ class Game {
         });
 
         document.addEventListener("pointerlockchange", () => {
-            this.cursorLocked = document.pointerLockElement === this.canvas;
+            this.handlePointerLockChange();
+        });
+
+        // Also try clicking on canvas to lock
+        document.addEventListener("click", (e) => {
+            if (e.target === this.canvas && !this.cursorLocked) {
+                this.toggleCursorLock();
+            }
         });
 
         document.addEventListener("mousemove", (e) => {
@@ -749,6 +760,11 @@ class Game {
         // Text editor
         this.textEditor = new TextEditor(this);
         this.capturingTextInput = false;
+
+        // Auto-save system
+        this.autoSaveInterval = 30000; // 30 seconds
+        this.lastAutoSave = Date.now();
+        this.autoSaveIntervalId = null;
 
         this.loop();
     }
@@ -771,8 +787,24 @@ class Game {
     toggleCursorLock() {
         if (!this.cursorLocked) {
             this.canvas.requestPointerLock();
+            console.log('🔒 Requesting pointer lock...');
         } else {
             document.exitPointerLock();
+            console.log('🔓 Exiting pointer lock...');
+        }
+    }
+
+    // Enhanced mouse lock handling
+    handlePointerLockChange() {
+        const isLocked = document.pointerLockElement === this.canvas;
+        this.cursorLocked = isLocked;
+
+        if (isLocked) {
+            console.log('✅ Pointer lock acquired');
+            this.addMessage("🔒 Mouse locked - ready to place blocks!");
+        } else {
+            console.log('❌ Pointer lock lost');
+            this.addMessage("🔓 Mouse unlocked - click canvas to continue");
         }
     }
 
@@ -882,9 +914,10 @@ class Game {
         // Raycasting for block placement/selection
         this.hoveredBlock = null;
         this.hoveredFace = null;
+        this.persistentHighlightPosition = null; // NEW: Stores last targeted position persistently
 
         // Load saved data
-        this.loadFromLocalStorage();
+        this.loadFromStorage();
     }
 
     update() {
@@ -919,13 +952,26 @@ class Game {
 
         // Manual save with Action2
         if (this.input.isKeyJustPressed("Action2")) {
-            this.saveToLocalStorage();
+            this.saveToStorage();
             this.addMessage("Progress saved!");
         }
 
         // Toggle debug with F9
         if (this.input.isKeyJustPressed("ActionDebugToggle")) {
             this.state.showDebug = !this.state.showDebug;
+        }
+
+        // Handle export/import keyboard shortcuts
+        if (this.input.isKeyPressed('Control') && this.input.isKeyJustPressed('e')) {
+            this.exportData();
+        }
+        if (this.input.isKeyPressed('Control') && this.input.isKeyJustPressed('i')) {
+            this.importData();
+        }
+
+        // Alternative block placement (for testing) - press B key
+        if (this.input.isKeyJustPressed('b') && this.cursorLocked) {
+            this.placeBlockAtCameraPosition();
         }
     }
 
@@ -940,12 +986,28 @@ class Game {
         this.level.draw(this.renderer, viewMatrix, this.projectionMatrix);
 
         // Draw all blocks
-        this.blocks.forEach(block => {
-            block.draw(this.renderer, viewMatrix, this.projectionMatrix);
+        this.blocks.forEach((block, id) => {
+            if (block && block.model) {
+                try {
+                    block.draw(this.renderer, viewMatrix, this.projectionMatrix);
+                } catch (error) {
+                    console.error('❌ Error drawing block:', id, error);
+                }
+            } else {
+                console.warn('⚠️ Block missing model:', id, !!block, !!block?.model);
+            }
         });
 
-        // Draw hovered block highlight
-        if (this.hoveredBlock && !this.hoveredBlock.isFloor) {
+        // Debug: Show block count and positions
+        if (this.blocks.size > 0) {
+            console.log('🎲 Drawing blocks:', this.blocks.size);
+            this.blocks.forEach((block, id) => {
+                console.log(`  Block ${id}: pos(${block.position.x.toFixed(1)}, ${block.position.y.toFixed(1)}, ${block.position.z.toFixed(1)})`);
+            });
+        }
+
+        // Draw persistent highlight - always visible if we have a stored position
+        if (this.persistentHighlightPosition) {  // CHANGED: Use persistent position instead of hoveredBlock
             this.drawHoveredBlockHighlight(this.renderer, viewMatrix, this.projectionMatrix);
         }
 
@@ -959,48 +1021,55 @@ class Game {
     }
 
     raycastBlocks() {
-        const ray = this.getRayFromCamera();
-        let closestBlock = null;
-        let closestDistance = Infinity;
-        let closestFace = null;
-
-        this.blocks.forEach(block => {
-            const result = this.rayBoxIntersection(ray, block);
-            if (result && result.distance < closestDistance && result.distance < this.placementRange) {
-                closestDistance = result.distance;
-                closestBlock = block;
-                closestFace = result.face;
-            }
-        });
-
-        // Also check floor (match actual floor size and position)
-        const floorResult = this.rayBoxIntersection(ray, {
-            position: new Vector3(0, -0.5, 0),
-            size: 250
-        });
-
-        if (floorResult && floorResult.distance < closestDistance && floorResult.distance < this.placementRange) {
-            closestDistance = floorResult.distance;
-            closestBlock = { isFloor: true, position: new Vector3(0, -0.5, 0) };
-            closestFace = floorResult.face;
+        // Enhanced raycast: shoot ray from camera, find first hit with room geometry
+        if (!this.cursorLocked) {
+            this.persistentHighlightPosition = null;
+            this.hoveredFace = null;
+            return;
         }
 
-        this.hoveredBlock = closestBlock;
-        this.hoveredFace = closestFace;
+        const ray = this.getRayFromCamera();
+        const hitResult = this.castRayIntoRoom(ray);
+
+        if (hitResult) {
+            this.persistentHighlightPosition = hitResult.position;
+            this.hoveredFace = hitResult.face;
+
+            // Debug logging to help troubleshoot
+            console.log('🎯 Raycast hit:', {
+                position: hitResult.position,
+                face: hitResult.face,
+                distance: hitResult.distance
+            });
+        } else {
+            this.persistentHighlightPosition = null;
+            this.hoveredFace = null;
+        }
     }
 
     getRayFromCamera() {
         // Get camera forward direction - match the camera target calculation
         const lookDistance = 50;
+
+        // Debug: Log current rotation values
+        console.log(`Player rotation - pitch(x): ${this.player.rotation.x.toFixed(3)}, yaw(y): ${this.player.rotation.y.toFixed(3)}`);
+
+        // Calculate forward direction based on camera rotation
+        // Fix Z coordinate system - when moving +Z, raycast should hit +Z, not -Z
         const forward = new Vector3(
             Math.sin(this.player.rotation.y) * Math.cos(this.player.rotation.x) * lookDistance,
-            Math.sin(this.player.rotation.x) * lookDistance,
-            Math.cos(this.player.rotation.y) * Math.cos(this.player.rotation.x) * lookDistance
-        ).normalize();
+            -Math.sin(this.player.rotation.x) * lookDistance,  // NEGATIVE Y for down pitch
+            -Math.cos(this.player.rotation.y) * Math.cos(this.player.rotation.x) * lookDistance  // FLIP Z for correct coordinate system
+        );
+
+        console.log(`Calculated forward vector: (${forward.x.toFixed(2)}, ${forward.y.toFixed(2)}, ${forward.z.toFixed(2)})`);
+
+        const normalized = forward.normalize();
+        console.log(`Normalized direction: (${normalized.x.toFixed(2)}, ${normalized.y.toFixed(2)}, ${normalized.z.toFixed(2)})`);
 
         return {
             origin: this.player.position.clone(),
-            direction: forward
+            direction: normalized
         };
     }
 
@@ -1046,13 +1115,14 @@ class Game {
 
         if (tmin < 0) return null;
 
-        // Determine which face was hit
+        // Calculate the exact hit point
         const hitPoint = new Vector3(
             ray.origin.x + ray.direction.x * tmin,
             ray.origin.y + ray.direction.y * tmin,
             ray.origin.z + ray.direction.z * tmin
         );
 
+        // Determine which face was hit
         const epsilon = 0.01;
         let face = "top";
 
@@ -1066,26 +1136,217 @@ class Game {
         return { distance: tmin, face, hitPoint };
     }
 
-    placeBlock() {
-        if (!this.hoveredBlock || !this.hoveredFace) return;
+    // Enhanced raycast against room geometry (walls, floor, ceiling)
+    castRayIntoRoom(ray) {
+        const roomSize = 125; // half room size
+        const maxDistance = 100; // Maximum raycast distance
+        let closestDistance = Infinity;
+        let closestHit = null;
+        let closestFace = "";
 
-        // Calculate placement position based on face
-        const offset = this.blockSize;
-        let newPos = this.hoveredBlock.position.clone();
-
-        switch (this.hoveredFace) {
-            case "top": newPos.y += offset; break;
-            case "bottom": newPos.y -= offset; break;
-            case "north": newPos.z -= offset; break;
-            case "south": newPos.z += offset; break;
-            case "east": newPos.x += offset; break;
-            case "west": newPos.x -= offset; break;
+        // Test floor (Y = 0) - increased bounds
+        const floorHit = this.rayPlaneIntersection(ray, { y: 0 }, "floor");
+        if (floorHit && floorHit.distance < closestDistance && floorHit.distance <= maxDistance &&
+            Math.abs(floorHit.position.x) <= roomSize + 10 && Math.abs(floorHit.position.z) <= roomSize + 10) {
+            closestDistance = floorHit.distance;
+            closestHit = floorHit;
+            closestFace = "floor";
         }
+
+        // Test ceiling (Y = 125) - increased bounds
+        const ceilingHit = this.rayPlaneIntersection(ray, { y: 125 }, "ceiling");
+        if (ceilingHit && ceilingHit.distance < closestDistance && ceilingHit.distance <= maxDistance &&
+            Math.abs(ceilingHit.position.x) <= roomSize + 10 && Math.abs(ceilingHit.position.z) <= roomSize + 10) {
+            closestDistance = ceilingHit.distance;
+            closestHit = ceilingHit;
+            closestFace = "ceiling";
+        }
+
+        // Test north wall (Z = -125) - increased bounds
+        const northHit = this.rayPlaneIntersection(ray, { z: -roomSize }, "north");
+        if (northHit && northHit.distance < closestDistance && northHit.distance <= maxDistance &&
+            Math.abs(northHit.position.x) <= roomSize + 10 && northHit.position.y >= -5 && northHit.position.y <= 130) {
+            closestDistance = northHit.distance;
+            closestHit = northHit;
+            closestFace = "north";
+        }
+
+        // Test south wall (Z = 125) - increased bounds
+        const southHit = this.rayPlaneIntersection(ray, { z: roomSize }, "south");
+        if (southHit && southHit.distance < closestDistance && southHit.distance <= maxDistance &&
+            Math.abs(southHit.position.x) <= roomSize + 10 && southHit.position.y >= -5 && southHit.position.y <= 130) {
+            closestDistance = southHit.distance;
+            closestHit = southHit;
+            closestFace = "south";
+        }
+
+        // Test east wall (X = 125) - increased bounds
+        const eastHit = this.rayPlaneIntersection(ray, { x: roomSize }, "east");
+        if (eastHit && eastHit.distance < closestDistance && eastHit.distance <= maxDistance &&
+            Math.abs(eastHit.position.z) <= roomSize + 10 && eastHit.position.y >= -5 && eastHit.position.y <= 130) {
+            closestDistance = eastHit.distance;
+            closestHit = eastHit;
+            closestFace = "east";
+        }
+
+        // Test west wall (X = -125) - increased bounds
+        const westHit = this.rayPlaneIntersection(ray, { x: -roomSize }, "west");
+        if (westHit && westHit.distance < closestDistance && westHit.distance <= maxDistance &&
+            Math.abs(westHit.position.z) <= roomSize + 10 && westHit.position.y >= -5 && westHit.position.y <= 130) {
+            closestDistance = westHit.distance;
+            closestHit = westHit;
+            closestFace = "west";
+        }
+
+        return closestHit ? { position: closestHit.position, face: closestFace, distance: closestHit.distance } : null;
+    }
+
+    // Ray-plane intersection helper
+    rayPlaneIntersection(ray, plane, faceName) {
+        // Plane defined by a point on the plane and normal vector
+        let normal, point;
+
+        if (plane.y !== undefined) {
+            // Horizontal plane (floor/ceiling)
+            normal = new Vector3(0, plane.y > 0 ? 1 : -1, 0);
+            point = new Vector3(0, plane.y, 0);
+        } else if (plane.x !== undefined) {
+            // Vertical plane (east/west walls)
+            normal = new Vector3(plane.x > 0 ? 1 : -1, 0, 0);
+            point = new Vector3(plane.x, 0, 0);
+        } else if (plane.z !== undefined) {
+            // Vertical plane (north/south walls)
+            normal = new Vector3(0, 0, plane.z > 0 ? 1 : -1);
+            point = new Vector3(0, 0, plane.z);
+        }
+
+        // Ray-plane intersection formula
+        const denom = ray.direction.dot(normal);
+
+        // If ray is parallel to plane, no intersection
+        if (Math.abs(denom) < 0.0001) {
+            return null;
+        }
+
+        const t = Vector3.subtract(point, ray.origin).dot(normal) / denom;
+
+        // If intersection is behind ray origin, ignore
+        if (t < 0) {
+            return null;
+        }
+
+        // Calculate hit position
+        const hitPosition = new Vector3(
+            ray.origin.x + ray.direction.x * t,
+            ray.origin.y + ray.direction.y * t,
+            ray.origin.z + ray.direction.z * t
+        );
+
+        return {
+            position: hitPosition,
+            distance: t,
+            face: faceName
+        };
+    }
+
+    placeBlock() {
+        // Debug: Check if we have the required data
+        console.log('🎯 Place block attempt:', {
+            cursorLocked: this.cursorLocked,
+            hasPersistentPosition: !!this.persistentHighlightPosition,
+            position: this.persistentHighlightPosition
+        });
+
+        if (!this.cursorLocked) {
+            this.addMessage("🔒 Click canvas to lock mouse first!");
+            return;
+        }
+
+        if (!this.persistentHighlightPosition) {
+            this.addMessage("🎯 Point at a surface (wall/floor/ceiling)");
+            return;
+        }
+
+        // Calculate placement position based on face and hit point
+        const offset = this.blockSize;
+        let newPos = this.persistentHighlightPosition.clone();
+
+        // Adjust position based on which face was hit
+        switch (this.hoveredFace) {
+            case "top": newPos.y += offset / 2; break;
+            case "bottom": newPos.y -= offset / 2; break;
+            case "north": newPos.z -= offset / 2; break;
+            case "south": newPos.z += offset / 2; break;
+            case "east": newPos.x += offset / 2; break;
+            case "west": newPos.x -= offset / 2; break;
+        }
+
+        // Round to grid
+        newPos.x = Math.round(newPos.x);
+        newPos.y = Math.round(newPos.y);
+        newPos.z = Math.round(newPos.z);
 
         // Check if position is already occupied
         for (let [id, block] of this.blocks) {
             if (block.position.distanceTo(newPos) < this.blockSize * 0.5) {
-                this.addMessage("Position already occupied!");
+                this.addMessage("❌ Position already occupied!");
+                return;
+            }
+        }
+
+        // Create new block
+        const block = new MemoryBlock(newPos, this.selectedBlockType);
+        this.blocks.set(block.id, block);
+
+        // Ensure block is visible in 3D scene
+        if (block.model) {
+            block.model.setColor(0.0, 1.0, 0.0); // Bright green for high visibility
+            block.model.position.set(newPos.x, newPos.y, newPos.z);
+            console.log('🎁 New block model created:', {
+                id: block.id,
+                position: newPos,
+                model: !!block.model,
+                color: 'bright green'
+            });
+        } else {
+            console.error('❌ Block model not created!');
+            // Try alternative approach
+            console.log('🔄 Attempting alternative block creation...');
+            const geometry = GeometryBuilder.createCube(1, 1, 1);
+            const model = new ActionModel3D(geometry);
+            model.position.set(newPos.x, newPos.y, newPos.z);
+            model.setColor(1.0, 0.0, 0.0); // Red as fallback
+            block.model = model;
+            this.addObject(model);
+            console.log('✅ Alternative block creation successful');
+        }
+
+        this.audio.play("placeBlock");
+        this.addMessage(`✅ Block placed at (${Math.round(newPos.x)}, ${Math.round(newPos.y)}, ${Math.round(newPos.z)})`);
+
+        this.saveToStorage();
+    }
+
+    // Alternative block placement method (fallback) - press B key
+    placeBlockAtCameraPosition() {
+        // Place block 5 units in front of camera
+        const distance = 5;
+        const cameraPos = this.player.position;
+        const newPos = new Vector3(
+            cameraPos.x + Math.sin(this.player.rotation.y) * distance,
+            cameraPos.y,
+            cameraPos.z - Math.cos(this.player.rotation.y) * distance
+        );
+
+        // Round to grid
+        newPos.x = Math.round(newPos.x);
+        newPos.y = Math.round(newPos.y);
+        newPos.z = Math.round(newPos.z);
+
+        // Check if position is already occupied
+        for (let [id, block] of this.blocks) {
+            if (block.position.distanceTo(newPos) < this.blockSize * 0.5) {
+                this.addMessage("❌ Position already occupied!");
                 return;
             }
         }
@@ -1095,9 +1356,9 @@ class Game {
         this.blocks.set(block.id, block);
 
         this.audio.play("placeBlock");
-        this.addMessage(`Block placed at (${Math.round(newPos.x)}, ${Math.round(newPos.y)}, ${Math.round(newPos.z)})`);
+        this.addMessage(`✅ Block placed at (${Math.round(newPos.x)}, ${Math.round(newPos.y)}, ${Math.round(newPos.z)})`);
 
-        this.saveToLocalStorage();
+        this.saveToStorage();
     }
 
     openBlockEditor() {
@@ -1108,14 +1369,14 @@ class Game {
     }
 
     drawHoveredBlockHighlight(renderer, viewMatrix, projectionMatrix) {
-        if (!this.hoveredBlock || !this.hoveredBlock.position) return;
+        if (!this.persistentHighlightPosition) return;
 
-        // Create model matrix for highlight position
+        // Create model matrix for highlight position at exact hit location
         const modelMatrix = Matrix4.create();
         Matrix4.translate(modelMatrix, modelMatrix, [
-            this.hoveredBlock.position.x,
-            this.hoveredBlock.position.y,
-            this.hoveredBlock.position.z
+            this.persistentHighlightPosition.x,
+            this.persistentHighlightPosition.y,
+            this.persistentHighlightPosition.z
         ]);
 
         // Scale up slightly for highlight effect
@@ -1130,10 +1391,10 @@ class Game {
         renderer.drawMesh(highlightMesh, "basic", modelMatrix, viewMatrix, projectionMatrix, [1.0, 1.0, 1.0]);
     }
 
-    saveToLocalStorage() {
+    async saveToStorage() {
         const data = {
             blocks: Array.from(this.blocks.values()).map(block => block.toJSON()),
-            player: {
+            camera: {
                 position: {
                     x: this.player.position.x,
                     y: this.player.position.y,
@@ -1143,49 +1404,140 @@ class Game {
                     x: this.player.rotation.x,
                     y: this.player.rotation.y
                 }
-            }
+            },
+            timestamp: Date.now()
         };
 
+        // Save to localStorage
         try {
             localStorage.setItem('memoryPalace', JSON.stringify(data));
-            this.audio.play("save");
-        } catch (e) {
-            this.addMessage("Error saving: " + e.message);
+            console.log('💾 Saved to localStorage');
+        } catch (error) {
+            console.error('❌ Failed to save to localStorage:', error);
+        }
+
+        // Save to backend if available
+        if (this.backendAvailable && this.useBackend) {
+            try {
+                await MemoryPalaceAPI.bulkSaveBlocks(data.blocks);
+                await MemoryPalaceAPI.saveCameraState(data.camera.position, data.camera.rotation);
+                this.addMessage("💾 Saved to server");
+                console.log('💾 Saved to backend');
+            } catch (error) {
+                console.error('❌ Failed to save to backend:', error);
+                this.addMessage("⚠️ Server save failed");
+            }
+        } else {
+            this.addMessage("💾 Saved locally");
         }
     }
 
-    loadFromLocalStorage() {
-        try {
-            const saved = localStorage.getItem('memoryPalace');
-            if (!saved) {
-                this.addMessage("No saved data found");
-                return;
+    async loadFromStorage() {
+        let data = null;
+
+        // Try loading from backend first
+        if (this.backendAvailable && this.useBackend) {
+            try {
+                const response = await MemoryPalaceAPI.getAllBlocks();
+                const cameraState = await MemoryPalaceAPI.getCameraState();
+
+                data = {
+                    blocks: response.blocks,
+                    camera: cameraState
+                };
+
+                this.addMessage("📥 Loaded from server");
+                console.log('📥 Loaded from backend');
+            } catch (error) {
+                console.error('❌ Failed to load from backend:', error);
+                this.addMessage("⚠️ Server load failed, trying local");
             }
+        }
 
-            const data = JSON.parse(saved);
+        // Fallback to localStorage
+        if (!data) {
+            try {
+                const saved = localStorage.getItem('memoryPalace');
+                if (saved) {
+                    data = JSON.parse(saved);
+                    this.addMessage("📥 Loaded from local storage");
+                    console.log('📥 Loaded from localStorage');
+                }
+            } catch (error) {
+                console.error('❌ Failed to load from localStorage:', error);
+            }
+        }
 
-            // Load blocks
-            this.blocks.clear();
+        if (!data) {
+            console.log('ℹ️ No saved data found');
+            return;
+        }
+
+        // Clear existing blocks
+        this.blocks.forEach(block => {
+            if (block.model) {
+                this.removeObject(block.model);
+            }
+        });
+        this.blocks.clear();
+
+        // Load blocks
+        if (data.blocks && Array.isArray(data.blocks)) {
             data.blocks.forEach(blockData => {
                 const block = MemoryBlock.fromJSON(blockData);
+
+                // Create 3D model
+                const geometry = GeometryBuilder.createCube(1, 1, 1);
+                const model = new ActionModel3D(geometry);
+                model.position.copy(block.position);
+                model.setColor(0.0, 1.0, 0.0); // Bright green for high visibility
+
+                block.model = model;
+                this.addObject(model);
                 this.blocks.set(block.id, block);
+
+                console.log('🎁 Loaded existing block:', {
+                    id: block.id,
+                    position: block.position,
+                    model: !!model
+                });
             });
 
-            // Load player position
-            if (data.player) {
-                this.player.position = new Vector3(
-                    data.player.position.x,
-                    data.player.position.y,
-                    data.player.position.z
-                );
-                this.player.rotation.x = data.player.rotation.x || 0;
-                this.player.rotation.y = data.player.rotation.y || 0;
-            }
+            // Update block ID counter
+            const maxId = Math.max(
+                0,
+                ...Array.from(this.blocks.keys())
+                    .map(id => parseInt(id.replace('block_', '')) || 0)
+            );
+            this.blockIdCounter = maxId + 1;
 
-            this.addMessage(`Loaded ${this.blocks.size} blocks from storage`);
-        } catch (e) {
-            this.addMessage("Error loading: " + e.message);
+            console.log(`✅ Loaded ${this.blocks.size} blocks`);
         }
+
+        // Load camera position
+        if (data.camera) {
+            if (data.camera.position) {
+                this.player.position.set(
+                    data.camera.position.x,
+                    data.camera.position.y,
+                    data.camera.position.z
+                );
+            }
+            if (data.camera.rotation) {
+                this.player.rotation.set(
+                    data.camera.rotation.x,
+                    data.camera.rotation.y,
+                    0
+                );
+            }
+            console.log('✅ Camera position restored');
+        }
+
+        // Initialize auto-save system after game is fully loaded
+        this.autoSaveInterval = 30000; // 30 seconds
+        this.lastAutoSave = Date.now();
+        this.autoSaveIntervalId = null;
+        this.startAutoSave();
     }
 
     addMessage(msg) {
@@ -1198,15 +1550,33 @@ class Game {
     drawUI() {
         this.guiCtx.clearRect(0, 0, Game.WIDTH, Game.HEIGHT);
 
-        // Draw crosshair
-        this.guiCtx.strokeStyle = this.hoveredBlock ? "#ffff00" : "#ffffff";
-        this.guiCtx.lineWidth = 2;
+        // Draw enhanced crosshair
+        if (this.cursorLocked && this.persistentHighlightPosition) {
+            // Green crosshair when ready to place
+            this.guiCtx.strokeStyle = "#00ff00";
+            this.guiCtx.lineWidth = 3;
+            this.guiCtx.shadowColor = "#00ff00";
+            this.guiCtx.shadowBlur = 5;
+        } else if (this.cursorLocked) {
+            // Yellow crosshair when locked but no target
+            this.guiCtx.strokeStyle = "#ffff00";
+            this.guiCtx.lineWidth = 2;
+        } else {
+            // White crosshair when unlocked
+            this.guiCtx.strokeStyle = "#ffffff";
+            this.guiCtx.lineWidth = 2;
+            this.guiCtx.shadowBlur = 0;
+        }
+
         this.guiCtx.beginPath();
         this.guiCtx.moveTo(395, 300);
         this.guiCtx.lineTo(405, 300);
         this.guiCtx.moveTo(400, 295);
         this.guiCtx.lineTo(400, 305);
         this.guiCtx.stroke();
+
+        // Reset shadow
+        this.guiCtx.shadowBlur = 0;
 
         // Always draw HUD (position, controls, etc.)
         this.drawHUD();
@@ -1258,6 +1628,29 @@ class Game {
             }
         }
 
+        // Display raycast hit coordinates if available
+        if (this.persistentHighlightPosition) {
+            y += lineHeight;
+            ctx.fillStyle = "#00ffff";
+            ctx.fillText(`🎯 Ready: (${Math.round(this.persistentHighlightPosition.x)}, ${Math.round(this.persistentHighlightPosition.y)}, ${Math.round(this.persistentHighlightPosition.z)})`, x, y);
+
+            if (this.hoveredFace) {
+                y += lineHeight;
+                ctx.fillStyle = "#ffff00";
+                ctx.fillText(`📍 Face: ${this.hoveredFace} - Click to place!`, x, y);
+            }
+        } else {
+            // Show that raycast is running but no hits found
+            y += lineHeight;
+            ctx.fillStyle = "#ff00ff";
+            ctx.fillText(`❌ Point at wall/floor/ceiling`, x, y);
+        }
+
+        // Show cursor lock status
+        y += lineHeight;
+        ctx.fillStyle = this.cursorLocked ? "#00ff00" : "#ff0000";
+        ctx.fillText(`🔒 Mouse: ${this.cursorLocked ? 'Locked' : 'Unlocked (click canvas)'}`, x, y);
+
         // Controls reminder (bottom right)
         ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
         ctx.fillRect(490, 450, 300, 140);
@@ -1278,6 +1671,7 @@ class Game {
         ctx.fillText("C: Toggle Mouse Lock", 500, y); y += 20;
         ctx.fillText("Left Click: Place Block", 500, y); y += 20;
         ctx.fillText("Right Click: Edit Notes", 500, y); y += 20;
+        ctx.fillText("B: Place Block (Camera)", 500, y); y += 20;
         ctx.fillText("Action2: Manual Save", 500, y); y += 20;
         ctx.fillText("F9: Toggle Debug", 500, y);
     }
@@ -1351,6 +1745,15 @@ class Game {
             10,
             80
         );
+
+        // Display raycast hit coordinates in debug panel too
+        if (this.persistentHighlightPosition) {
+            this.debugCtx.fillText(
+                `Raycast Hit: ${this.persistentHighlightPosition.x.toFixed(2)}, ${this.persistentHighlightPosition.y.toFixed(2)}, ${this.persistentHighlightPosition.z.toFixed(2)}`,
+                10,
+                100
+            );
+        }
     }
 
     loop() {
@@ -1588,9 +1991,13 @@ class Player {
             // Use movement data from pointer lock
             const sensitivity = this.lookSensitivity;
 
-            // FIXED: Flipped the signs to correct the look direction
-            this.rotation.y += this.game.mouseDeltaX * sensitivity; // Changed from -= to +=
-            this.rotation.x += this.game.mouseDeltaY * sensitivity; // Changed from -= to +=
+            // Mouse look - natural FPS camera controls
+            this.rotation.y += this.game.mouseDeltaX * sensitivity; // Left/right rotation (yaw)
+            this.rotation.x += this.game.mouseDeltaY * sensitivity; // Up/down rotation (pitch) - positive when mouse moves down
+
+            // NEW: Normalize Y rotation to prevent extreme values that break raycast
+            this.rotation.y = ((this.rotation.y % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+            if (this.rotation.y > Math.PI) this.rotation.y -= Math.PI * 2;
 
             // Clamp pitch to prevent flipping
             this.rotation.x = Math.max(-this.maxPitch, Math.min(this.maxPitch, this.rotation.x));
@@ -1754,5 +2161,146 @@ class Player {
 
         return this.viewMatrix;
     }
-}
 
+    // ========================================================================
+    // EXPORT/IMPORT SYSTEM
+    // ========================================================================
+
+    exportData() {
+        const data = {
+            version: '1.0.0',
+            exported: new Date().toISOString(),
+            blocks: Array.from(this.blocks.values()).map(block => block.toJSON()),
+            camera: {
+                position: {
+                    x: this.position.x,
+                    y: this.position.y,
+                    z: this.position.z
+                },
+                rotation: {
+                    x: this.rotation.x,
+                    y: this.rotation.y
+                }
+            }
+        };
+
+        const json = JSON.stringify(data, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `memory-palace-${Date.now()}.json`;
+        a.click();
+
+        URL.revokeObjectURL(url);
+
+        this.addMessage("📤 Exported to file");
+        console.log('📤 Data exported');
+    }
+
+    importData() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                this.importDataFromFile(file);
+            }
+        };
+        input.click();
+    }
+
+    importDataFromFile(file) {
+        const reader = new FileReader();
+
+        reader.onload = (e) => {
+            try {
+                const data = JSON.parse(e.target.result);
+
+                // Validate data
+                if (!data.blocks || !Array.isArray(data.blocks)) {
+                    throw new Error('Invalid data format');
+                }
+
+                // Clear existing blocks
+                this.blocks.forEach(block => {
+                    if (block.model) {
+                        this.removeObject(block.model);
+                    }
+                });
+                this.blocks.clear();
+
+                // Import blocks
+                data.blocks.forEach(blockData => {
+                    const block = MemoryBlock.fromJSON(blockData);
+
+                    const geometry = GeometryBuilder.createCube(1, 1, 1);
+                    const model = new ActionModel3D(geometry);
+                    model.position.copy(block.position);
+                    model.setColor(0.3, 0.5, 0.9);
+
+                    block.model = model;
+                    this.addObject(model);
+                    this.blocks.set(block.id, block);
+                });
+
+                // Import camera
+                if (data.camera) {
+                    if (data.camera.position) {
+                        this.position.set(
+                            data.camera.position.x,
+                            data.camera.position.y,
+                            data.camera.position.z
+                        );
+                    }
+                    if (data.camera.rotation) {
+                        this.rotation.set(
+                            data.camera.rotation.x,
+                            data.camera.rotation.y,
+                            0
+                        );
+                    }
+                }
+
+                this.addMessage(`📥 Imported ${this.blocks.size} blocks`);
+                console.log('📥 Data imported successfully');
+
+                // Save after import
+                this.saveToStorage();
+
+            } catch (error) {
+                console.error('❌ Import failed:', error);
+                this.addMessage("❌ Import failed");
+            }
+        };
+
+        reader.readAsText(file);
+    }
+
+    // ========================================================================
+    // ENHANCED AUTO-SAVE SYSTEM
+    // ========================================================================
+
+    startAutoSave() {
+        if (this.autoSaveIntervalId) {
+            clearInterval(this.autoSaveIntervalId);
+        }
+
+        this.autoSaveIntervalId = setInterval(() => {
+            this.saveToStorage();
+        }, this.autoSaveInterval);
+
+        console.log('💾 Auto-save started');
+    }
+
+    stopAutoSave() {
+        if (this.autoSaveIntervalId) {
+            clearInterval(this.autoSaveIntervalId);
+            this.autoSaveIntervalId = null;
+        }
+
+        console.log('⏹️ Auto-save stopped');
+    }
+}
