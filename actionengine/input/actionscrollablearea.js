@@ -58,6 +58,7 @@
  * - colors: Override default scrollbar colors (see colors config structure below)
  * - onRegisterInput: Custom input registration callback
  * - onRegisterItemInput: Custom item input registration callback
+ * - generateItemId: Function to generate item IDs (item, index) => string
  *
  * IMPORTANT NOTES:
  * - The component automatically registers its scrollbar elements with the input system
@@ -120,6 +121,19 @@ class ActionScrollableArea {
      *         buttonText: { normal: "rgba(255, 100, 100, 0.8)", hover: "#ff6464" },
      *         thumbBorder: { normal: "rgba(255, 100, 100, 0.5)", drag: "#ff6464" }
      *     }
+     * }, game.input, game.guiCtx);
+     *
+     * // Chat log scroller with different ID format
+     * const chatScroller = new ActionScrollableArea({
+     *     listAreaX: 50, listAreaY: 100, listAreaWidth: 300, listAreaHeight: 400,
+     *     itemHeight: 40, scrollBarX: 360, scrollBarY: 100, scrollBarTrackHeight: 400,
+     *
+     *     // Generate chat-specific IDs
+     *     generateItemId: (message, index) => `chat_msg_${message.timestamp}_${index}`,
+     *
+     *     // Enable clipping for chat area
+     *     enableClipping: true,
+     *     clipBounds: { x: 50, y: 100, width: 300, height: 400 }
      * }, game.input, game.guiCtx);
      */
     constructor(config, input, ctx) {
@@ -205,6 +219,9 @@ class ActionScrollableArea {
                 this.input.registerElement(id, { bounds: () => bounds }, layer);
             }
         });
+
+        // Generate item ID for input registration (configurable)
+        this.generateItemId = config.generateItemId || ((item, index) => `item_${index}`);
 
         // Custom item input registration callback (stable registration)
         this.onRegisterItemInput = config.onRegisterItemInput || ((itemId, index, bounds) => {
@@ -844,11 +861,13 @@ class ActionScrollableArea {
       * Registers input for a specific item with proper clipping
       * Only re-registers if scroll position changed or item not registered
       *
-      * @param {string} itemId - Unique identifier for the item
+      * @param {Object} item - The item object
       * @param {number} index - Index of the item in the list
       * @param {string} layer - Input layer (default: 'gui')
       */
-     registerItemInput(itemId, index, layer = 'gui') {
+     registerItemInput(item, index, layer = 'gui') {
+         const itemId = this.generateItemId(item, index);
+
          // Only update if scroll position changed or item not registered
          if (this.scrollOffset === this.lastScrollOffsetForInput && this.registeredItems.has(itemId)) {
              return; // No change needed, skip registration
@@ -890,8 +909,7 @@ class ActionScrollableArea {
 
          // Update registrations for all items
          items.forEach((item, index) => {
-             const itemId = `inventory_item_${item.id}`;
-             this.registerItemInput(itemId, index, layer);
+             this.registerItemInput(item, index, layer);
          });
 
          // Update tracking
