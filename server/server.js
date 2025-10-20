@@ -8,7 +8,7 @@ require('dotenv').config();
 const blockRoutes = require('./routes/blocks');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 4444;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
 // Security middleware
