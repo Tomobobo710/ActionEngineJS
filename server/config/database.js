@@ -26,30 +26,33 @@ const db = new sqlite3.Database(dbPath, (err) => {
 // Initialize database schema
 function initializeDatabase() {
     db.serialize(() => {
-        // Blocks table
-        console.warn('⚠️ Dropping and recreating blocks table. ALL EXISTING BLOCKS WILL BE DELETED.');
-        db.run(`DROP TABLE IF EXISTS blocks;`, (err) => {
+        // Blocks table - preserving existing data
+        db.run(`
+            CREATE TABLE IF NOT EXISTS blocks (
+                id TEXT PRIMARY KEY,
+                position_x REAL NOT NULL,
+                position_y REAL NOT NULL,
+                position_z REAL NOT NULL,
+                type TEXT DEFAULT 'cube',
+                text TEXT DEFAULT '',
+                title TEXT DEFAULT '',
+                blockSize REAL DEFAULT 5.0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+        `, (err) => {
             if (err) {
-                console.error('❌ Error dropping blocks table:', err);
+                console.error('❌ Error creating blocks table:', err);
             } else {
-                console.log('✅ Blocks table dropped (if existed)');
+                console.log('✅ Blocks table ready (preserving existing data)');
+                // Add title column if it doesn't exist
                 db.run(`
-                    CREATE TABLE blocks (
-                        id TEXT PRIMARY KEY,
-                        position_x REAL NOT NULL,
-                        position_y REAL NOT NULL,
-                        position_z REAL NOT NULL,
-                        type TEXT DEFAULT 'cube',
-                        text TEXT DEFAULT '',
-                        blockSize REAL DEFAULT 5.0,
-                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-                    );
-                `, (err) => {
-                    if (err) {
-                        console.error('❌ Error creating blocks table:', err);
-                    } else {
-                        console.log('✅ Blocks table ready with blockSize column');
+                    ALTER TABLE blocks ADD COLUMN title TEXT DEFAULT '';
+                `, (alterErr) => {
+                    if (alterErr && !alterErr.message.includes('duplicate column name')) {
+                        console.error('❌ Error adding title column to blocks table:', alterErr);
+                    } else if (!alterErr) {
+                        console.log('✅ Blocks table updated with title column');
                     }
                 });
             }

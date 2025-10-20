@@ -222,15 +222,20 @@ export class ActionInputHandler {
             ["ShiftLeft", ["Action2"]], // face button down
             ["KeyE", ["Action3"]], // face button right
             ["KeyQ", ["Action4"]], // face button up
-            ["KeyZ", ["Action5"]], // Left Bumper
+            ["KeyZ", ["ActionShapeSelect"]], // Shape selection
             ["KeyX", ["Action6"]], // Right Bumper
             ["KeyC", ["Action7"]], // Back Button
             ["KeyF", ["Action8"]], // Start Button
             ["F9", ["ActionDebugToggle"]],
             ["F3", ["ActionDebugToggle"]],
-            ["Tab", ["ActionDebugToggle"]],
+            // Removed "Tab" from ActionDebugToggle to prevent conflicts with UI navigation
 
-            // Numpad keys
+            // Number keys for shape selection
+            ["Digit1", ["1"]],
+            ["Digit2", ["2"]],
+            ["Digit3", ["3"]],
+
+            // Numpad keys (retained)
             ["Numpad0", ["Numpad0"]],
             ["Numpad1", ["Numpad1"]],
             ["Numpad2", ["Numpad2"]],

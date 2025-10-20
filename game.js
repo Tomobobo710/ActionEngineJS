@@ -184,6 +184,76 @@ class WebGLGeometryBuilder {
         WebGLGeometryBuilder.createQuad(this.indices, this.vertices, baseIndex + 1, baseIndex + 2, baseIndex + 6, baseIndex + 5, false, true);
     }
 
+    addCone(x, y, z, radius, height, segments, color) {
+        const baseIndex = this.vertices.length / 3;
+        const halfHeight = height / 2;
+
+        // Add apex vertex
+        this.vertices.push(x, y + halfHeight, z);
+        this.normals.push(0, 1, 0); // Pointing up
+        this.colors.push(...color);
+
+        // Add base vertices and normals
+        for (let i = 0; i < segments; i++) {
+            const angle = (i / segments) * Math.PI * 2;
+            const vx = x + radius * Math.cos(angle);
+            const vz = z + radius * Math.sin(angle);
+            this.vertices.push(vx, y - halfHeight, vz);
+            this.normals.push(0, -1, 0); // Pointing down for base
+            this.colors.push(...color);
+        }
+
+        // Add indices for cone sides
+        for (let i = 0; i < segments; i++) {
+            const p1 = baseIndex; // Apex
+            const p2 = baseIndex + 1 + i;
+            const p3 = baseIndex + 1 + ((i + 1) % segments);
+            WebGLGeometryBuilder.createTriangle(this.indices, this.vertices, p1, p2, p3, false, true);
+        }
+
+        // Add indices for base
+        for (let i = 0; i < segments - 2; i++) {
+            const p1 = baseIndex + 1;
+            const p2 = baseIndex + 1 + i + 1;
+            const p3 = baseIndex + 1 + i + 2;
+            WebGLGeometryBuilder.createTriangle(this.indices, this.vertices, p1, p3, p2, false, true); // Flipped for correct winding
+        }
+    }
+
+    addSphere(x, y, z, radius, segments, rings, color) {
+        const baseIndex = this.vertices.length / 3;
+
+        for (let i = 0; i <= rings; i++) {
+            const latAngle = (i * Math.PI) / rings;
+            const sinLat = Math.sin(latAngle);
+            const cosLat = Math.cos(latAngle);
+
+            for (let j = 0; j <= segments; j++) {
+                const lonAngle = (j * 2 * Math.PI) / segments;
+                const sinLon = Math.sin(lonAngle);
+                const cosLon = Math.cos(lonAngle);
+
+                const vx = x + radius * cosLon * sinLat;
+                const vy = y + radius * cosLat;
+                const vz = z + radius * sinLon * sinLat;
+
+                this.vertices.push(vx, vy, vz);
+                const normal = new Vector3(vx - x, vy - y, vz - z).normalize();
+                this.normals.push(normal.x, normal.y, normal.z);
+                this.colors.push(...color);
+
+                if (i < rings && j < segments) {
+                    const p1 = baseIndex + i * (segments + 1) + j;
+                    const p2 = baseIndex + i * (segments + 1) + j + 1;
+                    const p3 = baseIndex + (i + 1) * (segments + 1) + j;
+                    const p4 = baseIndex + (i + 1) * (segments + 1) + j + 1;
+
+                    WebGLGeometryBuilder.createQuad(this.indices, this.vertices, p1, p2, p4, p3, false, true);
+                }
+            }
+        }
+    }
+
     addFloor(x, y, z, width, depth, color) {
         const baseIndex = this.vertices.length / 3;
 
@@ -339,12 +409,13 @@ class Renderer {
 
 // Memory Block class for 3D WebGL rendering
 class MemoryBlock {
-	constructor(gl, position, type = "cube", blockSize = 5) { // Add gl and blockSize parameters
+	constructor(gl, position, type = "cube", blockSize = 5, title = "") { // Add gl, blockSize, and title parameters
 		this.gl = gl; // Store gl context
 		this.id = `block_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 		this.position = position.clone();
 		this.type = type;
 		this.text = "";
+        this.title = title; // Store title
         this.blockSize = blockSize; // Store blockSize
 
 		// Create the 3D visual representation
@@ -353,26 +424,46 @@ class MemoryBlock {
 	}
 
 	createVisual() {
-		// Create 3D geometry for WebGL rendering
+		// Create 3D geometry for WebGL rendering based on block type
 		const builder = new WebGLGeometryBuilder(this.gl); // Use stored gl context
-		builder.addBox(
-			0, 0, 0, // Position relative to block's own position
-			this.blockSize, this.blockSize, this.blockSize, // Use this.blockSize
-			[0.545, 0.451, 0.333] // brownish color like wood
-		);
+	       let color = [0.545, 0.451, 0.333]; // Default brownish color
+
+	       switch (this.type) {
+	           case "cube":
+	               builder.addBox(0, 0, 0, this.blockSize, this.blockSize, this.blockSize, color);
+	               break;
+	           case "cone":
+	               builder.addCone(0, 0, 0, this.blockSize / 2, this.blockSize, 32, color); // Radius half of blockSize
+	               break;
+	           case "sphere":
+	               builder.addSphere(0, 0, 0, this.blockSize / 2, 32, 16, color); // Radius half of blockSize
+	               break;
+	           default:
+	               console.warn(`Unknown block type: ${this.type}. Defaulting to cube.`);
+	               builder.addBox(0, 0, 0, this.blockSize, this.blockSize, this.blockSize, color);
+	               break;
+	       }
 		const geometry = builder.build();
-        this.model = new ActionModel3D(geometry);
-        this.model.position.copy(this.position); // Set model's position
-        this.model.setColor(0.545, 0.451, 0.333); // Set model's color
+	       this.model = new ActionModel3D(geometry);
+	       this.model.position.copy(this.position); // Set model's position
+	       this.model.setColor(color[0], color[1], color[2]); // Set model's color
 	}
 
 	setText(text) {
 		this.text = text;
 	}
 
+    setTitle(title) {
+        this.title = title;
+    }
+
 	getText() {
 		return this.text;
 	}
+
+    getTitle() {
+        return this.title;
+    }
 
 	toJSON() {
 		return {
@@ -384,6 +475,7 @@ class MemoryBlock {
 			},
 			type: this.type,
 			text: this.text,
+            title: this.title, // Add title to JSON
             blockSize: this.blockSize // Add blockSize to JSON
 		};
 	}
@@ -393,10 +485,12 @@ class MemoryBlock {
             gl, // Pass gl to constructor
 			new Vector3(data.position.x, data.position.y, data.position.z),
 			data.type,
-            data.blockSize // Pass blockSize from JSON
+            data.blockSize, // Pass blockSize from JSON
+            data.title // Pass title from JSON
 		);
 		block.id = data.id;
 		block.text = data.text;
+        block.title = data.title; // Ensure title is set on the block object
 		return block;
 	}
 
@@ -423,6 +517,7 @@ class TextEditor {
 		this.isOpen = false;
 		this.currentBlock = null;
 		this.textContent = "";
+		this.titleContent = ""; // New: for block title
 		this.scrollOffset = 0;
 
 		// Editor dimensions
@@ -432,11 +527,17 @@ class TextEditor {
 		this.y = (600 - this.height) / 2;
 		this.padding = 20;
 
+        // Title input dimensions
+        this.titleInputX = this.x + this.padding;
+        this.titleInputY = this.y + 60;
+        this.titleInputWidth = this.width - this.padding * 2;
+        this.titleInputHeight = 30;
+
 		// Text area dimensions
 		this.textAreaX = this.x + this.padding;
-		this.textAreaY = this.y + 60;
+		this.textAreaY = this.y + 100; // Adjusted Y for title input
 		this.textAreaWidth = this.width - this.padding * 2;
-		this.textAreaHeight = this.height - 140;
+		this.textAreaHeight = this.height - 180; // Adjusted height
 
 		// Button dimensions
 		this.buttonWidth = 120;
@@ -448,11 +549,27 @@ class TextEditor {
 		this.cursorBlinkTime = 0;
 		this.cursorVisible = true;
 
+        // Title cursor state
+        this.titleCursorPosition = 0;
+        this.titleCursorBlinkTime = 0;
+        this.titleCursorVisible = true;
+        this.isTitleFocused = false;
+
 		// Register UI elements
 		this.registerElements();
 	}
 
 	registerElements() {
+        // Title input area
+        this.game.input.registerElement("editorTitleInput", {
+            bounds: () => ({
+                x: this.titleInputX,
+                y: this.titleInputY,
+                width: this.titleInputWidth,
+                height: this.titleInputHeight
+            })
+        }, "gui");
+
 		// Save button
 		this.game.input.registerElement("editorSave", {
 			bounds: () => ({
@@ -473,15 +590,15 @@ class TextEditor {
 			})
 		}, "gui");
 
-		      // Delete Block button
-		      this.game.input.registerElement("editorDeleteBlock", {
-		          bounds: () => ({
-		              x: this.x + this.padding + (this.buttonWidth + 20) * 2, // Position next to delete note
-		              y: this.buttonY,
-		              width: this.buttonWidth,
-		              height: this.buttonHeight
-		          })
-		      }, "gui");
+		// Delete Block button
+		this.game.input.registerElement("editorDeleteBlock", {
+			bounds: () => ({
+				x: this.x + this.padding + (this.buttonWidth + 20) * 2, // Position next to delete note
+				y: this.buttonY,
+				width: this.buttonWidth,
+				height: this.buttonHeight
+			})
+		}, "gui");
 
 		// Close button
 		this.game.input.registerElement("editorClose", {
@@ -505,11 +622,19 @@ class TextEditor {
 	}
 
 	open(block) {
+		if (!block) {
+			console.error('❌ Cannot open text editor: block is undefined');
+			return;
+		}
+
 		this.isOpen = true;
 		this.currentBlock = block;
-		this.textContent = block.getText();
+		this.textContent = block.getText() || "";
+        this.titleContent = block.getTitle() || ""; // Populate title
 		this.cursorPosition = this.textContent.length;
+        this.titleCursorPosition = this.titleContent.length;
 		this.scrollOffset = 0;
+        this.isTitleFocused = false; // Start with text area focused
 
 		// Capture keyboard input
 		this.game.capturingTextInput = true;
@@ -521,11 +646,20 @@ class TextEditor {
 		this.currentBlock = null;
 		this.game.capturingTextInput = false;
 		this.game.toggleCursorLock(true); // Re-lock cursor when editor closes
+        if (this.textarea) {
+            document.body.removeChild(this.textarea);
+            this.textarea = null;
+        }
+        if (this.titleInput) {
+            document.body.removeChild(this.titleInput);
+            this.titleInput = null;
+        }
 	}
 
 	save() {
 		if (this.currentBlock) {
 		    this.currentBlock.setText(this.textContent);
+            this.currentBlock.setTitle(this.titleContent); // Save title
 		    this.game.saveToStorage();
 		    this.game.addMessage("Note saved!");
 		}
@@ -541,13 +675,13 @@ class TextEditor {
 		this.close();
 	}
 
-	   deleteBlock() {
-	       if (this.currentBlock) {
-	           this.game.deleteBlock(this.currentBlock.id); // Call game method to delete block
-	           this.game.addMessage("Block deleted!");
-	       }
-	       this.close();
-	   }
+    deleteBlock() {
+        if (this.currentBlock) {
+            this.game.deleteBlock(this.currentBlock.id); // Call game method to delete block
+            this.game.addMessage("Block deleted!");
+        }
+        this.close();
+    }
 
 	handleInput() {
 	   if (!this.isOpen) return;
@@ -571,6 +705,35 @@ class TextEditor {
 	   if (this.game.input.isElementJustPressed("editorClose", "gui")) {
 	       this.close();
 	       return;
+	   }
+
+        // Handle focus switching between title and text area
+        if (this.game.input.isElementJustPressed("editorTitleInput", "gui")) {
+            this.isTitleFocused = true;
+            if (this.textarea) this.textarea.blur(); // Unfocus text area
+        } else if (this.game.input.isElementJustPressed("editorTextArea", "gui")) {
+            this.isTitleFocused = false;
+            if (this.titleInput) this.titleInput.blur(); // Unfocus title input
+        }
+
+	   // Handle title input when editor is open
+	   if (this.isOpen && !this.titleInput) {
+	       this.titleInput = document.createElement('input');
+	       this.titleInput.type = 'text';
+	       this.titleInput.style.position = 'absolute';
+	       this.titleInput.style.left = '-9999px';
+	       this.titleInput.style.top = '-9999px';
+	       this.titleInput.style.width = '1px';
+	       this.titleInput.style.height = '1px';
+	       this.titleInput.style.opacity = '0';
+	       this.titleInput.style.pointerEvents = 'none';
+	       this.titleInput.style.zIndex = '-1';
+	       document.body.appendChild(this.titleInput);
+
+	       this.titleInput.addEventListener('input', (e) => {
+	           this.titleContent = e.target.value;
+	           this.titleCursorPosition = e.target.selectionStart;
+	       });
 	   }
 
 	   // Handle text input when editor is open
@@ -606,22 +769,33 @@ class TextEditor {
 	       });
 	   }
 
-	   if (this.isOpen && this.textarea) {
+	   if (this.isOpen && this.titleInput && this.isTitleFocused) {
+	       this.titleInput.focus();
+	       this.titleInput.value = this.titleContent;
+	       this.titleInput.setSelectionRange(this.titleCursorPosition, this.titleCursorPosition);
+	   } else if (this.isOpen && this.textarea && !this.isTitleFocused) {
 	       // Focus the hidden textarea
 	       this.textarea.focus();
 	       this.textarea.value = this.textContent;
 	       this.textarea.setSelectionRange(this.cursorPosition, this.cursorPosition);
 	   }
-}
+	}
 
 	update(deltaTime) {
 		if (!this.isOpen) return;
 
-		// Cursor blink animation
+		// Cursor blink animation for text area
 		this.cursorBlinkTime += deltaTime;
 		if (this.cursorBlinkTime > 0.5) {
 			this.cursorVisible = !this.cursorVisible;
 			this.cursorBlinkTime = 0;
+		}
+
+		// Cursor blink animation for title input
+		this.titleCursorBlinkTime += deltaTime;
+		if (this.titleCursorBlinkTime > 0.5) {
+			this.titleCursorVisible = !this.titleCursorVisible;
+			this.titleCursorBlinkTime = 0;
 		}
 	}
 
@@ -649,14 +823,42 @@ class TextEditor {
 		ctx.font = "20px Arial";
 		ctx.textAlign = "left";
 		ctx.textBaseline = "middle";
-		ctx.fillText("Block Notes", this.x + this.padding, this.y + 25);
+		ctx.fillText(`Block Notes: ${this.currentBlock ? this.currentBlock.getTitle() : ''}`, this.x + this.padding, this.y + 25);
+
+        // Title input label
+        ctx.fillStyle = "#e0e0e0";
+        ctx.font = "14px Arial";
+        ctx.fillText("Title:", this.titleInputX, this.titleInputY - 15);
+
+        // Title input background
+        ctx.fillStyle = "#1a1a2e";
+        ctx.fillRect(this.titleInputX, this.titleInputY, this.titleInputWidth, this.titleInputHeight);
+
+        // Title input border
+        ctx.strokeStyle = this.isTitleFocused ? "#00ffff" : "#4a4a6e"; // Highlight if focused
+        ctx.lineWidth = 1;
+        ctx.strokeRect(this.titleInputX, this.titleInputY, this.titleInputWidth, this.titleInputHeight);
+
+        // Draw title content
+        ctx.fillStyle = "#e0e0e0";
+        ctx.font = "16px Arial";
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.fillText(this.titleContent, this.titleInputX + 5, this.titleInputY + this.titleInputHeight / 2);
+
+        // Draw title cursor
+        if (this.isTitleFocused && this.titleCursorVisible) {
+            const cursorX = this.titleInputX + 5 + ctx.measureText(this.titleContent.slice(0, this.titleCursorPosition)).width;
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(cursorX, this.titleInputY + 5, 2, this.titleInputHeight - 10);
+        }
 
 		// Text area background
 		ctx.fillStyle = "#1a1a2e";
 		ctx.fillRect(this.textAreaX, this.textAreaY, this.textAreaWidth, this.textAreaHeight);
 
 		// Text area border
-		ctx.strokeStyle = "#4a4a6e";
+		ctx.strokeStyle = !this.isTitleFocused ? "#00ffff" : "#4a4a6e"; // Highlight if focused
 		ctx.lineWidth = 1;
 		ctx.strokeRect(this.textAreaX, this.textAreaY, this.textAreaWidth, this.textAreaHeight);
 
@@ -681,7 +883,7 @@ class TextEditor {
 		});
 
 		// Draw cursor
-		if (this.cursorVisible) {
+		if (!this.isTitleFocused && this.cursorVisible) {
 			const cursorLine = this.textContent.slice(0, this.cursorPosition).split('\n').length - 1;
 			const cursorY = this.textAreaY + 10 + (cursorLine * lineHeight) - this.scrollOffset;
 			const lastLineText = this.textContent.slice(0, this.cursorPosition).split('\n').pop();
@@ -700,8 +902,8 @@ class TextEditor {
 		this.drawButton(ctx, "Clear Note", this.x + this.padding + this.buttonWidth + 20, this.buttonY, // Changed text and ID
 			this.game.input.isElementHovered("editorDeleteNote", "gui"));
 
-		      this.drawButton(ctx, "Delete Block", this.x + this.padding + (this.buttonWidth + 20) * 2, this.buttonY, // New button
-		          this.game.input.isElementHovered("editorDeleteBlock", "gui"));
+		this.drawButton(ctx, "Delete Block", this.x + this.padding + (this.buttonWidth + 20) * 2, this.buttonY, // New button
+			this.game.input.isElementHovered("editorDeleteBlock", "gui"));
 
 		this.drawButton(ctx, "Close", this.x + this.width - this.padding - this.buttonWidth, this.buttonY,
 			this.game.input.isElementHovered("editorClose", "gui"));
@@ -710,7 +912,7 @@ class TextEditor {
 		ctx.fillStyle = "#888888";
 		ctx.font = "12px Arial";
 		ctx.textAlign = "center";
-		ctx.fillText("Type to add text • Action1: New Line • Action2: Backspace",
+		ctx.fillText("Type to add text • Action1: New Line • Action2: Backspace • Click Title/Text to Focus",
 			this.x + this.width / 2, this.y + this.height - 20);
 	}
 
@@ -800,7 +1002,6 @@ class Game {
             this.handlePointerLockChange();
         });
 
-        // Also try clicking on canvas to lock
         document.addEventListener("click", (e) => {
             if (e.target === this.canvas && !this.cursorLocked) {
                 this.toggleCursorLock();
@@ -823,10 +1024,7 @@ class Game {
 
         // Scene object management
         this.sceneObjects = new Set(); // Track 3D objects in the scene
-
-        // Scene object management
-        this.sceneObjects = new Set(); // Track 3D objects in the scene
-
+        
         // Auto-save system
         this.autoSaveInterval = 30000; // 30 seconds
         this.lastAutoSave = Date.now();
@@ -990,6 +1188,16 @@ class Game {
         this.placementRange = 50;
         this.blockSize = 5;
 
+        // Shape selection system
+        this.showShapeSelector = false;
+        this.shapeSelectorPosition = { x: 350, y: 200 };
+        this.availableShapes = ["cube", "cone", "sphere"];
+        this.shapeNames = {
+            cube: "Cube",
+            cone: "Cone",
+            sphere: "Sphere"
+        };
+
         // Raycasting for block placement/selection
         this.hoveredBlock = null;
         this.hoveredFace = null;
@@ -1027,9 +1235,35 @@ class Game {
         // Raycast for block interaction
         this.raycastBlocks();
 
-        // Block placement (left click)
+        // Shape selection (Z key)
+        if (this.input.isKeyJustPressed('ActionShapeSelect') && this.cursorLocked) {
+            this.showShapeSelector = !this.showShapeSelector;
+            if (this.showShapeSelector) {
+                this.addMessage("🔧 Shape selector opened");
+            } else {
+                this.addMessage("🔧 Shape selector closed");
+            }
+        }
+
+        // Shape selection with number keys
+        if (this.showShapeSelector && this.cursorLocked) {
+            for (let i = 0; i < this.availableShapes.length; i++) {
+                if (this.input.isKeyJustPressed(String(i + 1))) {
+                    this.selectedBlockType = this.availableShapes[i];
+                    this.showShapeSelector = false;
+                    this.addMessage(`✅ Selected: ${this.shapeNames[this.selectedBlockType]}`);
+                }
+            }
+        }
+
+        // Block placement (left click) - modified to show shape selector if no target
         if (this.input.isLeftMouseButtonJustPressed()) { // cursorLocked check moved to outer if
-            this.placeBlock();
+            if (this.persistentHighlightPosition && !this.showShapeSelector) {
+                this.placeBlock();
+            } else if (!this.showShapeSelector) {
+                this.showShapeSelector = true;
+                this.addMessage("🔧 Select shape first (1-3)");
+            }
         }
 
         // Block editor (right click)
@@ -1112,14 +1346,6 @@ class Game {
             }
         });
 
-        // Debug: Show block count and positions
-        // if (this.blocks.size > 0) {
-        //     console.log('🎲 Drawing blocks:', this.blocks.size);
-        //     this.blocks.forEach((block, id) => {
-        //         console.log(`  Block ${id}: pos(${block.position.x.toFixed(1)}, ${block.position.y.toFixed(1)}, ${block.position.z.toFixed(1)})`);
-        //     });
-        // }
-
         // Draw persistent highlight - always visible if we have a stored position
         if (this.persistentHighlightPosition) {  // CHANGED: Use persistent position instead of hoveredBlock
             this.drawHoveredBlockHighlight(this.renderer, viewMatrix, this.projectionMatrix);
@@ -1182,9 +1408,6 @@ class Game {
     getRayFromCamera() {
         // Get camera forward direction - match the camera target calculation
         const lookDistance = 50;
-
-        // Debug: Log current rotation values
-        // console.log(`Player rotation - pitch(x): ${this.player.rotation.x.toFixed(3)}, yaw(y): ${this.player.rotation.y.toFixed(3)}`);
 
         // Calculate forward direction based on camera rotation
         // Fix Z coordinate system - when moving +Z, raycast should hit +Z, not -Z
@@ -1378,116 +1601,116 @@ class Game {
         };
     }
 
-placeBlock() {
-    if (!this.cursorLocked) {
-        this.addMessage("🔒 Click canvas to lock mouse first!");
-        return;
-    }
-
-    if (!this.persistentHighlightPosition) {
-        this.addMessage("🎯 Point at a surface (wall/floor/ceiling)");
-        return;
-    }
-
-    // Calculate placement position based on face and hit point
-    const offset = this.blockSize;
-    let newPos = this.persistentHighlightPosition.clone();
-
-    // Determine the final position based on the hovered face and whether it's a block or the room
-    if (this.hoveredBlock) {
-        // Hit an existing block
-        switch (this.hoveredFace) {
-            case "top": newPos.y = this.hoveredBlock.position.y + offset; break; // Place above
-            case "bottom": newPos.y = this.hoveredBlock.position.y - offset; break; // Place below
-            case "north": newPos.z = this.hoveredBlock.position.z - offset; break; // Place in front
-            case "south": newPos.z = this.hoveredBlock.position.z + offset; break; // Place behind
-            case "east": newPos.x = this.hoveredBlock.position.x + offset; break; // Place right
-            case "west": newPos.x = this.hoveredBlock.position.x - offset; break; // Place left
-        }
-    } else {
-        // Hit room geometry (floor, wall, ceiling)
-        switch (this.hoveredFace) {
-            case "floor": newPos.y = offset / 2; break; // Place on floor (center at half block size)
-            case "ceiling": newPos.y = 125 - offset / 2; break; // Place hanging from ceiling
-            case "north": newPos.z = -this.level.halfRoomSize - offset / 2; break; // Place on north wall
-            case "south": newPos.z = this.level.halfRoomSize + offset / 2; break; // Place on south wall
-            case "east": newPos.x = this.level.halfRoomSize + offset / 2; break; // Place on east wall
-            case "west": newPos.x = -this.level.halfRoomSize - offset / 2; break; // Place on west wall
-        }
-    }
-
-    // Round to grid for X and Z, but keep Y precise
-    newPos.x = Math.round(newPos.x);
-    // newPos.y = Math.round(newPos.y); // Keep Y precise, do not round
-    newPos.z = Math.round(newPos.z);
-
-    // Check if position is already occupied
-    for (let [id, block] of this.blocks) {
-        if (block.position.distanceTo(newPos) < this.blockSize * 0.5) {
-            this.addMessage("❌ Position already occupied!");
+    placeBlock() {
+        if (!this.cursorLocked) {
+            this.addMessage("🔒 Click canvas to lock mouse first!");
             return;
         }
+
+        if (!this.persistentHighlightPosition) {
+            this.addMessage("🎯 Point at a surface (wall/floor/ceiling)");
+            return;
+        }
+
+        // Calculate placement position based on face and hit point
+        const offset = this.blockSize;
+        let newPos = this.persistentHighlightPosition.clone();
+
+        // Determine the final position based on the hovered face and whether it's a block or the room
+        if (this.hoveredBlock) {
+            // Hit an existing block
+            switch (this.hoveredFace) {
+                case "top": newPos.y = this.hoveredBlock.position.y + offset; break; // Place above
+                case "bottom": newPos.y = this.hoveredBlock.position.y - offset; break; // Place below
+                case "north": newPos.z = this.hoveredBlock.position.z - offset; break; // Place in front
+                case "south": newPos.z = this.hoveredBlock.position.z + offset; break; // Place behind
+                case "east": newPos.x = this.hoveredBlock.position.x + offset; break; // Place right
+                case "west": newPos.x = this.hoveredBlock.position.x - offset; break; // Place left
+            }
+        } else {
+            // Hit room geometry (floor, wall, ceiling)
+            switch (this.hoveredFace) {
+                case "floor": newPos.y = offset / 2; break; // Place on floor (center at half block size)
+                case "ceiling": newPos.y = 125 - offset / 2; break; // Place hanging from ceiling
+                case "north": newPos.z = -this.level.halfRoomSize - offset / 2; break; // Place on north wall
+                case "south": newPos.z = this.level.halfRoomSize + offset / 2; break; // Place on south wall
+                case "east": newPos.x = this.level.halfRoomSize + offset / 2; break; // Place on east wall
+                case "west": newPos.x = -this.level.halfRoomSize - offset / 2; break; // Place on west wall
+            }
+        }
+
+        // Round to grid for X and Z, but keep Y precise
+        newPos.x = Math.round(newPos.x);
+        // newPos.y = Math.round(newPos.y); // Keep Y precise, do not round
+        newPos.z = Math.round(newPos.z);
+
+        // Check if position is already occupied
+        for (let [id, block] of this.blocks) {
+            if (block.position.distanceTo(newPos) < this.blockSize * 0.5) {
+                this.addMessage("❌ Position already occupied!");
+                return;
+            }
+        }
+
+        // Create new block
+        const block = new MemoryBlock(this.gl, newPos.clone(), this.selectedBlockType, this.blockSize, ""); // Pass this.gl and an empty title
+        this.blocks.set(block.id, block);
+
+        // Ensure block is visible in 3D scene
+        if (block.model) {
+            block.model.setColor(0.0, 1.0, 0.0); // Bright green for high visibility
+            block.model.position.set(newPos.x, newPos.y, newPos.z);
+            this.addObject(block.model); // ADDED: Add block model to scene objects
+        } else {
+            console.error('❌ Block model not created!');
+            // Try manual geometry creation
+            
+            // Create simple cube geometry manually
+            const size = 0.5;
+            const vertices = new Float32Array([
+                // Front face
+                -size, -size,  size,  size, -size,  size,  size,  size,  size, -size,  size,  size,
+                // Back face
+                -size, -size, -size, -size,  size, -size,  size,  size, -size,  size, -size, -size,
+                // Top face
+                -size,  size, -size, -size,  size,  size,  size,  size,  size,  size,  size, -size,
+                // Bottom face
+                -size, -size, -size,  size, -size, -size,  size, -size,  size, -size, -size,  size,
+                // Right face
+                 size, -size, -size,  size,  size, -size,  size,  size,  size,  size, -size,  size,
+                // Left face
+                -size, -size, -size, -size, -size,  size, -size,  size,  size, -size,  size, -size
+            ]);
+
+            const indices = new Uint16Array([
+                0,  1,  2,    0,  2,  3,    // front
+                4,  5,  6,    4,  6,  7,    // back
+                8,  9,  10,   8,  10, 11,   // top
+                12, 13, 14,   12, 14, 15,   // bottom
+                16, 17, 18,   16, 18, 19,   // right
+                20, 21, 22,   20, 22, 23    // left
+            ]);
+
+            const geometry = {
+                vertices: vertices,
+                indices: indices,
+                vertexCount: vertices.length / 3,
+                indexCount: indices.length
+            };
+
+            const model = new ActionModel3D(geometry);
+            model.position.set(newPos.x, newPos.y, newPos.z);
+            model.setColor(1.0, 0.0, 0.0); // Red as fallback
+            block.model = model;
+            block.position = newPos.clone(); // Ensure position is set
+            this.addObject(model);
+        }
+
+        this.audio.play("placeBlock");
+        this.addMessage(`✅ Block placed at (${Math.round(newPos.x)}, ${Math.round(newPos.y)}, ${Math.round(newPos.z)})`);
+
+        this.saveToStorage();
     }
-
-    // Create new block
-    const block = new MemoryBlock(this.gl, newPos.clone(), this.selectedBlockType, this.blockSize); // Pass this.gl
-    this.blocks.set(block.id, block);
-
-    // Ensure block is visible in 3D scene
-    if (block.model) {
-        block.model.setColor(0.0, 1.0, 0.0); // Bright green for high visibility
-        block.model.position.set(newPos.x, newPos.y, newPos.z);
-        this.addObject(block.model); // ADDED: Add block model to scene objects
-    } else {
-        console.error('❌ Block model not created!');
-        // Try manual geometry creation
-        
-        // Create simple cube geometry manually
-        const size = 0.5;
-        const vertices = new Float32Array([
-            // Front face
-            -size, -size,  size,  size, -size,  size,  size,  size,  size, -size,  size,  size,
-            // Back face
-            -size, -size, -size, -size,  size, -size,  size,  size, -size,  size, -size, -size,
-            // Top face
-            -size,  size, -size, -size,  size,  size,  size,  size,  size,  size,  size, -size,
-            // Bottom face
-            -size, -size, -size,  size, -size, -size,  size, -size,  size, -size, -size,  size,
-            // Right face
-             size, -size, -size,  size,  size, -size,  size,  size,  size,  size, -size,  size,
-            // Left face
-            -size, -size, -size, -size, -size,  size, -size,  size,  size, -size,  size, -size
-        ]);
-
-        const indices = new Uint16Array([
-            0,  1,  2,    0,  2,  3,    // front
-            4,  5,  6,    4,  6,  7,    // back
-            8,  9,  10,   8,  10, 11,   // top
-            12, 13, 14,   12, 14, 15,   // bottom
-            16, 17, 18,   16, 18, 19,   // right
-            20, 21, 22,   20, 22, 23    // left
-        ]);
-
-        const geometry = {
-            vertices: vertices,
-            indices: indices,
-            vertexCount: vertices.length / 3,
-            indexCount: indices.length
-        };
-
-        const model = new ActionModel3D(geometry);
-        model.position.set(newPos.x, newPos.y, newPos.z);
-        model.setColor(1.0, 0.0, 0.0); // Red as fallback
-        block.model = model;
-        block.position = newPos.clone(); // Ensure position is set
-        this.addObject(model);
-    }
-
-    this.audio.play("placeBlock");
-    this.addMessage(`✅ Block placed at (${Math.round(newPos.x)}, ${Math.round(newPos.y)}, ${Math.round(newPos.z)})`);
-
-    this.saveToStorage();
-}
 
     // Alternative block placement method (fallback) - press B key
     placeBlockAtCameraPosition() {
@@ -1514,7 +1737,7 @@ placeBlock() {
         }
 
         // Create new block, passing this.gl and this.blockSize
-        const block = new MemoryBlock(this.gl, newPos, this.selectedBlockType, this.blockSize);
+        const block = new MemoryBlock(this.gl, newPos, this.selectedBlockType, this.blockSize, ""); // Pass an empty title
         this.blocks.set(block.id, block);
 
         // Ensure block is visible in 3D scene
@@ -1533,10 +1756,6 @@ placeBlock() {
     }
 
     openBlockEditor() {
-        // console.log('Attempting to open block editor:', {
-        //     hoveredBlock: this.hoveredBlock ? this.hoveredBlock.id : 'none',
-        //     isFloor: this.hoveredBlock ? this.hoveredBlock.isFloor : 'N/A'
-        // });
         if (!this.hoveredBlock || this.hoveredBlock.isFloor) {
             this.addMessage("❌ Point at a block to edit notes!");
             return;
@@ -1544,7 +1763,6 @@ placeBlock() {
 
         this.textEditor.open(this.hoveredBlock);
         this.audio.play("uiClick");
-        // console.log('✅ Block editor opened for block:', this.hoveredBlock.id);
     }
 
     drawHoveredBlockHighlight(renderer, viewMatrix, projectionMatrix) {
@@ -1641,28 +1859,28 @@ placeBlock() {
         });
         this.blocks.clear();
 
-// Load blocks
-if (data.blocks && Array.isArray(data.blocks)) {
-    data.blocks.forEach(blockData => {
-        // Ensure blockSize is passed when creating block from JSON
-        const block = MemoryBlock.fromJSON(this.gl, blockData);
-        
-        // Re-create 3D model for imported block
-        const builder = new WebGLGeometryBuilder(this.gl);
-        builder.addBox(
-            0, 0, 0,
-            block.blockSize, block.blockSize, block.blockSize,
-            [0.0, 1.0, 0.0] // Bright green for high visibility
-        );
-        const geometry = builder.build();
-        const model = new ActionModel3D(geometry);
-        model.position.copy(block.position);
-        model.setColor(0.0, 1.0, 0.0); // Bright green for high visibility
+        // Load blocks
+        if (data.blocks && Array.isArray(data.blocks)) {
+            data.blocks.forEach(blockData => {
+                // Ensure blockSize and title are passed when creating block from JSON
+                const block = MemoryBlock.fromJSON(this.gl, blockData);
+                
+                // Re-create 3D model for imported block
+                const builder = new WebGLGeometryBuilder(this.gl);
+                builder.addBox(
+                    0, 0, 0,
+                    block.blockSize, block.blockSize, block.blockSize,
+                    [0.0, 1.0, 0.0] // Bright green for high visibility
+                );
+                const geometry = builder.build();
+                const model = new ActionModel3D(geometry);
+                model.position.copy(block.position);
+                model.setColor(0.0, 1.0, 0.0); // Bright green for high visibility
 
-        block.model = model;
-        this.addObject(model); // Add to scene objects
-        this.blocks.set(block.id, block);
-    });
+                block.model = model;
+                this.addObject(model); // Add to scene objects
+                this.blocks.set(block.id, block);
+            });
 
             // Update block ID counter
             const maxId = Math.max(
@@ -1746,12 +1964,18 @@ if (data.blocks && Array.isArray(data.blocks)) {
             this.guiCtx.stroke();
         }
 
-
         // Always draw HUD (position, controls, etc.)
         this.drawHUD();
 
+        // Draw shape selector if open
+        if (this.showShapeSelector && this.cursorLocked) {
+            this.drawShapeSelector();
+        }
+
         // Draw text editor if open
-        this.textEditor.draw(this.guiCtx);
+        if (this.textEditor.isOpen) { // Only draw if open
+            this.textEditor.draw(this.guiCtx);
+        }
 
         // Draw click-to-start screen if game not started
         if (!this.cursorLocked && !this.textEditor.isOpen) {
@@ -1786,6 +2010,10 @@ if (data.blocks && Array.isArray(data.blocks)) {
         ctx.fillText(`Blocks: ${this.blocks.size}`, x, y);
         y += lineHeight;
 
+        ctx.fillStyle = "#00ff00";
+        ctx.fillText(`Shape: ${this.shapeNames[this.selectedBlockType]}`, x, y);
+        y += lineHeight;
+
         if (this.hoveredBlock) {
             ctx.fillStyle = "#ffff00";
             ctx.fillText(`Target: Block (${this.hoveredFace})`, x, y);
@@ -1794,6 +2022,11 @@ if (data.blocks && Array.isArray(data.blocks)) {
                 y += lineHeight;
                 ctx.fillStyle = "#00ff00";
                 ctx.fillText(`Has notes: ${this.hoveredBlock.text.length} chars`, x, y);
+            }
+            if (!this.hoveredBlock.isFloor && this.hoveredBlock.title) {
+                y += lineHeight;
+                ctx.fillStyle = "#00ffff";
+                ctx.fillText(`Title: ${this.hoveredBlock.title}`, x, y);
             }
         }
 
@@ -1844,6 +2077,8 @@ if (data.blocks && Array.isArray(data.blocks)) {
         ctx.fillText("B: Place Block (Camera)", 500, y); y += 20;
         ctx.fillText("Action2: Manual Save", 500, y); y += 20;
         ctx.fillText("F9: Toggle Debug", 500, y);
+        y += 20; // Add space for new control
+        ctx.fillText("Z: Select Shape", 500, y); // New control
     }
 
     drawClickToStart() {
@@ -1851,7 +2086,7 @@ if (data.blocks && Array.isArray(data.blocks)) {
 
         // Semi-transparent overlay
         ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
-        ctx.fillRect(0, 0, 800, 600);
+        ctx.fillRect(0, 0, Game.WIDTH, Game.HEIGHT);
 
         // Title
         ctx.fillStyle = "#ffffff";
@@ -1888,6 +2123,81 @@ if (data.blocks && Array.isArray(data.blocks)) {
             ctx.fillText(feature, 250, y);
             y += 25;
         });
+    }
+
+    drawShapeSelector() {
+        const ctx = this.guiCtx;
+        const selectorWidth = 400;
+        const selectorHeight = 200;
+        const x = this.shapeSelectorPosition.x;
+        const y = this.shapeSelectorPosition.y;
+
+        // Semi-transparent backdrop
+        ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
+        ctx.fillRect(x - 20, y - 20, selectorWidth + 40, selectorHeight + 40);
+
+        // Selector window background
+        ctx.fillStyle = "#2a2a3e";
+        ctx.fillRect(x, y, selectorWidth, selectorHeight);
+
+        // Border
+        ctx.strokeStyle = "#00ffff";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, y, selectorWidth, selectorHeight);
+
+        // Title
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 20px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText("Select Block Shape", x + selectorWidth / 2, y + 30);
+
+        // Shape options
+        ctx.font = "16px Arial";
+        ctx.textAlign = "left";
+
+        for (let i = 0; i < this.availableShapes.length; i++) {
+            const shapeKey = this.availableShapes[i];
+            const shapeName = this.shapeNames[shapeKey];
+            const optionY = y + 60 + (i * 35);
+            const isSelected = this.selectedBlockType === shapeKey;
+
+            // Highlight selected shape
+            if (isSelected) {
+                ctx.fillStyle = "#00ffff";
+                ctx.fillRect(x + 20, optionY - 5, selectorWidth - 40, 30);
+            }
+
+            // Shape name
+            ctx.fillStyle = isSelected ? "#000000" : "#ffffff";
+            ctx.fillText(`${i + 1}. ${shapeName}`, x + 30, optionY + 15);
+
+            // Shape preview (simple icons)
+            ctx.fillStyle = "#888888";
+            switch (shapeKey) {
+                case "cube":
+                    ctx.fillRect(x + selectorWidth - 60, optionY, 20, 20);
+                    break;
+                case "cone":
+                    ctx.beginPath();
+                    ctx.moveTo(x + selectorWidth - 50, optionY + 20);
+                    ctx.lineTo(x + selectorWidth - 60, optionY);
+                    ctx.lineTo(x + selectorWidth - 40, optionY);
+                    ctx.closePath();
+                    ctx.fill();
+                    break;
+                case "sphere":
+                    ctx.beginPath();
+                    ctx.arc(x + selectorWidth - 50, optionY + 10, 10, 0, Math.PI * 2);
+                    ctx.fill();
+                    break;
+            }
+        }
+
+        // Instructions
+        ctx.fillStyle = "#aaaaaa";
+        ctx.font = "14px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText("Press 1-3 to select shape, Z to close", x + selectorWidth / 2, y + selectorHeight - 20);
     }
 
     drawDebugInfo() {
@@ -1946,8 +2256,6 @@ if (data.blocks && Array.isArray(data.blocks)) {
         }
     }
 }
-
-export { Game };
 
 // Level class for 3D WebGL rendering
 class Level {
@@ -2123,7 +2431,6 @@ class Player {
             if (currentTime - this.lastSpaceTapTime < this.doubleTapWindow) {
                 this.isFlying = !this.isFlying;
                 this.flyingVelocity = new Vector3(0, 0, 0);
-                // console.log('Flying toggled:', this.isFlying ? 'ON' : 'OFF');
             }
             this.lastSpaceTapTime = currentTime;
         }
@@ -2146,10 +2453,8 @@ class Player {
         if (this.isFlying) {
             if (input.isKeyPressed("Action3")) { // E - Up
                 this.velocity.y = this.moveSpeed;
-                // console.log('Flying UP - E pressed');
             } else if (input.isKeyPressed("Action4")) { // Q - Down
                 this.velocity.y = -this.moveSpeed;
-                // console.log('Flying DOWN - Q pressed');
             } else if (!input.isKeyPressed("Action3") && !input.isKeyPressed("Action4")) {
                 // No vertical input - maintain current Y velocity but slow it down
                 this.velocity.y *= 0.9;
@@ -2347,160 +2652,6 @@ class Player {
 
         return this.viewMatrix;
     }
-
-    // ========================================================================
-    // EXPORT/IMPORT SYSTEM
-    // ========================================================================
-
-    exportData() {
-        const data = {
-            version: '1.0.0',
-            exported: new Date().toISOString(),
-            blocks: Array.from(this.blocks.values()).map(block => block.toJSON()),
-            camera: {
-                position: {
-                    x: this.position.x,
-                    y: this.position.y,
-                    z: this.position.z
-                },
-                rotation: {
-                    x: this.rotation.x,
-                    y: this.rotation.y
-                }
-            }
-        };
-
-        const json = JSON.stringify(data, null, 2);
-        const blob = new Blob([json], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `memory-palace-${Date.now()}.json`;
-        a.click();
-
-        URL.revokeObjectURL(url);
-
-        this.addMessage("📤 Exported to file");
-        console.log('📤 Data exported');
-    }
-
-    importData() {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.json';
-        input.onchange = (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                this.importDataFromFile(file);
-            }
-        };
-        input.click();
-    }
-
-    importDataFromFile(file) {
-        const reader = new FileReader();
-
-        reader.onload = (e) => {
-            try {
-                const data = JSON.parse(e.target.result);
-
-                // Validate data
-                if (!data.blocks || !Array.isArray(data.blocks)) {
-                    throw new Error('Invalid data format');
-                }
-
-                // Clear existing blocks
-                this.blocks.forEach(block => {
-                    if (block.model) {
-                        this.removeObject(block.model);
-                    }
-                });
-                this.blocks.clear();
-
-                // Import blocks
-                data.blocks.forEach(blockData => {
-                    const block = MemoryBlock.fromJSON(blockData);
-
-                    const geometry = GeometryBuilder.createCube(1, 1, 1);
-                    const model = new ActionModel3D(geometry);
-                    model.position.copy(block.position);
-                    model.setColor(0.3, 0.5, 0.9);
-
-                    block.model = model;
-                    this.addObject(model);
-                    this.blocks.set(block.id, block);
-                });
-
-                // Import camera
-                if (data.camera) {
-                    if (data.camera.position) {
-                        this.position.set(
-                            data.camera.position.x,
-                            data.camera.position.y,
-                            data.camera.position.z
-                        );
-                    }
-                    if (data.camera.rotation) {
-                        this.rotation.set(
-                            data.camera.rotation.x,
-                            data.camera.rotation.y,
-                            0
-                        );
-                    }
-                }
-
-                this.addMessage(`📥 Imported ${this.blocks.size} blocks`);
-                console.log('📥 Data imported successfully');
-
-                // Save after import
-                this.saveToStorage();
-
-            } catch (error) {
-                console.error('❌ Import failed:', error);
-                this.addMessage("❌ Import failed");
-            }
-        };
-
-        reader.readAsText(file);
-    }
-
-    // ========================================================================
-    // ENHANCED AUTO-SAVE SYSTEM
-    // ========================================================================
-
-    startAutoSave() {
-        if (this.autoSaveIntervalId) {
-            clearInterval(this.autoSaveIntervalId);
-        }
-
-        this.autoSaveIntervalId = setInterval(() => {
-            this.saveToStorage();
-        }, this.autoSaveInterval);
-
-        // console.log('💾 Auto-save started');
-    }
-
-    stopAutoSave() {
-        if (this.autoSaveIntervalId) {
-            clearInterval(this.autoSaveIntervalId);
-            this.autoSaveIntervalId = null;
-        }
-
-        // console.log('⏹️ Auto-save stopped');
-    }
-
-    addObject(model) {
-        if (model && model.geometry) {
-            this.sceneObjects.add(model);
-            // console.log('✅ Added object to scene:', model);
-        }
-    }
-
-    removeObject(model) {
-        if (model) {
-            this.sceneObjects.delete(model);
-            // console.log('✅ Removed object from scene:', model);
-        }
-    }
 }
+
+export { Game };

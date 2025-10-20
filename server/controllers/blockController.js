@@ -20,6 +20,7 @@ class BlockController {
                 },
                 type: row.type,
                 text: row.text,
+                title: row.title, // Include title
                 blockSize: row.blockSize, // Include blockSize
                 created_at: row.created_at,
                 updated_at: row.updated_at
@@ -50,6 +51,7 @@ class BlockController {
                 },
                 type: row.type,
                 text: row.text,
+                title: row.title, // Include title
                 created_at: row.created_at,
                 updated_at: row.updated_at
             };
@@ -60,15 +62,15 @@ class BlockController {
 
     // Create new block
     static createBlock(req, res) {
-        const { id, position, type, text, blockSize } = req.body; // Add blockSize
+        const { id, position, type, text, title, blockSize } = req.body; // Add title and blockSize
 
         if (!id || !position) {
             return res.status(400).json({ error: 'Missing required fields: id, position' });
         }
 
         const sql = `
-            INSERT INTO blocks (id, position_x, position_y, position_z, type, text, blockSize)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO blocks (id, position_x, position_y, position_z, type, text, title, blockSize)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `;
 
         db.run(sql, [
@@ -78,6 +80,7 @@ class BlockController {
             position.z,
             type || 'cube',
             text || '',
+            title || '', // Use provided title or default
             blockSize || 5.0 // Use provided blockSize or default
         ], function(err) {
             if (err) {
@@ -90,6 +93,7 @@ class BlockController {
                 position,
                 type: type || 'cube',
                 text: text || '',
+                title: title || '', // Include title in response
                 blockSize: blockSize || 5.0, // Include blockSize in response
                 message: 'Block created successfully'
             });
@@ -98,7 +102,7 @@ class BlockController {
 
     // Update block
     static updateBlock(req, res) {
-        const { position, type, text, blockSize } = req.body; // Add blockSize
+        const { position, type, text, title, blockSize } = req.body; // Add title and blockSize
         const { id } = req.params;
 
         const sql = `
@@ -108,6 +112,7 @@ class BlockController {
                 position_z = COALESCE(?, position_z),
                 type = COALESCE(?, type),
                 text = COALESCE(?, text),
+                title = COALESCE(?, title), -- Update title
                 blockSize = COALESCE(?, blockSize), -- Update blockSize
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
@@ -119,6 +124,7 @@ class BlockController {
             position?.z,
             type,
             text,
+            title, // Pass title
             blockSize, // Pass blockSize
             id
         ], function(err) {
@@ -177,8 +183,8 @@ class BlockController {
 
                 // Insert all blocks
                 const stmt = db.prepare(`
-                    INSERT INTO blocks (id, position_x, position_y, position_z, type, text, blockSize)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO blocks (id, position_x, position_y, position_z, type, text, title, blockSize)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 `);
 
                 let insertCount = 0;
@@ -192,6 +198,7 @@ class BlockController {
                         block.position.z,
                         block.type || 'cube',
                         block.text || '',
+                        block.title || '', // Include title
                         block.blockSize || 5.0, // Include blockSize
                         (err) => {
                             if (err && !hasError) {
