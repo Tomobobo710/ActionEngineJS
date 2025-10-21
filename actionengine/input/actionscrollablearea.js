@@ -232,13 +232,16 @@ class ActionScrollableArea {
                 }
             }
         });
+        
+        const scrollButtonWidth = 20;
+        const scrollButtonHeight = 20;
 
         // Scroll buttons (using configurable colors)
         this.scrollUpButton = {
+            width: scrollButtonWidth,
+            height: scrollButtonHeight,
             x: this.scrollArea.x,
-            y: this.scrollArea.y,
-            width: 20,
-            height: 20,
+            y: this.scrollArea.y - scrollButtonHeight,
             text: "▲",
             color: this.colors.button.normal,
             hovered: false
@@ -246,9 +249,9 @@ class ActionScrollableArea {
 
         this.scrollDownButton = {
             x: this.scrollArea.x,
-            y: this.scrollArea.y + this.scrollArea.trackHeight + 10,
-            width: 20,
-            height: 20,
+            y: this.scrollArea.y + this.scrollArea.trackHeight,
+            width: scrollButtonWidth,
+            height: scrollButtonHeight,
             text: "▼",
             color: this.colors.button.normal,
             hovered: false
@@ -316,7 +319,7 @@ class ActionScrollableArea {
                     x: this.scrollArea.x,
                     y: this.scrollArea.thumbStartY,
                     width: 20,
-                    height: this.scrollArea.trackHeight - 30
+                    height: this.scrollArea.trackHeight
                 })
             },
             "gui"
@@ -467,7 +470,7 @@ class ActionScrollableArea {
      * console.log(this.scrollThumb.y); // 25% down from track start
      */
     updateScrollbarThumb() {
-        const trackHeight = this.scrollArea.trackHeight - 30;
+        const trackHeight = this.scrollArea.trackHeight;
 
         // Calculate total content height (all items that exist)
         const totalItemCount = this.maxScrollOffset / this.listArea.itemHeight + (this.listArea.height / this.listArea.itemHeight);
@@ -531,7 +534,7 @@ class ActionScrollableArea {
         // Handle track clicks for click-to-jump functionality
         if (this.input.isElementJustPressed(this.elementIds.scrollbarTrack, "gui")) {
             const trackY = pointer.y - this.scrollArea.thumbStartY;
-            const scrollableHeight = this.scrollArea.trackHeight - 30;
+            const scrollableHeight = this.scrollArea.trackHeight;
             const jumpPercent = Math.max(0, Math.min(1, trackY / scrollableHeight));
 
             this.scrollOffset = jumpPercent * this.maxScrollOffset;
@@ -647,7 +650,7 @@ class ActionScrollableArea {
 
                 // Calculate scroll based on mouse position relative to track
                 const trackY = pointer.y - this.scrollArea.thumbStartY;
-                const availableTrackHeight = this.scrollArea.trackHeight - 30 - this.scrollThumb.height;
+                const availableTrackHeight = this.scrollArea.trackHeight - this.scrollThumb.height;
                 const scrollPercent = Math.max(0, Math.min(1, trackY / Math.max(1, availableTrackHeight)));
 
                 this.scrollOffset = scrollPercent * this.maxScrollOffset;
