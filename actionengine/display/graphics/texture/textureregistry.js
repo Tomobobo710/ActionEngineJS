@@ -1,3 +1,5 @@
+import { ProceduralTexture } from './proceduraltexture.js';
+
 class TextureRegistry {
 
 	constructor() {

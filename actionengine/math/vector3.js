@@ -1,5 +1,5 @@
 // actionengine/math/vector3.js
-class Vector3 {
+export class Vector3 {
     // Vector pool for object reuse
     static _pool = [];
     static _poolSize = 0;
@@ -315,4 +315,9 @@ class Vector3 {
             this.z + (target.z - this.z) * t
         );
     }
+}
+
+// Make Vector3 available globally for backward compatibility
+if (typeof window !== 'undefined') {
+    window.Vector3 = Vector3;
 }

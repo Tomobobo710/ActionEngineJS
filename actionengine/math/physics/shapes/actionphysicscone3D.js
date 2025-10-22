@@ -1,4 +1,8 @@
 // actionengine/math/physics/actionphysicscone3D.js
+import { ActionPhysicsObject3D } from '../actionphysicsobject3D.js';
+import { Vector3 } from '../../vector3.js';
+import { Triangle } from '../../geometry/triangle.js';
+
 /**
  * ActionPhysicsCone3D - 3D Cone Physics Object with Single Color System
  * 

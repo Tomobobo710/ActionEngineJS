@@ -1,5 +1,5 @@
 // actionengine/display/gl/shaders/shadowshader.js
-class ShadowShader {
+export class ShadowShader {
     /**
      * Dedicated vertex shader for directional shadow mapping
      * This is the clean version that only handles directional shadows

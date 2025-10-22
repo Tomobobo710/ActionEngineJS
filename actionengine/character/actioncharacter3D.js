@@ -1,3 +1,8 @@
+import { ActionCharacter } from './actioncharacter.js';
+import { ActionPhysicsCapsule3D } from '../math/physics/shapes/actionphysicscapsule3D.js';
+import { Vector3 } from '../math/vector3.js';
+import { Quaternion } from '../math/quaternion.js';
+
 // actionengine/character/actioncharacter3D.js
 
 /*

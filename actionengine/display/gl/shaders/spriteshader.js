@@ -1,6 +1,6 @@
 // actionengine/display/gl/shaders/spriteshader.js
 
-class SpriteShader {
+export class SpriteShader {
     constructor() {
         // No variants needed for sprites - keep it simple
     }
@@ -56,6 +56,7 @@ class SpriteShader {
                          + right * aPosition.x * uSpriteSize.x
                          + correctedUp * aPosition.y * uSpriteSize.y;
             }
+            
 
             // Transform to screen space
             vec4 viewPos = uViewMatrix * vec4(worldPos, 1.0);

@@ -1,6 +1,6 @@
 // actionengine/display/gl/shaders/lineshader.js
 
-class LineShader {
+export class LineShader {
     constructor() {
         // Store references to different line shader variants
         this.variants = {
@@ -50,6 +50,7 @@ class LineShader {
     getFragmentShader(isWebGL2) {
         return this.variants[this.currentVariant].getFragmentShader.call(this, isWebGL2);
     }
+    
     
     /**
      * Default line vertex shader

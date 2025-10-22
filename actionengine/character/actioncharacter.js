@@ -1,4 +1,7 @@
 // game/character/basecharacter/actioncharacter.js
+import { RenderableObject } from '../../display/graphics/renderableobject.js';
+import { Vector3 } from '../math/vector3.js';
+import { CameraCollisionHandler } from '../camera/cameracollisionhandler.js';
 
 class ActionCharacter extends RenderableObject {
     constructor(camera, game, position) {
@@ -13,10 +16,10 @@ class ActionCharacter extends RenderableObject {
         this.isFirstPerson = false;
         this.firstPersonHeight = this.height * 0.5;
         
-        this.basePosition = new Vector3(0, 0, 0); // Ground position
-        this.position = new Vector3(0, 40, 0); // Center position
-        
-        this.facingDirection = new Vector3(0, 0, 1);
+        this.basePosition = window.Vector3 ? new window.Vector3(0, 0, 0) : { x: 0, y: 0, z: 0 }; // Ground position
+        this.position = window.Vector3 ? new window.Vector3(0, 40, 0) : { x: 0, y: 40, z: 0 }; // Center position
+
+        this.facingDirection = window.Vector3 ? new window.Vector3(0, 0, 1) : { x: 0, y: 0, z: 1 };
         this.rotation = 0;
 
         this.debugInfo = null;
@@ -201,8 +204,21 @@ class ActionCharacter extends RenderableObject {
         if (this.body) {
             const pos = this.body.position;
 
-            this.position.set(pos.x, pos.y, pos.z);
-            this.basePosition.set(this.position.x, this.position.y - this.size / 2, this.position.z);
+            if (window.Vector3 && this.position.set) {
+                this.position.set(pos.x, pos.y, pos.z);
+            } else {
+                this.position.x = pos.x;
+                this.position.y = pos.y;
+                this.position.z = pos.z;
+            }
+
+            if (window.Vector3 && this.basePosition.set) {
+                this.basePosition.set(this.position.x, this.position.y - this.size / 2, this.position.z);
+            } else {
+                this.basePosition.x = this.position.x;
+                this.basePosition.y = this.position.y - this.size / 2;
+                this.basePosition.z = this.position.z;
+            }
 
             // Use yaw for character facing
             this.rotation = this.cameraYaw + Math.PI;
@@ -216,23 +232,40 @@ class ActionCharacter extends RenderableObject {
                 }
                 
                 if (this.isFirstPerson) {
-                    this.camera.position = this.position.add(new Vector3(0, this.firstPersonHeight, 0));
+                    const offset = window.Vector3 ?
+                        this.position.add(new window.Vector3(0, this.firstPersonHeight, 0)) :
+                        { x: this.position.x, y: this.position.y + this.firstPersonHeight, z: this.position.z };
+                    this.camera.position = offset;
 
-                    const lookDir = new Vector3(
-                        Math.sin(this.cameraYaw + Math.PI) * Math.cos(this.cameraPitch),
-                        -Math.sin(this.cameraPitch),
-                        Math.cos(this.cameraYaw + Math.PI) * Math.cos(this.cameraPitch)
-                    );
-                    this.camera.target = this.camera.position.add(lookDir);
+                    const lookDir = window.Vector3 ?
+                        new window.Vector3(
+                            Math.sin(this.cameraYaw + Math.PI) * Math.cos(this.cameraPitch),
+                            -Math.sin(this.cameraPitch),
+                            Math.cos(this.cameraYaw + Math.PI) * Math.cos(this.cameraPitch)
+                        ) : {
+                            x: Math.sin(this.cameraYaw + Math.PI) * Math.cos(this.cameraPitch),
+                            y: -Math.sin(this.cameraPitch),
+                            z: Math.cos(this.cameraYaw + Math.PI) * Math.cos(this.cameraPitch)
+                        };
+                    this.camera.target = window.Vector3 ?
+                        this.camera.position.add(lookDir) :
+                        { x: this.camera.position.x + lookDir.x, y: this.camera.position.y + lookDir.y, z: this.camera.position.z + lookDir.z };
                 } else {
-                    const cameraOffset = new Vector3(
-                        Math.sin(this.cameraYaw) * Math.cos(this.cameraPitch) * this.cameraDistance,
-                        -Math.sin(this.cameraPitch) * this.cameraDistance + this.cameraHeight,
-                        Math.cos(this.cameraYaw) * Math.cos(this.cameraPitch) * this.cameraDistance
-                    );
+                    const cameraOffset = window.Vector3 ?
+                        new window.Vector3(
+                            Math.sin(this.cameraYaw) * Math.cos(this.cameraPitch) * this.cameraDistance,
+                            -Math.sin(this.cameraPitch) * this.cameraDistance + this.cameraHeight,
+                            Math.cos(this.cameraYaw) * Math.cos(this.cameraPitch) * this.cameraDistance
+                        ) : {
+                            x: Math.sin(this.cameraYaw) * Math.cos(this.cameraPitch) * this.cameraDistance,
+                            y: -Math.sin(this.cameraPitch) * this.cameraDistance + this.cameraHeight,
+                            z: Math.cos(this.cameraYaw) * Math.cos(this.cameraPitch) * this.cameraDistance
+                        };
 
                     // Calculate desired camera position without collision
-                    const desiredCameraPosition = this.position.add(cameraOffset);
+                    const desiredCameraPosition = window.Vector3 ?
+                        this.position.add(cameraOffset) :
+                        { x: this.position.x + cameraOffset.x, y: this.position.y + cameraOffset.y, z: this.position.z + cameraOffset.z };
                     
                     // Apply camera collision if handler exists
                     if (this.cameraCollisionHandler) {
@@ -247,7 +280,10 @@ class ActionCharacter extends RenderableObject {
                         this.camera.position = desiredCameraPosition;
                     }
                     
-                    this.camera.target = this.position.add(new Vector3(0, this.height / 2, 0));
+                    const targetOffset = window.Vector3 ?
+                        this.position.add(new window.Vector3(0, this.height / 2, 0)) :
+                        { x: this.position.x, y: this.position.y + this.height / 2, z: this.position.z };
+                    this.camera.target = targetOffset;
                 }
             }
         }
@@ -267,13 +303,21 @@ class ActionCharacter extends RenderableObject {
     updateModelMatrix() {
         // Calculate the model matrix based on position and facing direction
         const angle = Math.atan2(this.facingDirection.x, this.facingDirection.z);
-        this.modelMatrix = Matrix4.create();
+        this.modelMatrix = window.Matrix4 ? window.Matrix4.create() : new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
 
         // Apply rotation around character's local origin first
-        Matrix4.rotateY(this.modelMatrix, this.modelMatrix, angle);
+        if (window.Matrix4) {
+            window.Matrix4.rotateY(this.modelMatrix, this.modelMatrix, angle);
+        }
 
         // Then translate to world position
-        Matrix4.translate(this.modelMatrix, this.modelMatrix, [this.position.x, this.position.y, this.position.z]);
+        if (window.Matrix4) {
+            window.Matrix4.translate(this.modelMatrix, this.modelMatrix, [this.position.x, this.position.y, this.position.z]);
+        } else {
+            this.modelMatrix[12] = this.position.x;
+            this.modelMatrix[13] = this.position.y;
+            this.modelMatrix[14] = this.position.z;
+        }
     }
 
     
@@ -284,7 +328,7 @@ class ActionCharacter extends RenderableObject {
                 return vertex;
             }
 
-            const finalPosition = new Vector3(0, 0, 0);
+            const finalPosition = window.Vector3 ? new window.Vector3(0, 0, 0) : { x: 0, y: 0, z: 0 };
             const joints = triangle.jointData[vertexIndex];
             const weights = triangle.weightData[vertexIndex];
             let totalWeight = 0;
@@ -295,7 +339,9 @@ class ActionCharacter extends RenderableObject {
                     totalWeight += weight;
                     const jointMatrix = skin.jointMatrices[joints[i]];
                     if (jointMatrix) {
-                        const transformed = Vector3.transformMat4(vertex, jointMatrix);
+                        const transformed = window.Vector3 ?
+                            window.Vector3.transformMat4(vertex, jointMatrix) :
+                            { x: vertex.x, y: vertex.y, z: vertex.z }; // Fallback for when Vector3.transformMat4 is not available
                         finalPosition.x += transformed.x * weight;
                         finalPosition.y += transformed.y * weight;
                         finalPosition.z += transformed.z * weight;
@@ -313,17 +359,27 @@ class ActionCharacter extends RenderableObject {
         }
 
         function applyTransform(vertex, transform) {
-            return Vector3.transformMat4(vertex, transform);
+            return window.Vector3 ?
+                window.Vector3.transformMat4(vertex, transform) :
+                { x: vertex.x, y: vertex.y, z: vertex.z }; // Fallback
         }
 
         // Calculate model orientation transform based on facing direction
         const angle = Math.atan2(this.facingDirection.x, this.facingDirection.z);
-        const modelTransform = Matrix4.create();
-        
+        const modelTransform = window.Matrix4 ? window.Matrix4.create() : new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+
         // Position the character at the correct world position
-        Matrix4.translate(modelTransform, modelTransform, [this.position.x, this.position.y + this.characterVisualYOffset, this.position.z]);
-        
-        Matrix4.rotateY(modelTransform, modelTransform, angle);
+        if (window.Matrix4) {
+            window.Matrix4.translate(modelTransform, modelTransform, [this.position.x, this.position.y + this.characterVisualYOffset, this.position.z]);
+        } else {
+            modelTransform[12] = this.position.x;
+            modelTransform[13] = this.position.y + this.characterVisualYOffset;
+            modelTransform[14] = this.position.z;
+        }
+
+        if (window.Matrix4) {
+            window.Matrix4.rotateY(modelTransform, modelTransform, angle);
+        }
         const transformedTriangles = [];
         const skin = this.characterModel.skins[0];
 
@@ -351,10 +407,22 @@ class ActionCharacter extends RenderableObject {
     }
 
     updateFacingDirection() {
-        this.facingDirection = new Vector3(
-            Math.sin(this.rotation), // X component
-            0, // Y component (flat on xz plane)
-            Math.cos(this.rotation) // Z component
-        );
+        this.facingDirection = window.Vector3 ?
+            new window.Vector3(
+                Math.sin(this.rotation), // X component
+                0, // Y component (flat on xz plane)
+                Math.cos(this.rotation) // Z component
+            ) : {
+                x: Math.sin(this.rotation),
+                y: 0,
+                z: Math.cos(this.rotation)
+            };
     }
 }
+
+// Make ActionCharacter available globally for backward compatibility
+if (typeof window !== 'undefined') {
+    window.ActionCharacter = ActionCharacter;
+}
+
+export { ActionCharacter };

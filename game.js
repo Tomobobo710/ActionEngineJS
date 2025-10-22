@@ -6,8 +6,21 @@
  * - Place textured blocks
  * - Attach long-form notes to blocks
  * - Save/load their memory palace
+ *
+ * Refactored with OOP principles:
+ * - Clean separation of concerns
+ * - Modular manager classes
+ * - Encapsulated functionality
  */
 import { MemoryPalaceAPI } from './api.js';
+import { SceneManager } from './sceneManager.js';
+import { UIManager } from './uiManager.js';
+import { PhysicsEngine } from './physicsEngine.js';
+import { ActionInputHandler } from './actionengine/input/inputhandler.js';
+import { ActionAudioManager } from './actionengine/sound/audiomanager.js';
+
+// Note: Vector3, Matrix4, ActionModel3D are loaded globally via script tags
+// and will be available as global constructors
 
 // WebGL Utilities for common operations
 class WebGLUtils {
@@ -238,7 +251,9 @@ class WebGLGeometryBuilder {
                 const vz = z + radius * sinLon * sinLat;
 
                 this.vertices.push(vx, vy, vz);
-                const normal = new Vector3(vx - x, vy - y, vz - z).normalize();
+                const normal = window.Vector3 ?
+                    new window.Vector3(vx - x, vy - y, vz - z).normalize() :
+                    { x: vx - x, y: vy - y, z: vz - z };
                 this.normals.push(normal.x, normal.y, normal.z);
                 this.colors.push(...color);
 
@@ -412,7 +427,9 @@ class MemoryBlock {
 	constructor(gl, position, type = "cube", blockSize = 5, title = "") { // Add gl, blockSize, and title parameters
 		this.gl = gl; // Store gl context
 		this.id = `block_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-		this.position = position.clone();
+		this.position = position ?
+			(window.Vector3 && position.clone ? position.clone() : { x: position.x, y: position.y, z: position.z }) :
+			(window.Vector3 ? new window.Vector3(0, 0, 0) : { x: 0, y: 0, z: 0 });
 		this.type = type;
 		this.text = "";
         this.title = title; // Store title
@@ -444,8 +461,14 @@ class MemoryBlock {
 	               break;
 	       }
 		const geometry = builder.build();
-	       this.model = new ActionModel3D(geometry);
-	       this.model.position.copy(this.position); // Set model's position
+		      this.model = window.ActionModel3D ? new window.ActionModel3D(geometry) : null;
+	       if (this.model && window.Vector3 && this.model.position.copy) {
+	           this.model.position.copy(this.position); // Set model's position
+	       } else if (this.model) {
+	           this.model.position.x = this.position.x;
+	           this.model.position.y = this.position.y;
+	           this.model.position.z = this.position.z;
+	       }
 	       this.model.setColor(color[0], color[1], color[2]); // Set model's color
 	}
 
@@ -482,11 +505,13 @@ class MemoryBlock {
 
 	static fromJSON(gl, data) { // Add gl parameter
 		const block = new MemoryBlock(
-            gl, // Pass gl to constructor
-			new Vector3(data.position.x, data.position.y, data.position.z),
+		          gl, // Pass gl to constructor
+			data.position ?
+				(window.Vector3 ? new window.Vector3(data.position.x, data.position.y, data.position.z) : { x: data.position.x, y: data.position.y, z: data.position.z }) :
+				(window.Vector3 ? new window.Vector3(0, 0, 0) : { x: 0, y: 0, z: 0 }),
 			data.type,
-            data.blockSize, // Pass blockSize from JSON
-            data.title // Pass title from JSON
+		          data.blockSize, // Pass blockSize from JSON
+		          data.title // Pass title from JSON
 		);
 		block.id = data.id;
 		block.text = data.text;
@@ -498,7 +523,7 @@ class MemoryBlock {
 		if (!this.model || !this.model.geometry) return; // Use this.model
 
 		// Create model matrix for block position
-		const modelMatrix = Matrix4.create();
+		const modelMatrix = window.Matrix4 ? window.Matrix4.create() : new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
 		Matrix4.translate(modelMatrix, modelMatrix, [
 			this.model.position.x, // Use model's position
 			this.model.position.y,
@@ -938,10 +963,6 @@ class Game {
     static HEIGHT = 600;
 
     constructor(canvases, input, audio, backendAvailable) { // Add backendAvailable parameter
-        // Store Action Engine references
-        this.input = input;
-        this.audio = audio;
-
         // Canvas setup
         this.canvas = canvases.gameCanvas;
         this.gl = this.canvas.getContext("webgl");
@@ -950,12 +971,30 @@ class Game {
 
         if (!this.gl) {
             console.error("WebGL not supported");
-            return;
+            // Try WebGL2 if WebGL fails
+            this.gl = this.canvas.getContext("webgl2");
+            if (!this.gl) {
+                console.error("WebGL2 also not supported");
+                return;
+            } else {
+                console.log("✅ Using WebGL2 context");
+            }
+        } else {
+            console.log("✅ Using WebGL context");
         }
+
+        // Initialize core systems
+        this.input = input;
+        this.audio = audio;
 
         // Create renderer
         this.renderer = new Renderer(this.gl);
         this.renderer.initGL();
+
+        // Initialize manager classes
+        this.sceneManager = new SceneManager();
+        this.uiManager = new UIManager(this);
+        this.physicsEngine = new PhysicsEngine(this);
 
         // Game state
         this.state = {
@@ -973,13 +1012,9 @@ class Game {
         this.buildLevel();
         this.setupPlayer();
 
-        // Initialize messages array before creating blocks
-        this.messages = [];
-        this.maxMessages = 10;
-
         // Backend integration
-        this.useBackend = true; // Still use backend if available
-        this.backendAvailable = backendAvailable; // Set from parameter
+        this.useBackend = true;
+        this.backendAvailable = backendAvailable;
 
         this.createBlocks();
 
@@ -1021,9 +1056,6 @@ class Game {
         // Text editor
         this.textEditor = new TextEditor(this);
         this.capturingTextInput = false;
-
-        // Scene object management
-        this.sceneObjects = new Set(); // Track 3D objects in the scene
         
         // Auto-save system
         this.autoSaveInterval = 30000; // 30 seconds
@@ -1038,8 +1070,8 @@ class Game {
         this.renderer.addShaderProgram("basic", this.basicVertexShader(), this.basicFragmentShader());
 
         // Set up projection matrix
-        this.projectionMatrix = Matrix4.create();
-        Matrix4.perspective(
+        this.projectionMatrix = window.Matrix4 ? window.Matrix4.create() : new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+        window.Matrix4.perspective(
             this.projectionMatrix,
             (60 * Math.PI) / 180, // 60 degrees FOV
             this.canvas.width / this.canvas.height,
@@ -1078,10 +1110,10 @@ class Game {
 
         if (isLocked) {
             console.log('✅ Pointer lock acquired');
-            this.addMessage("🔒 Mouse locked - ready to place blocks!");
+            this.uiManager.addMessage("🔒 Mouse locked - ready to place blocks!");
         } else {
             console.log('❌ Pointer lock lost');
-            this.addMessage("🔓 Mouse unlocked - click canvas to continue");
+            this.uiManager.addMessage("🔓 Mouse unlocked - click canvas to continue");
         }
     }
 
@@ -1188,20 +1220,8 @@ class Game {
         this.placementRange = 50;
         this.blockSize = 5;
 
-        // Shape selection system
-        this.showShapeSelector = false;
-        this.shapeSelectorPosition = { x: 350, y: 200 };
-        this.availableShapes = ["cube", "cone", "sphere"];
-        this.shapeNames = {
-            cube: "Cube",
-            cone: "Cone",
-            sphere: "Sphere"
-        };
-
-        // Raycasting for block placement/selection
-        this.hoveredBlock = null;
-        this.hoveredFace = null;
-        this.persistentHighlightPosition = null; // NEW: Stores last targeted position persistently
+        // Update physics engine with current block size
+        this.physicsEngine.setBlockSize(this.blockSize);
 
         // Load saved data
         this.loadFromStorage();
@@ -1215,13 +1235,15 @@ class Game {
         this.deltaTime = deltaTime;
 
         // Handle text editor input first (captures input when open)
-        this.textEditor.handleInput();
-        this.textEditor.update(deltaTime);
+        if (this.textEditor) {
+            this.textEditor.handleInput();
+            this.textEditor.update(deltaTime);
+        }
 
         // Don't handle game input if editor is open or cursor is not locked
-        if (this.textEditor.isOpen || !this.cursorLocked) {
+        if (this.textEditor && this.textEditor.isOpen || !this.cursorLocked) {
             // If editor is open, ensure raycast is cleared
-            if (this.textEditor.isOpen) {
+            if (this.textEditor && this.textEditor.isOpen) {
                 this.persistentHighlightPosition = null;
                 this.hoveredFace = null;
                 this.hoveredBlock = null;
@@ -1232,49 +1254,32 @@ class Game {
         // Update player
         this.player.update(this.input, deltaTime);
 
-        // Raycast for block interaction
-        this.raycastBlocks();
+        // Update UI manager
+        this.uiManager.handleInput();
 
-        // Shape selection (Z key)
-        if (this.input.isKeyJustPressed('ActionShapeSelect') && this.cursorLocked) {
-            this.showShapeSelector = !this.showShapeSelector;
-            if (this.showShapeSelector) {
-                this.addMessage("🔧 Shape selector opened");
-            } else {
-                this.addMessage("🔧 Shape selector closed");
-            }
-        }
+        // Physics/raycast for block interaction
+        this.physicsEngine.raycastBlocks();
 
-        // Shape selection with number keys
-        if (this.showShapeSelector && this.cursorLocked) {
-            for (let i = 0; i < this.availableShapes.length; i++) {
-                if (this.input.isKeyJustPressed(String(i + 1))) {
-                    this.selectedBlockType = this.availableShapes[i];
-                    this.showShapeSelector = false;
-                    this.addMessage(`✅ Selected: ${this.shapeNames[this.selectedBlockType]}`);
-                }
-            }
-        }
-
-        // Block placement (left click) - modified to show shape selector if no target
-        if (this.input.isLeftMouseButtonJustPressed()) { // cursorLocked check moved to outer if
-            if (this.persistentHighlightPosition && !this.showShapeSelector) {
+        // Block placement (left click)
+        if (this.input.isLeftMouseButtonJustPressed()) {
+            if (this.persistentHighlightPosition) {
                 this.placeBlock();
-            } else if (!this.showShapeSelector) {
-                this.showShapeSelector = true;
-                this.addMessage("🔧 Select shape first (1-3)");
+            } else {
+                // Show shape selector if no target
+                this.uiManager.showShapeSelector = true;
+                this.uiManager.addMessage("🔧 Select shape first (1-3)");
             }
         }
 
         // Block editor (right click)
-        if (this.input.isRightMouseButtonJustPressed()) { // cursorLocked check moved to outer if
+        if (this.input.isRightMouseButtonJustPressed()) {
             this.openBlockEditor();
         }
 
         // Manual save with Action2
         if (this.input.isKeyJustPressed("Action2")) {
             this.saveToStorage();
-            this.addMessage("Progress saved!");
+            this.uiManager.addMessage("Progress saved!");
         }
 
         // Toggle debug with F9
@@ -1305,11 +1310,11 @@ class Game {
         const blockToDelete = this.blocks.get(blockId);
         if (blockToDelete) {
             if (blockToDelete.model) {
-                this.removeObject(blockToDelete.model); // Remove from 3D scene
+                this.sceneManager.remove(blockToDelete.model); // Remove from 3D scene
             }
             this.blocks.delete(blockId); // Remove from map
             this.saveToStorage(); // Save changes
-            this.addMessage(`🗑️ Block ${blockId} deleted.`);
+            this.uiManager.addMessage(`🗑️ Block ${blockId} deleted.`);
             this.hoveredBlock = null; // Clear hovered block if it was deleted
             this.persistentHighlightPosition = null; // Clear highlight
         }
@@ -1325,389 +1330,67 @@ class Game {
         // Draw level
         this.level.draw(this.renderer, viewMatrix, this.projectionMatrix);
 
-        // Draw all scene objects
-        this.sceneObjects.forEach((model) => {
-            if (model && model.geometry) {
-                try {
-                    // Assuming model has a draw method or can be drawn directly by renderer
-                    // For now, we'll draw it using the basic shader
-                    const modelMatrix = Matrix4.create();
-                    Matrix4.translate(modelMatrix, modelMatrix, [
-                        model.position.x,
-                        model.position.y,
-                        model.position.z
-                    ]);
-                    this.renderer.drawMesh(model.geometry, "basic", modelMatrix, viewMatrix, this.projectionMatrix);
-                } catch (error) {
-                    console.error('❌ Error drawing scene object:', model, error);
-                }
-            } else {
-                console.warn('⚠️ Scene object missing model or geometry:', model);
-            }
-        });
+        // Draw all scene objects using SceneManager
+        this.sceneManager.draw(this.renderer, viewMatrix, this.projectionMatrix);
 
         // Draw persistent highlight - always visible if we have a stored position
-        if (this.persistentHighlightPosition) {  // CHANGED: Use persistent position instead of hoveredBlock
+        if (this.persistentHighlightPosition) {
             this.drawHoveredBlockHighlight(this.renderer, viewMatrix, this.projectionMatrix);
         }
 
-        // Draw 2D UI elements
-        this.drawUI();
-
-        // Draw debug info if enabled
-        if (this.state.showDebug) {
-            this.drawDebugInfo();
-        }
+        // Draw all UI elements using UIManager
+        this.uiManager.draw();
     }
 
-    raycastBlocks() {
-        // Enhanced raycast: shoot ray from camera, find first hit with room geometry
-        if (!this.cursorLocked) {
-            this.persistentHighlightPosition = null;
-            this.hoveredFace = null;
-            this.hoveredBlock = null; // Ensure hoveredBlock is cleared
-            return;
-        }
 
-        const ray = this.getRayFromCamera();
-        let closestDistance = Infinity;
-        let closestHit = null;
-        let closestFace = null;
-        let closestBlock = null;
 
-        // 1. Raycast against room geometry
-        const roomHitResult = this.castRayIntoRoom(ray);
-        if (roomHitResult) {
-            closestDistance = roomHitResult.distance;
-            closestHit = roomHitResult.position;
-            closestFace = roomHitResult.face;
-        }
 
-        // 2. Raycast against placed blocks
-        for (let [id, block] of this.blocks) {
-            const blockHitResult = this.rayBoxIntersection(ray, block);
-            if (blockHitResult && blockHitResult.distance < closestDistance) {
-                closestDistance = blockHitResult.distance;
-                closestHit = blockHitResult.hitPoint;
-                closestFace = blockHitResult.face;
-                closestBlock = block;
-            }
-        }
-
-        if (closestHit) {
-            this.persistentHighlightPosition = closestHit;
-            this.hoveredFace = closestFace;
-            this.hoveredBlock = closestBlock; // Set hoveredBlock if a block was hit
-        } else {
-            this.persistentHighlightPosition = null;
-            this.hoveredFace = null;
-            this.hoveredBlock = null;
-        }
-    }
-
-    getRayFromCamera() {
-        // Get camera forward direction - match the camera target calculation
-        const lookDistance = 50;
-
-        // Calculate forward direction based on camera rotation
-        // Fix Z coordinate system - when moving +Z, raycast should hit +Z, not -Z
-        const forward = new Vector3(
-            Math.sin(this.player.rotation.y) * Math.cos(this.player.rotation.x) * lookDistance,
-            -Math.sin(this.player.rotation.x) * lookDistance,  // NEGATIVE Y for down pitch
-            -Math.cos(this.player.rotation.y) * Math.cos(this.player.rotation.x) * lookDistance  // FLIP Z for correct coordinate system
-        );
-
-        const normalized = forward.normalize();
-
-        return {
-            origin: this.player.position.clone(),
-            direction: normalized
-        };
-    }
-
-    rayBoxIntersection(ray, block) {
-        const size = this.blockSize;
-
-        const min = new Vector3(
-            block.position.x - size / 2,
-            block.position.y - size / 2,
-            block.position.z - size / 2
-        );
-
-        const max = new Vector3(
-            block.position.x + size / 2,
-            block.position.y + size / 2,
-            block.position.z + size / 2
-        );
-
-        let tmin = (min.x - ray.origin.x) / ray.direction.x;
-        let tmax = (max.x - ray.origin.x) / ray.direction.x;
-
-        if (tmin > tmax) [tmin, tmax] = [tmax, tmin];
-
-        let tymin = (min.y - ray.origin.y) / ray.direction.y;
-        let tymax = (max.y - ray.origin.y) / ray.direction.y;
-
-        if (tymin > tymax) [tymin, tymax] = [tymax, tymin];
-
-        if ((tmin > tymax) || (tymin > tmax)) return null;
-
-        if (tymin > tmin) tmin = tymin;
-        if (tymax < tmax) tmax = tymax;
-
-        let tzmin = (min.z - ray.origin.z) / ray.direction.z;
-        let tzmax = (max.z - ray.origin.z) / ray.direction.z;
-
-        if (tzmin > tzmax) [tzmin, tzmax] = [tzmax, tzmin];
-
-        if ((tmin > tzmax) || (tzmin > tmax)) return null;
-
-        if (tzmin > tmin) tmin = tzmin;
-        if (tzmax < tmax) tmax = tzmax;
-
-        if (tmin < 0) return null;
-
-        // Calculate the exact hit point
-        const hitPoint = new Vector3(
-            ray.origin.x + ray.direction.x * tmin,
-            ray.origin.y + ray.direction.y * tmin,
-            ray.origin.z + ray.direction.z * tmin
-        );
-
-        // Determine which face was hit
-        const epsilon = 0.01;
-        let face = "top";
-
-        if (Math.abs(hitPoint.x - min.x) < epsilon) face = "west";
-        else if (Math.abs(hitPoint.x - max.x) < epsilon) face = "east";
-        else if (Math.abs(hitPoint.y - min.y) < epsilon) face = "bottom";
-        else if (Math.abs(hitPoint.y - max.y) < epsilon) face = "top";
-        else if (Math.abs(hitPoint.z - min.z) < epsilon) face = "north";
-        else if (Math.abs(hitPoint.z - max.z) < epsilon) face = "south";
-
-        return { distance: tmin, face, hitPoint };
-    }
-
-    // Enhanced raycast against room geometry (walls, floor, ceiling)
-    castRayIntoRoom(ray) {
-        const roomSize = 125; // half room size
-        const maxDistance = 100; // Maximum raycast distance
-        let closestDistance = Infinity;
-        let closestHit = null;
-        let closestFace = "";
-
-        // Test floor (Y = 0) - increased bounds
-        const floorHit = this.rayPlaneIntersection(ray, { y: 0 }, "floor");
-        if (floorHit && floorHit.distance < closestDistance && floorHit.distance <= maxDistance &&
-            Math.abs(floorHit.position.x) <= roomSize + 10 && Math.abs(floorHit.position.z) <= roomSize + 10) {
-            closestDistance = floorHit.distance;
-            closestHit = floorHit;
-            closestFace = "floor";
-        }
-
-        // Test ceiling (Y = 125) - increased bounds
-        const ceilingHit = this.rayPlaneIntersection(ray, { y: 125 }, "ceiling");
-        if (ceilingHit && ceilingHit.distance < closestDistance && ceilingHit.distance <= maxDistance &&
-            Math.abs(ceilingHit.position.x) <= roomSize + 10 && Math.abs(ceilingHit.position.z) <= roomSize + 10) {
-            closestDistance = ceilingHit.distance;
-            closestHit = ceilingHit;
-            closestFace = "ceiling";
-        }
-
-        // Test north wall (Z = -125) - increased bounds
-        const northHit = this.rayPlaneIntersection(ray, { z: -roomSize }, "north");
-        if (northHit && northHit.distance < closestDistance && northHit.distance <= maxDistance &&
-            Math.abs(northHit.position.x) <= roomSize + 10 && northHit.position.y >= -5 && northHit.position.y <= 130) {
-            closestDistance = northHit.distance;
-            closestHit = northHit;
-            closestFace = "north";
-        }
-
-        // Test south wall (Z = 125) - increased bounds
-        const southHit = this.rayPlaneIntersection(ray, { z: roomSize }, "south");
-        if (southHit && southHit.distance < closestDistance && southHit.distance <= maxDistance &&
-            Math.abs(southHit.position.x) <= roomSize + 10 && southHit.position.y >= -5 && southHit.position.y <= 130) {
-            closestDistance = southHit.distance;
-            closestHit = southHit;
-            closestFace = "south";
-        }
-
-        // Test east wall (X = 125) - increased bounds
-        const eastHit = this.rayPlaneIntersection(ray, { x: roomSize }, "east");
-        if (eastHit && eastHit.distance < closestDistance && eastHit.distance <= maxDistance &&
-            Math.abs(eastHit.position.z) <= roomSize + 10 && eastHit.position.y >= -5 && eastHit.position.y <= 130) {
-            closestDistance = eastHit.distance;
-            closestHit = eastHit;
-            closestFace = "east";
-        }
-
-        // Test west wall (X = -125) - increased bounds
-        const westHit = this.rayPlaneIntersection(ray, { x: -roomSize }, "west");
-        if (westHit && westHit.distance < closestDistance && westHit.distance <= maxDistance &&
-            Math.abs(westHit.position.z) <= roomSize + 10 && westHit.position.y >= -5 && westHit.position.y <= 130) {
-            closestDistance = westHit.distance;
-            closestHit = westHit;
-            closestFace = "west";
-        }
-
-        return closestHit ? { position: closestHit.position, face: closestFace, distance: closestHit.distance } : null;
-    }
-
-    // Ray-plane intersection helper
-    rayPlaneIntersection(ray, plane, faceName) {
-        // Plane defined by a point on the plane and normal vector
-        let normal, point;
-
-        if (plane.y !== undefined) {
-            // Horizontal plane (floor/ceiling)
-            normal = new Vector3(0, plane.y > 0 ? 1 : -1, 0);
-            point = new Vector3(0, plane.y, 0);
-        } else if (plane.x !== undefined) {
-            // Vertical plane (east/west walls)
-            normal = new Vector3(plane.x > 0 ? 1 : -1, 0, 0);
-            point = new Vector3(plane.x, 0, 0);
-        } else if (plane.z !== undefined) {
-            // Vertical plane (north/south walls)
-            normal = new Vector3(0, 0, plane.z > 0 ? 1 : -1);
-            point = new Vector3(0, 0, plane.z);
-        }
-
-        // Ray-plane intersection formula
-        const denom = ray.direction.dot(normal);
-
-        // If ray is parallel to plane, no intersection
-        if (Math.abs(denom) < 0.0001) {
-            return null;
-        }
-
-        const t = Vector3.subtract(point, ray.origin).dot(normal) / denom;
-
-        // If intersection is behind ray origin, ignore
-        if (t < 0) {
-            return null;
-        }
-
-        // Calculate hit position
-        const hitPosition = new Vector3(
-            ray.origin.x + ray.direction.x * t,
-            ray.origin.y + ray.direction.y * t,
-            ray.origin.z + ray.direction.z * t
-        );
-
-        return {
-            position: hitPosition,
-            distance: t,
-            face: faceName
-        };
-    }
 
     placeBlock() {
         if (!this.cursorLocked) {
-            this.addMessage("🔒 Click canvas to lock mouse first!");
+            this.uiManager.addMessage("🔒 Click canvas to lock mouse first!");
             return;
         }
 
         if (!this.persistentHighlightPosition) {
-            this.addMessage("🎯 Point at a surface (wall/floor/ceiling)");
+            this.uiManager.addMessage("🎯 Point at a surface (wall/floor/ceiling)");
             return;
         }
 
-        // Calculate placement position based on face and hit point
-        const offset = this.blockSize;
-        let newPos = this.persistentHighlightPosition.clone();
+        // Calculate placement position using PhysicsEngine
+        const newPos = this.physicsEngine.calculatePlacementPosition(
+            this.persistentHighlightPosition,
+            this.hoveredFace,
+            this.hoveredBlock
+        );
 
-        // Determine the final position based on the hovered face and whether it's a block or the room
-        if (this.hoveredBlock) {
-            // Hit an existing block
-            switch (this.hoveredFace) {
-                case "top": newPos.y = this.hoveredBlock.position.y + offset; break; // Place above
-                case "bottom": newPos.y = this.hoveredBlock.position.y - offset; break; // Place below
-                case "north": newPos.z = this.hoveredBlock.position.z - offset; break; // Place in front
-                case "south": newPos.z = this.hoveredBlock.position.z + offset; break; // Place behind
-                case "east": newPos.x = this.hoveredBlock.position.x + offset; break; // Place right
-                case "west": newPos.x = this.hoveredBlock.position.x - offset; break; // Place left
-            }
-        } else {
-            // Hit room geometry (floor, wall, ceiling)
-            switch (this.hoveredFace) {
-                case "floor": newPos.y = offset / 2; break; // Place on floor (center at half block size)
-                case "ceiling": newPos.y = 125 - offset / 2; break; // Place hanging from ceiling
-                case "north": newPos.z = -this.level.halfRoomSize - offset / 2; break; // Place on north wall
-                case "south": newPos.z = this.level.halfRoomSize + offset / 2; break; // Place on south wall
-                case "east": newPos.x = this.level.halfRoomSize + offset / 2; break; // Place on east wall
-                case "west": newPos.x = -this.level.halfRoomSize - offset / 2; break; // Place on west wall
-            }
-        }
-
-        // Round to grid for X and Z, but keep Y precise
-        newPos.x = Math.round(newPos.x);
-        // newPos.y = Math.round(newPos.y); // Keep Y precise, do not round
-        newPos.z = Math.round(newPos.z);
-
-        // Check if position is already occupied
-        for (let [id, block] of this.blocks) {
-            if (block.position.distanceTo(newPos) < this.blockSize * 0.5) {
-                this.addMessage("❌ Position already occupied!");
-                return;
-            }
+        // Check if position is already occupied using PhysicsEngine
+        if (this.physicsEngine.isPositionOccupied(newPos)) {
+            this.uiManager.addMessage("❌ Position already occupied!");
+            return;
         }
 
         // Create new block
-        const block = new MemoryBlock(this.gl, newPos.clone(), this.selectedBlockType, this.blockSize, ""); // Pass this.gl and an empty title
+        const block = new MemoryBlock(this.gl, newPos.clone(), this.selectedBlockType, this.blockSize, "");
         this.blocks.set(block.id, block);
 
-        // Ensure block is visible in 3D scene
+        // Ensure block is visible in 3D scene using SceneManager
         if (block.model) {
             block.model.setColor(0.0, 1.0, 0.0); // Bright green for high visibility
-            block.model.position.set(newPos.x, newPos.y, newPos.z);
-            this.addObject(block.model); // ADDED: Add block model to scene objects
+            if (window.Vector3 && block.model.position.set) {
+                block.model.position.set(newPos.x, newPos.y, newPos.z);
+            } else {
+                block.model.position.x = newPos.x;
+                block.model.position.y = newPos.y;
+                block.model.position.z = newPos.z;
+            }
+            this.sceneManager.add(block.model);
         } else {
             console.error('❌ Block model not created!');
-            // Try manual geometry creation
-            
-            // Create simple cube geometry manually
-            const size = 0.5;
-            const vertices = new Float32Array([
-                // Front face
-                -size, -size,  size,  size, -size,  size,  size,  size,  size, -size,  size,  size,
-                // Back face
-                -size, -size, -size, -size,  size, -size,  size,  size, -size,  size, -size, -size,
-                // Top face
-                -size,  size, -size, -size,  size,  size,  size,  size,  size,  size,  size, -size,
-                // Bottom face
-                -size, -size, -size,  size, -size, -size,  size, -size,  size, -size, -size,  size,
-                // Right face
-                 size, -size, -size,  size,  size, -size,  size,  size,  size,  size, -size,  size,
-                // Left face
-                -size, -size, -size, -size, -size,  size, -size,  size,  size, -size,  size, -size
-            ]);
-
-            const indices = new Uint16Array([
-                0,  1,  2,    0,  2,  3,    // front
-                4,  5,  6,    4,  6,  7,    // back
-                8,  9,  10,   8,  10, 11,   // top
-                12, 13, 14,   12, 14, 15,   // bottom
-                16, 17, 18,   16, 18, 19,   // right
-                20, 21, 22,   20, 22, 23    // left
-            ]);
-
-            const geometry = {
-                vertices: vertices,
-                indices: indices,
-                vertexCount: vertices.length / 3,
-                indexCount: indices.length
-            };
-
-            const model = new ActionModel3D(geometry);
-            model.position.set(newPos.x, newPos.y, newPos.z);
-            model.setColor(1.0, 0.0, 0.0); // Red as fallback
-            block.model = model;
-            block.position = newPos.clone(); // Ensure position is set
-            this.addObject(model);
         }
 
         this.audio.play("placeBlock");
-        this.addMessage(`✅ Block placed at (${Math.round(newPos.x)}, ${Math.round(newPos.y)}, ${Math.round(newPos.z)})`);
+        this.uiManager.addMessage(`✅ Block placed at (${Math.round(newPos.x)}, ${Math.round(newPos.y)}, ${Math.round(newPos.z)})`);
 
         this.saveToStorage();
     }
@@ -1717,47 +1400,59 @@ class Game {
         // Place block 5 units in front of camera
         const distance = 5;
         const cameraPos = this.player.position;
-        const newPos = new Vector3(
-            cameraPos.x + Math.sin(this.player.rotation.y) * distance,
-            cameraPos.y,
-            cameraPos.z - Math.cos(this.player.rotation.y) * distance
-        );
+        const newPos = cameraPos ?
+            (window.Vector3 ?
+                new window.Vector3(
+                    cameraPos.x + Math.sin(this.player.rotation.y) * distance,
+                    cameraPos.y,
+                    cameraPos.z - Math.cos(this.player.rotation.y) * distance
+                ) : {
+                    x: cameraPos.x + Math.sin(this.player.rotation.y) * distance,
+                    y: cameraPos.y,
+                    z: cameraPos.z - Math.cos(this.player.rotation.y) * distance
+                }
+            ) :
+            (window.Vector3 ? new window.Vector3(0, 0, 0) : { x: 0, y: 0, z: 0 });
 
         // Round to grid
         newPos.x = Math.round(newPos.x);
         newPos.y = Math.round(newPos.y);
         newPos.z = Math.round(newPos.z);
 
-        // Check if position is already occupied
-        for (let [id, block] of this.blocks) {
-            if (block.position.distanceTo(newPos) < this.blockSize * 0.5) {
-                this.addMessage("❌ Position already occupied!");
-                return;
-            }
+        // Check if position is already occupied using PhysicsEngine
+        if (this.physicsEngine.isPositionOccupied(newPos)) {
+            this.uiManager.addMessage("❌ Position already occupied!");
+            return;
         }
 
         // Create new block, passing this.gl and this.blockSize
         const block = new MemoryBlock(this.gl, newPos, this.selectedBlockType, this.blockSize, ""); // Pass an empty title
         this.blocks.set(block.id, block);
 
-        // Ensure block is visible in 3D scene
+        // Ensure block is visible in 3D scene using SceneManager
         if (block.model) {
             block.model.setColor(0.0, 1.0, 0.0); // Bright green for high visibility
-            block.model.position.set(newPos.x, newPos.y, newPos.z);
-            this.addObject(block.model);
+            if (window.Vector3 && block.model.position.set) {
+                block.model.position.set(newPos.x, newPos.y, newPos.z);
+            } else {
+                block.model.position.x = newPos.x;
+                block.model.position.y = newPos.y;
+                block.model.position.z = newPos.z;
+            }
+            this.sceneManager.add(block.model);
         } else {
             console.error('❌ Block model not created for camera position placement!');
         }
 
         this.audio.play("placeBlock");
-        this.addMessage(`✅ Block placed at (${Math.round(newPos.x)}, ${Math.round(newPos.y)}, ${Math.round(newPos.z)})`);
+        this.uiManager.addMessage(`✅ Block placed at (${Math.round(newPos.x)}, ${Math.round(newPos.y)}, ${Math.round(newPos.z)})`);
 
         this.saveToStorage();
     }
 
     openBlockEditor() {
         if (!this.hoveredBlock || this.hoveredBlock.isFloor) {
-            this.addMessage("❌ Point at a block to edit notes!");
+            this.uiManager.addMessage("❌ Point at a block to edit notes!");
             return;
         }
 
@@ -1769,15 +1464,31 @@ class Game {
         if (!this.persistentHighlightPosition) return;
 
         // Create model matrix for highlight position at exact hit location
-        const modelMatrix = Matrix4.create();
-        Matrix4.translate(modelMatrix, modelMatrix, [
-            this.persistentHighlightPosition.x,
-            this.persistentHighlightPosition.y,
-            this.persistentHighlightPosition.z
-        ]);
+        const modelMatrix = window.Matrix4 ? window.Matrix4.create() : new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+        if (window.Matrix4) {
+            window.Matrix4.translate(modelMatrix, modelMatrix, [
+                this.persistentHighlightPosition.x,
+                this.persistentHighlightPosition.y,
+                this.persistentHighlightPosition.z
+            ]);
+        } else {
+            // Fallback for when Matrix4 is not available
+            modelMatrix[12] = this.persistentHighlightPosition.x;
+            modelMatrix[13] = this.persistentHighlightPosition.y;
+            modelMatrix[14] = this.persistentHighlightPosition.z;
+        }
 
         // Scale up slightly for highlight effect
-        Matrix4.scale(modelMatrix, modelMatrix, [1.1, 1.1, 1.1]);
+        if (window.Matrix4) {
+            window.Matrix4.scale(modelMatrix, modelMatrix, [1.1, 1.1, 1.1]);
+        } else {
+            // Fallback scaling for when Matrix4 is not available
+            for (let i = 0; i < 3; i++) {
+                for (let j = 0; j < 3; j++) {
+                    modelMatrix[i * 4 + j] *= 1.1;
+                }
+            }
+        }
 
         // Create highlight geometry (wireframe cube)
         const builder = new WebGLGeometryBuilder(this.gl);
@@ -1810,13 +1521,13 @@ class Game {
             try {
                 await MemoryPalaceAPI.bulkSaveBlocks(data.blocks);
                 await MemoryPalaceAPI.saveCameraState(data.camera.position, data.camera.rotation);
-                this.addMessage("💾 Saved to server");
+                this.uiManager.addMessage("💾 Saved to server");
             } catch (error) {
                 console.error('❌ Failed to save to backend:', error);
-                this.addMessage("⚠️ Server save failed");
+                this.uiManager.addMessage("⚠️ Server save failed");
             }
         } else {
-            this.addMessage("⚠️ Backend not available or not in use. Data not saved.");
+            this.uiManager.addMessage("⚠️ Backend not available or not in use. Data not saved.");
             console.warn('⚠️ Backend not available or not in use. Data not saved.');
         }
     }
@@ -1835,14 +1546,14 @@ class Game {
                     camera: cameraState
                 };
 
-                this.addMessage("📥 Loaded from server");
+                this.uiManager.addMessage("📥 Loaded from server");
             } catch (error) {
                 console.error('❌ Failed to load from backend:', error);
-                this.addMessage("⚠️ Server load failed or no data found.");
+                this.uiManager.addMessage("⚠️ Server load failed or no data found.");
                 console.warn('⚠️ Server load failed or no data found.');
             }
         } else {
-            this.addMessage("⚠️ Backend not available or not in use. No data loaded.");
+            this.uiManager.addMessage("⚠️ Backend not available or not in use. No data loaded.");
             console.warn('⚠️ Backend not available or not in use. No data loaded.');
         }
 
@@ -1851,10 +1562,10 @@ class Game {
             return;
         }
 
-        // Clear existing blocks
+        // Clear existing blocks using SceneManager
         this.blocks.forEach(block => {
             if (block.model) {
-                this.removeObject(block.model);
+                this.sceneManager.remove(block.model);
             }
         });
         this.blocks.clear();
@@ -1873,12 +1584,18 @@ class Game {
                     [0.0, 1.0, 0.0] // Bright green for high visibility
                 );
                 const geometry = builder.build();
-                const model = new ActionModel3D(geometry);
-                model.position.copy(block.position);
+                const model = window.ActionModel3D ? new window.ActionModel3D(geometry) : null;
+                if (model && window.Vector3 && model.position.copy) {
+                    model.position.copy(block.position);
+                } else if (model) {
+                    model.position.x = block.position.x;
+                    model.position.y = block.position.y;
+                    model.position.z = block.position.z;
+                }
                 model.setColor(0.0, 1.0, 0.0); // Bright green for high visibility
 
                 block.model = model;
-                this.addObject(model); // Add to scene objects
+                this.sceneManager.add(model); // Add to scene objects
                 this.blocks.set(block.id, block);
             });
 
@@ -1896,18 +1613,30 @@ class Game {
         // Load camera position
         if (data.camera) {
             if (data.camera.position) {
-                this.player.position.set(
-                    data.camera.position.x,
-                    data.camera.position.y,
-                    data.camera.position.z
-                );
+                if (window.Vector3 && this.player.position.set) {
+                    this.player.position.set(
+                        data.camera.position.x,
+                        data.camera.position.y,
+                        data.camera.position.z
+                    );
+                } else {
+                    this.player.position.x = data.camera.position.x;
+                    this.player.position.y = data.camera.position.y;
+                    this.player.position.z = data.camera.position.z;
+                }
             }
             if (data.camera.rotation) {
-                this.player.rotation.set(
-                    data.camera.rotation.x,
-                    data.camera.rotation.y,
-                    0
-                );
+                if (window.Vector3 && this.player.rotation.set) {
+                    this.player.rotation.set(
+                        data.camera.rotation.x,
+                        data.camera.rotation.y,
+                        0
+                    );
+                } else {
+                    this.player.rotation.x = data.camera.rotation.x;
+                    this.player.rotation.y = data.camera.rotation.y;
+                    this.player.rotation.z = 0;
+                }
             }
             console.log('✅ Camera position restored');
         }
@@ -1918,323 +1647,9 @@ class Game {
         this.autoSaveIntervalId = null;
     }
 
-    addMessage(msg) {
-        this.messages.unshift(`[${new Date().toLocaleTimeString()}] ${msg}`);
-        if (this.messages.length > this.maxMessages) {
-            this.messages.pop();
-        }
-    }
 
-    drawUI() {
-        this.guiCtx.clearRect(0, 0, Game.WIDTH, Game.HEIGHT);
 
-        // Draw crosshair only if cursor is locked AND editor is not open
-        if (this.cursorLocked && !this.textEditor.isOpen) {
-            if (this.persistentHighlightPosition) {
-                // Green crosshair when ready to place
-                this.guiCtx.strokeStyle = "#00ff00";
-                this.guiCtx.lineWidth = 3;
-                this.guiCtx.shadowColor = "#00ff00";
-                this.guiCtx.shadowBlur = 5;
-            } else {
-                // Yellow crosshair when locked but no target
-                this.guiCtx.strokeStyle = "#ffff00";
-                this.guiCtx.lineWidth = 2;
-            }
 
-            this.guiCtx.beginPath();
-            this.guiCtx.moveTo(395, 300);
-            this.guiCtx.lineTo(405, 300);
-            this.guiCtx.moveTo(400, 295);
-            this.guiCtx.lineTo(400, 305);
-            this.guiCtx.stroke();
-
-            // Reset shadow
-            this.guiCtx.shadowBlur = 0;
-        } else if (!this.cursorLocked && !this.textEditor.isOpen) {
-            // White crosshair when unlocked and editor not open
-            this.guiCtx.strokeStyle = "#ffffff";
-            this.guiCtx.lineWidth = 2;
-            this.guiCtx.shadowBlur = 0;
-            this.guiCtx.beginPath();
-            this.guiCtx.moveTo(395, 300);
-            this.guiCtx.lineTo(405, 300);
-            this.guiCtx.moveTo(400, 295);
-            this.guiCtx.lineTo(400, 305);
-            this.guiCtx.stroke();
-        }
-
-        // Always draw HUD (position, controls, etc.)
-        this.drawHUD();
-
-        // Draw shape selector if open
-        if (this.showShapeSelector && this.cursorLocked) {
-            this.drawShapeSelector();
-        }
-
-        // Draw text editor if open
-        if (this.textEditor.isOpen) { // Only draw if open
-            this.textEditor.draw(this.guiCtx);
-        }
-
-        // Draw click-to-start screen if game not started
-        if (!this.cursorLocked && !this.textEditor.isOpen) {
-            this.drawClickToStart();
-        }
-    }
-
-    drawHUD() {
-        const ctx = this.guiCtx;
-
-        // HUD background panel
-        ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
-        ctx.fillRect(10, 10, 300, 120);
-
-        ctx.strokeStyle = "#4a4a6e";
-        ctx.lineWidth = 2;
-        ctx.strokeRect(10, 10, 300, 120);
-
-        // HUD text
-        ctx.fillStyle = "#ffffff";
-        ctx.font = "16px Arial";
-        ctx.textAlign = "left";
-        ctx.textBaseline = "top";
-
-        const x = 20;
-        let y = 20;
-        const lineHeight = 22;
-
-        ctx.fillText(`Position: (${Math.round(this.player.position.x)}, ${Math.round(this.player.position.y)}, ${Math.round(this.player.position.z)})`, x, y);
-        y += lineHeight;
-
-        ctx.fillText(`Blocks: ${this.blocks.size}`, x, y);
-        y += lineHeight;
-
-        ctx.fillStyle = "#00ff00";
-        ctx.fillText(`Shape: ${this.shapeNames[this.selectedBlockType]}`, x, y);
-        y += lineHeight;
-
-        if (this.hoveredBlock) {
-            ctx.fillStyle = "#ffff00";
-            ctx.fillText(`Target: Block (${this.hoveredFace})`, x, y);
-
-            if (!this.hoveredBlock.isFloor && this.hoveredBlock.text) {
-                y += lineHeight;
-                ctx.fillStyle = "#00ff00";
-                ctx.fillText(`Has notes: ${this.hoveredBlock.text.length} chars`, x, y);
-            }
-            if (!this.hoveredBlock.isFloor && this.hoveredBlock.title) {
-                y += lineHeight;
-                ctx.fillStyle = "#00ffff";
-                ctx.fillText(`Title: ${this.hoveredBlock.title}`, x, y);
-            }
-        }
-
-        // Display raycast hit coordinates if available
-        if (this.persistentHighlightPosition) {
-            y += lineHeight;
-            ctx.fillStyle = "#00ffff";
-            ctx.fillText(`🎯 Ready: (${Math.round(this.persistentHighlightPosition.x)}, ${Math.round(this.persistentHighlightPosition.y)}, ${Math.round(this.persistentHighlightPosition.z)})`, x, y);
-
-            if (this.hoveredFace) {
-                y += lineHeight;
-                ctx.fillStyle = "#ffff00";
-                ctx.fillText(`📍 Face: ${this.hoveredFace} - Click to place!`, x, y);
-            }
-        } else {
-            // Show that raycast is running but no hits found
-            y += lineHeight;
-            ctx.fillStyle = "#ff00ff";
-            ctx.fillText(`❌ Point at wall/floor/ceiling`, x, y);
-        }
-
-        // Show cursor lock status
-        y += lineHeight;
-        ctx.fillStyle = this.cursorLocked ? "#00ff00" : "#ff0000";
-        ctx.fillText(`🔒 Mouse: ${this.cursorLocked ? 'Locked' : 'Unlocked (click canvas)'}`, x, y);
-
-        // Controls reminder (bottom right)
-        ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
-        ctx.fillRect(490, 450, 300, 140);
-
-        ctx.strokeStyle = "#4a4a6e";
-        ctx.lineWidth = 2;
-        ctx.strokeRect(490, 450, 300, 140);
-
-        ctx.fillStyle = "#aaaaaa";
-        ctx.font = "14px Arial";
-        ctx.textAlign = "left";
-
-        y = 460;
-        ctx.fillText("WASD: Move", 500, y); y += 20;
-        ctx.fillText("Mouse: Look", 500, y); y += 20;
-        ctx.fillText("Double-Space: Toggle Flying", 500, y); y += 20;
-        ctx.fillText("E/Q: Up/Down (when flying)", 500, y); y += 20;
-        ctx.fillText("C: Toggle Mouse Lock", 500, y); y += 20;
-        ctx.fillText("Left Click: Place Block", 500, y); y += 20;
-        ctx.fillText("Right Click: Edit Notes", 500, y); y += 20;
-        ctx.fillText("Delete Key: Delete Hovered Block", 500, y); y += 20; // New control
-        ctx.fillText("B: Place Block (Camera)", 500, y); y += 20;
-        ctx.fillText("Action2: Manual Save", 500, y); y += 20;
-        ctx.fillText("F9: Toggle Debug", 500, y);
-        y += 20; // Add space for new control
-        ctx.fillText("Z: Select Shape", 500, y); // New control
-    }
-
-    drawClickToStart() {
-        const ctx = this.guiCtx;
-
-        // Semi-transparent overlay
-        ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
-        ctx.fillRect(0, 0, Game.WIDTH, Game.HEIGHT);
-
-        // Title
-        ctx.fillStyle = "#ffffff";
-        ctx.font = "bold 48px Arial";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText("Memory Palace 3D", 400, 200);
-
-        // Subtitle
-        ctx.font = "24px Arial";
-        ctx.fillStyle = "#aaaaaa";
-        ctx.fillText("Method of Loci Environment", 400, 250);
-
-        // Instructions
-        ctx.font = "20px Arial";
-        ctx.fillStyle = "#ffffff";
-        ctx.fillText("Click to lock mouse and begin", 400, 350);
-
-        // Feature list
-        ctx.font = "16px Arial";
-        ctx.fillStyle = "#888888";
-        ctx.textAlign = "left";
-
-        const features = [
-            "• Navigate a large 3D space",
-            "• Place blocks to create structures",
-            "• Attach detailed notes to any block",
-            "• Auto-save to browser storage",
-            "• Build your personal memory palace"
-        ];
-
-        let y = 420;
-        features.forEach(feature => {
-            ctx.fillText(feature, 250, y);
-            y += 25;
-        });
-    }
-
-    drawShapeSelector() {
-        const ctx = this.guiCtx;
-        const selectorWidth = 400;
-        const selectorHeight = 200;
-        const x = this.shapeSelectorPosition.x;
-        const y = this.shapeSelectorPosition.y;
-
-        // Semi-transparent backdrop
-        ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
-        ctx.fillRect(x - 20, y - 20, selectorWidth + 40, selectorHeight + 40);
-
-        // Selector window background
-        ctx.fillStyle = "#2a2a3e";
-        ctx.fillRect(x, y, selectorWidth, selectorHeight);
-
-        // Border
-        ctx.strokeStyle = "#00ffff";
-        ctx.lineWidth = 2;
-        ctx.strokeRect(x, y, selectorWidth, selectorHeight);
-
-        // Title
-        ctx.fillStyle = "#ffffff";
-        ctx.font = "bold 20px Arial";
-        ctx.textAlign = "center";
-        ctx.fillText("Select Block Shape", x + selectorWidth / 2, y + 30);
-
-        // Shape options
-        ctx.font = "16px Arial";
-        ctx.textAlign = "left";
-
-        for (let i = 0; i < this.availableShapes.length; i++) {
-            const shapeKey = this.availableShapes[i];
-            const shapeName = this.shapeNames[shapeKey];
-            const optionY = y + 60 + (i * 35);
-            const isSelected = this.selectedBlockType === shapeKey;
-
-            // Highlight selected shape
-            if (isSelected) {
-                ctx.fillStyle = "#00ffff";
-                ctx.fillRect(x + 20, optionY - 5, selectorWidth - 40, 30);
-            }
-
-            // Shape name
-            ctx.fillStyle = isSelected ? "#000000" : "#ffffff";
-            ctx.fillText(`${i + 1}. ${shapeName}`, x + 30, optionY + 15);
-
-            // Shape preview (simple icons)
-            ctx.fillStyle = "#888888";
-            switch (shapeKey) {
-                case "cube":
-                    ctx.fillRect(x + selectorWidth - 60, optionY, 20, 20);
-                    break;
-                case "cone":
-                    ctx.beginPath();
-                    ctx.moveTo(x + selectorWidth - 50, optionY + 20);
-                    ctx.lineTo(x + selectorWidth - 60, optionY);
-                    ctx.lineTo(x + selectorWidth - 40, optionY);
-                    ctx.closePath();
-                    ctx.fill();
-                    break;
-                case "sphere":
-                    ctx.beginPath();
-                    ctx.arc(x + selectorWidth - 50, optionY + 10, 10, 0, Math.PI * 2);
-                    ctx.fill();
-                    break;
-            }
-        }
-
-        // Instructions
-        ctx.fillStyle = "#aaaaaa";
-        ctx.font = "14px Arial";
-        ctx.textAlign = "center";
-        ctx.fillText("Press 1-3 to select shape, Z to close", x + selectorWidth / 2, y + selectorHeight - 20);
-    }
-
-    drawDebugInfo() {
-        this.debugCtx.clearRect(0, 0, Game.WIDTH, Game.HEIGHT);
-
-        this.debugCtx.fillStyle = "rgba(0, 0, 0, 0.7)";
-        this.debugCtx.fillRect(0, 0, 200, 120);
-
-        this.debugCtx.fillStyle = "#fff";
-        this.debugCtx.font = "12px monospace";
-        this.debugCtx.textAlign = "left";
-
-        const pos = this.player.position;
-        const rot = this.player.rotation;
-
-        this.debugCtx.fillText(`FPS: ${Math.round(1 / this.deltaTime || 60)}`, 10, 20);
-        this.debugCtx.fillText(`Position: ${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)}`, 10, 40);
-        this.debugCtx.fillText(
-            `Rotation: ${((rot.x * 180) / Math.PI).toFixed(1)}°, ${((rot.y * 180) / Math.PI).toFixed(1)}°`,
-            10,
-            60
-        );
-        this.debugCtx.fillText(
-            `Blocks: ${this.blocks.size}`,
-            10,
-            80
-        );
-
-        // Display raycast hit coordinates in debug panel too
-        if (this.persistentHighlightPosition) {
-            this.debugCtx.fillText(
-                `Raycast Hit: ${this.persistentHighlightPosition.x.toFixed(2)}, ${this.persistentHighlightPosition.y.toFixed(2)}, ${this.persistentHighlightPosition.z.toFixed(2)}`,
-                10,
-                100
-            );
-        }
-    }
 
     loop() {
         this.update();
@@ -2242,19 +1657,6 @@ class Game {
         requestAnimationFrame(() => this.loop());
     }
 
-    addObject(model) {
-        if (model && model.geometry) {
-            this.sceneObjects.add(model);
-            // console.log('✅ Added object to scene:', model);
-        }
-    }
-
-    removeObject(model) {
-        if (model) {
-            this.sceneObjects.delete(model);
-            // console.log('✅ Removed object from scene:', model);
-        }
-    }
 }
 
 // Level class for 3D WebGL rendering
@@ -2300,13 +1702,13 @@ class Level {
 
         // Add floor and ceiling - perfectly aligned with walls
         this.collisionBoxes.push({
-            min: new Vector3(-this.halfRoomSize, -0.1, -this.halfRoomSize),
-            max: new Vector3(this.halfRoomSize, 0, this.halfRoomSize),
+            min: window.Vector3 ? new window.Vector3(-this.halfRoomSize, -0.1, -this.halfRoomSize) : { x: -this.halfRoomSize, y: -0.1, z: -this.halfRoomSize },
+            max: window.Vector3 ? new window.Vector3(this.halfRoomSize, 0, this.halfRoomSize) : { x: this.halfRoomSize, y: 0, z: this.halfRoomSize },
             type: "floor"
         });
         this.collisionBoxes.push({
-            min: new Vector3(-this.halfRoomSize, 125, -this.halfRoomSize),
-            max: new Vector3(this.halfRoomSize, 125.1, this.halfRoomSize),
+            min: window.Vector3 ? new window.Vector3(-this.halfRoomSize, 125, -this.halfRoomSize) : { x: -this.halfRoomSize, y: 125, z: -this.halfRoomSize },
+            max: window.Vector3 ? new window.Vector3(this.halfRoomSize, 125.1, this.halfRoomSize) : { x: this.halfRoomSize, y: 125.1, z: this.halfRoomSize },
             type: "floor"
         });
 
@@ -2315,33 +1717,33 @@ class Level {
 
         // North wall collision (Z = -halfRoomSize)
         this.collisionBoxes.push({
-            min: new Vector3(-this.halfRoomSize, 0, -this.halfRoomSize - wallThickness),
-            max: new Vector3(this.halfRoomSize, 125, -this.halfRoomSize),
+            min: window.Vector3 ? new window.Vector3(-this.halfRoomSize, 0, -this.halfRoomSize - wallThickness) : { x: -this.halfRoomSize, y: 0, z: -this.halfRoomSize - wallThickness },
+            max: window.Vector3 ? new window.Vector3(this.halfRoomSize, 125, -this.halfRoomSize) : { x: this.halfRoomSize, y: 125, z: -this.halfRoomSize },
             type: "wall"
         });
         // South wall collision (Z = halfRoomSize)
         this.collisionBoxes.push({
-            min: new Vector3(-this.halfRoomSize, 0, this.halfRoomSize),
-            max: new Vector3(this.halfRoomSize, 125, this.halfRoomSize + wallThickness),
+            min: window.Vector3 ? new window.Vector3(-this.halfRoomSize, 0, this.halfRoomSize) : { x: -this.halfRoomSize, y: 0, z: this.halfRoomSize },
+            max: window.Vector3 ? new window.Vector3(this.halfRoomSize, 125, this.halfRoomSize + wallThickness) : { x: this.halfRoomSize, y: 125, z: this.halfRoomSize + wallThickness },
             type: "wall"
         });
         // East wall collision (X = halfRoomSize)
         this.collisionBoxes.push({
-            min: new Vector3(this.halfRoomSize, 0, -this.halfRoomSize),
-            max: new Vector3(this.halfRoomSize + wallThickness, 125, this.halfRoomSize),
+            min: window.Vector3 ? new window.Vector3(this.halfRoomSize, 0, -this.halfRoomSize) : { x: this.halfRoomSize, y: 0, z: -this.halfRoomSize },
+            max: window.Vector3 ? new window.Vector3(this.halfRoomSize + wallThickness, 125, this.halfRoomSize) : { x: this.halfRoomSize + wallThickness, y: 125, z: this.halfRoomSize },
             type: "wall"
         });
         // West wall collision (X = -halfRoomSize)
         this.collisionBoxes.push({
-            min: new Vector3(-this.halfRoomSize - wallThickness, 0, -this.halfRoomSize),
-            max: new Vector3(-this.halfRoomSize, 125, this.halfRoomSize),
+            min: window.Vector3 ? new window.Vector3(-this.halfRoomSize - wallThickness, 0, -this.halfRoomSize) : { x: -this.halfRoomSize - wallThickness, y: 0, z: -this.halfRoomSize },
+            max: window.Vector3 ? new window.Vector3(-this.halfRoomSize, 125, this.halfRoomSize) : { x: -this.halfRoomSize, y: 125, z: this.halfRoomSize },
             type: "wall"
         });
     }
 
     draw(renderer, viewMatrix, projectionMatrix) {
         // Create model matrix (identity for level)
-        const modelMatrix = Matrix4.create();
+        const modelMatrix = window.Matrix4 ? window.Matrix4.create() : new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
 
         // Draw the mesh with the renderer
         renderer.drawMesh(this.mesh, "basic", modelMatrix, viewMatrix, projectionMatrix);
@@ -2355,9 +1757,9 @@ class Player {
         this.level = level;
 
         // Player physics properties
-        this.position = new Vector3(5, 1.8, 5); // Eye height of 1.8 units
-        this.velocity = new Vector3(0, 0, 0);
-        this.rotation = new Vector3(0, 0, 0); // x = pitch, y = yaw
+        this.position = window.Vector3 ? new window.Vector3(5, 1.8, 5) : { x: 5, y: 1.8, z: 5 }; // Eye height of 1.8 units
+        this.velocity = window.Vector3 ? new window.Vector3(0, 0, 0) : { x: 0, y: 0, z: 0 };
+        this.rotation = window.Vector3 ? new window.Vector3(0, 0, 0) : { x: 0, y: 0, z: 0 }; // x = pitch, y = yaw
         this.moveSpeed = 15.0; // 3x faster movement
         this.jumpForce = 8.0;
         this.gravity = 20.0;
@@ -2375,7 +1777,7 @@ class Player {
         this.stepHeight = 0.5;
 
         // Camera properties
-        this.viewMatrix = Matrix4.create();
+        this.viewMatrix = window.Matrix4 ? window.Matrix4.create() : new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
         this.lookSensitivity = 0.002;
         this.maxPitch = Math.PI / 2 - 0.1;
 
@@ -2389,7 +1791,7 @@ class Player {
 
         // Flying state
         this.isFlying = false;
-        this.flyingVelocity = new Vector3(0, 0, 0);
+        this.flyingVelocity = window.Vector3 ? new window.Vector3(0, 0, 0) : { x: 0, y: 0, z: 0 };
         this.lastSpaceTapTime = 0;
         this.doubleTapWindow = 0.3; // seconds
 
@@ -2430,7 +1832,7 @@ class Player {
             const currentTime = performance.now() / 1000;
             if (currentTime - this.lastSpaceTapTime < this.doubleTapWindow) {
                 this.isFlying = !this.isFlying;
-                this.flyingVelocity = new Vector3(0, 0, 0);
+                this.flyingVelocity = window.Vector3 ? new window.Vector3(0, 0, 0) : { x: 0, y: 0, z: 0 };
             }
             this.lastSpaceTapTime = currentTime;
         }
@@ -2519,22 +1921,32 @@ class Player {
 
         // Convert local space movement to world space based on camera rotation
         const angle = this.rotation.y;
-        const moveDir = new Vector3(
-            -dz * Math.sin(angle) + dx * Math.cos(angle),
-            0,
-            dz * Math.cos(angle) + dx * Math.sin(angle)
-        );
+        const moveDir = window.Vector3 ?
+            new window.Vector3(
+                -dz * Math.sin(angle) + dx * Math.cos(angle),
+                0,
+                dz * Math.cos(angle) + dx * Math.sin(angle)
+            ) : {
+                x: -dz * Math.sin(angle) + dx * Math.cos(angle),
+                y: 0,
+                z: dz * Math.cos(angle) + dx * Math.sin(angle)
+            };
 
         return moveDir;
     }
 
     updatePosition(deltaTime) {
         // Temp position for collision checking
-        const newPosition = new Vector3(
-            this.position.x + this.velocity.x * deltaTime,
-            this.position.y + this.velocity.y * deltaTime,
-            this.position.z + this.velocity.z * deltaTime
-        );
+        const newPosition = window.Vector3 ?
+            new window.Vector3(
+                this.position.x + this.velocity.x * deltaTime,
+                this.position.y + this.velocity.y * deltaTime,
+                this.position.z + this.velocity.z * deltaTime
+            ) : {
+                x: this.position.x + this.velocity.x * deltaTime,
+                y: this.position.y + this.velocity.y * deltaTime,
+                z: this.position.z + this.velocity.z * deltaTime
+            };
 
         // Check collision with level
         const collision = this.checkCollision(newPosition);
@@ -2577,17 +1989,27 @@ class Player {
             floorY: 0
         };
 
-        const playerMin = new Vector3(
-            position.x - this.radius,
-            position.y - this.standingHeight,
-            position.z - this.radius
-        );
+        const playerMin = window.Vector3 ?
+            new window.Vector3(
+                position.x - this.radius,
+                position.y - this.standingHeight,
+                position.z - this.radius
+            ) : {
+                x: position.x - this.radius,
+                y: position.y - this.standingHeight,
+                z: position.z - this.radius
+            };
 
-        const playerMax = new Vector3(
-            position.x + this.radius,
-            position.y - this.crouchAmount,
-            position.z + this.radius
-        );
+        const playerMax = window.Vector3 ?
+            new window.Vector3(
+                position.x + this.radius,
+                position.y - this.crouchAmount,
+                position.z + this.radius
+            ) : {
+                x: position.x + this.radius,
+                y: position.y - this.crouchAmount,
+                z: position.z + this.radius
+            };
 
         // Check against all level collision boxes
         for (const box of this.level.collisionBoxes) {
@@ -2637,18 +2059,18 @@ class Player {
 
     getViewMatrix() {
         // Create view matrix
-        Matrix4.identity(this.viewMatrix);
-
-        // Apply rotations
-        Matrix4.rotateX(this.viewMatrix, this.viewMatrix, this.rotation.x);
-        Matrix4.rotateY(this.viewMatrix, this.viewMatrix, this.rotation.y);
-
-        // Apply position including crouch offset
-        Matrix4.translate(this.viewMatrix, this.viewMatrix, [
-            -this.position.x,
-            -(this.position.y - this.crouchAmount),
-            -this.position.z
-        ]);
+        if (window.Matrix4) {
+            window.Matrix4.identity(this.viewMatrix);
+            // Apply rotations
+            window.Matrix4.rotateX(this.viewMatrix, this.viewMatrix, this.rotation.x);
+            window.Matrix4.rotateY(this.viewMatrix, this.viewMatrix, this.rotation.y);
+            // Apply position including crouch offset
+            window.Matrix4.translate(this.viewMatrix, this.viewMatrix, [
+                -this.position.x,
+                -(this.position.y - this.crouchAmount),
+                -this.position.z
+            ]);
+        }
 
         return this.viewMatrix;
     }

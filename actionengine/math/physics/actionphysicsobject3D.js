@@ -1,3 +1,6 @@
+import { RenderableObject } from '../../display/graphics/renderableobject.js';
+import { Vector3 } from '../vector3.js';
+
 class ActionPhysicsObject3D extends RenderableObject {
      constructor(physicsWorld, triangles, options = {}) {
         super();
@@ -18,7 +21,7 @@ class ActionPhysicsObject3D extends RenderableObject {
         
         this.originalNormals = [];
         this.originalVerts = [];
-        this.position = new Vector3(0, 0, 0);
+        this.position = window.Vector3 ? new window.Vector3(0, 0, 0) : { x: 0, y: 0, z: 0 };
         
         // Calculate bounding sphere for frustum culling
         this.calculateBoundingSphere();
@@ -27,18 +30,30 @@ class ActionPhysicsObject3D extends RenderableObject {
         // so when they become visible again we can update them correctly
         // Use _originalTriangles to ensure we always have the data
         this._originalTriangles.forEach((triangle) => {
-            this.originalNormals.push(new Vector3(
-                triangle.normal.x,
-                triangle.normal.y,
-                triangle.normal.z
-            ));
-            
+            this.originalNormals.push(window.Vector3 ?
+                new window.Vector3(
+                    triangle.normal.x,
+                    triangle.normal.y,
+                    triangle.normal.z
+                ) : {
+                    x: triangle.normal.x,
+                    y: triangle.normal.y,
+                    z: triangle.normal.z
+                }
+            );
+
             triangle.vertices.forEach((vertex) => {
-                this.originalVerts.push(new Vector3(
-                    vertex.x,
-                    vertex.y,
-                    vertex.z
-                ));
+                this.originalVerts.push(window.Vector3 ?
+                    new window.Vector3(
+                        vertex.x,
+                        vertex.y,
+                        vertex.z
+                    ) : {
+                        x: vertex.x,
+                        y: vertex.y,
+                        z: vertex.z
+                    }
+                );
             });
         });
     }
@@ -85,11 +100,25 @@ class ActionPhysicsObject3D extends RenderableObject {
         }
         
         // Update position once
-        this.position.set(posX, posY, posZ);
-        
+        if (window.Vector3 && this.position.set) {
+            this.position.set(posX, posY, posZ);
+        } else {
+            this.position.x = posX;
+            this.position.y = posY;
+            this.position.z = posZ;
+        }
+
         // Cache current position and rotation for next comparison
-        if (!this._lastPosition) this._lastPosition = new Vector3();
-        this._lastPosition.set(posX, posY, posZ);
+        if (!this._lastPosition) {
+            this._lastPosition = window.Vector3 ? new window.Vector3() : { x: 0, y: 0, z: 0 };
+        }
+        if (window.Vector3 && this._lastPosition.set) {
+            this._lastPosition.set(posX, posY, posZ);
+        } else {
+            this._lastPosition.x = posX;
+            this._lastPosition.y = posY;
+            this._lastPosition.z = posZ;
+        }
         
         if (!this._lastRotation) this._lastRotation = new Goblin.Quaternion();
         this._lastRotation.x = rot.x;
@@ -134,7 +163,9 @@ class ActionPhysicsObject3D extends RenderableObject {
         // Apply rotation
         rotation.transformVector3(v);
         // Return as our Vector3
-        return new Vector3(v.x, v.y, v.z);
+        return window.Vector3 ?
+            new window.Vector3(v.x, v.y, v.z) :
+            { x: v.x, y: v.y, z: v.z };
     }
     
     // Calculate the bounding sphere radius for frustum culling
@@ -162,3 +193,10 @@ class ActionPhysicsObject3D extends RenderableObject {
         this.boundingSphereRadius = Math.sqrt(maxDistanceSquared) * 1.1;
     }
 }
+
+// Make ActionPhysicsObject3D available globally for backward compatibility
+if (typeof window !== 'undefined') {
+    window.ActionPhysicsObject3D = ActionPhysicsObject3D;
+}
+
+export { ActionPhysicsObject3D };

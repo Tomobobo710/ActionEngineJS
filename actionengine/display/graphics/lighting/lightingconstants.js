@@ -261,3 +261,11 @@ class LightingConstants {
 
 // Create a global instance
 const lightingConstants = new LightingConstants();
+
+// Make lightingConstants available globally for backward compatibility
+if (typeof window !== 'undefined') {
+    window.lightingConstants = lightingConstants;
+}
+
+// Export for ES6 modules
+export { LightingConstants, lightingConstants };

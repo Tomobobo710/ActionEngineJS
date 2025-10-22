@@ -2,11 +2,12 @@
   "name": "memory-palace-3d",
   "version": "1.0.0",
   "description": "3D Spatial Memory Palace using Method of Loci with ActionEngine",
+  "type": "module",
   "main": "server/server.js",
   "scripts": {
-    "start": "node server/server.js",
-    "dev": "nodemon server/server.js",
-    "init-db": "node server/config/database.js"
+    "start": "node server/server.cjs",
+    "dev": "nodemon server/server.cjs",
+    "init-db": "node server/config/database.cjs"
   },
   "keywords": [
     "memory",

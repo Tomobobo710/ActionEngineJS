@@ -1,6 +1,6 @@
 // actionengine/display/gl/shaders/objectshader.js
 
-class ObjectShader {
+export class ObjectShader {
     constructor() {
         // Store references to different object shader variants
         this.variants = {
@@ -904,6 +904,7 @@ class ObjectShader {
         gl_Position = uProjectionMatrix * uViewMatrix * worldPos;
     }`;
     }
+    
 
     /**
      * PBR fragment shader

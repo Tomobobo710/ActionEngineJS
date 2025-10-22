@@ -1,5 +1,5 @@
 // actionengine/math/matrix4.js
-class Matrix4 {
+export class Matrix4 {
     static create() {
         return new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
     }
@@ -782,4 +782,9 @@ class Matrix4 {
 
         return out;
     }
+}
+
+// Make Matrix4 available globally for backward compatibility
+if (typeof window !== 'undefined') {
+    window.Matrix4 = Matrix4;
 }

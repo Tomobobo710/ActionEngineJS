@@ -1,4 +1,8 @@
 // actionengine/math/physics/actionphysicscapsule3D.js
+import { ActionPhysicsObject3D } from '../actionphysicsobject3D.js';
+import { Vector3 } from '../../vector3.js';
+import { Triangle } from '../../geometry/triangle.js';
+
 /**
  * ActionPhysicsCapsule3D - 3D Capsule Physics Object with Single Color System
  * 

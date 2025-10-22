@@ -1,3 +1,6 @@
+import { RenderableObject } from './renderableobject.js';
+import { Vector3 } from '../../math/vector3.js';
+
 class ActionModel3D extends RenderableObject {
     constructor(geometry = null) {
         super(); // Call parent constructor
@@ -203,3 +206,10 @@ class ActionModel3D extends RenderableObject {
         return triangles;
     }
 }
+
+// Make ActionModel3D available globally for backward compatibility
+if (typeof window !== 'undefined') {
+    window.ActionModel3D = ActionModel3D;
+}
+
+export { ActionModel3D };

@@ -1,4 +1,8 @@
 // actionengine/math/physics/actionphysicscylinder3D.js
+import { ActionPhysicsObject3D } from '../actionphysicsobject3D.js';
+import { Vector3 } from '../../vector3.js';
+import { Triangle } from '../../geometry/triangle.js';
+
 class ActionPhysicsCylinder3D extends ActionPhysicsObject3D {
     constructor(
         physicsWorld,

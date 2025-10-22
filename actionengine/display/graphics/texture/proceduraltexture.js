@@ -90,7 +90,7 @@ class ProceduralTexture {
             }
         }
     }
-
+    
     generateSand() {
         const baseColor = { r: 210, g: 185, b: 139 }; // Sandy beige
         for (let y = 0; y < this.height; y++) {
@@ -190,3 +190,10 @@ class ProceduralTexture {
         }
     }
 }
+
+// Make ProceduralTexture available globally for backward compatibility
+if (typeof window !== 'undefined') {
+    window.ProceduralTexture = ProceduralTexture;
+}
+
+export { ProceduralTexture };

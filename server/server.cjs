@@ -5,7 +5,7 @@ const compression = require('compression');
 const helmet = require('helmet');
 require('dotenv').config();
 
-const blockRoutes = require('./routes/blocks');
+const blockRoutes = require('./routes/blocks.cjs');
 
 const app = express();
 const PORT = process.env.PORT || 4444;
@@ -40,9 +40,14 @@ if (NODE_ENV === 'development') {
     });
 }
 
-// Serve static files from client directory
+// Serve static files from client directory with proper ES module support
 app.use(express.static(path.join(__dirname, '../'), {
-    maxAge: NODE_ENV === 'production' ? '1d' : 0
+    maxAge: NODE_ENV === 'production' ? '1d' : 0,
+    setHeaders: (res, path) => {
+        if (path.endsWith('.js')) {
+            res.set('Content-Type', 'application/javascript');
+        }
+    }
 }));
 
 // API Routes

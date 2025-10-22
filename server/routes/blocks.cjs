@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const BlockController = require('../controllers/blockController');
+const BlockController = require('../controllers/blockController.cjs');
 
 // Block CRUD routes
 router.get('/', BlockController.getAllBlocks);

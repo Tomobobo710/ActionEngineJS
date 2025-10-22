@@ -1,6 +1,10 @@
+import { ActionPhysicsObject3D } from '../actionphysicsobject3D.js';
+import { Vector3 } from '../../vector3.js';
+import { Triangle } from '../../geometry/triangle.js';
+
 /**
  * ActionPhysicsBox3D - 3D Box Physics Object with Single Color System
- * 
+ *
  * BREAKING CHANGE: Previously used rainbow faces by default.
  * Now uses single green color system for consistency with other shapes.
  * 

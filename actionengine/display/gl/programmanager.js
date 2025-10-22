@@ -1,5 +1,5 @@
 // actionengine/display/gl/programmanager.js
-class ProgramManager {
+export class ProgramManager {
     constructor(gl, isWebGL2) {
         this.gl = gl;
         this.isWebGL2 = isWebGL2;
@@ -286,6 +286,7 @@ class ProgramManager {
             console.error(`[ProgramManager] Error setting object shader variant: ${e.message}`);
             return this.currentVariant; // Return previous variant on error
         }
+        
     }
     
     /**

@@ -1,3 +1,7 @@
+import { ActionPhysicsObject3D } from '../actionphysicsobject3D.js';
+import { Vector3 } from '../../vector3.js';
+import { Triangle } from '../../geometry/triangle.js';
+
 // actionengine/math/physics/actionphysicsmesh3D.js
 class ActionPhysicsMesh3D extends ActionPhysicsObject3D {
     constructor(

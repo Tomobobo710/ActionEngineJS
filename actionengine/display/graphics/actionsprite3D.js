@@ -1,4 +1,5 @@
 // actionengine/display/graphics/actionsprite3D.js
+import { RenderableObject } from './renderableobject.js';
 
 class ActionSprite3D extends RenderableObject {
     constructor(options = {}) {

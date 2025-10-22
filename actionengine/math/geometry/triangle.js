@@ -1,5 +1,5 @@
 // actionengine/math/geometry/triangle.js
-class Triangle {
+export class Triangle {
     constructor(v1, v2, v3, color = "#FF00FF", texture = null, uvs = null) {
         this.vertices = [v1, v2, v3];
         this.normal = this.calculateNormal();
@@ -17,6 +17,7 @@ class Triangle {
     getVertexArray() {
         return this.vertices.flatMap((v) => [v.x, v.y, v.z]);
     }
+    
 
     getNormalArray() {
         return [...this.normal.toArray(), ...this.normal.toArray(), ...this.normal.toArray()];

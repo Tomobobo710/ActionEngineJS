@@ -1,3 +1,7 @@
+import { ActionPhysicsObject3D } from '../actionphysicsobject3D.js';
+import { Vector3 } from '../../vector3.js';
+import { Triangle } from '../../geometry/triangle.js';
+
 class ActionPhysicsCompoundShape3D extends ActionPhysicsObject3D {
     constructor(physicsWorld, initialPosition = new Vector3(0, 500, 0), mass = 1) {
         // Start with an empty triangle list - we'll add them as child shapes are added

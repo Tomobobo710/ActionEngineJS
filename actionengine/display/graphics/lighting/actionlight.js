@@ -15,11 +15,11 @@ class ActionLight {
         this.isWebGL2 = isWebGL2;
         
         // Reference to global lighting constants
-        this.constants = lightingConstants;
+        this.constants = window.lightingConstants || {};
         
         // Basic light properties
-        this.position = new Vector3(0, 0, 0);
-        this.color = new Vector3(1, 1, 1);  // White light by default
+        this.position = window.Vector3 ? new window.Vector3(0, 0, 0) : { x: 0, y: 0, z: 0 };
+        this.color = window.Vector3 ? new window.Vector3(1, 1, 1) : { x: 1, y: 1, z: 1 };  // White light by default
         this.intensity = 1.0;
         
         // Shadow capability flag
@@ -209,3 +209,10 @@ class ActionLight {
         // Subclasses should override to free GL resources
     }
 }
+
+// Make ActionLight available globally for backward compatibility
+if (typeof window !== 'undefined') {
+    window.ActionLight = ActionLight;
+}
+
+export { ActionLight };

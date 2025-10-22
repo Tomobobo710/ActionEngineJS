@@ -1,3 +1,7 @@
+import { ActionPhysicsObject3D } from '../actionphysicsobject3D.js';
+import { Vector3 } from '../../vector3.js';
+import { Triangle } from '../../geometry/triangle.js';
+
 class ActionPhysicsConvexShape3D extends ActionPhysicsObject3D {
     constructor(physicsWorld, vertices, mass = 1, initialPosition = new Vector3(0, 500, 0), colors = []) {
         // Convert input vertices to Goblin.Vector3 for physics
