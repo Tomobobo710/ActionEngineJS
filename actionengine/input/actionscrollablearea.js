@@ -6,48 +6,39 @@
  * to be easily integrated into any UI that needs to display a scrollable list of items.
  *
  * KEY FEATURES:
+ * - Self-Contained: Draws both scrollbar and content area background automatically
+ * - Background Management: Handles content area background, borders, and styling independently
  * - Drag & Drop: Click and drag the scrollbar thumb with threshold-based drag detection
  * - Click-to-Jump: Click anywhere on the scrollbar track to instantly jump to that position
  * - Mouse Wheel: Seamless scroll wheel support with proper delta handling
  * - Keyboard Scrolling: Arrow key navigation when hovering over the list area
  * - Proportional Display: Scrollbar thumb size and position accurately represent content ratio
  * - Visual Feedback: Hover states, drag indicators, and smooth interactions
+ * - Customizable Background: Configurable content area background with borders and rounded corners
  * - Easy Configuration: Simple configuration object for different use cases
  *
  * USAGE EXAMPLE:
  * ```javascript
- * // Create a scrollable area for inventory items
+ * // Basic setup - component handles everything automatically
  * this.inventoryScroller = new ActionScrollableArea({
- *     listAreaX: 400,        // X position of the scrollable content area
- *     listAreaY: 100,        // Y position of the scrollable content area
- *     listAreaWidth: 450,    // Width of the scrollable content area
- *     listAreaHeight: 400,   // Height of the scrollable content area
- *     itemHeight: 60,        // Height of each item in pixels
- *     scrollBarX: 860,       // X position of the scrollbar
- *     scrollBarY: 90,        // Y position of the scrollbar track
- *     scrollBarTrackHeight: 380, // Total height of the scrollbar track
- *     scrollBarThumbStartY: 120  // Y position where scrollbar thumb starts
+ *     listAreaX: 400, listAreaY: 100, listAreaWidth: 450, listAreaHeight: 400,
+ *     itemHeight: 60, padding: 10, scrollBarX: 860, scrollBarY: 90,
+ *     scrollBarTrackHeight: 380, scrollBarThumbStartY: 120
  * }, game.input, game.guiCtx);
  *
  * // In your update loop
  * this.inventoryScroller.update(this.game.gameState.inventory.length, deltaTime);
  *
- * // In your draw loop
- * this.inventoryScroller.draw();
- *
- * // When drawing items, use the helper methods
- * this.game.gameState.inventory.forEach((item, index) => {
- *     const itemY = this.inventoryScroller.getItemDrawY(index);
- *     if (this.inventoryScroller.isItemVisible(index)) {
- *         // Draw your item at the calculated position
- *         this.drawInventoryItem(item, itemY);
- *     }
+ * // Enhanced draw method with automatic clipping and item rendering
+ * this.inventoryScroller.draw(items, (item, index, y) => {
+ *     this.drawInventoryItem(item, y);
  * });
  * ```
  *
  * CONFIGURATION OPTIONS:
  * - listAreaX, listAreaY, listAreaWidth, listAreaHeight: Define the scrollable content area
  * - itemHeight: Pixel height of each item in your list
+ * - padding: Pixel gap between items in the list (default: 8)
  * - scrollBarX, scrollBarY: Position of the scrollbar relative to content
  * - scrollBarTrackHeight: Total height available for scrollbar track
  * - scrollBarThumbStartY: Where the scrollbar thumb should start (usually = scrollBarY + 10)
@@ -56,6 +47,11 @@
  * - enableClipping: Enable clipping support (default: false)
  * - clipBounds: {x, y, width, height} for clipping visible area
  * - colors: Override default scrollbar colors (see colors config structure below)
+ * - backgroundColor: Background fill color for content area (default: "rgba(40, 40, 40, 0.8)")
+ * - borderColor: Border color for content area (default: "rgba(255, 255, 255, 0.3)")
+ * - borderWidth: Border thickness for content area (default: 2)
+ * - cornerRadius: Corner radius for rounded background (default: 0)
+ * - drawBackground: Whether to draw background automatically (default: true)
  * - onRegisterInput: Custom input registration callback
  * - onRegisterItemInput: Custom item input registration callback
  * - generateItemId: Function to generate item IDs (item, index) => string
@@ -82,28 +78,32 @@ class ActionScrollableArea {
      * @param {number} config.listAreaWidth - Width in pixels of the scrollable content area
      * @param {number} config.listAreaHeight - Height in pixels of the scrollable content area
      * @param {number} config.itemHeight - Height in pixels of each individual item in the list
+     * @param {number} [config.padding] - Pixel gap between items in the list (default: 8)
      * @param {number} config.scrollBarX - X coordinate where the scrollbar should be positioned
      * @param {number} config.scrollBarY - Y coordinate where the scrollbar track starts
      * @param {number} config.scrollBarTrackHeight - Total height available for the scrollbar track
      * @param {number} [config.scrollBarThumbStartY] - Y coordinate where scrollbar thumb should start (optional, calculated if not provided)
+     * @param {string} [config.backgroundColor] - Background fill color for the content area (default: "rgba(40, 40, 40, 0.8)")
+     * @param {string} [config.borderColor] - Border color for the content area (default: "rgba(255, 255, 255, 0.3)")
+     * @param {number} [config.borderWidth] - Border thickness for the content area (default: 2)
+     * @param {number} [config.cornerRadius] - Corner radius for rounded background corners (default: 0)
+     * @param {boolean} [config.drawBackground] - Whether to draw the background automatically (default: true)
      *
      * @param {Object} input - Reference to the ActionEngine input system for handling user interactions
      * @param {CanvasRenderingContext2D} ctx - Canvas 2D rendering context for drawing the scrollbar components
      *
      * @example
-     * // Basic inventory scroller setup
+     * // Basic setup - component handles background automatically
      * const inventoryScroller = new ActionScrollableArea({
-     *     listAreaX: 50,
-     *     listAreaY: 100,
-     *     listAreaWidth: 300,
-     *     listAreaHeight: 400,
-     *     itemHeight: 60,
-     *     scrollBarX: 360,
-     *     scrollBarY: 100,
-     *     scrollBarTrackHeight: 400
+     *     listAreaX: 50, listAreaY: 100, listAreaWidth: 300, listAreaHeight: 400,
+     *     itemHeight: 60, scrollBarX: 360, scrollBarY: 100, scrollBarTrackHeight: 400,
+     *
+     *     // Optional: customize background (defaults are sensible)
+     *     backgroundColor: "rgba(40, 40, 40, 0.8)",
+     *     borderColor: "rgba(255, 255, 255, 0.3)"
      * }, game.input, game.guiCtx);
      *
-     * // Advanced setup with clipping and custom colors
+     * // Advanced setup with custom styling and background
      * const customScroller = new ActionScrollableArea({
      *     listAreaX: 400, listAreaY: 100, listAreaWidth: 450, listAreaHeight: 400,
      *     itemHeight: 120, scrollBarX: 860, scrollBarY: 90,
@@ -113,14 +113,21 @@ class ActionScrollableArea {
      *     enableClipping: true,
      *     clipBounds: { x: 400, y: 100, width: 450, height: 400 },
      *
-     *     // Custom dark theme colors
+     *     // Custom scrollbar colors for theme consistency
      *     colors: {
      *         track: { normal: "rgba(255, 255, 255, 0.1)", hover: "rgba(255, 255, 255, 0.2)" },
      *         thumb: { normal: "rgba(255, 100, 100, 0.3)", hover: "rgba(255, 100, 100, 0.6)", drag: "rgba(255, 100, 100, 0.8)" },
      *         button: { normal: "rgba(255, 100, 100, 0.1)", hover: "rgba(255, 100, 100, 0.3)" },
      *         buttonText: { normal: "rgba(255, 100, 100, 0.8)", hover: "#ff6464" },
      *         thumbBorder: { normal: "rgba(255, 100, 100, 0.5)", drag: "#ff6464" }
-     *     }
+     *     },
+     *
+     *     // Self-contained background styling - no manual drawing needed!
+     *     drawBackground: true,                           // Enable automatic background
+     *     backgroundColor: "rgba(20, 20, 30, 0.9)",     // Dark blue background
+     *     borderColor: "rgba(255, 100, 100, 0.6)",       // Red border with 60% opacity
+     *     borderWidth: 3,                                 // Thicker border
+     *     cornerRadius: 8                                 // Rounded corners
      * }, game.input, game.guiCtx);
      *
      * // Chat log scroller with different ID format
@@ -151,7 +158,7 @@ class ActionScrollableArea {
 
         // Track scroll and content changes to prevent unnecessary input re-registration
         this.lastScrollOffsetForInput = -1; // Initialize to -1 so first update always triggers
-        this.lastItemCountForInput = -1;    // Track item count changes for new insertions/deletions
+        this.lastItemCountForInput = -1; // Track item count changes for new insertions/deletions
         this.registeredItems = new Set(); // Track which items are currently registered
 
         // List area dimensions
@@ -161,7 +168,7 @@ class ActionScrollableArea {
             width: config.listAreaWidth || 450,
             height: config.listAreaHeight || 400,
             itemHeight: config.itemHeight || 60,
-            padding: 8,
+            padding: config.padding !== undefined ? config.padding : 8,
             scrollBarWidth: 20
         };
 
@@ -214,25 +221,36 @@ class ActionScrollableArea {
         this.enableClipping = config.enableClipping || false;
 
         // Custom input registration callback
-        this.onRegisterInput = config.onRegisterInput || ((id, bounds, layer = 'gui') => {
-            if (bounds && bounds.width > 0 && bounds.height > 0) {
-                this.input.registerElement(id, { bounds: () => bounds }, layer);
-            }
-        });
+        this.onRegisterInput =
+            config.onRegisterInput ||
+            ((id, bounds, layer = "gui") => {
+                if (bounds && bounds.width > 0 && bounds.height > 0) {
+                    this.input.registerElement(id, { bounds: () => bounds }, layer);
+                }
+            });
 
         // Generate item ID for input registration (configurable)
         this.generateItemId = config.generateItemId || ((item, index) => `item_${index}`);
 
         // Custom item input registration callback (stable registration)
-        this.onRegisterItemInput = config.onRegisterItemInput || ((itemId, index, bounds) => {
-            if (bounds && bounds.width > 0 && bounds.height > 0) {
-                // Only register if not already registered to prevent hover flickering
-                if (!this.input.isElementHovered(itemId, 'gui') && !this.input.isElementPressed(itemId, 'gui')) {
+        this.onRegisterItemInput =
+            config.onRegisterItemInput ||
+            ((itemId, index, bounds) => {
+                if (bounds && bounds.width > 0 && bounds.height > 0) {
+                    // Always register visible items - the registration system handles duplicates
                     this.onRegisterInput(itemId, bounds);
                 }
-            }
-        });
-        
+            });
+
+        // Background configuration
+        this.drawBackground = config.drawBackground !== false; // Default to true
+        this.backgroundConfig = {
+            fillColor: config.backgroundColor || "rgba(40, 40, 40, 0.8)",
+            borderColor: config.borderColor || "rgba(255, 255, 255, 0.3)",
+            borderWidth: config.borderWidth || 2,
+            cornerRadius: config.cornerRadius || 0 // For rounded corners
+        };
+
         const scrollButtonWidth = 20;
         const scrollButtonHeight = 20;
 
@@ -441,7 +459,7 @@ class ActionScrollableArea {
      * console.log(this.maxScrollOffset); // 4700
      */
     updateMaxScroll(totalItemCount) {
-        const totalContentHeight = totalItemCount * this.listArea.itemHeight;
+        const totalContentHeight = totalItemCount * (this.listArea.itemHeight + this.listArea.padding);
         const visibleHeight = this.listArea.height;
         this.maxScrollOffset = Math.max(0, totalContentHeight - visibleHeight);
         this.scrollOffset = Math.max(0, Math.min(this.maxScrollOffset, this.scrollOffset));
@@ -473,8 +491,10 @@ class ActionScrollableArea {
         const trackHeight = this.scrollArea.trackHeight;
 
         // Calculate total content height (all items that exist)
-        const totalItemCount = this.maxScrollOffset / this.listArea.itemHeight + (this.listArea.height / this.listArea.itemHeight);
-        const totalContentHeight = totalItemCount * this.listArea.itemHeight;
+        const totalItemCount =
+            this.maxScrollOffset / (this.listArea.itemHeight + this.listArea.padding) +
+            this.listArea.height / (this.listArea.itemHeight + this.listArea.padding);
+        const totalContentHeight = totalItemCount * (this.listArea.itemHeight + this.listArea.padding);
 
         // Thumb height represents the ratio of visible content to total content
         const thumbHeightRatio = this.listArea.height / totalContentHeight;
@@ -565,7 +585,7 @@ class ActionScrollableArea {
      * this.scrollOffset -= 60; // Scroll up by one "notch"
      */
     handleMouseWheel(deltaY) {
-        const scrollAmount = deltaY > 0 ? 20 : -20;  // ← Changed from 60 to 20
+        const scrollAmount = deltaY > 0 ? 20 : -20; // ← Changed from 60 to 20
         this.scrollOffset = Math.max(0, Math.min(this.maxScrollOffset, this.scrollOffset + scrollAmount));
     }
 
@@ -582,7 +602,7 @@ class ActionScrollableArea {
      * // Content moves up, showing items that were above the visible area
      */
     scrollUp() {
-        const scrollAmount = 50;  // ← Changed from itemHeight (120) to 50
+        const scrollAmount = 50; // ← Changed from itemHeight (120) to 50
         this.scrollOffset = Math.max(0, this.scrollOffset - scrollAmount);
     }
 
@@ -599,7 +619,7 @@ class ActionScrollableArea {
      * // Content moves down, showing items that were below the visible area
      */
     scrollDown() {
-        const scrollAmount = 50;  // ← Changed from itemHeight (120) to 50
+        const scrollAmount = 50; // ← Changed from itemHeight (120) to 50
         this.scrollOffset = Math.min(this.maxScrollOffset, this.scrollOffset + scrollAmount);
     }
 
@@ -755,22 +775,22 @@ class ActionScrollableArea {
      * // With custom clipping
      * const visible = isItemVisible(5, {x: 400, y: 100, width: 450, height: 400});
      */
-     isItemVisible(index, customClipBounds = null) {
-         if (this.enableClipping) {
-             const itemBounds = this.getItemBounds(index);
-             const clipBounds = customClipBounds || this.clipBounds;
-             return this.calculateIntersection(itemBounds, clipBounds).area > 0;
-         }
+    isItemVisible(index, customClipBounds = null) {
+        if (this.enableClipping) {
+            const itemBounds = this.getItemBounds(index);
+            const clipBounds = customClipBounds || this.clipBounds;
+            return this.calculateIntersection(itemBounds, clipBounds).area > 0;
+        }
 
-         // Fallback to original logic when clipping is disabled
-         const itemY = this.listArea.y + 10 + index * this.listArea.itemHeight - this.scrollOffset;
-         const itemBottom = itemY + this.listArea.itemHeight;
-         const visibleTop = this.listArea.y;
-         const visibleBottom = this.listArea.y + this.listArea.height;
+        // Fallback to original logic when clipping is disabled
+        const itemY = this.listArea.y + 10 + index * this.listArea.itemHeight - this.scrollOffset;
+        const itemBottom = itemY + this.listArea.itemHeight;
+        const visibleTop = this.listArea.y;
+        const visibleBottom = this.listArea.y + this.listArea.height;
 
-         // Item is visible if any part of it intersects with the visible area
-         return !(itemBottom <= visibleTop || itemY >= visibleBottom);
-     }
+        // Item is visible if any part of it intersects with the visible area
+        return !(itemBottom <= visibleTop || itemY >= visibleBottom);
+    }
 
     /**
      * Gets the correct Y position for drawing an item at the given index
@@ -794,175 +814,410 @@ class ActionScrollableArea {
      * // y = 100 + 10 + (3 * 60) - 120 = 100 + 10 + 180 - 120 = 170
      * // Item appears at screen coordinate 170
      */
-     getItemDrawY(index) {
-         return this.listArea.y + 10 + index * this.listArea.itemHeight - this.scrollOffset;
-     }
-
-     /**
-      * Gets the full bounds of an item (before clipping)
-      *
-      * @param {number} index - Zero-based index of the item
-      * @returns {Object} Item bounds {x, y, width, height}
-      */
-     getItemBounds(index) {
-         return {
-             x: this.listArea.x + 10,
-             y: this.getItemDrawY(index),
-             width: this.listArea.width - 20,
-             height: this.listArea.itemHeight
-         };
-     }
-
-     /**
-      * Gets the clipped bounds of an item within the clip region
-      * Only returns bounds if the item intersects with the visible area
-      *
-      * @param {number} index - Zero-based index of the item
-      * @param {Object} customClipBounds - Optional custom clip bounds
-      * @returns {Object|null} Clipped bounds {x, y, width, height} or null if not visible
-      */
-     getClippedItemBounds(index, customClipBounds = null) {
-         if (!this.enableClipping) {
-             return this.getItemBounds(index); // No clipping, return full bounds
-         }
-
-         const itemBounds = this.getItemBounds(index);
-         const clipBounds = customClipBounds || this.clipBounds;
-
-         if (!clipBounds) {
-             return itemBounds; // No clip bounds defined, return full bounds
-         }
-
-         const intersection = this.calculateIntersection(itemBounds, clipBounds);
-         return intersection.area > 0 ? intersection.bounds : null;
-     }
-
-     /**
-      * Calculates rectangle intersection between two bounds
-      *
-      * @param {Object} bounds1 - First bounds {x, y, width, height}
-      * @param {Object} bounds2 - Second bounds {x, y, width, height}
-      * @returns {Object} Intersection result {bounds, area}
-      */
-     calculateIntersection(bounds1, bounds2) {
-         const x1 = Math.max(bounds1.x, bounds2.x);
-         const y1 = Math.max(bounds1.y, bounds2.y);
-         const x2 = Math.min(bounds1.x + bounds1.width, bounds2.x + bounds2.width);
-         const y2 = Math.min(bounds1.y + bounds1.height, bounds2.y + bounds2.height);
-
-         const width = Math.max(0, x2 - x1);
-         const height = Math.max(0, y2 - y1);
-         const area = width * height;
-
-         return {
-             bounds: width > 0 && height > 0 ? { x: x1, y: y1, width, height } : null,
-             area: area
-         };
-     }
-
-     /**
-      * Registers input for a specific item with proper clipping
-      * Only re-registers if scroll position changed or item not registered
-      *
-      * @param {Object} item - The item object
-      * @param {number} index - Index of the item in the list
-      * @param {string} layer - Input layer (default: 'gui')
-      */
-     registerItemInput(item, index, layer = 'gui') {
-         const itemId = this.generateItemId(item, index);
-
-         // Only update if scroll position changed or item not registered
-         if (this.scrollOffset === this.lastScrollOffsetForInput && this.registeredItems.has(itemId)) {
-             return; // No change needed, skip registration
-         }
-
-         const clippedBounds = this.getClippedItemBounds(index);
-         if (clippedBounds && clippedBounds.width > 0 && clippedBounds.height > 0) {
-             this.onRegisterItemInput(itemId, index, clippedBounds, layer);
-             this.registeredItems.add(itemId);
-         } else {
-             // Item not visible, remove registration if it exists
-             if (this.registeredItems.has(itemId)) {
-                 this.input.removeElement(itemId, layer);
-                 this.registeredItems.delete(itemId);
-             }
-         }
-     }
-
-     /**
-      * Updates input registrations for all visible items
-      * Only runs when scroll position or item count changes
-      *
-      * @param {Array} items - Array of items to register input for
-      * @param {string} layer - Input layer (default: 'gui')
-      */
-     updateItemInputs(items, layer = 'gui') {
-         const currentItemCount = items.length;
-
-         // Only update if scroll position OR item count changed
-         if (this.scrollOffset === this.lastScrollOffsetForInput &&
-             currentItemCount === this.lastItemCountForInput) {
-             return; // No changes, skip update
-         }
-
-         // Clear old registrations when item count changes (order might have shifted)
-         if (currentItemCount !== this.lastItemCountForInput) {
-             this.registeredItems.clear();
-         }
-
-         // Update registrations for all items
-         items.forEach((item, index) => {
-             this.registerItemInput(item, index, layer);
-         });
-
-         // Update tracking
-         this.lastScrollOffsetForInput = this.scrollOffset;
-         this.lastItemCountForInput = currentItemCount;
-     }
-
-     /**
-      * Forces an input update for all items (useful when items are added/removed)
-      * Call this when the item array changes outside of normal scroll updates
-      *
-      * @param {Array} items - Array of items to register input for
-      * @param {string} layer - Input layer (default: 'gui')
-      */
-     forceItemInputUpdate(items, layer = 'gui') {
-         // Reset tracking to force update
-         this.lastScrollOffsetForInput = -1;
-         this.lastItemCountForInput = -1;
-         this.registeredItems.clear();
-
-         // Update with new items
-         this.updateItemInputs(items, layer);
-     }
+    getItemDrawY(index) {
+        return (
+            this.listArea.y +
+            this.listArea.padding +
+            index * (this.listArea.itemHeight + this.listArea.padding) -
+            this.scrollOffset
+        );
+    }
 
     /**
-     * Draws the complete scrollbar interface
+     * Gets the full bounds of an item (before clipping)
      *
-     * Main drawing method that renders all scrollbar components:
+     * @param {number} index - Zero-based index of the item
+     * @returns {Object} Item bounds {x, y, width, height}
+     */
+    getItemBounds(index) {
+        return {
+            x: this.listArea.x + 10,
+            y: this.getItemDrawY(index),
+            width: this.listArea.width - 20,
+            height: this.listArea.itemHeight
+        };
+    }
+
+    /**
+     * Gets the clipped bounds of an item within the clip region
+     * Only returns bounds if the item intersects with the visible area
+     *
+     * @param {number} index - Zero-based index of the item
+     * @param {Object} customClipBounds - Optional custom clip bounds
+     * @returns {Object|null} Clipped bounds {x, y, width, height} or null if not visible
+     */
+    getClippedItemBounds(index, customClipBounds = null) {
+        if (!this.enableClipping) {
+            return this.getItemBounds(index); // No clipping, return full bounds
+        }
+
+        const itemBounds = this.getItemBounds(index);
+        const clipBounds = customClipBounds || this.clipBounds;
+
+        if (!clipBounds) {
+            return itemBounds; // No clip bounds defined, return full bounds
+        }
+
+        const intersection = this.calculateIntersection(itemBounds, clipBounds);
+        return intersection.area > 0 ? intersection.bounds : null;
+    }
+
+    /**
+     * Calculates rectangle intersection between two bounds
+     *
+     * @param {Object} bounds1 - First bounds {x, y, width, height}
+     * @param {Object} bounds2 - Second bounds {x, y, width, height}
+     * @returns {Object} Intersection result {bounds, area}
+     */
+    calculateIntersection(bounds1, bounds2) {
+        const x1 = Math.max(bounds1.x, bounds2.x);
+        const y1 = Math.max(bounds1.y, bounds2.y);
+        const x2 = Math.min(bounds1.x + bounds1.width, bounds2.x + bounds2.width);
+        const y2 = Math.min(bounds1.y + bounds1.height, bounds2.y + bounds2.height);
+
+        const width = Math.max(0, x2 - x1);
+        const height = Math.max(0, y2 - y1);
+        const area = width * height;
+
+        return {
+            bounds: width > 0 && height > 0 ? { x: x1, y: y1, width, height } : null,
+            area: area
+        };
+    }
+
+    /**
+     * Registers input for a specific item with proper clipping
+     * Intelligently handles registration based on visibility and current state
+     *
+     * @param {Object} item - The item object
+     * @param {number} index - Index of the item in the list
+     * @param {string} layer - Input layer (default: 'gui')
+     */
+    registerItemInput(item, index, layer = "gui") {
+        const itemId = this.generateItemId(item, index);
+        const isCurrentlyRegistered = this.registeredItems.has(itemId);
+        const clippedBounds = this.getClippedItemBounds(index);
+
+        if (clippedBounds && clippedBounds.width > 0 && clippedBounds.height > 0) {
+            // Item is visible - register if not already registered
+            if (!isCurrentlyRegistered) {
+                this.onRegisterItemInput(itemId, index, clippedBounds, layer);
+                this.registeredItems.add(itemId);
+            }
+        } else {
+            // Item is not visible - remove registration if it exists
+            if (isCurrentlyRegistered) {
+                this.input.removeElement(itemId, layer);
+                this.registeredItems.delete(itemId);
+            }
+        }
+    }
+
+    /**
+     * Updates input registrations for all visible items
+     * Intelligently handles registration based on visibility and state changes
+     *
+     * @param {Array} items - Array of items to register input for
+     * @param {string} layer - Input layer (default: 'gui')
+     */
+    updateItemInputs(items, layer = "gui") {
+        const currentItemCount = items.length;
+
+        // Only update if scroll position OR item count changed
+        if (this.scrollOffset === this.lastScrollOffsetForInput && currentItemCount === this.lastItemCountForInput) {
+            return; // No changes, skip update
+        }
+
+        // For item count changes, we need to be more selective
+        // Only clear items that are no longer valid or visible
+        if (currentItemCount !== this.lastItemCountForInput) {
+            this.cleanupInvalidRegistrations(items, layer);
+        }
+
+        // Update registrations for all items (this will add new ones and remove invisible ones)
+        items.forEach((item, index) => {
+            this.registerItemInput(item, index, layer);
+        });
+
+        // Update tracking
+        this.lastScrollOffsetForInput = this.scrollOffset;
+        this.lastItemCountForInput = currentItemCount;
+    }
+
+    /**
+     * Cleans up registrations for items that are no longer valid
+     * More intelligent than clearing everything - only removes truly invalid items
+     *
+     * @param {Array} items - Current array of valid items
+     * @param {string} layer - Input layer
+     */
+    cleanupInvalidRegistrations(items, layer = "gui") {
+        // Create a set of current valid item IDs
+        const validItemIds = new Set();
+        items.forEach((item, index) => {
+            validItemIds.add(this.generateItemId(item, index));
+        });
+
+        // Remove registrations for items that are no longer in the valid set
+        const itemsToRemove = [];
+        this.registeredItems.forEach((itemId) => {
+            if (!validItemIds.has(itemId)) {
+                itemsToRemove.push(itemId);
+            }
+        });
+
+        // Remove the invalid items
+        itemsToRemove.forEach((itemId) => {
+            this.input.removeElement(itemId, layer);
+            this.registeredItems.delete(itemId);
+        });
+    }
+
+    /**
+     * Forces an input update for all items (useful when items are added/removed)
+     * Call this when the item array changes outside of normal scroll updates
+     *
+     * @param {Array} items - Array of items to register input for
+     * @param {string} layer - Input layer (default: 'gui')
+     */
+    refreshItems(items, layer = "gui") {
+        // Clear ALL existing item registrations from input system first
+        this.clearAllItemInputs(layer);
+
+        // Reset tracking to force update
+        this.lastScrollOffsetForInput = -1;
+        this.lastItemCountForInput = -1;
+        this.registeredItems.clear();
+
+        // Update with new items
+        this.updateItemInputs(items, layer);
+
+        // Re-detect hover state after refresh
+        this.reDetectHoverAfterRefresh(items, layer);
+    }
+
+    /**
+     * Re-detects hover state immediately after refreshing items
+     * Checks current mouse position and sets hover for any item under cursor
+     *
+     * @param {Array} items - The current items array
+     * @param {string} layer - Input layer (default: 'gui')
+     */
+    reDetectHoverAfterRefresh(items, layer = "gui") {
+        const pointer = this.input.getPointerPosition();
+
+        // Check if mouse is over the list area
+        const isOverListArea =
+            pointer.x >= this.listArea.x &&
+            pointer.x <= this.listArea.x + this.listArea.width &&
+            pointer.y >= this.listArea.y &&
+            pointer.y <= this.listArea.y + this.listArea.height;
+
+        if (isOverListArea) {
+            // Find which item (if any) is under the mouse
+            for (let i = 0; i < items.length; i++) {
+                const itemBounds = this.getItemBounds(i);
+
+                if (
+                    pointer.x >= itemBounds.x &&
+                    pointer.x <= itemBounds.x + itemBounds.width &&
+                    pointer.y >= itemBounds.y &&
+                    pointer.y <= itemBounds.y + itemBounds.height
+                ) {
+                    // Found the item under mouse - set it as hovered
+                    const itemId = this.generateItemId(items[i], i);
+                    const element = this.input.rawState.elements[layer].get(itemId);
+                    if (element) {
+                        element.isHovered = true;
+                        element.hoverTimestamp = performance.now();
+                    }
+                    return; // Stop after finding the first (topmost) item
+                }
+            }
+        }
+    }
+
+    /**
+     * Clears all item input registrations from the input system
+     * This prevents multiple items from being selected when scrolling
+     *
+     * @param {string} layer - Input layer to clear (default: 'gui')
+     */
+    clearAllItemInputs(layer = "gui") {
+        // Remove all currently registered items from input system
+        this.registeredItems.forEach((itemId) => {
+            this.input.removeElement(itemId, layer);
+        });
+        this.registeredItems.clear();
+    }
+
+    /**
+     * Draws the scrollable content area background
+     *
+     * Renders the background for the scrollable content area with configurable
+     * styling options. This provides a consistent look for the scrollable region
+     * without requiring manual background drawing in consuming classes.
+     *
+     * @private
+     * @example
+     * // Background is drawn automatically with scrollbar
+     * this.drawScrollableBackground();
+     */
+    drawScrollableBackground() {
+        if (!this.drawBackground) return;
+
+        const { x, y, width, height } = this.listArea;
+
+        // Draw background fill FIRST
+        if (this.backgroundConfig.fillColor) {
+            this.ctx.fillStyle = this.backgroundConfig.fillColor;
+            if (this.backgroundConfig.cornerRadius > 0) {
+                this.drawRoundedRect(x, y, width, height, this.backgroundConfig.cornerRadius);
+            } else {
+                this.ctx.fillRect(x, y, width, height);
+            }
+        }
+
+        // Draw border SECOND (after background, on top)
+        if (this.backgroundConfig.borderColor && this.backgroundConfig.borderWidth > 0) {
+            this.ctx.strokeStyle = this.backgroundConfig.borderColor;
+            this.ctx.lineWidth = this.backgroundConfig.borderWidth;
+            if (this.backgroundConfig.cornerRadius > 0) {
+                this.drawRoundedRectStroke(x, y, width, height, this.backgroundConfig.cornerRadius);
+            } else {
+                this.ctx.strokeRect(x, y, width, height);
+            }
+        }
+    }
+
+    /**
+     * Draws a rounded rectangle filled shape
+     * @private
+     */
+    drawRoundedRect(x, y, width, height, radius) {
+        this.ctx.beginPath();
+        this.ctx.moveTo(x + radius, y);
+        this.ctx.lineTo(x + width - radius, y);
+        this.ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+        this.ctx.lineTo(x + width, y + height - radius);
+        this.ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+        this.ctx.lineTo(x + radius, y + height);
+        this.ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+        this.ctx.lineTo(x, y + radius);
+        this.ctx.quadraticCurveTo(x, y, x + radius, y);
+        this.ctx.closePath();
+        this.ctx.fill();
+    }
+
+    /**
+     * Draws a rounded rectangle outline
+     * @private
+     */
+    drawRoundedRectStroke(x, y, width, height, radius) {
+        this.ctx.beginPath();
+        this.ctx.moveTo(x + radius, y);
+        this.ctx.lineTo(x + width - radius, y);
+        this.ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+        this.ctx.lineTo(x + width, y + height - radius);
+        this.ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+        this.ctx.lineTo(x + radius, y + height);
+        this.ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+        this.ctx.lineTo(x, y + radius);
+        this.ctx.quadraticCurveTo(x, y, x + radius, y);
+        this.ctx.closePath();
+        this.ctx.stroke();
+    }
+
+    /**
+     * Draws only the scrollbar elements (without background)
+     *
+     * Renders only the scrollbar UI components:
      * - Scrollbar track (background area)
      * - Scrollbar thumb (draggable handle)
      * - Up/Down arrow buttons
      *
      * Only draws the scrollbar if there's content to scroll (maxScrollOffset > 0).
-     * Call this method in your render loop after updating the component.
      *
-     * @example
-     * // In your game render loop
-     * draw() {
-     *     // Draw game content first
-     *     this.drawGameContent();
-     *
-     *     // Draw scrollbar on top
-     *     this.inventoryScroller.draw();
-     * }
+     * @private
      */
-    draw() {
+    drawScrollbarElements() {
         // Only show scrollbar if there's actually content to scroll
         if (this.maxScrollOffset > 0) {
             this.drawScrollbarTrack();
             this.drawScrollButtons();
+        }
+    }
+
+    /**
+     * Draws the complete scrollbar interface with automatic clipping
+     *
+     * Enhanced drawing method that handles clipping automatically when enabled.
+     * Provide a renderItem function to draw items without manual clipping management.
+     *
+     * @param {Array} items - Array of items to draw
+     * @param {Function} renderItem - Function to render each item: (item, index, y) => void
+     * @param {Object} options - Additional options
+     * @param {Function} options.renderHeader - Optional header rendering function
+     *
+     * @example
+     * this.roomScroller = new ActionScrollableArea({
+     *     enableClipping: true,
+     *     clipBounds: { x: 250, y: 330, width: 300, height: 240 }
+     * });
+     *
+     * this.roomScroller.draw(rooms, (room, index, y) => {
+     *     this.guiCtx.fillStyle = isHovered ? '#0099dd' : '#007acc';
+     *     this.guiCtx.fillRect(250, y, 300, 25);
+     *     this.guiCtx.fillText(room.name, 400, y + 17);
+     * }, {
+     *     renderHeader: () => {
+     *         this.guiCtx.fillText('Available Rooms:', 400, 320);
+     *     }
+     * });
+     */
+    draw(items, renderItem, options = {}) {
+        // Draw scrollbar elements first (never clipped)
+        this.drawScrollbarElements();
+
+        // Apply clipping if enabled
+        if (this.enableClipping && this.clipBounds) {
+            this.ctx.save();
+            this.ctx.beginPath();
+            this.ctx.rect(this.clipBounds.x, this.clipBounds.y, this.clipBounds.width, this.clipBounds.height);
+            this.ctx.clip();
+        }
+
+        // Draw background
+        this.drawScrollableBackground();
+
+        // Draw header if provided
+        if (options.renderHeader) {
+            options.renderHeader();
+        }
+
+        // Draw all visible items with automatic clipping
+        if (items && renderItem) {
+            items.forEach((item, index) => {
+                if (this.isItemVisible(index)) {
+                    const y = this.getItemDrawY(index);
+                    renderItem(item, index, y);
+                }
+            });
+        }
+
+        // Restore clipping context
+        if (this.enableClipping && this.clipBounds) {
+            this.ctx.restore();
+        }
+    }
+
+    /**
+     * Call this after drawing items to restore clipping context
+     * Only needed if enableClipping is true and using legacy draw() method
+     */
+    endClipping() {
+        if (this.enableClipping && this.clipBounds) {
+            this.ctx.restore();
         }
     }
 
@@ -1021,22 +1276,12 @@ class ActionScrollableArea {
               : this.colors.thumb.normal;
 
         this.ctx.fillStyle = thumbColor;
-        this.ctx.fillRect(
-            this.scrollThumb.x,
-            this.scrollThumb.y,
-            this.scrollThumb.width,
-            this.scrollThumb.height
-        );
+        this.ctx.fillRect(this.scrollThumb.x, this.scrollThumb.y, this.scrollThumb.width, this.scrollThumb.height);
 
         // Draw thumb border (using configurable colors)
         this.ctx.strokeStyle = this.isDragging ? this.colors.thumbBorder.drag : this.colors.thumbBorder.normal;
         this.ctx.lineWidth = 2;
-        this.ctx.strokeRect(
-            this.scrollThumb.x,
-            this.scrollThumb.y,
-            this.scrollThumb.width,
-            this.scrollThumb.height
-        );
+        this.ctx.strokeRect(this.scrollThumb.x, this.scrollThumb.y, this.scrollThumb.width, this.scrollThumb.height);
     }
 
     /**
