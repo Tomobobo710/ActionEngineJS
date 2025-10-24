@@ -1333,6 +1333,8 @@ class ActionScrollableArea {
      * // Renders bright button with "#3498DB" text color
      */
     drawScrollButton(button) {
+        this.ctx.save();
+        
         const cornerX = button.x;
         const cornerY = button.y;
 
@@ -1351,6 +1353,8 @@ class ActionScrollableArea {
         this.ctx.textAlign = "center";
         this.ctx.textBaseline = "middle";
         this.ctx.fillText(button.text, button.x + button.width / 2, button.y + button.height / 2 + 1);
+        
+        this.ctx.restore();
     }
 
     /**
