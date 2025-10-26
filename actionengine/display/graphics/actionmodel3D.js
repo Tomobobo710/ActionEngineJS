@@ -1,5 +1,6 @@
 import { RenderableObject } from './renderableobject.js';
 import { Vector3 } from '../../math/vector3.js';
+import { Triangle } from '../../math/geometry/triangle.js';
 
 class ActionModel3D extends RenderableObject {
     constructor(geometry = null) {

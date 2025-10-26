@@ -119,3 +119,5 @@ class ActionPhysicsCylinder3D extends ActionPhysicsObject3D {
         });
     }
 }
+
+export { ActionPhysicsCylinder3D };

@@ -128,3 +128,5 @@ class ActionPhysicsCone3D extends ActionPhysicsObject3D {
         });
     }
 }
+
+export { ActionPhysicsCone3D };

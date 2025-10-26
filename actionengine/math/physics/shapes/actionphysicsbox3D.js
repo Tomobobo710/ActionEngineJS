@@ -160,3 +160,5 @@ class ActionPhysicsBox3D extends ActionPhysicsObject3D {
         });
     }
 }
+
+export { ActionPhysicsBox3D };

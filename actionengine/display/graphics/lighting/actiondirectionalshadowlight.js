@@ -1,9 +1,9 @@
 // actionengine/display/graphics/lighting/actiondirectionalshadowlight.js
 import { ActionLight } from './actionlight.js';
-import { Vector3 } from '../../math/vector3.js';
-import { Matrix4 } from '../../math/matrix4.js';
-import { ProgramManager } from '../../display/gl/programmanager.js';
-import { ShadowShader } from '../../display/gl/shaders/shadowshader.js';
+import { Vector3 } from '../../../math/vector3.js';
+import { Matrix4 } from '../../../math/matrix4.js';
+import { ProgramManager } from '../../../display/gl/programmanager.js';
+import { ShadowShader } from '../../../display/gl/shaders/shadowshader.js';
 import { lightingConstants } from './lightingconstants.js';
 
 /**

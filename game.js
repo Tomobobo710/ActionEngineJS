@@ -686,7 +686,7 @@ class TextEditor {
 		    this.currentBlock.setText(this.textContent);
             this.currentBlock.setTitle(this.titleContent); // Save title
 		    this.game.saveToStorage();
-		    this.game.addMessage("Note saved!");
+		    this.game.uiManager.addMessage("Note saved!");
 		}
 		this.close();
 	}
@@ -695,7 +695,7 @@ class TextEditor {
 		if (this.currentBlock) {
 			this.currentBlock.setText("");
 			this.game.saveToStorage(); // Use game.saveToStorage
-			this.game.addMessage("Note deleted!");
+			this.game.uiManager.addMessage("Note deleted!");
 		}
 		this.close();
 	}
@@ -703,7 +703,7 @@ class TextEditor {
     deleteBlock() {
         if (this.currentBlock) {
             this.game.deleteBlock(this.currentBlock.id); // Call game method to delete block
-            this.game.addMessage("Block deleted!");
+            this.game.uiManager.addMessage("Block deleted!");
         }
         this.close();
     }
@@ -1391,7 +1391,6 @@ class Game {
 
         // Ensure block is visible in 3D scene using SceneManager
         if (block.model) {
-            block.model.setColor(0.0, 1.0, 0.0); // Bright green for high visibility
             if (window.Vector3 && block.model.position.set) {
                 block.model.position.set(newPos.x, newPos.y, newPos.z);
             } else {
@@ -1528,10 +1527,11 @@ class Game {
                     y: this.player.rotation.y
                 }
             },
+            selectedBlockType: this.selectedBlockType,
             timestamp: Date.now()
         };
 
-        // Save to backend if available
+        // Save to backend
         if (this.backendAvailable && this.useBackend) {
             try {
                 await MemoryPalaceAPI.bulkSaveBlocks(data.blocks);
@@ -1540,10 +1540,11 @@ class Game {
             } catch (error) {
                 console.error('❌ Failed to save to backend:', error);
                 this.uiManager.addMessage("⚠️ Server save failed");
+                // Enforce SQLite only - no fallback saving
             }
         } else {
-            this.uiManager.addMessage("⚠️ Backend not available or not in use. Data not saved.");
-            console.warn('⚠️ Backend not available or not in use. Data not saved.');
+            console.error('❌ Backend not available or not in use. Data not saved.');
+            this.uiManager.addMessage("⚠️ Backend not available. Data not saved.");
         }
     }
 
@@ -1591,26 +1592,18 @@ class Game {
                 // Ensure blockSize and title are passed when creating block from JSON
                 const block = MemoryBlock.fromJSON(this.gl, blockData);
                 
-                // Re-create 3D model for imported block
-                const builder = new WebGLGeometryBuilder(this.gl);
-                builder.addBox(
-                    0, 0, 0,
-                    block.blockSize, block.blockSize, block.blockSize,
-                    [0.0, 1.0, 0.0] // Bright green for high visibility
-                );
-                const geometry = builder.build();
-                const model = window.ActionModel3D ? new window.ActionModel3D(geometry) : null;
-                if (model && window.Vector3 && model.position.copy) {
-                    model.position.copy(block.position);
-                } else if (model) {
-                    model.position.x = block.position.x;
-                    model.position.y = block.position.y;
-                    model.position.z = block.position.z;
+                // Set position on the model from fromJSON
+                if (block.model) {
+                    if (window.Vector3 && block.model.position.copy) {
+                        block.model.position.copy(block.position);
+                    } else {
+                        block.model.position.x = block.position.x;
+                        block.model.position.y = block.position.y;
+                        block.model.position.z = block.position.z;
+                    }
                 }
-                model.setColor(0.0, 1.0, 0.0); // Bright green for high visibility
-
-                block.model = model;
-                this.sceneManager.add(model); // Add to scene objects
+                
+                this.sceneManager.add(block.model); // Add to scene objects
                 this.blocks.set(block.id, block);
             });
 
@@ -1654,6 +1647,13 @@ class Game {
                 }
             }
             console.log('✅ Camera position restored');
+        }
+
+        // Load selected block type
+        if (data.selectedBlockType) {
+            this.selectedBlockType = data.selectedBlockType;
+        } else {
+            this.selectedBlockType = "cube"; // Default to cube if not saved
         }
 
         // Initialize auto-save system after game is fully loaded

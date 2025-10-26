@@ -180,7 +180,6 @@ class ActionPhysicsCapsule3D extends ActionPhysicsObject3D {
         this.storeOriginalData();
     }
 
-
     storeOriginalData() {
         this.originalNormals = [];
         this.originalVerts = [];
@@ -202,3 +201,5 @@ class ActionPhysicsCapsule3D extends ActionPhysicsObject3D {
         });
     }
 }
+
+export { ActionPhysicsCapsule3D };

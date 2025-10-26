@@ -86,6 +86,12 @@ app.get('/api', (req, res) => {
     });
 });
 
+// Serve JS files with correct MIME type for module scripts
+app.get('/*.js', (req, res) => {
+    res.set('Content-Type', 'application/javascript');
+    res.sendFile(path.join(__dirname, '../' + req.path));
+});
+
 // Serve index.html for all other routes (SPA support)
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '../index.html'));

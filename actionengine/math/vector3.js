@@ -231,30 +231,6 @@ export class Vector3 {
         return [this.x, this.y, this.z];
     }
 
-    length() {
-        return Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z);
-    }
-
-    add(v) {
-        return new Vector3(this.x + v.x, this.y + v.y, this.z + v.z);
-    }
-
-    sub(v) {
-        return new Vector3(this.x - v.x, this.y - v.y, this.z - v.z);
-    }
-
-    mult(n) {
-        return new Vector3(this.x * n, this.y * n, this.z * n);
-    }
-
-    normalize() {
-        const len = this.length();
-        if (len === 0) {
-            return new Vector3();
-        }
-        return new Vector3(this.x / len, this.y / len, this.z / len);
-    }
-
     scale(scalar) {
         return new Vector3(this.x * scalar, this.y * scalar, this.z * scalar);
     }

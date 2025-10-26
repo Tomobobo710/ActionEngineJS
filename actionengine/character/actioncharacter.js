@@ -1,5 +1,5 @@
 // game/character/basecharacter/actioncharacter.js
-import { RenderableObject } from '../../display/graphics/renderableobject.js';
+import { RenderableObject } from '../display/graphics/renderableobject.js';
 import { Vector3 } from '../math/vector3.js';
 import { CameraCollisionHandler } from '../camera/cameracollisionhandler.js';
 

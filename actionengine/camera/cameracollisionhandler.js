@@ -1,5 +1,5 @@
 // actionengine/camera/cameracollisionhandler.js
-// @import ../physics/actionraycast.js
+import { ActionRaycast } from '../math/physics/actionraycast.js';
 
 class CameraCollisionHandler {
     constructor(physicsWorld) {
@@ -67,3 +67,5 @@ class CameraCollisionHandler {
         }
     }
 }
+
+export { CameraCollisionHandler };

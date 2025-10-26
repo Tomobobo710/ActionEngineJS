@@ -59,3 +59,5 @@ class Quaternion {
         );
     }
 }
+
+export { Quaternion };

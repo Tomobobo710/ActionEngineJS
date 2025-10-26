@@ -97,3 +97,5 @@ class ActionPhysicsSphere3D extends ActionPhysicsObject3D {
         });
     }
 }
+
+export { ActionPhysicsSphere3D };
