@@ -41,7 +41,7 @@ class UIManager {
         this.drawHUD();
 
         // Draw shape selector if open
-        if (this.showShapeSelector && this.game.cursorLocked) {
+        if (this.showShapeSelector && this.game.inputManager.isCursorLocked()) {
             this.drawShapeSelector();
         }
 
@@ -51,7 +51,7 @@ class UIManager {
         }
 
         // Draw click-to-start screen if game not started
-        if (!this.game.cursorLocked && (!this.game.textEditor || !this.game.textEditor.isOpen)) {
+        if (!this.game.inputManager.isCursorLocked() && (!this.game.textEditor || !this.game.textEditor.isOpen)) {
             this.drawClickToStart();
         }
 
@@ -67,7 +67,7 @@ class UIManager {
     drawCrosshair() {
         const ctx = this.game.guiCtx;
 
-        if (this.game.cursorLocked && !this.game.textEditor.isOpen) {
+        if (this.game.inputManager.isCursorLocked() && !this.game.textEditor.isOpen) {
             if (this.game.persistentHighlightPosition) {
                 // Green crosshair when ready to place
                 ctx.strokeStyle = "#00ff00";
@@ -89,7 +89,7 @@ class UIManager {
 
             // Reset shadow
             ctx.shadowBlur = 0;
-        } else if (!this.game.cursorLocked && !this.game.textEditor.isOpen) {
+        } else if (!this.game.inputManager.isCursorLocked() && !this.game.textEditor.isOpen) {
             // White crosshair when unlocked and editor not open
             ctx.strokeStyle = "#ffffff";
             ctx.lineWidth = 2;
@@ -130,11 +130,11 @@ class UIManager {
         ctx.fillText(`Position: (${Math.round(this.game.player.position.x)}, ${Math.round(this.game.player.position.y)}, ${Math.round(this.game.player.position.z)})`, x, y);
         y += lineHeight;
 
-        ctx.fillText(`Blocks: ${this.game.blocks.size}`, x, y);
+        ctx.fillText(`Blocks: ${this.game.blockManager.getBlockCount()}`, x, y);
         y += lineHeight;
 
         ctx.fillStyle = "#00ff00";
-        ctx.fillText(`Shape: ${this.shapeNames[this.game.selectedBlockType]}`, x, y);
+        ctx.fillText(`Shape: ${this.shapeNames[this.game.blockManager.getBlockType()]}`, x, y);
         y += lineHeight;
 
         if (this.game.hoveredBlock) {
@@ -173,8 +173,8 @@ class UIManager {
 
         // Show cursor lock status
         y += lineHeight;
-        ctx.fillStyle = this.game.cursorLocked ? "#00ff00" : "#ff0000";
-        ctx.fillText(`🔒 Mouse: ${this.game.cursorLocked ? 'Locked' : 'Unlocked (click canvas)'}`, x, y);
+        ctx.fillStyle = this.game.inputManager.isCursorLocked() ? "#00ff00" : "#ff0000";
+        ctx.fillText(`🔒 Mouse: ${this.game.inputManager.isCursorLocked() ? 'Locked' : 'Unlocked (click canvas)'}`, x, y);
 
         // Controls reminder (bottom right)
         ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
@@ -288,7 +288,7 @@ class UIManager {
             const shapeKey = this.availableShapes[i];
             const shapeName = this.shapeNames[shapeKey];
             const optionY = y + 60 + (i * 35);
-            const isSelected = this.game.selectedBlockType === shapeKey;
+            const isSelected = this.game.blockManager.getBlockType() === shapeKey;
 
             // Highlight selected shape
             if (isSelected) {
@@ -353,7 +353,7 @@ class UIManager {
             60
         );
         this.game.debugCtx.fillText(
-            `Blocks: ${this.game.blocks.size}`,
+            `Blocks: ${this.game.blockManager.getBlockCount()}`,
             10,
             80
         );
@@ -373,7 +373,7 @@ class UIManager {
      */
     handleInput() {
         // Handle shape selection (Z key)
-        if (this.game.input.isKeyJustPressed('ActionShapeSelect') && this.game.cursorLocked) {
+        if (this.game.input.isKeyJustPressed('ActionShapeSelect') && this.game.inputManager.isCursorLocked()) {
             this.showShapeSelector = !this.showShapeSelector;
             if (this.showShapeSelector) {
                 this.addMessage("🔧 Shape selector opened");
@@ -383,12 +383,12 @@ class UIManager {
         }
 
         // Shape selection with number keys
-        if (this.showShapeSelector && this.game.cursorLocked) {
+        if (this.showShapeSelector && this.game.inputManager.isCursorLocked()) {
             for (let i = 0; i < this.availableShapes.length; i++) {
                 if (this.game.input.isKeyJustPressed(String(i + 1))) {
-                    this.game.selectedBlockType = this.availableShapes[i];
+                    this.game.blockManager.setBlockType(this.availableShapes[i]);
                     this.showShapeSelector = false;
-                    this.addMessage(`✅ Selected: ${this.shapeNames[this.game.selectedBlockType]}`);
+                    this.addMessage(`✅ Selected: ${this.shapeNames[this.game.blockManager.getBlockType()]}`);
                 }
             }
         }

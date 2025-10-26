@@ -23,7 +23,7 @@ class PhysicsEngine {
      * @returns {Object|null} Raycast result with position, face, and block info
      */
     raycastBlocks() {
-        if (!this.game.cursorLocked) {
+        if (!this.game.inputManager.isCursorLocked()) {
             this.game.persistentHighlightPosition = null;
             this.game.hoveredFace = null;
             this.game.hoveredBlock = null;
@@ -45,7 +45,7 @@ class PhysicsEngine {
         }
 
         // 2. Raycast against placed blocks
-        for (let [id, block] of this.game.blocks) {
+        for (let [id, block] of this.game.blockManager.blocks) {
             const blockHitResult = this.rayBoxIntersection(ray, block);
             if (blockHitResult && blockHitResult.distance < closestDistance) {
                 closestDistance = blockHitResult.distance;
@@ -364,7 +364,7 @@ class PhysicsEngine {
             minDistance = this.blockSize * 0.5;
         }
 
-        for (let [id, block] of this.game.blocks) {
+        for (let [id, block] of this.game.blockManager.blocks) {
             if (block.position.distanceTo(position) < minDistance) {
                 return true;
             }
@@ -380,7 +380,7 @@ class PhysicsEngine {
      */
     getBlocksInRadius(position, radius) {
         const blocksInRadius = [];
-        for (let [id, block] of this.game.blocks) {
+        for (let [id, block] of this.game.blockManager.blocks) {
             if (block.position.distanceTo(position) <= radius) {
                 blocksInRadius.push(block);
             }

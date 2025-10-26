@@ -126,14 +126,14 @@ export class TextEditor {
 
 		// Capture keyboard input
 		this.game.capturingTextInput = true;
-		this.game.toggleCursorLock(false); // Unlock cursor when editor opens
+		this.game.inputManager.toggleCursorLock(false); // Unlock cursor when editor opens
 	}
 
 	close() {
 		this.isOpen = false;
 		this.currentBlock = null;
 		this.game.capturingTextInput = false;
-		this.game.toggleCursorLock(true); // Re-lock cursor when editor closes
+		this.game.inputManager.toggleCursorLock(true); // Re-lock cursor when editor closes
         if (this.textarea) {
             document.body.removeChild(this.textarea);
             this.textarea = null;
@@ -147,8 +147,8 @@ export class TextEditor {
 	save() {
 		if (this.currentBlock) {
 		    this.currentBlock.setText(this.textContent);
-            this.currentBlock.setTitle(this.titleContent); // Save title
-		    this.game.saveToStorage();
+	           this.currentBlock.setTitle(this.titleContent); // Save title
+		    this.game.blockManager.saveToStorage();
 		    this.game.uiManager.addMessage("Note saved!");
 		}
 		this.close();
@@ -157,7 +157,7 @@ export class TextEditor {
 	deleteNote() {
 		if (this.currentBlock) {
 			this.currentBlock.setText("");
-			this.game.saveToStorage(); // Use game.saveToStorage
+			this.game.blockManager.saveToStorage(); // Use blockManager.saveToStorage
 			this.game.uiManager.addMessage("Note deleted!");
 		}
 		this.close();
@@ -165,7 +165,7 @@ export class TextEditor {
 
     deleteBlock() {
         if (this.currentBlock) {
-            this.game.deleteBlock(this.currentBlock.id); // Call game method to delete block
+            this.game.blockManager.deleteBlock(this.currentBlock.id); // Call blockManager method to delete block
             this.game.uiManager.addMessage("Block deleted!");
         }
         this.close();

@@ -25,6 +25,9 @@ import { Renderer } from './renderer.js';
 import { TextEditor } from './textEditor.js';
 import { Level } from './level.js';
 import { Player } from './player.js';
+import { ShaderManager } from './shaderManager.js';
+import { BlockManager } from './blockManager.js';
+import { InputManager } from './inputManager.js';
 
 // Note: Vector3, Matrix4, ActionModel3D are loaded globally via script tags
 // and will be available as global constructors
@@ -70,7 +73,8 @@ class Game {
         this.input = input;
         this.audio = audio;
 
-        // Create renderer
+        // Create managers
+        this.shaderManager = new ShaderManager(this.gl);
         this.renderer = new Renderer(this.gl);
         this.renderer.initGL();
 
@@ -78,6 +82,7 @@ class Game {
         this.sceneManager = new SceneManager();
         this.uiManager = new UIManager(this);
         this.physicsEngine = new PhysicsEngine(this);
+        this.blockManager = new BlockManager(this);
 
         // Game state
         this.state = {
@@ -99,42 +104,14 @@ class Game {
         this.useBackend = true;
         this.backendAvailable = backendAvailable;
 
-        this.createBlocks();
+        // Initialize block manager to load saved data after backend is set up
+        this.blockManager.initialize();
 
         // Start game loop
         this.lastTime = performance.now();
 
-        // Add cursor lock support
-        this.cursorLocked = false;
-        this.mouseDeltaX = 0;
-        this.mouseDeltaY = 0;
-
-        // Set up pointer lock event listeners
-        document.addEventListener("keydown", (e) => {
-            if (e.code === "KeyC") {
-                this.toggleCursorLock();
-            }
-        });
-
-        document.addEventListener("pointerlockchange", () => {
-            this.handlePointerLockChange();
-        });
-
-        document.addEventListener("click", (e) => {
-            if (e.target === this.canvas && !this.cursorLocked) {
-                this.toggleCursorLock();
-            }
-        });
-
-        document.addEventListener("mousemove", (e) => {
-            if (this.cursorLocked) {
-                this.mouseDeltaX = e.movementX || 0;
-                this.mouseDeltaY = e.movementY || 0;
-            } else {
-                this.mouseDeltaX = 0;
-                this.mouseDeltaY = 0;
-            }
-        });
+        // Create input manager
+        this.inputManager = new InputManager(this);
 
         // Text editor
         this.textEditor = new TextEditor(this);
@@ -149,96 +126,19 @@ class Game {
     }
 
     initWebGL() {
-        // Create shader programs
-        this.renderer.addShaderProgram("basic", this.basicVertexShader(), this.basicFragmentShader());
+        // Create shader programs using ShaderManager
+        this.renderer.addShaderProgram("basic",
+            this.shaderManager.createBasicShaders().vertex,
+            this.shaderManager.createBasicShaders().fragment);
 
-        // Set up projection matrix
-        this.projectionMatrix = window.Matrix4 ? window.Matrix4.create() : new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
-        window.Matrix4.perspective(
-            this.projectionMatrix,
-            (60 * Math.PI) / 180, // 60 degrees FOV
-            this.canvas.width / this.canvas.height,
-            0.1,
-            1000.0
+        // Set up projection matrix using ShaderManager
+        this.projectionMatrix = this.shaderManager.createProjectionMatrix(
+            this.canvas.width,
+            this.canvas.height
         );
     }
 
-    toggleCursorLock(forceLock = undefined) {
-        if (forceLock === true) {
-            if (!this.cursorLocked) {
-                this.canvas.requestPointerLock();
-                console.log('🔒 Requesting pointer lock (forced)...');
-            }
-        } else if (forceLock === false) {
-            if (this.cursorLocked) {
-                document.exitPointerLock();
-                console.log('🔓 Exiting pointer lock (forced)...');
-            }
-        } else {
-            // Toggle behavior
-            if (!this.cursorLocked) {
-                this.canvas.requestPointerLock();
-                console.log('🔒 Requesting pointer lock...');
-            } else {
-                document.exitPointerLock();
-                console.log('🔓 Exiting pointer lock...');
-            }
-        }
-    }
 
-    // Enhanced mouse lock handling
-    handlePointerLockChange() {
-        const isLocked = document.pointerLockElement === this.canvas;
-        this.cursorLocked = isLocked;
-
-        if (isLocked) {
-            console.log('✅ Pointer lock acquired');
-            this.uiManager.addMessage("🔒 Mouse locked - ready to place blocks!");
-        } else {
-            console.log('❌ Pointer lock lost');
-            this.uiManager.addMessage("🔓 Mouse unlocked - click canvas to continue");
-        }
-    }
-
-    basicVertexShader() {
-        return `
-            attribute vec4 aVertexPosition;
-            attribute vec3 aVertexNormal;
-            attribute vec3 aVertexColor;
-
-            uniform mat4 uModelMatrix;
-            uniform mat4 uViewMatrix;
-            uniform mat4 uProjectionMatrix;
-
-            varying vec3 vNormal;
-            varying vec3 vColor;
-
-            void main() {
-                gl_Position = uProjectionMatrix * uViewMatrix * uModelMatrix * aVertexPosition;
-                vNormal = mat3(uModelMatrix) * aVertexNormal;
-                vColor = aVertexColor;
-            }
-        `;
-    }
-
-    basicFragmentShader() {
-        return `
-            precision mediump float;
-
-            varying vec3 vNormal;
-            varying vec3 vColor;
-
-            uniform vec3 uLightDirection;
-
-            void main() {
-                vec3 normal = normalize(vNormal);
-                float light = max(dot(normal, normalize(uLightDirection)), 0.0);
-                vec3 ambient = vColor * 0.3;
-                vec3 diffuse = vColor * light * 0.7;
-                gl_FragColor = vec4(ambient + diffuse, 1.0);
-            }
-        `;
-    }
 
     createSounds() {
         // Block placement sound
@@ -290,25 +190,10 @@ class Game {
     }
 
     setupPlayer() {
+        // Create player using the extracted Player class
         this.player = new Player(this, this.level);
-
-        // Initialize at starting position
-        this.player.position = new Vector3(5, 1.8, 5);
-        this.player.velocity = new Vector3(0, 0, 0);
     }
 
-    createBlocks() {
-        this.blocks = new Map();
-        this.selectedBlockType = "cube";
-        this.placementRange = 50;
-        this.blockSize = 5;
-
-        // Update physics engine with current block size
-        this.physicsEngine.setBlockSize(this.blockSize);
-
-        // Load saved data
-        this.loadFromStorage();
-    }
 
     update() {
         // Calculate delta time
@@ -324,7 +209,7 @@ class Game {
         }
 
         // Don't handle game input if editor is open or cursor is not locked
-        if (this.textEditor && this.textEditor.isOpen || !this.cursorLocked) {
+        if (this.textEditor && this.textEditor.isOpen || !this.inputManager.isCursorLocked()) {
             // If editor is open, ensure raycast is cleared
             if (this.textEditor && this.textEditor.isOpen) {
                 this.persistentHighlightPosition = null;
@@ -346,7 +231,7 @@ class Game {
         // Block placement (left click)
         if (this.input.isLeftMouseButtonJustPressed()) {
             if (this.persistentHighlightPosition) {
-                this.placeBlock();
+                this.blockManager.placeBlock();
             } else {
                 // Show shape selector if no target
                 this.uiManager.showShapeSelector = true;
@@ -356,12 +241,12 @@ class Game {
 
         // Block editor (right click)
         if (this.input.isRightMouseButtonJustPressed()) {
-            this.openBlockEditor();
+            this.blockManager.openBlockEditor();
         }
 
         // Manual save with Action2
         if (this.input.isKeyJustPressed("Action2")) {
-            this.saveToStorage();
+            this.blockManager.saveToStorage();
             this.uiManager.addMessage("Progress saved!");
         }
 
@@ -377,31 +262,23 @@ class Game {
         if (this.input.isKeyPressed('Control') && this.input.isKeyJustPressed('i')) {
             this.importData();
         }
+        // Handle load keyboard shortcut
+        if (this.input.isKeyPressed('Control') && this.input.isKeyJustPressed('l')) {
+            this.blockManager.loadFromStorage();
+            this.uiManager.addMessage("Progress loaded!");
+        }
 
         // Alternative block placement (for testing) - press B key
-        if (this.input.isKeyJustPressed('b') && this.cursorLocked) {
-            this.placeBlockAtCameraPosition();
+        if (this.input.isKeyJustPressed('b') && this.inputManager.isCursorLocked()) {
+            this.blockManager.placeBlockAtCameraPosition();
         }
 
         // Delete block (for testing) - press Delete key
-        if (this.input.isKeyJustPressed('Delete') && this.cursorLocked && this.hoveredBlock && !this.hoveredBlock.isFloor) {
-            this.deleteBlock(this.hoveredBlock.id);
+        if (this.input.isKeyJustPressed('Delete') && this.inputManager.isCursorLocked() && this.hoveredBlock && !this.hoveredBlock.isFloor) {
+            this.blockManager.deleteBlock(this.hoveredBlock.id);
         }
     }
 
-    deleteBlock(blockId) {
-        const blockToDelete = this.blocks.get(blockId);
-        if (blockToDelete) {
-            if (blockToDelete.model) {
-                this.sceneManager.remove(blockToDelete.model); // Remove from 3D scene
-            }
-            this.blocks.delete(blockId); // Remove from map
-            this.saveToStorage(); // Save changes
-            this.uiManager.addMessage(`🗑️ Block ${blockId} deleted.`);
-            this.hoveredBlock = null; // Clear hovered block if it was deleted
-            this.persistentHighlightPosition = null; // Clear highlight
-        }
-    }
 
     draw() {
         // Clear the WebGL canvas
@@ -422,323 +299,27 @@ class Game {
         // Draw all scene objects using SceneManager
         this.sceneManager.draw(this.renderer, viewMatrix, this.projectionMatrix);
 
-        // Draw persistent highlight - always visible if we have a stored position
-        if (this.persistentHighlightPosition) {
-            this.drawHoveredBlockHighlight(this.renderer, viewMatrix, this.projectionMatrix);
-        }
+        // Draw persistent highlight using BlockManager
+        this.blockManager.drawHoveredBlockHighlight(this.renderer, viewMatrix, this.projectionMatrix);
+
+        // Draw all blocks from BlockManager
+        this.blockManager.getAllBlocks().forEach(block => {
+            if (block.model) {
+                const modelMatrix = window.Matrix4 ? window.Matrix4.create() : new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+                if (window.Matrix4) {
+                    window.Matrix4.translate(modelMatrix, modelMatrix, [block.position.x, block.position.y, block.position.z]);
+                } else {
+                    modelMatrix[12] = block.position.x;
+                    modelMatrix[13] = block.position.y;
+                    modelMatrix[14] = block.position.z;
+                }
+                this.renderer.drawMesh(block.model.geometry, "basic", modelMatrix, viewMatrix, this.projectionMatrix);
+            }
+        });
 
         // Draw all UI elements using UIManager
         this.uiManager.draw();
     }
-
-
-
-
-
-    placeBlock() {
-        if (!this.cursorLocked) {
-            this.uiManager.addMessage("🔒 Click canvas to lock mouse first!");
-            return;
-        }
-
-        if (!this.persistentHighlightPosition) {
-            this.uiManager.addMessage("🎯 Point at a surface (wall/floor/ceiling)");
-            return;
-        }
-
-        // Calculate placement position using PhysicsEngine
-        const newPos = this.physicsEngine.calculatePlacementPosition(
-            this.persistentHighlightPosition,
-            this.hoveredFace,
-            this.hoveredBlock
-        );
-
-        // Check if position is already occupied using PhysicsEngine
-        if (this.physicsEngine.isPositionOccupied(newPos)) {
-            this.uiManager.addMessage("❌ Position already occupied!");
-            return;
-        }
-
-        // Create new block
-        const block = new MemoryBlock(this.gl, newPos.clone(), this.selectedBlockType, this.blockSize, "");
-        this.blocks.set(block.id, block);
-
-        // Ensure block is visible in 3D scene using SceneManager
-        if (block.model) {
-            if (window.Vector3 && block.model.position.set) {
-                block.model.position.set(newPos.x, newPos.y, newPos.z);
-            } else {
-                block.model.position.x = newPos.x;
-                block.model.position.y = newPos.y;
-                block.model.position.z = newPos.z;
-            }
-            this.sceneManager.add(block.model);
-        } else {
-            console.error('❌ Block model not created!');
-        }
-
-        this.audio.play("placeBlock");
-        this.uiManager.addMessage(`✅ Block placed at (${Math.round(newPos.x)}, ${Math.round(newPos.y)}, ${Math.round(newPos.z)})`);
-
-        this.saveToStorage();
-    }
-
-    // Alternative block placement method (fallback) - press B key
-    placeBlockAtCameraPosition() {
-        // Place block 5 units in front of camera
-        const distance = 5;
-        const cameraPos = this.player.position;
-        const newPos = cameraPos ?
-            (window.Vector3 ?
-                new window.Vector3(
-                    cameraPos.x + Math.sin(this.player.rotation.y) * distance,
-                    cameraPos.y,
-                    cameraPos.z - Math.cos(this.player.rotation.y) * distance
-                ) : {
-                    x: cameraPos.x + Math.sin(this.player.rotation.y) * distance,
-                    y: cameraPos.y,
-                    z: cameraPos.z - Math.cos(this.player.rotation.y) * distance
-                }
-            ) :
-            (window.Vector3 ? new window.Vector3(0, 0, 0) : { x: 0, y: 0, z: 0 });
-
-        // Round to grid
-        newPos.x = Math.round(newPos.x);
-        newPos.y = Math.round(newPos.y);
-        newPos.z = Math.round(newPos.z);
-
-        // Check if position is already occupied using PhysicsEngine
-        if (this.physicsEngine.isPositionOccupied(newPos)) {
-            this.uiManager.addMessage("❌ Position already occupied!");
-            return;
-        }
-
-        // Create new block, passing this.gl and this.blockSize
-        const block = new MemoryBlock(this.gl, newPos, this.selectedBlockType, this.blockSize, ""); // Pass an empty title
-        this.blocks.set(block.id, block);
-
-        // Ensure block is visible in 3D scene using SceneManager
-        if (block.model) {
-            block.model.setColor(0.0, 1.0, 0.0); // Bright green for high visibility
-            if (window.Vector3 && block.model.position.set) {
-                block.model.position.set(newPos.x, newPos.y, newPos.z);
-            } else {
-                block.model.position.x = newPos.x;
-                block.model.position.y = newPos.y;
-                block.model.position.z = newPos.z;
-            }
-            this.sceneManager.add(block.model);
-        } else {
-            console.error('❌ Block model not created for camera position placement!');
-        }
-
-        this.audio.play("placeBlock");
-        this.uiManager.addMessage(`✅ Block placed at (${Math.round(newPos.x)}, ${Math.round(newPos.y)}, ${Math.round(newPos.z)})`);
-
-        this.saveToStorage();
-    }
-
-    openBlockEditor() {
-        if (!this.hoveredBlock || this.hoveredBlock.isFloor) {
-            this.uiManager.addMessage("❌ Point at a block to edit notes!");
-            return;
-        }
-
-        this.textEditor.open(this.hoveredBlock);
-        this.audio.play("uiClick");
-    }
-
-    drawHoveredBlockHighlight(renderer, viewMatrix, projectionMatrix) {
-        if (!this.persistentHighlightPosition) return;
-
-        // Create model matrix for highlight position at exact hit location
-        const modelMatrix = window.Matrix4 ? window.Matrix4.create() : new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
-        if (window.Matrix4) {
-            window.Matrix4.translate(modelMatrix, modelMatrix, [
-                this.persistentHighlightPosition.x,
-                this.persistentHighlightPosition.y,
-                this.persistentHighlightPosition.z
-            ]);
-        } else {
-            // Fallback for when Matrix4 is not available
-            modelMatrix[12] = this.persistentHighlightPosition.x;
-            modelMatrix[13] = this.persistentHighlightPosition.y;
-            modelMatrix[14] = this.persistentHighlightPosition.z;
-        }
-
-        // Scale up slightly for highlight effect
-        if (window.Matrix4) {
-            window.Matrix4.scale(modelMatrix, modelMatrix, [1.1, 1.1, 1.1]);
-        } else {
-            // Fallback scaling for when Matrix4 is not available
-            for (let i = 0; i < 3; i++) {
-                for (let j = 0; j < 3; j++) {
-                    modelMatrix[i * 4 + j] *= 1.1;
-                }
-            }
-        }
-
-        // Create highlight geometry (wireframe cube)
-        const builder = new WebGLGeometryBuilder(this.gl);
-        builder.addBox(-2.5, -2.5, -2.5, 5, 5, 5, [1.0, 1.0, 0.0]); // Yellow highlight
-        const highlightMesh = builder.build();
-
-        // Draw with wireframe effect (we'll use the basic shader but with emissive color)
-        renderer.drawMesh(highlightMesh, "basic", modelMatrix, viewMatrix, projectionMatrix, [1.0, 1.0, 1.0]);
-    }
-
-    async saveToStorage() {
-        const data = {
-            blocks: Array.from(this.blocks.values()).map(block => block.toJSON()),
-            camera: {
-                position: {
-                    x: this.player.position.x,
-                    y: this.player.position.y,
-                    z: this.player.position.z
-                },
-                rotation: {
-                    x: this.player.rotation.x,
-                    y: this.player.rotation.y
-                }
-            },
-            selectedBlockType: this.selectedBlockType,
-            timestamp: Date.now()
-        };
-
-        // Save to backend
-        if (this.backendAvailable && this.useBackend) {
-            try {
-                await MemoryPalaceAPI.bulkSaveBlocks(data.blocks);
-                await MemoryPalaceAPI.saveCameraState(data.camera.position, data.camera.rotation);
-                this.uiManager.addMessage("💾 Saved to server");
-            } catch (error) {
-                console.error('❌ Failed to save to backend:', error);
-                this.uiManager.addMessage("⚠️ Server save failed");
-                // Enforce SQLite only - no fallback saving
-            }
-        } else {
-            console.error('❌ Backend not available or not in use. Data not saved.');
-            this.uiManager.addMessage("⚠️ Backend not available. Data not saved.");
-        }
-    }
-
-    async loadFromStorage() {
-        let data = null;
-
-        // Try loading from backend first
-        if (this.backendAvailable && this.useBackend) {
-            try {
-                const response = await MemoryPalaceAPI.getAllBlocks();
-                const cameraState = await MemoryPalaceAPI.getCameraState();
-
-                data = {
-                    blocks: response.blocks,
-                    camera: cameraState
-                };
-
-                this.uiManager.addMessage("📥 Loaded from server");
-            } catch (error) {
-                console.error('❌ Failed to load from backend:', error);
-                this.uiManager.addMessage("⚠️ Server load failed or no data found.");
-                console.warn('⚠️ Server load failed or no data found.');
-            }
-        } else {
-            this.uiManager.addMessage("⚠️ Backend not available or not in use. No data loaded.");
-            console.warn('⚠️ Backend not available or not in use. No data loaded.');
-        }
-
-        if (!data) {
-            console.log('ℹ️ No saved data found');
-            return;
-        }
-
-        // Clear existing blocks using SceneManager
-        this.blocks.forEach(block => {
-            if (block.model) {
-                this.sceneManager.remove(block.model);
-            }
-        });
-        this.blocks.clear();
-
-        // Load blocks
-        if (data.blocks && Array.isArray(data.blocks)) {
-            data.blocks.forEach(blockData => {
-                // Ensure blockSize and title are passed when creating block from JSON
-                const block = MemoryBlock.fromJSON(this.gl, blockData);
-                
-                // Set position on the model from fromJSON
-                if (block.model) {
-                    if (window.Vector3 && block.model.position.copy) {
-                        block.model.position.copy(block.position);
-                    } else {
-                        block.model.position.x = block.position.x;
-                        block.model.position.y = block.position.y;
-                        block.model.position.z = block.position.z;
-                    }
-                }
-                
-                this.sceneManager.add(block.model); // Add to scene objects
-                this.blocks.set(block.id, block);
-            });
-
-            // Update block ID counter
-            const maxId = Math.max(
-                0,
-                ...Array.from(this.blocks.keys())
-                    .map(id => parseInt(id.replace('block_', '')) || 0)
-            );
-            this.blockIdCounter = maxId + 1;
-
-            console.log(`✅ Loaded ${this.blocks.size} blocks`);
-        }
-
-        // Load camera position
-        if (data.camera) {
-            if (data.camera.position) {
-                if (window.Vector3 && this.player.position.set) {
-                    this.player.position.set(
-                        data.camera.position.x,
-                        data.camera.position.y,
-                        data.camera.position.z
-                    );
-                } else {
-                    this.player.position.x = data.camera.position.x;
-                    this.player.position.y = data.camera.position.y;
-                    this.player.position.z = data.camera.position.z;
-                }
-            }
-            if (data.camera.rotation) {
-                if (window.Vector3 && this.player.rotation.set) {
-                    this.player.rotation.set(
-                        data.camera.rotation.x,
-                        data.camera.rotation.y,
-                        0
-                    );
-                } else {
-                    this.player.rotation.x = data.camera.rotation.x;
-                    this.player.rotation.y = data.camera.rotation.y;
-                    this.player.rotation.z = 0;
-                }
-            }
-            console.log('✅ Camera position restored');
-        }
-
-        // Load selected block type
-        if (data.selectedBlockType) {
-            this.selectedBlockType = data.selectedBlockType;
-        } else {
-            this.selectedBlockType = "cube"; // Default to cube if not saved
-        }
-
-        // Initialize auto-save system after game is fully loaded
-        this.autoSaveInterval = 30000; // 30 seconds
-        this.lastAutoSave = Date.now();
-        this.autoSaveIntervalId = null;
-    }
-
-
-
-
 
     loop() {
         this.update();

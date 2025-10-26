@@ -128,13 +128,14 @@ export class Player {
     }
 
     updateRotation(input, deltaTime) {
-        if (this.game.cursorLocked) {
+        if (this.game.inputManager.isCursorLocked()) {
             // Use movement data from pointer lock
             const sensitivity = this.lookSensitivity;
+            const mouseDelta = this.game.inputManager.getMouseDelta();
 
             // Mouse look - natural FPS camera controls
-            this.rotation.y += this.game.mouseDeltaX * sensitivity; // Left/right rotation (yaw)
-            this.rotation.x += this.game.mouseDeltaY * sensitivity; // Up/down rotation (pitch) - positive when mouse moves down
+            this.rotation.y += mouseDelta.x * sensitivity; // Left/right rotation (yaw)
+            this.rotation.x += mouseDelta.y * sensitivity; // Up/down rotation (pitch) - positive when mouse moves down
 
             // NEW: Normalize Y rotation to prevent extreme values that break raycast
             this.rotation.y = ((this.rotation.y % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
@@ -144,8 +145,7 @@ export class Player {
             this.rotation.x = Math.max(-this.maxPitch, Math.min(this.maxPitch, this.rotation.x));
 
             // Reset delta values after using them
-            this.game.mouseDeltaX = 0;
-            this.game.mouseDeltaY = 0;
+            this.game.inputManager.resetMouseDelta();
         }
     }
 
