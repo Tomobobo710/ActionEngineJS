@@ -306,6 +306,17 @@
 
                     console.log('✅ Memory Palace 3D initialized successfully');
 
+                    // Fallback: Force hide loading screen after 10 seconds if not already hidden
+                    setTimeout(() => {
+                        const loadingScreen = document.getElementById('loading-screen');
+                        if (loadingScreen && !loadingScreen.classList.contains('hidden')) {
+                            loadingScreen.classList.add('hidden');
+                            setTimeout(() => {
+                                loadingScreen.style.display = 'none';
+                            }, 500);
+                        }
+                    }, 10000);
+
                 } catch (error) {
                     console.error('❌ Initialization error:', error);
 

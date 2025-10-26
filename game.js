@@ -969,6 +969,15 @@ class Game {
         this.guiCtx = canvases.guiCtx;
         this.debugCtx = canvases.debugCtx;
 
+        // Bind methods for App loop
+        this.action_pre_update = () => {};
+        this.action_update = this.update.bind(this);
+        this.action_post_update = () => {};
+        this.action_fixed_update = () => {};
+        this.action_pre_draw = () => {};
+        this.action_post_draw = () => {};
+        this.action_draw = this.draw.bind(this);
+
         if (!this.gl) {
             console.error("WebGL not supported");
             // Try WebGL2 if WebGL fails
@@ -1062,7 +1071,7 @@ class Game {
         this.lastAutoSave = Date.now();
         this.autoSaveIntervalId = null;
 
-        this.loop();
+        // this.loop(); // Disabled: App handles the game loop via action_draw
     }
 
     initWebGL() {
@@ -1321,8 +1330,14 @@ class Game {
     }
 
     draw() {
-        // Clear the canvas
+        // Clear the WebGL canvas
         this.renderer.clear();
+
+        // Clear the 2D GUI canvas to remove persistent overlays
+        this.guiCtx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+        // Clear the debug canvas
+        this.debugCtx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
         // Get view matrix from player camera
         const viewMatrix = this.player.getViewMatrix();
