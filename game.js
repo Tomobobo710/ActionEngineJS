@@ -9,21 +9,18 @@ class Game {
     }
 
     constructor(canvases, input, audio) {
-        // Create game master
-        this.gameMaster = new GameMaster(canvases, input, audio);
-
         console.log("[Game] Initialization completed");
     }
 
+    action_draw() {
+        // Render
+    }
+
     action_fixed_update(deltaTime) {
-        this.gameMaster.fixed_update(deltaTime);
+        // Optional fixed timestep update
     }
 
     action_update(deltaTime) {
-        this.gameMaster.update(deltaTime);
-    }
-
-    action_draw() {
-        this.gameMaster.draw();
+        // Regular update schedule
     }
 }
