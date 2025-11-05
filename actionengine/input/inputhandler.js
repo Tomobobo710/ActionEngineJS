@@ -218,6 +218,10 @@ class ActionInputHandler {
             ["KeyS", ["DirDown"]],
             ["KeyA", ["DirLeft"]],
             ["KeyD", ["DirRight"]],
+            ["ArrowUp", ["DirUp"]],
+            ["ArrowDown", ["DirDown"]],
+            ["ArrowLeft", ["DirLeft"]],
+            ["ArrowRight", ["DirRight"]],
             ["Space", ["Action1"]], // face button left
             ["ShiftLeft", ["Action2"]], // face button down
             ["KeyE", ["Action3"]], // face button right
