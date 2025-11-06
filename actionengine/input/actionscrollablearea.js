@@ -1052,33 +1052,43 @@ class ActionScrollableArea {
     }
 
     /**
-     * Draws the scrollable content area background
-     *
-     * Renders the background for the scrollable content area with configurable
-     * styling options. This provides a consistent look for the scrollable region
-     * without requiring manual background drawing in consuming classes.
-     *
-     * @private
-     * @example
-     * // Background is drawn automatically with scrollbar
-     * this.drawScrollableBackground();
-     */
-    drawScrollableBackground() {
-        if (!this.drawBackground) return;
+    * Draws the scrollable content area background fill only
+    *
+    * Renders the background fill for the scrollable content area.
+    * Border is drawn separately to allow layering over items.
+    *
+    * @private
+    */
+    drawScrollableBackgroundFill() {
+       if (!this.drawBackground) return;
 
-        const { x, y, width, height } = this.listArea;
+       const { x, y, width, height } = this.listArea;
 
-        // Draw background fill FIRST
+    // Draw background fill
         if (this.backgroundConfig.fillColor) {
-            this.ctx.fillStyle = this.backgroundConfig.fillColor;
+        this.ctx.fillStyle = this.backgroundConfig.fillColor;
             if (this.backgroundConfig.cornerRadius > 0) {
-                this.drawRoundedRect(x, y, width, height, this.backgroundConfig.cornerRadius);
-            } else {
-                this.ctx.fillRect(x, y, width, height);
-            }
-        }
+            this.drawRoundedRect(x, y, width, height, this.backgroundConfig.cornerRadius);
+        } else {
+        this.ctx.fillRect(x, y, width, height);
+    }
+    }
+    }
 
-        // Draw border SECOND (after background, on top)
+    /**
+    * Draws the scrollable content area border only
+     *
+    * Renders the border for the scrollable content area.
+    * Called after items are drawn to ensure border appears on top.
+    *
+    * @private
+    */
+    drawScrollableBorder() {
+    if (!this.drawBackground) return;
+
+    const { x, y, width, height } = this.listArea;
+
+        // Draw border
         if (this.backgroundConfig.borderColor && this.backgroundConfig.borderWidth > 0) {
             this.ctx.strokeStyle = this.backgroundConfig.borderColor;
             this.ctx.lineWidth = this.backgroundConfig.borderWidth;
@@ -1149,66 +1159,69 @@ class ActionScrollableArea {
     }
 
     /**
-     * Draws the complete scrollbar interface with automatic clipping
-     *
-     * Enhanced drawing method that handles clipping automatically when enabled.
-     * Provide a renderItem function to draw items without manual clipping management.
-     *
-     * @param {Array} items - Array of items to draw
-     * @param {Function} renderItem - Function to render each item: (item, index, y) => void
-     * @param {Object} options - Additional options
-     * @param {Function} options.renderHeader - Optional header rendering function
-     *
-     * @example
-     * this.roomScroller = new ActionScrollableArea({
-     *     enableClipping: true,
-     *     clipBounds: { x: 250, y: 330, width: 300, height: 240 }
-     * });
-     *
-     * this.roomScroller.draw(rooms, (room, index, y) => {
-     *     this.guiCtx.fillStyle = isHovered ? '#0099dd' : '#007acc';
-     *     this.guiCtx.fillRect(250, y, 300, 25);
-     *     this.guiCtx.fillText(room.name, 400, y + 17);
-     * }, {
-     *     renderHeader: () => {
-     *         this.guiCtx.fillText('Available Rooms:', 400, 320);
-     *     }
-     * });
-     */
+    * Draws the complete scrollbar interface with automatic clipping
+    *
+    * Enhanced drawing method that handles clipping automatically when enabled.
+    * Provide a renderItem function to draw items without manual clipping management.
+    *
+    * @param {Array} items - Array of items to draw
+    * @param {Function} renderItem - Function to render each item: (item, index, y) => void
+    * @param {Object} options - Additional options
+    * @param {Function} options.renderHeader - Optional header rendering function
+    *
+    * @example
+    * this.roomScroller = new ActionScrollableArea({
+    *     enableClipping: true,
+    *     clipBounds: { x: 250, y: 330, width: 300, height: 240 }
+    * });
+    *
+    * this.roomScroller.draw(rooms, (room, index, y) => {
+    *     this.guiCtx.fillStyle = isHovered ? '#0099dd' : '#007acc';
+    *     this.guiCtx.fillRect(250, y, 300, 25);
+    *     this.guiCtx.fillText(room.name, 400, y + 17);
+    * }, {
+    *     renderHeader: () => {
+    *         this.guiCtx.fillText('Available Rooms:', 400, 320);
+    *     }
+    * });
+    */
     draw(items, renderItem, options = {}) {
-        // Draw scrollbar elements first (never clipped)
-        this.drawScrollbarElements();
+    // Draw scrollbar elements first (never clipped)
+    this.drawScrollbarElements();
 
-        // Apply clipping if enabled
-        if (this.enableClipping && this.clipBounds) {
-            this.ctx.save();
-            this.ctx.beginPath();
-            this.ctx.rect(this.clipBounds.x, this.clipBounds.y, this.clipBounds.width, this.clipBounds.height);
-            this.ctx.clip();
-        }
+    // Apply clipping if enabled
+    if (this.enableClipping && this.clipBounds) {
+    this.ctx.save();
+    this.ctx.beginPath();
+    this.ctx.rect(this.clipBounds.x, this.clipBounds.y, this.clipBounds.width, this.clipBounds.height);
+    this.ctx.clip();
+    }
 
-        // Draw background
-        this.drawScrollableBackground();
+    // Draw background (fill only, no border)
+    this.drawScrollableBackgroundFill();
 
-        // Draw header if provided
-        if (options.renderHeader) {
-            options.renderHeader();
-        }
+    // Draw header if provided
+    if (options.renderHeader) {
+    options.renderHeader();
+    }
 
-        // Draw all visible items with automatic clipping
-        if (items && renderItem) {
-            items.forEach((item, index) => {
-                if (this.isItemVisible(index)) {
-                    const y = this.getItemDrawY(index);
-                    renderItem(item, index, y);
-                }
-            });
-        }
+    // Draw all visible items with automatic clipping
+    if (items && renderItem) {
+    items.forEach((item, index) => {
+    if (this.isItemVisible(index)) {
+    const y = this.getItemDrawY(index);
+    renderItem(item, index, y);
+    }
+    });
+    }
 
-        // Restore clipping context
-        if (this.enableClipping && this.clipBounds) {
-            this.ctx.restore();
-        }
+    // Restore clipping context
+    if (this.enableClipping && this.clipBounds) {
+    this.ctx.restore();
+    }
+
+        // Draw border on top (after clipping restored)
+        this.drawScrollableBorder();
     }
 
     /**

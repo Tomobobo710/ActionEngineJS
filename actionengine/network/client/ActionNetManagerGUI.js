@@ -94,43 +94,51 @@ class ActionNetManagerGUI {
 
         // Create scrollable room list
         this.roomScroller = new ActionScrollableArea({
-            listAreaX: 250,
-            listAreaY: 350,
-            listAreaWidth: 300,
-            listAreaHeight: 240,
-            itemHeight: 30,
-            scrollBarX: 560,
-            scrollBarY: 370,
-            scrollBarTrackHeight: 200,
-            scrollBarThumbStartY: 370,
+        listAreaX: 250,
+        listAreaY: 380,
+        listAreaWidth: 300,
+        listAreaHeight: 200,
+        itemHeight: 30,
+        scrollBarX: 552,
+        scrollBarY: 400,
+        scrollBarTrackHeight: 160,
+        scrollBarThumbStartY: 400,
 
-            // Enable clipping for precise bounds control
-            enableClipping: true,
-            clipBounds: {
-                x: 250,
-                y: 350,
-                width: 300,
-                height: 240
-            },
+        // Enable clipping for precise bounds control
+        enableClipping: true,
+        clipBounds: {
+        x: 250,
+        y: 380,
+        width: 300,
+        height: 200
+        },
 
             // Let ActionScrollableArea handle input registration automatically with clipping
             generateItemId: (item, index) => `room_item_${index}`,
 
-            // Custom styling for chat theme
+            // Custom styling for monochrome theme
             colors: {
-                track: { normal: "rgba(0, 0, 0, 0.2)", hover: "rgba(0, 0, 0, 0.3)" },
-                thumb: {
-                    normal: "rgba(0, 212, 255, 0.3)",
-                    hover: "rgba(0, 212, 255, 0.6)",
-                    drag: "rgba(0, 212, 255, 0.8)"
+            track: { normal: "rgba(0, 0, 0, 0.2)", hover: "rgba(0, 0, 0, 0.3)" },
+            thumb: {
+            normal: "rgba(136, 136, 136, 0.3)",
+            hover: "rgba(136, 136, 136, 0.6)",
+            drag: "rgba(136, 136, 136, 0.8)"
+            },
+            thumbBorder: { normal: "rgba(136, 136, 136, 0.5)", drag: "#ffffff" },
+                button: {
+                    normal: "rgba(136, 136, 136, 0.1)",
+                    hover: "rgba(136, 136, 136, 0.3)"
                 },
-                thumbBorder: { normal: "rgba(0, 212, 255, 0.5)", drag: "#00d4ff" }
+                buttonText: {
+                    normal: "rgba(136, 136, 136, 0.8)",
+                    hover: "#ffffff"
+                }
             },
 
-            // Enable background drawing with chat theme styling
+            // Enable background drawing with monochrome styling
             drawBackground: true,
             backgroundColor: "rgba(26, 26, 26, 0.9)",
-            borderColor: "rgba(0, 212, 255, 0.6)",
+            borderColor: "rgba(136, 136, 136, 0.6)",
             borderWidth: 2,
             cornerRadius: 0,
             padding: 5
@@ -508,14 +516,14 @@ class ActionNetManagerGUI {
                 const isSelected = this.selectedIndex === (this.lobbyButtonCount + index);
                 const isHighlighted = isHovered || isSelected;
 
-                // Draw room button background
-                this.guiCtx.fillStyle = isHighlighted ? '#0099dd' : '#007acc';
-                this.guiCtx.fillRect(250, y, 300, 30);
+                // Draw room button background (matching GUI button style)
+                this.guiCtx.fillStyle = isHighlighted ? '#555555' : '#333333';
+                this.guiCtx.fillRect(260, y, 280, 30);
 
-                // Draw room button border (green for keyboard selection, cyan for hover)
-                this.guiCtx.strokeStyle = isSelected ? '#00ff00' : '#00d4ff';
-                this.guiCtx.lineWidth = isSelected ? 3 : 1;
-                this.guiCtx.strokeRect(250, y, 300, 30);
+                // Draw room button border (matching GUI button style)
+                this.guiCtx.strokeStyle = isSelected ? '#ffffff' : '#888888';
+                this.guiCtx.lineWidth = isSelected ? 3 : 2;
+                this.guiCtx.strokeRect(260, y, 280, 30);
 
                 // Draw room name
                 this.guiCtx.fillStyle = '#ffffff';
@@ -524,10 +532,10 @@ class ActionNetManagerGUI {
                 this.guiCtx.fillText(room, ActionNetManagerGUI.WIDTH / 2, y + 15);
             }, {
                 renderHeader: () => {
-                    this.guiCtx.font = '16px Arial';
-                    this.guiCtx.fillStyle = '#00d4ff';
-                    this.guiCtx.textAlign = 'center';
-                    this.guiCtx.fillText('Available Rooms:', ActionNetManagerGUI.WIDTH / 2, 330);
+                this.guiCtx.font = '16px Arial';
+                this.guiCtx.fillStyle = '#ffffff';
+                this.guiCtx.textAlign = 'center';
+                this.guiCtx.fillText('Available Rooms:', ActionNetManagerGUI.WIDTH / 2, 330);
                 }
             });
         } else {
@@ -625,6 +633,10 @@ class ActionNetManagerGUI {
                     this.input.isGamepadButtonJustPressed(1, 0) || this.input.isGamepadButtonJustPressed(1, 1) ||
                     this.input.isGamepadButtonJustPressed(1, 2) || this.input.isGamepadButtonJustPressed(1, 3)) {
                     this.emit('buttonPressed');
+                    // Disconnect if connected before going back
+                    if (this.networkManager.isConnected()) {
+                        this.networkManager.disconnect();
+                    }
                     this.emit('back');
                 }
 
@@ -634,6 +646,10 @@ class ActionNetManagerGUI {
                     this.startConnection();
                 } else if (this.input.isElementJustPressed("backButton")) {
                     this.emit('buttonPressed');
+                    // Disconnect if connected before going back
+                    if (this.networkManager.isConnected()) {
+                        this.networkManager.disconnect();
+                    }
                     // Emit back event so game can return to title screen
                     this.emit('back');
                 }
