@@ -419,10 +419,7 @@ class ActionNetManagerGUI {
      * Render login screen
      */
     renderLoginScreen() {
-        this.guiCtx.font = '36px Arial';
-        this.guiCtx.fillStyle = '#808080';
-        this.guiCtx.textAlign = 'center';
-        this.guiCtx.fillText('Login', ActionNetManagerGUI.WIDTH / 2, 150);
+        this.renderLabel('ActionNet Login', ActionNetManagerGUI.WIDTH / 2, 150, '36px Arial', '#808080');
 
         // Draw connect button
         this.renderButton(this.connectButton, 'Connect', this.selectedIndex === 0);
@@ -430,29 +427,20 @@ class ActionNetManagerGUI {
         // Draw back button
         this.renderButton(this.backButton, 'Back', this.selectedIndex === 1);
 
-        // Draw server status
-        this.guiCtx.font = '14px Arial';
-        this.guiCtx.fillStyle = this.serverStatusColor;
-        this.guiCtx.fillText(`ActionNet server is: ${this.serverStatus}`, ActionNetManagerGUI.WIDTH / 2, 380);
+        // Draw server status (aligned with lobby/no-rooms label row)
+        this.renderLabel(`ActionNet server is: ${this.serverStatus}`, ActionNetManagerGUI.WIDTH / 2, 430, '14px Arial', this.serverStatusColor);
     }
 
     /**
      * Render lobby screen
      */
     renderLobbyScreen() {
-        this.guiCtx.font = '36px Arial';
-        this.guiCtx.fillStyle = '#808080';
-        this.guiCtx.textAlign = 'center';
-        this.guiCtx.fillText('Lobby', ActionNetManagerGUI.WIDTH / 2, 40);
+        this.renderLabel('ActionNet Lobby', ActionNetManagerGUI.WIDTH / 2, 40, '36px Arial', '#808080');
 
-        this.guiCtx.font = '24px Arial';
-        this.guiCtx.fillStyle = '#ffffff';
-        this.guiCtx.fillText(`Welcome, ${this.username}!`, ActionNetManagerGUI.WIDTH / 2, 85);
+        this.renderLabel(`Welcome, ${this.username}!`, ActionNetManagerGUI.WIDTH / 2, 85, '24px Arial', '#ffffff');
 
         // Draw status
-        this.guiCtx.font = '14px Arial';
-        this.guiCtx.fillStyle = '#cccccc';
-        this.guiCtx.fillText('Select a room or create a new one', ActionNetManagerGUI.WIDTH / 2, 120);
+        this.renderLabel('Select a room or create a new one', ActionNetManagerGUI.WIDTH / 2, 120, '14px Arial', '#cccccc');
 
         // Draw connection status
         // const isConnected = this.networkManager.isConnected();
@@ -478,10 +466,10 @@ class ActionNetManagerGUI {
      */
     renderButton(button, text, isSelected = false) {
         const isHovered = this.input.isElementHovered(button === this.connectButton ? 'connectButton' :
-                                                    button === this.backButton ? 'backButton' :
-                                                    button === this.createRoomButton ? 'createRoomButton' :
-                                                    button === this.changeNameButton ? 'changeNameButton' :
-                                                    'backToLoginButton');
+                                                     button === this.backButton ? 'backButton' :
+                                                     button === this.createRoomButton ? 'createRoomButton' :
+                                                     button === this.changeNameButton ? 'changeNameButton' :
+                                                     'backToLoginButton');
         // Highlight if selected via keyboard/gamepad or hovered via mouse
         const isHighlighted = isSelected || isHovered;
         this.guiCtx.fillStyle = isHighlighted ? '#555555' : '#333333';
@@ -497,17 +485,88 @@ class ActionNetManagerGUI {
     }
 
     /**
+     * Render label with optional semi-transparent background
+     */
+    renderLabel(text, x, y, font = '16px Arial', textColor = '#ffffff', textAlign = 'center', textBaseline = 'middle', padding = 8, drawBackground = true) {
+        // Save context state
+        this.guiCtx.save();
+
+        this.guiCtx.font = font;
+        this.guiCtx.textAlign = textAlign;
+        this.guiCtx.textBaseline = textBaseline;
+
+        if (drawBackground) {
+            const metrics = this.guiCtx.measureText(text);
+            const textWidth = metrics.width;
+
+            // Fallback-safe text height
+            const textHeightRaw = (metrics.actualBoundingBoxAscent || 0) + (metrics.actualBoundingBoxDescent || 0);
+            const textHeight = textHeightRaw || parseInt(font, 10) || 16;
+
+            const bgWidth = textWidth + padding * 2;
+            const bgHeight = textHeight + padding;
+            const cornerRadius = 4; // Rounded corners
+
+            let bgX, bgY;
+            if (textAlign === 'center') {
+                bgX = x - bgWidth / 2;
+            } else if (textAlign === 'left') {
+                bgX = x - padding;
+            } else if (textAlign === 'right') {
+                bgX = x - bgWidth + padding;
+            }
+
+            // With textBaseline = 'middle', y is the visual center of the glyphs.
+            // Center the background on that, then nudge down 1px to correct the "too high" feel.
+            bgY = y - bgHeight / 2 - 1;
+
+            // Semi-transparent dark background with rounded corners
+            this.guiCtx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            this.roundedRect(bgX, bgY, bgWidth, bgHeight, cornerRadius);
+            this.guiCtx.fill();
+
+            // Subtle grey border with rounded corners
+            this.guiCtx.strokeStyle = 'rgba(136, 136, 136, 0.3)';
+            this.guiCtx.lineWidth = 1;
+            this.roundedRect(bgX, bgY, bgWidth, bgHeight, cornerRadius);
+            this.guiCtx.stroke();
+        }
+
+        // Text
+        this.guiCtx.fillStyle = textColor;
+        this.guiCtx.fillText(text, x, y);
+
+        // Restore context
+        this.guiCtx.restore();
+    }
+
+    /**
+     * Helper method to draw rounded rectangles
+     */
+    roundedRect(x, y, width, height, radius) {
+        const ctx = this.guiCtx;
+        ctx.beginPath();
+        ctx.moveTo(x + radius, y);
+        ctx.lineTo(x + width - radius, y);
+        ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+        ctx.lineTo(x + width, y + height - radius);
+        ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+        ctx.lineTo(x + radius, y + height);
+        ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+        ctx.lineTo(x, y + radius);
+        ctx.quadraticCurveTo(x, y, x + radius, y);
+        ctx.closePath();
+    }
+
+    /**
      * Render room list
      */
     renderRoomList() {
         const rooms = this.networkManager.getAvailableRooms();
 
         if (rooms.length === 0) {
-            // Draw header and no rooms message
-            this.guiCtx.font = '16px Arial';
-            this.guiCtx.fillStyle = '#ffffff';
-            this.guiCtx.textAlign = 'center';
-            this.guiCtx.fillText('No rooms currently available.', ActionNetManagerGUI.WIDTH / 2, 390);
+            // Draw header and no rooms message (aligned with login server status row)
+            this.renderLabel('No rooms currently available.', ActionNetManagerGUI.WIDTH / 2, 430);
         } else if (this.roomScroller) {
             // Use the scroller for room list
             this.roomScroller.draw(rooms, (room, index, y) => {
@@ -532,10 +591,7 @@ class ActionNetManagerGUI {
                 this.guiCtx.fillText(room, ActionNetManagerGUI.WIDTH / 2, y + 15);
             }, {
                 renderHeader: () => {
-                this.guiCtx.font = '16px Arial';
-                this.guiCtx.fillStyle = '#ffffff';
-                this.guiCtx.textAlign = 'center';
-                this.guiCtx.fillText('Available Rooms:', ActionNetManagerGUI.WIDTH / 2, 330);
+                    this.renderLabel('Available Rooms:', ActionNetManagerGUI.WIDTH / 2, 330);
                 }
             });
         } else {
@@ -610,29 +666,45 @@ class ActionNetManagerGUI {
                 if (this.input.isKeyJustPressed('DirUp') ||
                     this.input.isGamepadButtonJustPressed(12, 0) || this.input.isGamepadButtonJustPressed(12, 1) ||
                     this.input.isGamepadButtonJustPressed(12, 2) || this.input.isGamepadButtonJustPressed(12, 3)) {
-                    this.selectedIndex = Math.max(0, this.selectedIndex - 1);
+                    const old = this.selectedIndex;
+                    const next = Math.max(0, old - 1);
+                    if (next !== old) {
+                        this.selectedIndex = next;
+                        this.emit('selectionChanged', { oldIndex: old, newIndex: next });
+                    }
                 }
                 if (this.input.isKeyJustPressed('DirDown') ||
                     this.input.isGamepadButtonJustPressed(13, 0) || this.input.isGamepadButtonJustPressed(13, 1) ||
                     this.input.isGamepadButtonJustPressed(13, 2) || this.input.isGamepadButtonJustPressed(13, 3)) {
-                    this.selectedIndex = Math.min(this.loginButtonCount - 1, this.selectedIndex + 1);
+                    const old = this.selectedIndex;
+                    const next = Math.min(this.loginButtonCount - 1, old + 1);
+                    if (next !== old) {
+                        this.selectedIndex = next;
+                        this.emit('selectionChanged', { oldIndex: old, newIndex: next });
+                    }
                 }
                 // Confirm with Action1 (Enter/A button)
                 if (this.input.isKeyJustPressed('Action1') ||
                     this.input.isGamepadButtonJustPressed(0, 0) || this.input.isGamepadButtonJustPressed(0, 1) ||
                     this.input.isGamepadButtonJustPressed(0, 2) || this.input.isGamepadButtonJustPressed(0, 3)) {
-                    this.emit('buttonPressed');
+
+                    // Explicit handling:
+                    // - Index 0: positive/forward action → emit buttonPressed (menu_confirm).
+                    // - Index 1: back/cancel action → emit back only (menu_back handled by game), no confirm.
                     if (this.selectedIndex === 0) {
+                        this.emit('buttonPressed');
                         this.startConnection();
                     } else if (this.selectedIndex === 1) {
                         this.emit('back');
                     }
                 }
+
                 // Back with Action2 (Escape/B button)
                 if (this.input.isKeyJustPressed('Action2') ||
                     this.input.isGamepadButtonJustPressed(1, 0) || this.input.isGamepadButtonJustPressed(1, 1) ||
                     this.input.isGamepadButtonJustPressed(1, 2) || this.input.isGamepadButtonJustPressed(1, 3)) {
-                    this.emit('buttonPressed');
+
+                    // This is a pure back/cancel: no confirm sound.
                     // Disconnect if connected before going back
                     if (this.networkManager.isConnected()) {
                         this.networkManager.disconnect();
@@ -642,10 +714,10 @@ class ActionNetManagerGUI {
 
                 // Mouse input
                 if (this.input.isElementJustPressed("connectButton")) {
+                    // Positive/forward: confirm sound via buttonPressed.
                     this.emit('buttonPressed');
                     this.startConnection();
                 } else if (this.input.isElementJustPressed("backButton")) {
-                    this.emit('buttonPressed');
                     // Disconnect if connected before going back
                     if (this.networkManager.isConnected()) {
                         this.networkManager.disconnect();
@@ -655,9 +727,17 @@ class ActionNetManagerGUI {
                 }
                 // Update selection based on hover
                 if (this.input.isElementHovered("connectButton")) {
-                    this.selectedIndex = 0;
+                    if (this.selectedIndex !== 0) {
+                        const old = this.selectedIndex;
+                        this.selectedIndex = 0;
+                        this.emit('selectionChanged', { oldIndex: old, newIndex: 0 });
+                    }
                 } else if (this.input.isElementHovered("backButton")) {
-                    this.selectedIndex = 1;
+                    if (this.selectedIndex !== 1) {
+                        const old = this.selectedIndex;
+                        this.selectedIndex = 1;
+                        this.emit('selectionChanged', { oldIndex: old, newIndex: 1 });
+                    }
                 }
                 break;
             case "LOBBY":
@@ -668,26 +748,38 @@ class ActionNetManagerGUI {
                 if (this.input.isKeyJustPressed('DirUp') ||
                     this.input.isGamepadButtonJustPressed(12, 0) || this.input.isGamepadButtonJustPressed(12, 1) ||
                     this.input.isGamepadButtonJustPressed(12, 2) || this.input.isGamepadButtonJustPressed(12, 3)) {
-                    this.selectedIndex = Math.max(0, this.selectedIndex - 1);
-                    this.scrollToSelectedItem();
+                    const old = this.selectedIndex;
+                    const next = Math.max(0, old - 1);
+                    if (next !== old) {
+                        this.selectedIndex = next;
+                        this.emit('selectionChanged', { oldIndex: old, newIndex: next });
+                        this.scrollToSelectedItem();
+                    }
                 }
                 if (this.input.isKeyJustPressed('DirDown') ||
                     this.input.isGamepadButtonJustPressed(13, 0) || this.input.isGamepadButtonJustPressed(13, 1) ||
                     this.input.isGamepadButtonJustPressed(13, 2) || this.input.isGamepadButtonJustPressed(13, 3)) {
-                    this.selectedIndex = Math.min(totalSelectableItems - 1, this.selectedIndex + 1);
-                    this.scrollToSelectedItem();
+                    const old = this.selectedIndex;
+                    const next = Math.min(totalSelectableItems - 1, old + 1);
+                    if (next !== old) {
+                        this.selectedIndex = next;
+                        this.emit('selectionChanged', { oldIndex: old, newIndex: next });
+                        this.scrollToSelectedItem();
+                    }
                 }
 
                 // Confirm with Action1 (Enter/A button)
                 if (this.input.isKeyJustPressed('Action1') ||
                     this.input.isGamepadButtonJustPressed(0, 0) || this.input.isGamepadButtonJustPressed(0, 1) ||
                     this.input.isGamepadButtonJustPressed(0, 2) || this.input.isGamepadButtonJustPressed(0, 3)) {
-                    this.emit('buttonPressed');
                     if (this.selectedIndex === 0) {
+                        this.emit('buttonPressed');
                         this.changeUsername();
                     } else if (this.selectedIndex === 1) {
+                        this.emit('buttonPressed');
                         this.createAndJoinRoom();
                     } else if (this.selectedIndex === 2) {
+                        this.emit('backToLogin');
                         this.currentState = "LOGIN";
                         this.selectedIndex = 0; // Reset selection
                     } else {
@@ -695,6 +787,7 @@ class ActionNetManagerGUI {
                         const roomIndex = this.selectedIndex - this.lobbyButtonCount;
                         if (roomIndex >= 0 && roomIndex < availableRooms.length) {
                             console.log("✅ Room selected via keyboard/gamepad:", availableRooms[roomIndex]);
+                            this.emit('buttonPressed');
                             this.selectedRoom = availableRooms[roomIndex];
                             this.joinSelectedRoom();
                         }
@@ -705,7 +798,7 @@ class ActionNetManagerGUI {
                 if (this.input.isKeyJustPressed('Action2') ||
                     this.input.isGamepadButtonJustPressed(1, 0) || this.input.isGamepadButtonJustPressed(1, 1) ||
                     this.input.isGamepadButtonJustPressed(1, 2) || this.input.isGamepadButtonJustPressed(1, 3)) {
-                    this.emit('buttonPressed');
+                    this.emit('backToLogin');
                     this.currentState = "LOGIN";
                     this.selectedIndex = 0; // Reset selection
                 }
@@ -718,7 +811,7 @@ class ActionNetManagerGUI {
                     this.emit('buttonPressed');
                     this.changeUsername();
                 } else if (this.input.isElementJustPressed("backToLoginButton")) {
-                    this.emit('buttonPressed');
+                    this.emit('backToLogin');
                     // Go back to login screen (stay connected)
                     this.currentState = "LOGIN";
                     this.selectedIndex = 0; // Reset selection
@@ -741,16 +834,33 @@ class ActionNetManagerGUI {
 
                 // Update selection based on hover
                 if (this.input.isElementHovered("changeNameButton")) {
-                    this.selectedIndex = 0;
+                    if (this.selectedIndex !== 0) {
+                        const old = this.selectedIndex;
+                        this.selectedIndex = 0;
+                        this.emit('selectionChanged', { oldIndex: old, newIndex: 0 });
+                    }
                 } else if (this.input.isElementHovered("createRoomButton")) {
-                    this.selectedIndex = 1;
+                    if (this.selectedIndex !== 1) {
+                        const old = this.selectedIndex;
+                        this.selectedIndex = 1;
+                        this.emit('selectionChanged', { oldIndex: old, newIndex: 1 });
+                    }
                 } else if (this.input.isElementHovered("backToLoginButton")) {
-                    this.selectedIndex = 2;
+                    if (this.selectedIndex !== 2) {
+                        const old = this.selectedIndex;
+                        this.selectedIndex = 2;
+                        this.emit('selectionChanged', { oldIndex: old, newIndex: 2 });
+                    }
                 } else {
                     // Check room hover
                     for (let i = 0; i < availableRooms.length; i++) {
                         if (this.input.isElementHovered(`room_item_${i}`)) {
-                            this.selectedIndex = this.lobbyButtonCount + i;
+                            const next = this.lobbyButtonCount + i;
+                            if (this.selectedIndex !== next) {
+                                const old = this.selectedIndex;
+                                this.selectedIndex = next;
+                                this.emit('selectionChanged', { oldIndex: old, newIndex: next });
+                            }
                             break;
                         }
                     }
@@ -834,12 +944,29 @@ class ActionNetManagerGUI {
      * Generate random username
      */
     generateRandomUsername() {
-        const adjectives = ['Big', 'Floppy', 'Little', 'Goofy', 'Wiggly'];
-        const nouns = ['Farter', 'Butt', 'Booger', 'Nugget', 'Tooter'];
-        const numbers = ['69', '420', '666', '1337', '123'];
+        const adjectives = [
+            'Big', 'Floppy', 'Little', 'Goofy', 'Wiggly',
+            'Stinky', 'Chunky', 'Bouncy', 'Silly', 'Noisy',
+            'Tiny', 'Fast', 'Smart', 'Lucky', 'Epic',
+            'Super', 'Mega', 'Giant', 'Double', 'PeePee',
+            'Farty', 'Smelly', 'Sneaky', 'Gassy', 'Crusty',
+            'Soggy', 'Tooty', 'Rank', 'Nasty', 'Squeaky'
+        ];
+
+        const nouns = [
+            'Farter', 'Butt', 'Booger', 'Nugget', 'Tooter', 'Weiner',
+            'Sniffer', 'Burper', 'DooDoo', 'Pooter', 'Dumper', 'Diaper',
+            'Fart', 'Toilet', 'Pooper', 'Booty', 'Stinker', 'Skidmark'
+        ];
+
+        const funNumbers = [
+            '69', '420', '666', '1337', '123',
+            '007', '101', '999', '321', '777'
+        ];
+
         const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
         const noun = nouns[Math.floor(Math.random() * nouns.length)];
-        const number = numbers[Math.floor(Math.random() * numbers.length)];
+        const number = funNumbers[Math.floor(Math.random() * funNumbers.length)];
         return `${adj}${noun}${number}`;
     }
 
