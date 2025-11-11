@@ -1,20 +1,12 @@
 {
-  "name": "tetris-multiplayer-server",
+  "name": "actionnet-server",
   "version": "1.0.0",
-  "description": "Multiplayer Tetris battle server using ActionNet",
-  "main": "tetrisserver.js",
+  "description": "Generic ActionNet WebSocket relay server.",
+  "main": "ActionNetServer.js",
   "scripts": {
-    "start": "node tetrisserver.js",
-    "start:custom": "node tetrisserver.js"
+    "start": "node ActionNetServer.js",
+    "start:wss": "node ActionNetServerSSL.js"
   },
-  "keywords": [
-    "tetris",
-    "multiplayer",
-    "websocket",
-    "game-server"
-  ],
-  "author": "",
-  "license": "MIT",
   "dependencies": {
     "ws": "^8.13.0"
   }
