@@ -270,7 +270,6 @@ class ActionAudioManager {
     createSound(name, options, type = "simple") {
         // Handle legacy format where options is just a frequency number
         if (typeof options === "number") {
-            console.log(`[AudioManager] trigger, setting ${this.midiToFrequency(options)}`);
             options = {
                 frequency: this.midiToFrequency(options),
                 oscillatorType: type !== "simple" ? type : "sine" // type parameter was oscillatorType in old format
@@ -336,7 +335,6 @@ class ActionAudioManager {
 
                 // Create sample buffers once context is available
                 this.createSampleBuffers();
-                console.log("[AudioManager] Initialized audio context..");
             }
             document.removeEventListener("click", enableAudio);
             document.removeEventListener("touchstart", enableAudio);
@@ -351,7 +349,6 @@ class ActionAudioManager {
         this.sampleDefinitions.forEach((definition, sampleName) => {
             // Skip buffer creation for MIDI samples
             if (definition.soundType === "midi") {
-                console.log(`[AudioManager] Skipping buffer creation for MIDI instrument: ${sampleName}`);
                 return;
             }
             const bufferSize = this.context.sampleRate * 2;
@@ -384,7 +381,6 @@ class ActionAudioManager {
             }
 
             this.samples.set(sampleName, buffer);
-            console.log(`[AudioManager] Created buffer for sample: ${sampleName}`);
         });
     }
 
@@ -419,7 +415,6 @@ class ActionAudioManager {
         }
 
         this.samples.set(name, buffer);
-        console.log(`[AudioManager] Preloaded sample: ${name}`);
     }
 
     // New method for creating FM synthesis sounds
@@ -571,8 +566,6 @@ class ActionAudioManager {
                 instance.gainNode.gain.setValueAtTime(finalVolume, currentTime);
             }
         });
-        
-        console.log(`[AudioManager] Sound volume set: ${name} = ${volume}`);
     }
 
     /**
@@ -586,7 +579,6 @@ class ActionAudioManager {
 
     // Enhanced play method to handle all sound types with new options
     play(name, options = {}) {
-        console.log(`[AudioManager] Playing sound...`);
         if (!this.enabled || !this.context) return;
 
         const sound = this.sounds.get(name);
@@ -595,7 +587,6 @@ class ActionAudioManager {
         // Always prevent sound stacking - stop any existing instances of this sound
         const instances = this.soundInstances.get(name) || [];
         if (instances.length > 0) {
-            console.log(`[AudioManager] Preventing sound stacking for: ${name}`);
             // Stop existing instances
             instances.forEach(instance => this.stopSoundInstance(instance));
             this.soundInstances.set(name, []);
@@ -641,7 +632,6 @@ class ActionAudioManager {
                 controlObject = this.playSweep(sound, enhancedOptions);
                 break;
             case "sonicpi":
-                console.log(`[AudioManager] Playing Pi sound... ${sound}`);
                 controlObject = this.playSonicPi(sound, enhancedOptions);
                 break;
             default:
@@ -861,8 +851,6 @@ class ActionAudioManager {
     // Original simple oscillator playback (enhanced with volume support)
     playSimple(sound, { pan = 0, volume = 1.0 } = {}) {
         const oscillator = this.context.createOscillator();
-        console.log("[AudioManager] Sound config:", sound);
-        console.log("[AudioManager] Setting oscillator type to:", sound.oscillatorType);
         oscillator.type = sound.oscillatorType;
         const gainNode = this.context.createGain();
         const stereoPanner = this.context.createStereoPanner();
@@ -1249,14 +1237,6 @@ class ActionAudioManager {
         // Create sample functionality
         const createSample = (sampleName, params = {}) => {
             const definition = this.sampleDefinitions.get(sampleName);
-            console.log("[AudioManager] Creating sample:", {
-                name: sampleName,
-                definition,
-                params,
-                isMIDI: definition?.soundType === "midi",
-                hasSampleBuffer: this.samples.has(sampleName),
-                midiReady: this.midiReady
-            });
 
             if (definition?.soundType === "midi") {
                 const gainNode = this.context.createGain();
@@ -1324,10 +1304,8 @@ class ActionAudioManager {
         // Process all events sequentially
         sound.parsedSequence.forEach((event) => {
             const eventTime = startTime + event.time;
-            console.log("[AudioManager] Processing event:", event);
 
             if (event.command !== "play" && event.command !== "sample") {
-                console.log("[AudioManager] Skipping non-playable command:", event.command);
                 return;
             }
 
