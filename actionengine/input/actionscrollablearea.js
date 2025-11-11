@@ -398,15 +398,24 @@ class ActionScrollableArea {
         setTimeout(() => {
             const canvas = document.querySelector("#gameCanvas");
             if (canvas) {
-                canvas.addEventListener("wheel", (e) => {
-                    e.preventDefault();
-                    this.handleMouseWheel(e.deltaY);
-                });
+                // Explicitly mark as non-passive since we call preventDefault()
+                canvas.addEventListener(
+                    "wheel",
+                    (e) => {
+                        e.preventDefault();
+                        this.handleMouseWheel(e.deltaY);
+                    },
+                    { passive: false }
+                );
 
-                // Fallback to window
-                window.addEventListener("wheel", (e) => {
-                    this.handleMouseWheel(e.deltaY);
-                });
+                // Fallback to window: does not call preventDefault, so can be passive
+                window.addEventListener(
+                    "wheel",
+                    (e) => {
+                        this.handleMouseWheel(e.deltaY);
+                    },
+                    { passive: true }
+                );
             }
         }, 100);
     }
