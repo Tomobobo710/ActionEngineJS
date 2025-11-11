@@ -15,7 +15,7 @@
  * USAGE:
  * ```javascript
  * const net = new ActionNetManager({
- *     url: 'ws://yourserver.com:3001',
+ *     url: 'ws://yourserver.com:3000',
  *     autoConnect: false
  * });
  * 
@@ -32,7 +32,7 @@ class ActionNetManager {
     constructor(config = {}) {
         // Configuration
         this.config = {
-            url: config.url || 'ws://localhost:3001',
+            url: config.url || 'ws://localhost:3000',
             autoConnect: config.autoConnect !== undefined ? config.autoConnect : false,
             reconnect: config.reconnect !== undefined ? config.reconnect : false,
             reconnectDelay: config.reconnectDelay || 1000,
