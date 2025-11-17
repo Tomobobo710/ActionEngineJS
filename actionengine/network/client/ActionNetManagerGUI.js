@@ -154,6 +154,11 @@ class ActionNetManagerGUI {
         this.serverStatusColor = '#ffff00';
         this.serverCheckInterval = null;
 
+        // Error modal state
+        this.errorModalVisible = false;
+        this.errorModalTitle = '';
+        this.errorModalMessage = '';
+
         // Initialize UI elements
         this.initializeUIElements();
 
@@ -413,6 +418,11 @@ class ActionNetManagerGUI {
                 this.renderLobbyScreen();
                 break;
         }
+
+        // Render error modal on top if visible
+        if (this.errorModalVisible) {
+            this.renderErrorModal();
+        }
     }
 
     /**
@@ -584,11 +594,16 @@ class ActionNetManagerGUI {
                 this.guiCtx.lineWidth = isSelected ? 3 : 2;
                 this.guiCtx.strokeRect(260, y, 280, 30);
 
-                // Draw room name
+                // Draw room name and player count
                 this.guiCtx.fillStyle = '#ffffff';
                 this.guiCtx.font = '16px Arial';
                 this.guiCtx.textAlign = 'center';
-                this.guiCtx.fillText(room, ActionNetManagerGUI.WIDTH / 2, y + 15);
+
+                // New format with player counts
+                const maxDisplay = room.maxPlayers === -1 ? '∞' : room.maxPlayers;
+                const displayText = `${room.name} (${room.playerCount}/${maxDisplay})`;
+
+                this.guiCtx.fillText(displayText, ActionNetManagerGUI.WIDTH / 2, y + 15);
             }, {
                 renderHeader: () => {
                     this.renderLabel('Available Rooms:', ActionNetManagerGUI.WIDTH / 2, 330);
@@ -660,6 +675,12 @@ class ActionNetManagerGUI {
      * Handle UI input
      */
     handleUIInput() {
+        // Handle error modal input first (blocks other input when visible)
+        if (this.errorModalVisible) {
+            this.handleErrorModalInput();
+            return; // Modal blocks other input
+        }
+
         switch (this.currentState) {
             case "LOGIN":
                 // Handle keyboard/gamepad navigation for LOGIN screen
@@ -788,7 +809,7 @@ class ActionNetManagerGUI {
                         if (roomIndex >= 0 && roomIndex < availableRooms.length) {
                             console.log("✅ Room selected via keyboard/gamepad:", availableRooms[roomIndex]);
                             this.emit('buttonPressed');
-                            this.selectedRoom = availableRooms[roomIndex];
+                            this.selectedRoom = availableRooms[roomIndex].name;
                             this.joinSelectedRoom();
                         }
                     }
@@ -825,7 +846,7 @@ class ActionNetManagerGUI {
                         if (isPressed && availableRooms[i]) {
                             this.emit('buttonPressed');
                             console.log("✅ Room clicked:", availableRooms[i]);
-                            this.selectedRoom = availableRooms[i];
+                            this.selectedRoom = availableRooms[i].name;
                             this.joinSelectedRoom();
                             break;
                         }
@@ -910,6 +931,7 @@ class ActionNetManagerGUI {
             })
             .catch((error) => {
                 console.error("Failed to join room:", error);
+                this.showErrorModal("Cannot Join Room", error.message || "Failed to join the selected room");
             });
     }
 
@@ -924,6 +946,7 @@ class ActionNetManagerGUI {
             })
             .catch((error) => {
                 console.error("Failed to create room:", error);
+                this.showErrorModal("Cannot Create Room", error.message || "Failed to create a new room");
             });
     }
 
@@ -937,6 +960,7 @@ class ActionNetManagerGUI {
             this.username = newUsername;
         } catch (error) {
             console.error("Failed to change username:", error);
+            this.showErrorModal("Cannot Change Name", error.message || "Failed to change username");
         }
     }
 
@@ -1104,5 +1128,124 @@ class ActionNetManagerGUI {
 
         // Clamp scroll offset to valid range
         this.roomScroller.scrollOffset = Math.max(0, Math.min(this.roomScroller.maxScrollOffset, this.roomScroller.scrollOffset));
+    }
+
+    /**
+     * Show error modal
+     */
+    showErrorModal(title, message) {
+        this.errorModalVisible = true;
+        this.errorModalTitle = title;
+        this.errorModalMessage = message;
+    }
+
+    /**
+     * Hide error modal
+     */
+    hideErrorModal() {
+        this.errorModalVisible = false;
+        this.errorModalTitle = '';
+        this.errorModalMessage = '';
+    }
+
+    /**
+     * Render error modal
+     */
+    renderErrorModal() {
+        // Semi-transparent overlay
+        this.guiCtx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        this.guiCtx.fillRect(0, 0, ActionNetManagerGUI.WIDTH, ActionNetManagerGUI.HEIGHT);
+
+        // Modal dimensions
+        const modalWidth = 400;
+        const modalHeight = 200;
+        const modalX = (ActionNetManagerGUI.WIDTH - modalWidth) / 2;
+        const modalY = (ActionNetManagerGUI.HEIGHT - modalHeight) / 2;
+
+        // Modal background (matching GUI button style)
+        this.guiCtx.fillStyle = '#333333';
+        this.guiCtx.fillRect(modalX, modalY, modalWidth, modalHeight);
+        this.guiCtx.strokeStyle = '#888888';
+        this.guiCtx.lineWidth = 2;
+        this.guiCtx.strokeRect(modalX, modalY, modalWidth, modalHeight);
+
+        // Title
+        this.renderLabel(this.errorModalTitle, ActionNetManagerGUI.WIDTH / 2, modalY + 40, 'bold 24px Arial', '#ffffff');
+
+        // Message
+        this.renderLabel(this.errorModalMessage, ActionNetManagerGUI.WIDTH / 2, modalY + 90, '18px Arial', '#cccccc');
+
+        // Back button (centered)
+        const buttonWidth = 120;
+        const buttonHeight = 50;
+        const buttonX = (ActionNetManagerGUI.WIDTH - buttonWidth) / 2;
+        const buttonY = modalY + modalHeight - 70;
+
+        // Check if back button is hovered or selected (for keyboard/gamepad navigation)
+        const isHovered = this.input.isElementHovered('error_modal_back_button');
+        const isSelected = true; // Always selected since it's the only button
+
+        this.guiCtx.fillStyle = isHovered ? '#555555' : '#333333';
+        this.guiCtx.fillRect(buttonX, buttonY, buttonWidth, buttonHeight);
+        this.guiCtx.strokeStyle = isSelected ? '#ffffff' : '#888888'; // White border for selection
+        this.guiCtx.lineWidth = isSelected ? 3 : 2; // Thicker border for selection
+        this.guiCtx.strokeRect(buttonX, buttonY, buttonWidth, buttonHeight);
+
+        // Button text
+        this.guiCtx.fillStyle = '#ffffff';
+        this.guiCtx.font = 'bold 20px Arial';
+        this.guiCtx.textAlign = 'center';
+        this.guiCtx.textBaseline = 'middle';
+        this.guiCtx.fillText('BACK', buttonX + buttonWidth / 2, buttonY + buttonHeight / 2);
+    }
+
+    /**
+     * Handle error modal input
+     */
+    handleErrorModalInput() {
+        // Register back button if not already registered
+        if (!this.input.rawState.elements.gui.has('error_modal_back_button')) {
+            const modalWidth = 400;
+            const modalHeight = 200;
+            const modalX = (ActionNetManagerGUI.WIDTH - modalWidth) / 2;
+            const modalY = (ActionNetManagerGUI.HEIGHT - modalHeight) / 2;
+            const buttonWidth = 120;
+            const buttonHeight = 50;
+            const buttonX = (ActionNetManagerGUI.WIDTH - buttonWidth) / 2;
+            const buttonY = modalY + modalHeight - 70;
+
+            this.input.registerElement('error_modal_back_button', {
+                bounds: () => ({
+                    x: buttonX,
+                    y: buttonY,
+                    width: buttonWidth,
+                    height: buttonHeight
+                })
+            });
+        }
+
+        // Handle button press
+        if (this.input.isElementJustPressed('error_modal_back_button')) {
+            this.hideErrorModal();
+            // Unregister the button
+            this.input.removeElement('error_modal_back_button');
+        }
+
+        // Handle keyboard/gamepad input
+        if (this.input.isKeyJustPressed('Action1') ||
+            this.input.isGamepadButtonJustPressed(0, 0) || this.input.isGamepadButtonJustPressed(0, 1) ||
+            this.input.isGamepadButtonJustPressed(0, 2) || this.input.isGamepadButtonJustPressed(0, 3)) {
+            this.hideErrorModal();
+            this.input.removeElement('error_modal_back_button');
+        }
+
+        // Handle escape/back button
+        if (this.input.isKeyJustPressed('Action2') ||
+            this.input.isKeyJustPressed('Escape') ||
+            this.input.isGamepadButtonJustPressed(1, 0) || this.input.isGamepadButtonJustPressed(1, 1) ||
+            this.input.isGamepadButtonJustPressed(1, 2) || this.input.isGamepadButtonJustPressed(1, 3)) {
+            this.hideErrorModal();
+            this.input.removeElement('error_modal_back_button');
+        }
     }
 }

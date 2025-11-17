@@ -272,11 +272,28 @@ class ActionNetServerUtils {
 
     /**
      * Get list of all room names
-     * 
+     *
      * @returns {Array<String>}
      */
     getRoomList() {
         return Array.from(this.rooms.keys());
+    }
+
+    /**
+     * Get list of all rooms with player counts
+     *
+     * @param {Number} maxPlayersPerRoom - Maximum players allowed per room (-1 = no limit)
+     * @returns {Array<Object>} - Array of room objects with {name, playerCount, maxPlayers}
+     */
+    getRoomListWithCounts(maxPlayersPerRoom = -1) {
+        return Array.from(this.rooms.keys()).map(roomName => {
+            const playerCount = this.getRoomSize(roomName);
+            return {
+                name: roomName,
+                playerCount: playerCount,
+                maxPlayers: maxPlayersPerRoom
+            };
+        });
     }
 
     /**

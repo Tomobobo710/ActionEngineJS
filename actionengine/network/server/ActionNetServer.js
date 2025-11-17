@@ -46,13 +46,13 @@ wss.on("connection", (ws, req) => {
     console.log("New player connected from:", req.socket.remoteAddress);
 
     // Send current room list immediately when client connects
-    const roomList = utils.getRoomList();
+    const roomList = utils.getRoomListWithCounts(maxPlayersPerRoom);
     if (roomList.length > 0) {
         utils.sendToClient(ws, {
             type: "roomList",
             rooms: roomList
         });
-        console.log(`Sent current room list to new player: ${roomList.join(", ")}`);
+        console.log(`Sent current room list to new player:`, roomList);
     }
 
     ws.on("message", (data) => {
@@ -134,13 +134,13 @@ function handleConnect(ws, message) {
     // Send room list
     utils.sendToClient(ws, {
         type: "roomList",
-        rooms: utils.getRoomList()
+        rooms: utils.getRoomListWithCounts(maxPlayersPerRoom)
     });
 
     // Broadcast updated room list to all clients
     utils.broadcastToAll({
         type: "roomList",
-        rooms: utils.getRoomList()
+        rooms: utils.getRoomListWithCounts(maxPlayersPerRoom)
     });
 }
 
@@ -189,7 +189,7 @@ function handleJoinRoom(ws, message) {
         // Broadcast updated room list to all clients
         utils.broadcastToAll({
             type: "roomList",
-            rooms: utils.getRoomList()
+            rooms: utils.getRoomListWithCounts(maxPlayersPerRoom)
         });
     }
 
@@ -204,6 +204,12 @@ function handleJoinRoom(ws, message) {
         text: joinMessage,
         roomName: roomName,
         timestamp: Date.now()
+    });
+
+    // Broadcast updated room list to all clients (for real-time player count updates)
+    utils.broadcastToAll({
+        type: "roomList",
+        rooms: utils.getRoomListWithCounts(maxPlayersPerRoom)
     });
 
     // Send dedicated success message for reliable detection
@@ -251,7 +257,7 @@ function handleLeaveRoom(ws, message) {
         // Send updated room list
         utils.sendToClient(ws, {
             type: "roomList",
-            rooms: utils.getRoomList()
+            rooms: utils.getRoomListWithCounts(maxPlayersPerRoom)
         });
 
         // If host left, close the room entirely
@@ -283,7 +289,7 @@ function handleLeaveRoom(ws, message) {
                 // Send updated room list
                 utils.sendToClient(clientWs, {
                     type: "roomList",
-                    rooms: utils.getRoomList()
+                    rooms: utils.getRoomListWithCounts(maxPlayersPerRoom)
                 });
             });
             
@@ -293,7 +299,7 @@ function handleLeaveRoom(ws, message) {
             // Broadcast updated room list to everyone
             utils.broadcastToAll({
                 type: "roomList",
-                rooms: utils.getRoomList()
+                rooms: utils.getRoomListWithCounts(maxPlayersPerRoom)
             });
         } else if (!utils.roomExists(oldRoom)) {
             // Room became empty naturally
@@ -303,7 +309,7 @@ function handleLeaveRoom(ws, message) {
             // Broadcast updated room list
             utils.broadcastToAll({
                 type: "roomList",
-                rooms: utils.getRoomList()
+                rooms: utils.getRoomListWithCounts(maxPlayersPerRoom)
             });
         } else {
             // Non-host left, room continues
@@ -321,6 +327,12 @@ function handleLeaveRoom(ws, message) {
                 type: "userList",
                 users: utils.getClientsInRoom(oldRoom),
                 roomName: oldRoom
+            });
+
+            // Broadcast updated room list to all clients (for real-time player count updates)
+            utils.broadcastToAll({
+                type: "roomList",
+                rooms: utils.getRoomListWithCounts(maxPlayersPerRoom)
             });
         }
     }
@@ -373,7 +385,7 @@ function handleDisconnect(ws) {
                     // Send updated room list
                     utils.sendToClient(clientWs, {
                         type: "roomList",
-                        rooms: utils.getRoomList()
+                        rooms: utils.getRoomListWithCounts(maxPlayersPerRoom)
                     });
                 });
                 
@@ -383,7 +395,7 @@ function handleDisconnect(ws) {
                 // Broadcast updated room list to everyone
                 utils.broadcastToAll({
                     type: "roomList",
-                    rooms: utils.getRoomList()
+                    rooms: utils.getRoomListWithCounts(maxPlayersPerRoom)
                 });
             } else if (!utils.roomExists(disconnectRoomName)) {
                 // Room became empty naturally
@@ -393,7 +405,7 @@ function handleDisconnect(ws) {
                 // Broadcast updated room list
                 utils.broadcastToAll({
                     type: "roomList",
-                    rooms: utils.getRoomList()
+                    rooms: utils.getRoomListWithCounts(maxPlayersPerRoom)
                 });
             } else {
                 // Non-host disconnected, room continues
