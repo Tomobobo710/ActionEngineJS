@@ -23,7 +23,13 @@ class ActionNetManagerGUI {
         debug: true
     };
 
-    constructor(canvases, input, audio, port = 8000, networkConfig = null, syncConfig = null) {
+    // P2P Network configuration
+    static P2P_NETWORK_CONFIG = {
+        gameId: 'game-id-00000',
+        debug: true
+    };
+
+    constructor(canvases, input, audio, configOrPort = 8000, networkConfig = null, syncConfig = null) {
         // Store Action Engine systems
         this.audio = audio;
         this.input = input;
@@ -38,15 +44,39 @@ class ActionNetManagerGUI {
         this.guiCtx = canvases.guiCtx;
         this.debugCtx = canvases.debugCtx;
 
-        // Initialize networking with custom config or default
-        const config = networkConfig || { ...ActionNetManagerGUI.NETWORK_CONFIG };
+        // Detect if configOrPort is a config object or a port number
+        let mode = 'websocket';
+        let port = 8000;
+        let p2pConfig = null;
         
-        // Build URL from hostname, port, and protocol
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const hostname = window.location.hostname || 'localhost'; // Fallback to localhost for file:// protocol
-        config.url = `${protocol}//${hostname}:${port}`;
-        
-        this.networkManager = new ActionNetManager(config);
+        if (typeof configOrPort === 'object' && configOrPort !== null) {
+            // It's a config object
+            mode = configOrPort.mode || 'websocket';
+            port = configOrPort.port || 8000;
+            p2pConfig = configOrPort.p2pConfig || null;
+        } else if (typeof configOrPort === 'number') {
+            // It's the old style (port number)
+            port = configOrPort;
+        }
+
+        // Store mode for later use
+        this.networkMode = mode;
+
+        // Initialize networking based on mode
+        if (mode === 'p2p') {
+            const config = p2pConfig || { ...ActionNetManagerGUI.P2P_NETWORK_CONFIG };
+            this.networkManager = new ActionNetManagerP2P(config);
+        } else {
+            // WebSocket mode (default)
+            const config = networkConfig || { ...ActionNetManagerGUI.NETWORK_CONFIG };
+            
+            // Build URL from hostname, port, and protocol
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const hostname = window.location.hostname || 'localhost'; // Fallback to localhost for file:// protocol
+            config.url = `${protocol}//${hostname}:${port}`;
+            
+            this.networkManager = new ActionNetManager(config);
+        }
 
         // Setup ActionNet event listeners
         this.setupNetworkEvents();
@@ -437,8 +467,8 @@ class ActionNetManagerGUI {
         // Draw back button
         this.renderButton(this.backButton, 'Back', this.selectedIndex === 1);
 
-        // Draw server status (aligned with lobby/no-rooms label row)
-        this.renderLabel(`ActionNet server is: ${this.serverStatus}`, ActionNetManagerGUI.WIDTH / 2, 430, '14px Arial', this.serverStatusColor);
+        // Draw network status (aligned with lobby/no-rooms label row)
+        this.renderLabel(`Network connection: ${this.serverStatus}`, ActionNetManagerGUI.WIDTH / 2, 430, '14px Arial', this.serverStatusColor);
     }
 
     /**
@@ -601,7 +631,10 @@ class ActionNetManagerGUI {
 
                 // New format with player counts
                 const maxDisplay = room.maxPlayers === -1 ? '∞' : room.maxPlayers;
-                const displayText = `${room.name} (${room.playerCount}/${maxDisplay})`;
+                // Support both WebSocket (room.name, room.playerCount) and P2P (room.username, room.currentPlayers) formats
+                const roomName = room.name || room.username || 'Unknown Room';
+                const playerCount = room.playerCount !== undefined ? room.playerCount : room.currentPlayers || 0;
+                const displayText = `${roomName} (${playerCount}/${maxDisplay})`;
 
                 this.guiCtx.fillText(displayText, ActionNetManagerGUI.WIDTH / 2, y + 15);
             }, {
@@ -805,13 +838,14 @@ class ActionNetManagerGUI {
                         this.selectedIndex = 0; // Reset selection
                     } else {
                         // Room selection (index 3+)
-                        const roomIndex = this.selectedIndex - this.lobbyButtonCount;
-                        if (roomIndex >= 0 && roomIndex < availableRooms.length) {
-                            console.log("✅ Room selected via keyboard/gamepad:", availableRooms[roomIndex]);
-                            this.emit('buttonPressed');
-                            this.selectedRoom = availableRooms[roomIndex].name;
-                            this.joinSelectedRoom();
-                        }
+                         const roomIndex = this.selectedIndex - this.lobbyButtonCount;
+                         if (roomIndex >= 0 && roomIndex < availableRooms.length) {
+                             console.log("✅ Room selected via keyboard/gamepad:", availableRooms[roomIndex]);
+                             this.emit('buttonPressed');
+                             // Support both WebSocket (name) and P2P (peerId) formats
+                             this.selectedRoom = availableRooms[roomIndex].peerId || availableRooms[roomIndex].name;
+                             this.joinSelectedRoom();
+                         }
                     }
                 }
 
@@ -844,12 +878,13 @@ class ActionNetManagerGUI {
                         const isPressed = this.input.isElementJustPressed(elementId);
 
                         if (isPressed && availableRooms[i]) {
-                            this.emit('buttonPressed');
-                            console.log("✅ Room clicked:", availableRooms[i]);
-                            this.selectedRoom = availableRooms[i].name;
-                            this.joinSelectedRoom();
-                            break;
-                        }
+                             this.emit('buttonPressed');
+                             console.log("✅ Room clicked:", availableRooms[i]);
+                             // Support both WebSocket (name) and P2P (peerId) formats
+                             this.selectedRoom = availableRooms[i].peerId || availableRooms[i].name;
+                             this.joinSelectedRoom();
+                             break;
+                         }
                     }
                 }
 
@@ -891,7 +926,7 @@ class ActionNetManagerGUI {
     }
 
     /**
-     * Start connection to server
+     * Start connection to server or P2P network
      */
     async startConnection() {
         this.username = this.generateRandomUsername();
@@ -900,7 +935,14 @@ class ActionNetManagerGUI {
         this.serverStatusColor = '#ffff00';
 
         try {
-            await this.networkManager.connectToServer({ username: this.username });
+            if (this.networkMode === 'p2p') {
+                // P2P mode: join the game via DHT
+                await this.networkManager.joinGame(this.networkManager.config.gameId, this.username);
+            } else {
+                // WebSocket mode: connect to server
+                await this.networkManager.connectToServer({ username: this.username });
+            }
+            
             // Update status immediately on success
             this.serverStatus = 'ONLINE';
             this.serverStatusColor = '#00ff00';
@@ -939,15 +981,26 @@ class ActionNetManagerGUI {
      * Create and join room
      */
     createAndJoinRoom() {
-        const roomName = `${this.username}'s room`;
-        this.networkManager.joinRoom(roomName)
-            .then(() => {
-                // Event will be emitted
-            })
-            .catch((error) => {
-                console.error("Failed to create room:", error);
-                this.showErrorModal("Cannot Create Room", error.message || "Failed to create a new room");
-            });
+        // For P2P mode, create a room (become host)
+        if (this.networkMode === 'p2p') {
+            // P2P needs to call joinGame first to set up currentGameId
+            // Use the default gameId from P2P config
+            const gameId = this.networkManager.config.gameId || 'game-id-00000';
+            this.networkManager.currentGameId = gameId;
+            this.networkManager.createRoom();
+            console.log("[ActionNetManagerGUI] Created P2P room, waiting for players...");
+        } else {
+            // For WebSocket mode, join a room with a generated name
+            const roomName = `${this.username}'s room`;
+            this.networkManager.joinRoom(roomName)
+                .then(() => {
+                    // Event will be emitted
+                })
+                .catch((error) => {
+                    console.error("Failed to create room:", error);
+                    this.showErrorModal("Cannot Create Room", error.message || "Failed to create a new room");
+                });
+        }
     }
 
     /**
@@ -995,9 +1048,14 @@ class ActionNetManagerGUI {
     }
 
     /**
-     * Start server check
+     * Start server check (WebSocket only)
      */
     startServerCheck() {
+        // Skip server check for P2P mode (DHT connectivity is implicit)
+        if (this.networkMode === 'p2p') {
+            return;
+        }
+
         this.serverCheckInterval = setInterval(async () => {
             // Only check if we're not connected (don't override connection status)
             if (!this.networkManager.isConnected()) {
@@ -1018,6 +1076,20 @@ class ActionNetManagerGUI {
      */
     getNetManager() {
         return this.networkManager;
+    }
+
+    /**
+     * Hide the GUI (for when game takes over)
+     */
+    hide() {
+        this.guiVisible = false;
+    }
+
+    /**
+     * Show the GUI (for when returning from game)
+     */
+    show() {
+        this.guiVisible = true;
     }
 
     /**
@@ -1065,6 +1137,29 @@ class ActionNetManagerGUI {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Activate SyncSystem for a room with proper peer connection context
+     * Call this when joining a room to ensure SyncSystem is ready
+     */
+    activateSyncForRoom() {
+        if (this.syncSystem && !this.syncSystem.isRunning) {
+            console.log("[ActionNetManagerGUI] Activating SyncSystem for room");
+            this.syncSystem.start();
+        }
+    }
+
+    /**
+     * Deactivate SyncSystem when leaving a room
+     * Call this when leaving a room to clean up
+     */
+    deactivateSyncForRoom() {
+        if (this.syncSystem && this.syncSystem.isRunning) {
+            console.log("[ActionNetManagerGUI] Deactivating SyncSystem for room");
+            this.syncSystem.stop();
+            this.syncSystem.clearRemoteData();
+        }
     }
 
     /**
