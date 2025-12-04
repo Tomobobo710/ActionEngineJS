@@ -3,8 +3,11 @@
 A complete multiplayer networking solution for ActionEngine games, providing:
 
 - **ActionNetManager**: Client-side WebSocket manager with room/lobby system
+- **ActionNetManagerP2P**: Peer-to-peer networking with DHT discovery and WebRTC
+- **ActionNetManagerGUI**: Unified GUI supporting both WebSocket and P2P modes
 - **ActionNetServerUtils**: Server-side utilities for client and room management
 - **SyncSystem**: Generic state synchronization for client-to-client data sharing
+- **TestNetworkSession**: Session orchestrator for multiplayer game lifecycle
 
 ## Client Identity System
 
@@ -32,7 +35,103 @@ ActionNet provides a clean client identity system with two key concepts:
 - **This is what you should show in your UI**
 - Automatically updated in user lists
 
-## Quick Start - Client Side
+## Quick Start - P2P Mode (No Server Required)
+
+The easiest way to add multiplayer to your ActionEngine game:
+
+```javascript
+// Initialize with P2P mode - that's it!
+const gui = new ActionNetManagerGUI(canvases, input, audio, { mode: 'p2p' });
+
+// GUI provides:
+// - Room discovery via DHT
+// - Host/guest UI
+// - Automatic WebRTC connection setup
+// - State synchronization via SyncSystem
+```
+
+In your game's `action_update()`:
+```javascript
+action_update(deltaTime) {
+    if (this.inGame) {
+        // Your game logic
+    } else {
+        // Show the GUI lobby
+        this.gui.action_update(deltaTime);
+    }
+}
+```
+
+Listen for room events:
+```javascript
+this.gui.on('joinedRoom', (event) => {
+    this.inGame = true;
+    // Create game session
+    this.gameSession = new TestNetworkSession(this.gui.getNetManager(), this.gui);
+    this.gameSession.start(event.dataChannel);
+});
+
+this.gui.on('leftRoom', () => {
+    this.inGame = false;
+    if (this.gameSession) {
+        this.gameSession.stop();
+        this.gameSession = null;
+    }
+});
+```
+
+Sync your game state:
+```javascript
+// Override how session syncs your game's state
+this.gameSession.registerSyncSources = () => {
+    this.gameSession.syncSystem.register('gameState', {
+        getFields: () => ({
+            score: this.localScore,
+            level: this.localLevel
+        })
+    });
+};
+
+// Listen for remote updates
+this.gameSession.on('remoteStateUpdated', (remoteState) => {
+    this.remoteScore = remoteState.score || 0;
+    this.remoteLevel = remoteState.level || 1;
+});
+
+// Start the session
+this.gameSession.start(dataChannel);
+```
+
+Force broadcast on actions:
+```javascript
+// When player action changes state
+if (this.input.isElementJustPressed('actionBtn')) {
+    this.localScore += 10;
+    this.gameSession.syncSystem.forceBroadcast();
+}
+```
+
+### How P2P Works
+
+1. **Join Game**: Connect to DHT network (no server)
+2. **Discover Rooms**: Other hosts broadcast their rooms via DHT
+3. **Join Room**: Establish WebRTC connection to host
+4. **Sync State**: SyncSystem broadcasts changes via WebRTC data channel
+5. **Leave Room**: Close connection, host closes data channel
+6. **Rejoin**: Reconnect quickly (peer connection cached)
+
+### P2P vs WebSocket Mode
+
+| Feature | P2P | WebSocket |
+|---------|-----|-----------|
+| Server Required | ❌ No | ✅ Yes |
+| Discovery | DHT (distributed) | Server list |
+| Connection | WebRTC (direct) | WebSocket relay |
+| Latency | Low (direct) | Medium (relay) |
+| Scalability | Unlimited | Server-limited |
+| Setup | One line | More code |
+
+## Quick Start - WebSocket Mode
 
 ```javascript
 // Create network manager with configuration
