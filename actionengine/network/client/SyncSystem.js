@@ -92,6 +92,23 @@ class SyncSystem {
     }
     
     /**
+     * Update the send function (transport pipeline)
+     * Call this when transport conditions change (e.g., new dataChannel available)
+     * 
+     * @param {Function} sendFunction - New send function
+     */
+    setSendFunction(sendFunction) {
+        if (typeof sendFunction !== 'function') {
+            console.error('[SyncSystem] setSendFunction requires a function');
+            return false;
+        }
+        
+        this.sendFunction = sendFunction;
+        console.log('[SyncSystem] Updated send function');
+        return true;
+    }
+
+    /**
      * Register a sync source
      * 
      * @param {String} id - Unique identifier for this sync source
