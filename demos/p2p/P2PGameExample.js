@@ -112,6 +112,20 @@ class Game {
             // Start the session with the data channel (may be null for host initially)
             const dataChannel = event.dataChannel;
             this.gameSession.start(dataChannel);
+            
+            // Listen for user list updates to get opponent username
+            if (!this.userListHandler) {
+                this.userListHandler = (users) => {
+                    if (users && users.length > 1) {
+                        const myUsername = this.gui.getUsername();
+                        const remoteUser = users.find((u) => u.username !== myUsername);
+                        if (remoteUser) {
+                            this.opponentUsername = remoteUser.username;
+                        }
+                    }
+                };
+                netManager.on('userList', this.userListHandler);
+            }
         });
 
         // When user leaves a room, show the lobby again
@@ -244,7 +258,7 @@ class Game {
         this.drawPlayerSection(
             500,
             120,
-            'Opponent',
+            this.opponentUsername || 'Opponent',
             this.remoteScore,
             this.remoteLevel,
             '#ff6b6b'
