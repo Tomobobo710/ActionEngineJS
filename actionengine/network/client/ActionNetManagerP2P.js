@@ -31,8 +31,10 @@ class ActionNetManagerP2P {
     constructor(config = {}) {
         this.config = {
             debug: config.debug || false,
+            gameId: config.gameId || 'game-id-00000', // Game ID for DHT discovery
             broadcastInterval: config.broadcastInterval || 1000, // Send room status every 1s
             staleThreshold: config.staleThreshold || 5000, // Room stale after 5s
+            maxPlayers: config.maxPlayers || 2, // Maximum players per room
             iceServers: config.iceServers || [
                 { urls: "stun:stun.l.google.com:19302" },
                 { urls: "stun:stun1.l.google.com:19302" }
@@ -117,13 +119,12 @@ class ActionNetManagerP2P {
         const magnetUri = await this.gameidToMagnet(gameId);
         this.log(`Magnet URI: ${magnetUri}`);
 
+        // Fetch and merge tracker lists
+        const trackers = await this.fetchTrackerList();
+
         // Add torrent
         this.torrent = this.client.add(magnetUri, {
-            announce: [
-                'wss://tracker.openwebtorrent.com',
-                'wss://tracker.webtorrent.dev',
-                'wss://tracker.fastcast.nz'
-            ]
+            announce: trackers
         });
 
         // Setup wire handler for peer discovery
@@ -170,10 +171,6 @@ class ActionNetManagerP2P {
         this.emit('userJoined', user);
         this.emit('userList', this.connectedUsers);
 
-        // Host broadcasts updated list
-        if (this.isHost) {
-            this.broadcastUserList();
-        }
     }
 
     /**
@@ -490,6 +487,19 @@ class ActionNetManagerP2P {
             return;
         }
 
+        // Check room capacity
+        const connectedPeers = Array.from(this.peerConnections.values())
+            .filter(p => p.status === 'connected')
+            .length;
+        
+        const currentPlayers = connectedPeers + 1; // +1 for host
+        
+        if (currentPlayers >= this.config.maxPlayers) {
+            this.log(`Room full (${currentPlayers}/${this.config.maxPlayers}), rejecting join from ${peerId}`);
+            this.rejectJoin(peerId);
+            return;
+        }
+
         // Store username for later (when we accept)
         const peerData = this.peerConnections.get(peerId);
         if (peerData) {
@@ -563,8 +573,7 @@ class ActionNetManagerP2P {
      */
     acceptJoin(peerId) {
         this.log(`Accepting join from ${peerId}`);
-
-        // Add the joiner to our user list
+        
         const peerData = this.peerConnections.get(peerId);
         if (peerData) {
             this.addUser({
@@ -573,7 +582,10 @@ class ActionNetManagerP2P {
                 isHost: false
             });
         }
-
+        
+        // Emit userList to self so host also updates remote player username
+        this.emit('userList', this.connectedUsers);
+        
         this.sendSignalingMessage(peerId, {
             type: 'joinAccepted'
         });
@@ -620,6 +632,11 @@ class ActionNetManagerP2P {
                     peerId: peerId,
                     dataChannel: channel
                 });
+            }
+
+            // Host: broadcast user list now that this peer is connected
+            if (this.isHost) {
+                this.broadcastUserList();
             }
         };
 
@@ -677,7 +694,7 @@ class ActionNetManagerP2P {
             username: this.username,
             hosting: true,
             gameType: this.currentGameId,
-            maxPlayers: 2, // TODO: make configurable
+            maxPlayers: this.config.maxPlayers,
             currentPlayers: connectedPeers + 1, // +1 for self
             slots: []
         });
@@ -781,7 +798,32 @@ class ActionNetManagerP2P {
         const channel = pc.createDataChannel('game');
         hostData.channel = channel;
 
-        this.setupDataChannel(hostPeerId, channel);
+        // DON'T setupDataChannel yet - wait for host acceptance first
+        // Just set up the channel event handlers manually
+
+        channel.onopen = () => {
+            this.log(`Data channel opened with ${hostPeerId}`);
+            hostData.status = 'connected';
+            this.dataChannel = channel;
+            this.log(`Joiner: data channel now active with host`);
+            this.emit('joinedRoom', {
+                peerId: hostPeerId,
+                dataChannel: channel
+            });
+        };
+
+        channel.onclose = () => {
+            this.log(`Data channel closed with ${hostPeerId}`);
+            hostData.status = 'disconnected';
+            if (channel === this.dataChannel) {
+                this.dataChannel = null;
+            }
+            this.emit('leftRoom', hostPeerId);
+        };
+
+        channel.onerror = (evt) => {
+            this.log(`Channel error with ${hostPeerId}: ${evt.error}`, 'error');
+        };
 
         // Setup ICE and signaling
         pc.onicecandidate = (evt) => {
@@ -809,19 +851,68 @@ class ActionNetManagerP2P {
             sdp: pc.localDescription.sdp
         });
 
-        // Wait for connection
+        // Wait for acceptance or rejection
         return new Promise((resolve, reject) => {
             const timeout = setTimeout(() => {
-                reject(new Error('Connection timeout'));
+                reject(new Error('Join request timeout'));
             }, 10000);
 
-            const onOpen = () => {
-                clearTimeout(timeout);
-                channel.removeEventListener('open', onOpen);
-                resolve();
+            // Handle rejection
+            const onReject = (msg) => {
+                if (msg.peerId === hostPeerId && msg.type === 'joinRejected') {
+                    clearTimeout(timeout);
+                    this.networkManager?.off('message', onReject);
+                    this.networkManager?.off('message', onAccept);
+                    reject(new Error(msg.reason || 'Join request rejected'));
+                }
             };
 
-            channel.addEventListener('open', onOpen);
+            // Handle acceptance
+            const onAccept = (msg) => {
+                if (msg.peerId === hostPeerId && msg.type === 'joinAccepted') {
+                    clearTimeout(timeout);
+                    this.networkManager?.off('message', onReject);
+                    this.networkManager?.off('message', onAccept);
+                    this.log(`Join accepted by host`);
+                    // Data channel will emit 'open' event when ready
+                    // Resolve when channel opens
+                    const onChannelOpen = () => {
+                        channel.removeEventListener('open', onChannelOpen);
+                        resolve();
+                    };
+                    
+                    if (channel.readyState === 'open') {
+                        resolve();
+                    } else {
+                        channel.addEventListener('open', onChannelOpen);
+                    }
+                }
+            };
+
+            // Listen on ActionNetManagerP2P events, not network manager
+            this.on('joinRejected', (data) => {
+                if (data.peerId === hostPeerId) {
+                    clearTimeout(timeout);
+                    reject(new Error(data.reason || 'Join request rejected'));
+                }
+            });
+
+            this.on('joinAccepted', (data) => {
+                if (data.peerId === hostPeerId) {
+                    clearTimeout(timeout);
+                    this.log(`Join accepted by host`);
+                    const onChannelOpen = () => {
+                        channel.removeEventListener('open', onChannelOpen);
+                        resolve();
+                    };
+                    
+                    if (channel.readyState === 'open') {
+                        resolve();
+                    } else {
+                        channel.addEventListener('open', onChannelOpen);
+                    }
+                }
+            });
         });
     }
 
@@ -884,6 +975,66 @@ class ActionNetManagerP2P {
         const hashArray = Array.from(new Uint8Array(hashBuffer));
         const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
         return `magnet:?xt=urn:btih:${hashHex.substring(0, 40)}`;
+    }
+
+    /**
+     * Fetch and merge tracker lists from multiple sources
+     * Hardcoded trackers are prioritized, fetched trackers are merged in (deduped)
+     * Falls back to hardcoded list if all fetches fail
+     */
+    async fetchTrackerList() {
+        const hardcoded = [
+            'wss://tracker.openwebtorrent.com/',
+            'wss://tracker.btorrent.xyz/',
+            'wss://tracker.fastcast.nz/',
+            'wss://tracker.files.fm:7073/announce',
+            'wss://tracker.sloppyta.co/',
+            'wss://tracker.webtorrent.dev/',
+            'wss://tracker.novage.com.ua/',
+            'wss://tracker.magnetoo.io/',
+            'wss://tracker.ghostchu-services.top:443/announce',
+            'ws://tracker.ghostchu-services.top:80/announce',
+            'ws://tracker.files.fm:7072/announce'
+        ];
+
+        // Try to fetch from multiple sources
+        const sources = [
+            'https://raw.githubusercontent.com/ngosang/trackerslist/master/trackers_all_ws.txt',
+            'https://cdn.jsdelivr.net/gh/ngosang/trackerslist@master/trackers_all_ws.txt',
+            'https://ngosang.github.io/trackerslist/trackers_all_ws.txt'
+        ];
+
+        const allFetched = [];
+
+        for (const source of sources) {
+            try {
+                const response = await fetch(source, {
+                    timeout: 5000 // 5 second timeout per source
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const text = await response.text();
+                const fetched = text
+                    .split('\n')
+                    .map(t => t.trim())
+                    .filter(t => t && (t.startsWith('wss://') || t.startsWith('ws://')));
+
+                allFetched.push(...fetched);
+                this.log(`Fetched ${fetched.length} trackers from ${source}`);
+            } catch (e) {
+                this.log(`Failed to fetch from ${source}: ${e.message}`, 'error');
+            }
+        }
+
+        // Merge all sources: dedupe with Set, hardcoded first (so they're prioritized)
+        const merged = [...new Set([...hardcoded, ...allFetched])];
+        const newTrackers = merged.length - hardcoded.length;
+
+        this.log(`Tracker list: ${hardcoded.length} hardcoded + ${newTrackers} fetched = ${merged.length} total`);
+        return merged.length > hardcoded.length ? merged : hardcoded;
     }
 
     /**
@@ -994,6 +1145,59 @@ class ActionNetManagerP2P {
     }
 
     /**
+     * Check if current user is the host
+     */
+    isCurrentUserHost() {
+        return this.isHost;
+    }
+
+    /**
+     * Set username (P2P: local update + broadcast to peers)
+     * 
+     * @param {String} name - New username
+     * @returns {Promise} - Resolves when username is updated
+     */
+    setUsername(name) {
+        // Validate new username locally
+        if (!name || name.trim() === '' || name.length < 2) {
+            return Promise.reject(new Error('Username must be at least 2 characters long'));
+        }
+
+        if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+            return Promise.reject(new Error('Username can only contain letters, numbers, underscores, and hyphens'));
+        }
+
+        // For P2P, just update local username immediately (no server confirmation needed)
+        const oldUsername = this.username;
+        this.username = name;
+
+        // Broadcast updated user list to all connected peers if in a room
+        if (this.isInRoom()) {
+            // Update our entry in connectedUsers
+            const selfIndex = this.connectedUsers.findIndex(u => u.id === this.peerId);
+            if (selfIndex !== -1) {
+                this.connectedUsers[selfIndex].username = name;
+            }
+
+            // Broadcast to all peers
+            this.broadcastUserList();
+        }
+
+        // Emit event for UI updates
+        this.emit('usernameChanged', {
+            oldUsername: oldUsername,
+            newUsername: name,
+            displayName: name
+        });
+
+        return Promise.resolve({
+            oldUsername: oldUsername,
+            newUsername: name,
+            displayName: name
+        });
+    }
+
+    /**
      * Send a message to the connected peer via data channel
      */
     send(message) {
@@ -1012,4 +1216,4 @@ class ActionNetManagerP2P {
             return false;
         }
     }
-}
+    }
