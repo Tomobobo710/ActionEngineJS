@@ -143,7 +143,7 @@ class ActionNetManager {
         return new Promise((resolve, reject) => {
             try {
                 if (this.config.debug) {
-                    console.log('[ActionNetManager] Connecting to:', this.config.url);
+                    // console.log('[ActionNetManager] Connecting to:', this.config.url);
                 }
 
                 // Store client data
@@ -167,7 +167,7 @@ class ActionNetManager {
                 // Connection opened
                 this.socket.onopen = () => {
                     if (this.config.debug) {
-                        console.log('[ActionNetManager] WebSocket connected, waiting for server response');
+                        // console.log('[ActionNetManager] WebSocket connected, waiting for server response');
                     }
 
                     // Send connect message with clientId and username
@@ -187,7 +187,7 @@ class ActionNetManager {
                             this.reconnectAttempt = 0;  // Reset reconnect attempts on success
 
                             if (this.config.debug) {
-                                console.log('[ActionNetManager] Server connection confirmed');
+                                // console.log('[ActionNetManager] Server connection confirmed');
                             }
 
                             // Start ping/pong if enabled
@@ -221,7 +221,7 @@ class ActionNetManager {
                 // Connection closed
                 this.socket.onclose = () => {
                     if (this.config.debug) {
-                        console.log('[ActionNetManager] Disconnected from server');
+                        // console.log('[ActionNetManager] Disconnected from server');
                     }
                     
                     this.isConnectedFlag = false;
@@ -313,7 +313,7 @@ class ActionNetManager {
     leaveRoom() {
         if (!this.isInRoomFlag || !this.currentRoomName) {
             if (this.config.debug) {
-                console.log('[ActionNetManager] Not in a room');
+                // console.log('[ActionNetManager] Not in a room');
             }
             return;
         }
@@ -417,7 +417,7 @@ class ActionNetManager {
         if (this.config.reconnectAttempts !== -1 && 
             this.reconnectAttempt >= this.config.reconnectAttempts) {
             if (this.config.debug) {
-                console.log('[ActionNetManager] Max reconnect attempts reached');
+                // console.log('[ActionNetManager] Max reconnect attempts reached');
             }
             this.emit('reconnectFailed');
             return;
@@ -432,7 +432,7 @@ class ActionNetManager {
         );
 
         if (this.config.debug) {
-            console.log(`[ActionNetManager] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempt})`);
+            // console.log(`[ActionNetManager] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempt})`);
         }
 
         this.emit('reconnecting', { attempt: this.reconnectAttempt, delay });
