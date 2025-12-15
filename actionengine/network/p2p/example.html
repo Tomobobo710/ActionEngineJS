@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ActionNetP2P Discovery</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: monospace;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            margin: 0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #4ec9b0;
+            margin-top: 0;
+        }
+        h2 {
+            color: #569cd6;
+            margin-top: 30px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 5px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            background: #252526;
+            border-left: 3px solid #569cd6;
+        }
+        .status.connected {
+            border-left-color: #4ec9b0;
+        }
+        .status.error {
+            border-left-color: #f48771;
+        }
+        .status.info {
+            border-left-color: #dcdcaa;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 8px 16px;
+            background: #569cd6;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: monospace;
+        }
+        button:hover {
+            background: #4ec9b0;
+        }
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        input {
+            padding: 8px;
+            background: #3e3e42;
+            color: #d4d4d4;
+            border: 1px solid #555;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .log {
+            background: #1e1e1e;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 10px;
+            max-height: 400px;
+            overflow-y: auto;
+            margin: 10px 0;
+            font-size: 12px;
+        }
+        .log-entry {
+            margin: 3px 0;
+            padding: 2px 5px;
+            border-radius: 2px;
+        }
+        .log-entry.info {
+            color: #858585;
+        }
+        .log-entry.peer {
+            color: #4ec9b0;
+        }
+        .log-entry.connection {
+            color: #569cd6;
+        }
+        .log-entry.error {
+            color: #f48771;
+        }
+        .peers-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .peer-card {
+            background: #252526;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 10px;
+            border-left: 3px solid #4ec9b0;
+        }
+        .peer-card h3 {
+            margin: 0 0 5px 0;
+            color: #4ec9b0;
+            font-size: 13px;
+        }
+        .peer-card p {
+            margin: 3px 0;
+            font-size: 12px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-box {
+            background: #252526;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 15px;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 24px;
+            color: #4ec9b0;
+            font-weight: bold;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #858585;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ActionNetP2P Discovery Test</h1>
+
+        <div class="status connected">
+            <strong>Status:</strong> <span id="status">Initializing...</span>
+        </div>
+
+        <h2>Configuration</h2>
+        <div class="controls">
+            <div>
+                <label>Application ID:</label>
+                <input type="text" id="applicationId" value="app-id-00000" style="width: 200px">
+            </div>
+            <div>
+                <label>Username:</label>
+                <input type="text" id="username" value="Tester" style="width: 150px">
+            </div>
+            <button id="joinBtn" onclick="joinGame()">Join Game</button>
+            <button id="leaveBtn" onclick="leaveGame()" disabled>Leave Game</button>
+            <button id="clearLogBtn" onclick="clearLog()">Clear Log</button>
+        </div>
+
+        <h2>Stats</h2>
+        <div class="stats">
+            <div class="stat-box">
+                <div class="stat-number" id="totalPeerCount">0</div>
+                <div class="stat-label">Total Peers (from tracker)</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-number" id="connectedPeerCount">0</div>
+                <div class="stat-label">Connected Peers</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-number" id="connectionCount">0</div>
+                <div class="stat-label">Data Connections</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-number" id="trackerCount">0</div>
+                <div class="stat-label">Active Trackers</div>
+            </div>
+        </div>
+
+        <h2>Confirmed Peers</h2>
+         <div id="confirmedPeersList" class="peers-list">
+             <div style="color: #858585; padding: 10px;">No confirmed peers yet</div>
+         </div>
+
+         <h2>Peers Discovered</h2>
+         <div id="peersList" class="peers-list">
+             <div style="color: #858585; padding: 10px;">No peers discovered yet</div>
+         </div>
+
+        <h2>Log</h2>
+        <div id="log" class="log"></div>
+    </div>
+
+    <!-- Load P2P modules in order -->
+    <script src="ActionNetPeer.js"></script>
+    <script src="ActionNetTrackerClient.js"></script>
+    <script src="DataConnection.js"></script> <!-- Exports DataConnection class -->
+
+    <script>
+        // Test harness
+         let localPeerId = null; // Our peer ID for DataConnection initiator selection
+         let currentTracker = null;
+         let currentApplicationId = null;
+         let username = null;
+         const peers = new Map();
+         const connections = new Map();
+         const confirmedPeers = new Map(); // peerId -> {id, username, confirmed}
+
+        // Redirect console.log to UI log
+        const originalLog = console.log;
+        console.log = function(...args) {
+            const msg = args.map(arg => {
+                if (typeof arg === 'object') {
+                    try {
+                        return JSON.stringify(arg, null, 2);
+                    } catch {
+                        return String(arg);
+                    }
+                }
+                return String(arg);
+            }).join(' ');
+            log(msg, 'info');
+            originalLog.apply(console, args);
+        };
+
+        const log = (msg, type = 'info') => {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            document.getElementById('log').appendChild(entry);
+            document.getElementById('log').scrollTop = document.getElementById('log').scrollHeight;
+        };
+
+        const clearLog = () => {
+            document.getElementById('log').innerHTML = '';
+        };
+
+        const updateStats = () => {
+            document.getElementById('totalPeerCount').textContent = currentTracker ? currentTracker.getDiscoveredPeerCount() : 0;
+            document.getElementById('connectedPeerCount').textContent = peers.size;
+            document.getElementById('connectionCount').textContent = connections.size;
+            document.getElementById('trackerCount').textContent = currentTracker ? 1 : 0;
+        };
+
+        const updateConfirmedPeersList = () => {
+            const container = document.getElementById('confirmedPeersList');
+            if (confirmedPeers.size === 0) {
+                container.innerHTML = '<div style="color: #858585; padding: 10px;">No confirmed peers yet</div>';
+                return;
+            }
+
+            container.innerHTML = Array.from(confirmedPeers.values()).map(peer => `
+                <div class="peer-card">
+                    <h3>${peer.username || peer.id}</h3>
+                    <p><strong>Peer ID:</strong> ${peer.id}</p>
+                    <p><strong>Status:</strong> ${peer.confirmed ? 'Confirmed' : 'Confirming'}</p>
+                </div>
+            `).join('');
+        };
+
+        const updatePeersList = () => {
+            const container = document.getElementById('peersList');
+            if (peers.size === 0) {
+                container.innerHTML = '<div style="color: #858585; padding: 10px;">No peers discovered yet</div>';
+                return;
+            }
+
+            container.innerHTML = Array.from(peers.values()).map(peer => `
+                <div class="peer-card">
+                    <h3>${peer.id}</h3>
+                    <p><strong>IP:</strong> ${peer.ip || 'N/A'}</p>
+                    <p><strong>Port:</strong> ${peer.port || 'N/A'}</p>
+                    <p><strong>Source:</strong> ${peer.source || 'unknown'}</p>
+                    <p><strong>Time:</strong> ${new Date(peer.discovered || Date.now()).toLocaleTimeString()}</p>
+                </div>
+            `).join('');
+        };
+
+        const joinGame = async () => {
+            try {
+                currentApplicationId = document.getElementById('applicationId').value || 'app-id-00000';
+                username = document.getElementById('username').value || 'Tester';
+
+                log(`Joining network: ${currentApplicationId} as ${username}`, 'info');
+
+                document.getElementById('status').textContent = `Connecting to tracker...`;
+                document.getElementById('status').parentElement.className = 'status';
+
+                // Generate peer ID
+                localPeerId = 'peer_' + Math.random().toString(36).substr(2, 9);
+                log(`Generated peer ID: ${localPeerId}`, 'info');
+
+                // Generate infohash from application ID
+                const encoder = new TextEncoder();
+                const data = encoder.encode(currentApplicationId);
+                const hashBuffer = await crypto.subtle.digest('SHA-1', data);
+                const hashArray = Array.from(new Uint8Array(hashBuffer));
+                const infohash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+                log(`Application ID hash (infohash): ${infohash}`, 'info');
+
+                // Create tracker client with multiple trackers for redundancy
+                const trackerUrls = [
+                    'wss://tracker.openwebtorrent.com/',
+                    'wss://tracker.btorrent.xyz/',
+                    'wss://tracker.fastcast.nz/'
+                ];
+                const tracker = new ActionNetTrackerClient(trackerUrls, infohash, localPeerId, {
+                    debug: true,                   // Enable logging for debugging
+                    numwant: 50,                   // Max peers to request from tracker
+                    announceInterval: 5000,        // Start at 5 seconds for fast discovery
+                    maxAnnounceInterval: 120000,   // Back off to max 120 seconds
+                    backoffMultiplier: 1.1         // Increase by 1.1x each cycle
+                });
+
+                // Handle peer connections
+                tracker.on('peer', (data) => {
+                    const peerId = data.id;
+                    log(`Peer connected: ${peerId}`, 'peer');
+                    peers.set(peerId, {
+                        id: peerId,
+                        discovered: Date.now(),
+                        source: data.source,
+                        peer: data.peer
+                    });
+                    updateStats();
+                    updatePeersList();
+                });
+
+                // Handle data connections (already created by tracker)
+                tracker.on('connection', (connection) => {
+                    const peerId = connection.remotePeerId;
+                    
+                    log(`Data connection created with peer: ${peerId}`, 'info');
+
+                    connection.on('connect', () => {
+                        log(`Data connection connected with ${peerId}`, 'info');
+                        connections.set(peerId, connection);
+                        updateStats();
+
+                        // Send handshake
+                        connection.send({
+                            type: 'handshake',
+                            peerId: localPeerId,
+                            username: username,
+                            applicationId: currentApplicationId
+                        });
+                    });
+
+                    connection.on('data', (message) => {
+                        if (message.type === 'handshake') {
+                            // Validate handshake
+                            if (message.applicationId !== currentApplicationId) {
+                                log(`Handshake failed: peer on different application (${message.applicationId})`, 'error');
+                                return;
+                            }
+                            
+                            // Add to confirmed peers
+                            confirmedPeers.set(peerId, {
+                                id: message.peerId,
+                                username: message.username,
+                                confirmed: true
+                            });
+                            
+                            log(`Peer confirmed: ${message.username} (${message.peerId})`, 'peer');
+                            updateConfirmedPeersList();
+                        } else {
+                            log(`DataConnection message from ${peerId}: ${JSON.stringify(message)}`, 'connection');
+                        }
+                    });
+
+                    connection.on('close', () => {
+                        log(`Data connection closed with ${peerId}`, 'info');
+                        connections.delete(peerId);
+                        confirmedPeers.delete(peerId);
+                        updateStats();
+                        updateConfirmedPeersList();
+                    });
+
+                    connection.on('error', (err) => {
+                        log(`Data connection error with ${peerId}: ${err.message}`, 'error');
+                    });
+                });
+
+                // Handle tracker ready event
+                tracker.on('ready', () => {
+                    log('Tracker ready, waiting for peers...', 'info');
+                    document.getElementById('status').textContent = `Connected to tracker - Waiting for peers...`;
+                    document.getElementById('status').parentElement.className = 'status connected';
+                });
+
+                // Handle tracker updates
+                tracker.on('update', (data) => {
+                    const total = data.complete + data.incomplete;
+                    log(`Tracker: ${data.complete} seeders, ${data.incomplete} leechers (${total} total)`, 'info');
+                    updateStats();
+                });
+
+                // Handle peer disconnection
+                tracker.on('peer-disconnected', (data) => {
+                    const peerId = data.id;
+                    log(`Peer disconnected: ${peerId}`, 'info');
+                    
+                    // Clean up connection
+                    if (connections.has(peerId)) {
+                        connections.get(peerId).close();
+                        connections.delete(peerId);
+                    }
+                    
+                    // Clean up peer
+                    peers.delete(peerId);
+                    confirmedPeers.delete(peerId);
+                    
+                    updateStats();
+                    updateConfirmedPeersList();
+                    updatePeersList();
+                });
+
+                // Handle peer connection failure
+                tracker.on('peer-failed', (data) => {
+                    const peerId = data.id;
+                    log(`Peer failed: ${peerId} - ${data.error.message}`, 'error');
+                    
+                    // Clean up connection
+                    if (connections.has(peerId)) {
+                        connections.get(peerId).close();
+                        connections.delete(peerId);
+                    }
+                    
+                    // Clean up peer
+                    peers.delete(peerId);
+                    confirmedPeers.delete(peerId);
+                    
+                    updateStats();
+                    updateConfirmedPeersList();
+                    updatePeersList();
+                });
+
+                // Handle tracker errors
+                tracker.on('error', (err) => {
+                    log(`Tracker error: ${err.message}`, 'error');
+                });
+
+                // Connect to tracker
+                await tracker.connect();
+                log('Connected to tracker and announced', 'info');
+                document.getElementById('joinBtn').disabled = true;
+                document.getElementById('leaveBtn').disabled = false;
+
+                log('To see peers: Open this page in another window/tab and join the same game', 'info');
+
+                // Store tracker for cleanup
+                currentTracker = tracker;
+
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+                document.getElementById('status').textContent = `Error: ${error.message}`;
+                document.getElementById('status').parentElement.className = 'status error';
+            }
+        };
+
+        const leaveGame = () => {
+            // Disconnect tracker
+            if (currentTracker) {
+                currentTracker.disconnect();
+                currentTracker = null;
+            }
+            
+            peers.clear();
+            connections.clear();
+            confirmedPeers.clear();
+            updateStats();
+            updateConfirmedPeersList();
+            updatePeersList();
+
+            document.getElementById('status').textContent = 'Disconnected';
+            document.getElementById('status').parentElement.className = 'status';
+            document.getElementById('joinBtn').disabled = false;
+            document.getElementById('leaveBtn').disabled = true;
+
+            log('Left game', 'info');
+        };
+
+        log('P2P Test harness initializing...', 'info');
+    </script>
+</body>
+</html>
