@@ -70,6 +70,9 @@ class ActionNetManager {
         this.reconnectTimer = null;
         this.manualDisconnect = false;
 
+        // Connection abort
+        this.connectionAbortController = null;
+
         // Ping/RTT tracking
         this.pingTimer = null;
         this.pongTimer = null;
@@ -146,6 +149,21 @@ class ActionNetManager {
                     // console.log('[ActionNetManager] Connecting to:', this.config.url);
                 }
 
+                // Create abort controller for this connection attempt
+                this.connectionAbortController = new AbortController();
+                const signal = this.connectionAbortController.signal;
+
+                // Check if already aborted
+                if (signal.aborted) {
+                    reject(new Error('Connection cancelled'));
+                    return;
+                }
+
+                // Listen for abort signal
+                signal.addEventListener('abort', () => {
+                    reject(new Error('Connection cancelled'));
+                });
+
                 // Store client data
                 this.clientData = data;
 
@@ -195,10 +213,12 @@ class ActionNetManager {
 
                             this.emit('connected');
                             this.off('message', messageHandler);
+                            this.connectionAbortController = null; // Clear abort controller
                             resolve();
                         } else if (msg.type === 'error') {
                             clearTimeout(timeout);
                             this.off('message', messageHandler);
+                            this.connectionAbortController = null; // Clear abort controller
                             reject(new Error(msg.text));
                         }
                     };
@@ -244,6 +264,7 @@ class ActionNetManager {
                     }
                     this.connectionFailedFlag = true;
                     this.emit('error', error);
+                    this.connectionAbortController = null; // Clear abort controller
                     reject(error);
                 };
 
@@ -543,6 +564,12 @@ class ActionNetManager {
      */
     disconnect() {
         this.manualDisconnect = true;  // Flag to prevent auto-reconnect
+        
+        // Abort pending connection attempt
+        if (this.connectionAbortController) {
+            this.connectionAbortController.abort();
+            this.connectionAbortController = null;
+        }
         
         // Clear reconnect timer
         if (this.reconnectTimer) {
