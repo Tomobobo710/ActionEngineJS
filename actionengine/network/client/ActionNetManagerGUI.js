@@ -126,6 +126,9 @@ class ActionNetManagerGUI {
         this.isConnecting = false;
         this.spinnerFrame = 0;
 
+        // Connection in progress flag to prevent multiple clicks
+        this.connectionInProgress = false;
+
         // Create scrollable room list
         this.roomScroller = new ActionScrollableArea({
             listAreaX: 250,
@@ -540,14 +543,18 @@ class ActionNetManagerGUI {
                 button === this.createRoomButton ? 'createRoomButton' :
                     button === this.changeNameButton ? 'changeNameButton' :
                         'backToLoginButton');
+        
+        // Check if connect button is disabled (connection in progress)
+        const isDisabled = button === this.connectButton && this.connectionInProgress;
+        
         // Highlight if selected via keyboard/gamepad or hovered via mouse
-        const isHighlighted = isSelected || isHovered;
-        this.guiCtx.fillStyle = isHighlighted ? '#555555' : '#333333';
+        const isHighlighted = (isSelected || isHovered) && !isDisabled;
+        this.guiCtx.fillStyle = isDisabled ? '#222222' : (isHighlighted ? '#555555' : '#333333');
         this.guiCtx.fillRect(button.x, button.y, button.width, button.height);
-        this.guiCtx.strokeStyle = isSelected ? '#ffffff' : '#888888'; // White border for keyboard selection
-        this.guiCtx.lineWidth = isSelected ? 3 : 2; // Thicker border for keyboard selection
+        this.guiCtx.strokeStyle = isDisabled ? '#444444' : (isSelected ? '#ffffff' : '#888888');
+        this.guiCtx.lineWidth = isSelected ? 3 : 2;
         this.guiCtx.strokeRect(button.x, button.y, button.width, button.height);
-        this.guiCtx.fillStyle = '#ffffff';
+        this.guiCtx.fillStyle = isDisabled ? '#666666' : '#ffffff';
         this.guiCtx.font = 'bold 24px Arial';
         this.guiCtx.textAlign = 'center';
         this.guiCtx.textBaseline = 'middle';
@@ -799,8 +806,10 @@ class ActionNetManagerGUI {
                     // - Index 0: positive/forward action → emit buttonPressed (menu_confirm).
                     // - Index 1: back/cancel action → emit back only (menu_back handled by game), no confirm.
                     if (this.selectedIndex === 0) {
-                        this.emit('buttonPressed');
-                        this.startConnection();
+                        if (!this.connectionInProgress) {
+                            this.emit('buttonPressed');
+                            this.startConnection();
+                        }
                     } else if (this.selectedIndex === 1) {
                         this.emit('back');
                     }
@@ -821,9 +830,11 @@ class ActionNetManagerGUI {
 
                 // Mouse input
                 if (this.input.isElementJustPressed("connectButton")) {
-                    // Positive/forward: confirm sound via buttonPressed.
-                    this.emit('buttonPressed');
-                    this.startConnection();
+                    if (!this.connectionInProgress) {
+                        // Positive/forward: confirm sound via buttonPressed.
+                        this.emit('buttonPressed');
+                        this.startConnection();
+                    }
                 } else if (this.input.isElementJustPressed("backButton")) {
                     // Disconnect if connected before going back
                     if (this.networkManager.isConnected()) {
@@ -906,6 +917,11 @@ class ActionNetManagerGUI {
                 if (this.input.isKeyJustPressed('Action2') ||
                     this.input.isGamepadButtonJustPressed(1, 0) || this.input.isGamepadButtonJustPressed(1, 1) ||
                     this.input.isGamepadButtonJustPressed(1, 2) || this.input.isGamepadButtonJustPressed(1, 3)) {
+                    // Disconnect when going back from lobby
+                    if (this.networkManager.isConnected()) {
+                        this.networkManager.disconnect();
+                    }
+                    this.connectionInProgress = false; // Reset button state
                     this.emit('backToLogin');
                     this.currentState = "LOGIN";
                     this.selectedIndex = 0; // Reset selection
@@ -919,8 +935,12 @@ class ActionNetManagerGUI {
                     this.emit('buttonPressed');
                     this.changeUsername();
                 } else if (this.input.isElementJustPressed("backToLoginButton")) {
+                    // Disconnect when going back from lobby
+                    if (this.networkManager.isConnected()) {
+                        this.networkManager.disconnect();
+                    }
+                    this.connectionInProgress = false; // Reset button state
                     this.emit('backToLogin');
-                    // Go back to login screen (stay connected)
                     this.currentState = "LOGIN";
                     this.selectedIndex = 0; // Reset selection
                 } else {
@@ -986,6 +1006,7 @@ class ActionNetManagerGUI {
         this.currentState = "LOGIN";
         this.serverStatus = 'CONNECTING';
         this.serverStatusColor = '#ffff00';
+        this.connectionInProgress = true; // Prevent multiple clicks
 
         // Show spinner for P2P mode
         if (this.networkMode === 'p2p') {
@@ -1018,6 +1039,7 @@ class ActionNetManagerGUI {
             this.serverStatus = 'UNAVAILABLE';
             this.serverStatusColor = '#ff0000';
             this.isConnecting = false; // Stop spinner
+            this.connectionInProgress = false; // Allow retry on failure
         }
     }
 
