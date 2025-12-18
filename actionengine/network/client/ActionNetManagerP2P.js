@@ -71,6 +71,9 @@ class ActionNetManagerP2P {
         // Event handlers
         this.handlers = new Map();
 
+        // Connection abort
+        this.connectionAbortController = null;
+
         this.log('Initialized ActionNetManagerP2P');
     }
 
@@ -123,19 +126,37 @@ class ActionNetManagerP2P {
      * Join a game (start peer discovery)
      */
     async joinGame(gameId, username = 'Anonymous') {
-        this.currentGameId = gameId;
-        this.username = username;
-        this.peerId = this.generatePeerId();
+        // Create abort controller for this connection attempt
+        this.connectionAbortController = new AbortController();
+        const signal = this.connectionAbortController.signal;
 
-        this.log(`Joining game: ${gameId} as ${this.peerId}`);
+        // Check if already aborted
+        if (signal.aborted) {
+            throw new Error('Connection cancelled');
+        }
 
-        // Generate infohash from game ID
-        this.infohash = await this.gameidToHash(gameId);
-        this.log(`Game ID hash (infohash): ${this.infohash}`);
+        // Listen for abort signal
+        signal.addEventListener('abort', () => {
+            // Will be caught by startConnection's catch block
+        });
 
-        // Fetch tracker list
-        const trackerUrls = await this.fetchTrackerList();
-        this.log(`Using ${trackerUrls.length} trackers for discovery`);
+        try {
+            this.currentGameId = gameId;
+            this.username = username;
+            this.peerId = this.generatePeerId();
+
+            this.log(`Joining game: ${gameId} as ${this.peerId}`);
+
+            // Generate infohash from game ID
+            this.infohash = await this.gameidToHash(gameId);
+            this.log(`Game ID hash (infohash): ${this.infohash}`);
+
+            // Check abort signal
+            if (signal.aborted) throw new Error('Connection cancelled');
+
+            // Fetch tracker list
+            const trackerUrls = await this.fetchTrackerList();
+            this.log(`Using ${trackerUrls.length} trackers for discovery`);
 
         // Create tracker client
         this.tracker = new ActionNetTrackerClient(trackerUrls, this.infohash, this.peerId, {
@@ -277,11 +298,23 @@ class ActionNetManagerP2P {
         // Start broadcasting room status
         this.startRoomBroadcast();
 
-        // Start stale room cleanup
-        this.startStaleRoomCleanup();
+            // Check abort signal
+            if (signal.aborted) throw new Error('Connection cancelled');
 
-        // Emit connected event
-        this.emit('connected');
+            // Start stale room cleanup
+            this.startStaleRoomCleanup();
+
+            // Emit connected event
+            this.emit('connected');
+            this.connectionAbortController = null; // Clear abort controller
+        } catch (error) {
+            // Check if it was a cancellation
+            if (signal.aborted || error.message === 'Connection cancelled') {
+                this.connectionAbortController = null;
+                throw error;
+            }
+            throw error;
+        }
     }
 
     /**
@@ -776,11 +809,11 @@ class ActionNetManagerP2P {
     }
 
     /**
-     * Join a host's room
+     * Step 1: Initiate connection setup (create RTCPeerConnection, data channel, etc)
      */
-    async joinRoom(hostPeerId) {
-        this.log(`Joining room hosted by ${hostPeerId}`);
-
+    async initiateConnection(hostPeerId) {
+        this.log(`Initiating connection to ${hostPeerId}`);
+        
         const peerData = this.peerConnections.get(hostPeerId);
         if (!peerData) {
             throw new Error(`No connection to host ${hostPeerId}`);
@@ -791,7 +824,6 @@ class ActionNetManagerP2P {
         this.initializeUserList();
 
         // Create RTCPeerConnection for game data
-        // Note: don't close old ones - just overwrite them (trial version approach)
         const pc = new RTCPeerConnection({
             iceServers: this.config.iceServers
         });
@@ -818,25 +850,59 @@ class ActionNetManagerP2P {
             peerId: this.peerId,
             username: this.username
         }));
+    }
 
-        // Create and send WebRTC offer
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
+    /**
+     * Step 2: Create and send WebRTC offer
+     */
+    async sendOffer(hostPeerId, timeout = 10000) {
+        this.log(`Sending offer to ${hostPeerId}`);
+        
+        const peerData = this.peerConnections.get(hostPeerId);
+        if (!peerData || !peerData.pc) {
+            throw new Error(`Connection not initialized for ${hostPeerId}`);
+        }
 
-        this.sendSignalingMessage(hostPeerId, {
-            type: 'offer',
-            sdp: pc.localDescription.sdp
+        return new Promise(async (resolve, reject) => {
+            const timeoutHandle = setTimeout(() => {
+                reject(new Error('Offer creation timeout'));
+            }, timeout);
+
+            try {
+                // Create and send WebRTC offer
+                const offer = await peerData.pc.createOffer();
+                await peerData.pc.setLocalDescription(offer);
+
+                this.sendSignalingMessage(hostPeerId, {
+                    type: 'offer',
+                    sdp: peerData.pc.localDescription.sdp
+                });
+
+                clearTimeout(timeoutHandle);
+                resolve();
+            } catch (error) {
+                clearTimeout(timeoutHandle);
+                reject(error);
+            }
         });
+    }
 
-        // Wait for acceptance
+    /**
+     * Step 3: Wait for host to accept the join request
+     */
+    async waitForAcceptance(hostPeerId, timeout = 10000) {
+        this.log(`Waiting for host ${hostPeerId} to accept`);
+
         return new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => {
+            const timeoutHandle = setTimeout(() => {
+                this.off('joinAccepted', onJoinAccepted);
+                this.off('joinRejected', onJoinRejected);
                 reject(new Error('Join request timeout'));
-            }, 10000);
+            }, timeout);
 
             const onJoinAccepted = (data) => {
                 if (data.peerId === hostPeerId) {
-                    clearTimeout(timeout);
+                    clearTimeout(timeoutHandle);
                     this.off('joinAccepted', onJoinAccepted);
                     this.off('joinRejected', onJoinRejected);
                     this.log(`Join accepted by host`);
@@ -844,22 +910,13 @@ class ActionNetManagerP2P {
                     // Update connected users from host
                     this.connectedUsers = data.users || [];
                     
-                    // Resolve when game channel opens
-                    if (channel.readyState === 'open') {
-                        resolve();
-                    } else {
-                        const onChannelOpen = () => {
-                            channel.removeEventListener('open', onChannelOpen);
-                            resolve();
-                        };
-                        channel.addEventListener('open', onChannelOpen);
-                    }
+                    resolve(data);
                 }
             };
 
             const onJoinRejected = (data) => {
                 if (data.peerId === hostPeerId) {
-                    clearTimeout(timeout);
+                    clearTimeout(timeoutHandle);
                     this.off('joinAccepted', onJoinAccepted);
                     this.off('joinRejected', onJoinRejected);
                     reject(new Error(data.reason || 'Join request rejected'));
@@ -869,6 +926,69 @@ class ActionNetManagerP2P {
             this.on('joinAccepted', onJoinAccepted);
             this.on('joinRejected', onJoinRejected);
         });
+    }
+
+    /**
+     * Step 4: Wait for game data channel to actually open
+     */
+    async openGameChannel(hostPeerId, timeout = 10000) {
+        this.log(`Waiting for game channel to open with ${hostPeerId}`);
+        
+        const peerData = this.peerConnections.get(hostPeerId);
+        if (!peerData || !peerData.channel) {
+            throw new Error(`Channel not initialized for ${hostPeerId}`);
+        }
+
+        const channel = peerData.channel;
+
+        return new Promise((resolve, reject) => {
+            if (channel.readyState === 'open') {
+                resolve();
+                return;
+            }
+
+            const timeoutHandle = setTimeout(() => {
+                channel.removeEventListener('open', onChannelOpen);
+                reject(new Error('Channel open timeout'));
+            }, timeout);
+
+            const onChannelOpen = () => {
+                clearTimeout(timeoutHandle);
+                channel.removeEventListener('open', onChannelOpen);
+                resolve();
+            };
+
+            channel.addEventListener('open', onChannelOpen);
+        });
+    }
+
+    /**
+     * Join a host's room (convenience method - calls all steps in sequence)
+     */
+    async joinRoom(hostPeerId) {
+        this.log(`Joining room hosted by ${hostPeerId}`);
+        this.emit('joinStarted', { hostPeerId });
+
+        try {
+            await this.initiateConnection(hostPeerId);
+            await this.sendOffer(hostPeerId);
+            this.emit('offerSent', { hostPeerId });
+            
+            await this.waitForAcceptance(hostPeerId);
+            this.emit('acceptedByHost', { hostPeerId });
+            this.emit('channelOpening', { hostPeerId });
+            
+            await this.openGameChannel(hostPeerId);
+            this.emit('channelConnected', { hostPeerId });
+            
+            this.emit('joinedRoom', {
+                peerId: hostPeerId,
+                dataChannel: this.peerConnections.get(hostPeerId).channel
+            });
+        } catch (error) {
+            this.emit('joinFailed', { hostPeerId, reason: error.message });
+            throw error;
+        }
     }
 
     /**
@@ -1128,6 +1248,12 @@ class ActionNetManagerP2P {
      */
     async disconnect() {
         this.log('Disconnecting');
+
+        // Abort pending connection attempt
+        if (this.connectionAbortController) {
+            this.connectionAbortController.abort();
+            this.connectionAbortController = null;
+        }
 
         if (this.roomStatusInterval) {
             clearInterval(this.roomStatusInterval);
