@@ -196,6 +196,11 @@ class ActionNetManagerGUI {
         this.errorModalTitle = '';
         this.errorModalMessage = '';
 
+        // Join modal state
+        this.joinModalVisible = false;
+        this.joinModalStatus = '';  // 'contactingHost', 'offerSent', 'acceptedByHost', 'establishingConnection', 'connected'
+        this.joinModalHostPeerId = null;
+
         // Spinner animation state
         this.spinnerRotation = 0;
 
@@ -304,7 +309,11 @@ class ActionNetManagerGUI {
         });
 
         this.networkManager.on("joinedRoom", (roomName) => {
-            // console.log("[ActionNetManagerGUI] Joined room:", roomName);
+            // Don't emit immediately - let join modal finish if visible
+            if (this.joinModalVisible) {
+                // Modal will emit this after it closes
+                return;
+            }
             this.emit('joinedRoom', roomName);
         });
 
@@ -465,6 +474,11 @@ class ActionNetManagerGUI {
             case 'LOBBY':
                 this.renderLobbyScreen();
                 break;
+        }
+
+        // Render join modal on top if visible
+        if (this.joinModalVisible) {
+            this.renderJoinModal();
         }
 
         // Render error modal on top if visible
@@ -768,7 +782,13 @@ class ActionNetManagerGUI {
      * Handle UI input
      */
     handleUIInput() {
-        // Handle error modal input first (blocks other input when visible)
+        // Handle join modal input first (blocks other input when visible)
+        if (this.joinModalVisible) {
+            this.handleJoinModalInput();
+            return; // Modal blocks other input
+        }
+
+        // Handle error modal input (blocks other input when visible)
         if (this.errorModalVisible) {
             this.handleErrorModalInput();
             return; // Modal blocks other input
@@ -1049,14 +1069,91 @@ class ActionNetManagerGUI {
     joinSelectedRoom() {
         if (!this.selectedRoom) return;
 
-        this.networkManager.joinRoom(this.selectedRoom)
-            .then(() => {
-                // Event will be emitted by setupNetworkEvents
-            })
-            .catch((error) => {
-                console.error("Failed to join room:", error);
-                this.showErrorModal("Cannot Join Room", error.message || "Failed to join the selected room");
-            });
+        // P2P mode: do granular join with step-by-step messages
+        if (this.networkMode === 'p2p') {
+            this.performP2PJoin(this.selectedRoom);
+        } else {
+            // WebSocket mode: simple one-shot join
+            this.networkManager.joinRoom(this.selectedRoom)
+                .then(() => {
+                    // Event will be emitted by setupNetworkEvents
+                })
+                .catch((error) => {
+                    console.error("Failed to join room:", error);
+                    this.showErrorModal("Cannot Join Room", error.message || "Failed to join the selected room");
+                });
+        }
+    }
+
+    /**
+     * Perform P2P join with granular steps and modal progress
+     */
+    async performP2PJoin(hostPeerId) {
+        try {
+            this.joinModalVisible = true;
+            this.joinModalHostPeerId = hostPeerId;
+            
+            // Step 1: Contacting host
+            this.joinModalStatus = 'contactingHost';
+            this.joinModalStatusSetTime = Date.now();
+            await this.delay(500);
+            await this.networkManager.initiateConnection(hostPeerId);
+            
+            // Step 2: Offer sent (start listening for acceptance immediately)
+            this.joinModalStatus = 'offerSent';
+            this.joinModalStatusSetTime = Date.now();
+            
+            await this.networkManager.sendOffer(hostPeerId);
+            
+            // Start waiting for acceptance, but ensure 500ms minimum display
+            const acceptancePromise = this.networkManager.waitForAcceptance(hostPeerId);
+            await this.delay(500);
+            await acceptancePromise;
+            
+            // Step 3: Accepted by host (now that it actually accepted)
+            this.joinModalStatus = 'acceptedByHost';
+            this.joinModalStatusSetTime = Date.now();
+            await this.delay(500);
+            
+            // Step 4: Establishing connection
+            this.joinModalStatus = 'establishingConnection';
+            this.joinModalStatusSetTime = Date.now();
+            await this.delay(500);
+            await this.networkManager.openGameChannel(hostPeerId);
+            
+            // Step 5: Connected
+            this.joinModalStatus = 'connected';
+            await this.delay(500);
+            
+            // Done - close modal and emit event
+            this.joinModalVisible = false;
+            this.emit('joinedRoom', hostPeerId);
+        } catch (error) {
+            this.joinModalVisible = false;
+            console.error("P2P join failed:", error);
+            
+            // Clean up the connection attempt
+            const peerData = this.networkManager.peerConnections.get(hostPeerId);
+            if (peerData) {
+                if (peerData.pc) {
+                    peerData.pc.close();
+                    peerData.pc = null;
+                }
+                if (peerData.channel) {
+                    peerData.channel.close();
+                    peerData.channel = null;
+                }
+            }
+            
+            this.showErrorModal("Cannot Join Room", error.message || "Failed to join the selected room");
+        }
+    }
+
+    /**
+     * Simple delay helper
+     */
+    delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 
     /**
@@ -1476,5 +1573,89 @@ class ActionNetManagerGUI {
         this.guiCtx.stroke();
 
         this.guiCtx.restore();
+    }
+
+    /**
+     * Render join modal with connection status
+     */
+    renderJoinModal() {
+        // Semi-transparent overlay
+        this.guiCtx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        this.guiCtx.fillRect(0, 0, ActionNetManagerGUI.WIDTH, ActionNetManagerGUI.HEIGHT);
+
+        // Modal dimensions
+        const modalWidth = 400;
+        const modalHeight = 250;
+        const modalX = (ActionNetManagerGUI.WIDTH - modalWidth) / 2;
+        const modalY = (ActionNetManagerGUI.HEIGHT - modalHeight) / 2;
+
+        // Modal background
+        this.guiCtx.fillStyle = '#333333';
+        this.guiCtx.fillRect(modalX, modalY, modalWidth, modalHeight);
+        this.guiCtx.strokeStyle = '#888888';
+        this.guiCtx.lineWidth = 2;
+        this.guiCtx.strokeRect(modalX, modalY, modalWidth, modalHeight);
+
+        // Title
+        this.renderLabel('Joining Game', ActionNetManagerGUI.WIDTH / 2, modalY + 40, 'bold 24px Arial', '#ffffff');
+
+        // Status messages
+        const statuses = {
+            'contactingHost': 'Contacting host...',
+            'offerSent': 'Waiting for host...',
+            'acceptedByHost': 'Host accepted',
+            'establishingConnection': 'Establishing connection...',
+            'connected': 'Connected!'
+        };
+
+        const statusMessage = statuses[this.joinModalStatus] || 'Connecting...';
+        
+        // Centered message with spinner below
+        this.renderLabel(statusMessage, ActionNetManagerGUI.WIDTH / 2, modalY + 100, '16px Arial', '#ffffff');
+        this.renderSpinner(ActionNetManagerGUI.WIDTH / 2 - 15, modalY + 135, 15, 2);
+
+        // Cancel button
+        const buttonWidth = 120;
+        const buttonHeight = 40;
+        const buttonX = (ActionNetManagerGUI.WIDTH - buttonWidth) / 2;
+        const buttonY = modalY + modalHeight - 60;
+
+        const isHovered = this.input.isElementHovered('join_modal_cancel_button');
+
+        this.guiCtx.fillStyle = isHovered ? '#555555' : '#333333';
+        this.guiCtx.fillRect(buttonX, buttonY, buttonWidth, buttonHeight);
+        this.guiCtx.strokeStyle = '#888888';
+        this.guiCtx.lineWidth = 2;
+        this.guiCtx.strokeRect(buttonX, buttonY, buttonWidth, buttonHeight);
+
+        this.guiCtx.fillStyle = '#ffffff';
+        this.guiCtx.font = 'bold 16px Arial';
+        this.guiCtx.textAlign = 'center';
+        this.guiCtx.textBaseline = 'middle';
+        this.guiCtx.fillText('CANCEL', buttonX + buttonWidth / 2, buttonY + buttonHeight / 2);
+
+        // Register cancel button
+        if (!this.input.rawState.elements.gui.has('join_modal_cancel_button')) {
+            this.input.registerElement('join_modal_cancel_button', {
+                bounds: () => ({
+                    x: buttonX,
+                    y: buttonY,
+                    width: buttonWidth,
+                    height: buttonHeight
+                })
+            });
+        }
+    }
+
+    /**
+     * Handle join modal input
+     */
+    handleJoinModalInput() {
+        if (this.input.isElementJustPressed('join_modal_cancel_button') ||
+            this.input.isKeyJustPressed('Escape')) {
+            this.joinModalVisible = false;
+            this.input.removeElement('join_modal_cancel_button');
+            // TODO: abort the join attempt
+        }
     }
 }
