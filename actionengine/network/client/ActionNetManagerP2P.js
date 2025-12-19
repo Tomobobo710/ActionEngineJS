@@ -452,74 +452,89 @@ class ActionNetManagerP2P {
      * Handle join request
      */
     handleJoinRequest(peerId, message) {
-        this.log(`Join request from ${peerId}: ${message.username}`);
+         this.log(`Join request from ${peerId}: ${message.username}`);
 
-        if (!this.isHost) {
-            this.log(`Not hosting, rejecting join request`, 'error');
-            return;
-        }
+         if (!this.isHost) {
+             this.log(`Not hosting, rejecting join request`, 'error');
+             return;
+         }
 
-        // Store join request info for acceptJoin
-        const peerData = this.peerConnections.get(peerId);
-        if (peerData) {
-            peerData._joinUsername = message.username;
-            peerData._joinRequested = true;  // Mark that join was requested
-        }
+         const peerData = this.peerConnections.get(peerId);
 
-        // Check if room is full
-        if (this.connectedUsers.length >= this.config.maxPlayers) {
-            if (peerData && peerData.peer) {
-                peerData.peer.send(JSON.stringify({
-                    type: 'joinRejected',
-                    peerId: this.peerId,
-                    reason: 'Room is full'
-                }));
-            }
-            this.emit('joinRejected', {
-                peerId: peerId,
-                reason: 'Room is full'
-            });
-            return;
-        }
+         // Check if room is full BEFORE storing join state
+         if (this.connectedUsers.length >= this.config.maxPlayers) {
+             if (peerData && peerData.peer) {
+                 peerData.peer.send(JSON.stringify({
+                     type: 'joinRejected',
+                     peerId: this.peerId,
+                     reason: 'Room is full'
+                 }));
+             }
+             // Clean up join state to prevent further processing
+             if (peerData) {
+                 peerData._joinRequested = false;
+                 peerData._joinAccepted = false;
+                 peerData._joinUsername = null;
+             }
+             this.emit('joinRejected', {
+                 peerId: peerId,
+                 reason: 'Room is full'
+             });
+             return;
+         }
 
-        // Emit join request event for application logging/hooks
-        this.emit('joinRequest', {
-            peerId: peerId,
-            username: message.username
-        });
-        // Note: actual acceptance happens in handleOffer when WebRTC is ready
-    }
+         // Store join request info for acceptJoin
+         if (peerData) {
+             peerData._joinUsername = message.username;
+             peerData._joinRequested = true;  // Mark that join was requested
+         }
+
+         // Emit join request event for application logging/hooks
+         this.emit('joinRequest', {
+             peerId: peerId,
+             username: message.username
+         });
+         // Note: actual acceptance happens in handleOffer when WebRTC is ready
+     }
 
     /**
      * Accept a join request (host side)
      * Sends acceptance message - RTCPeerConnection created in handleOffer
+     * NOTE: User is NOT added to connectedUsers yet - they're added when data channel opens
      */
     acceptJoin(peerId) {
-        this.log(`Accepting join from ${peerId}`);
+         this.log(`Accepting join from ${peerId}`);
 
-        const peerData = this.peerConnections.get(peerId);
-        if (!peerData) {
-            throw new Error(`No peer connection for ${peerId}`);
-        }
+         const peerData = this.peerConnections.get(peerId);
+         if (!peerData) {
+             throw new Error(`No peer connection for ${peerId}`);
+         }
 
-        // Add to connected users
-        this.addUser({
-            id: peerId,
-            username: peerData._joinUsername || 'Player',
-            isHost: false
-        });
+         // Check if room is full before accepting
+         if (this.connectedUsers.length >= this.config.maxPlayers) {
+             this.log(`Cannot accept join from ${peerId}: room is full`, 'error');
+             peerData.peer.send(JSON.stringify({
+                 type: 'joinRejected',
+                 peerId: this.peerId,
+                 reason: 'Room is full'
+             }));
+             return;
+         }
 
-        // Send joinAccepted through signaling channel
-        // RTCPeerConnection will be created in handleOffer when offer arrives
-        peerData.peer.send(JSON.stringify({
-            type: 'joinAccepted',
-            peerId: this.peerId,
-            users: this.connectedUsers
-        }));
-    }
+         // Send joinAccepted through signaling channel
+         // RTCPeerConnection will be created in handleOffer when offer arrives
+         // User will be added to connectedUsers only when data channel opens
+         peerData.peer.send(JSON.stringify({
+             type: 'joinAccepted',
+             peerId: this.peerId,
+             users: this.connectedUsers
+         }));
+     }
 
     /**
      * Handle WebRTC offer (responder side - host receiving offer from joiner)
+     * 
+     * Waits for ICE gathering to complete before sending answer.
      */
     async handleOffer(peerId, message) {
         this.log(`Offer from ${peerId}`);
@@ -555,16 +570,47 @@ class ActionNetManagerP2P {
             };
         }
 
-        // Set remote description and create answer
-        await peerData.pc.setRemoteDescription({ type: 'offer', sdp: message.sdp });
-        const answer = await peerData.pc.createAnswer();
-        await peerData.pc.setLocalDescription(answer);
+        try {
+            // Set remote description and create answer
+            await peerData.pc.setRemoteDescription({ type: 'offer', sdp: message.sdp });
+            const answer = await peerData.pc.createAnswer();
+            await peerData.pc.setLocalDescription(answer);
 
-        // Send answer through signaling channel
-        this.sendSignalingMessage(peerId, {
-            type: 'answer',
-            sdp: peerData.pc.localDescription.sdp
-        });
+            // Wait for ICE gathering to complete before sending answer
+            const pc = peerData.pc;
+            if (pc.iceGatheringState === 'complete') {
+                this.log(`ICE gathering complete, sending answer`);
+            } else {
+                this.log(`Waiting for ICE gathering to complete...`);
+                await new Promise((resolveGather) => {
+                    const gatherTimeoutHandle = setTimeout(() => {
+                        pc.removeEventListener('icegatheringstatechange', onGatherStateChange);
+                        this.log(`ICE gathering timeout - sending answer with partial candidates`);
+                        resolveGather();
+                    }, 3000);
+
+                    const onGatherStateChange = () => {
+                        this.log(`ICE gathering state: ${pc.iceGatheringState}`);
+                        if (pc.iceGatheringState === 'complete') {
+                            clearTimeout(gatherTimeoutHandle);
+                            pc.removeEventListener('icegatheringstatechange', onGatherStateChange);
+                            this.log(`ICE gathering complete`);
+                            resolveGather();
+                        }
+                    };
+
+                    pc.addEventListener('icegatheringstatechange', onGatherStateChange);
+                });
+            }
+
+            // Send answer through signaling channel with complete SDP
+            this.sendSignalingMessage(peerId, {
+                type: 'answer',
+                sdp: peerData.pc.localDescription.sdp
+            });
+        } catch (error) {
+            this.log(`Error handling offer from ${peerId}: ${error.message}`, 'error');
+        }
     }
 
     /**
@@ -622,6 +668,18 @@ class ActionNetManagerP2P {
             this.log(`Game data channel opened with ${peerId}`);
             peerData.status = 'gameConnected';
             
+            // Host: Add user to connected users NOW that we have a real connection
+            if (this.isHost) {
+                // Only add if join was accepted (not rejected)
+                if (peerData._joinAccepted && !this.connectedUsers.some(u => u.id === peerId)) {
+                    this.addUser({
+                        id: peerId,
+                        username: peerData._joinUsername || 'Player',
+                        isHost: false
+                    });
+                }
+            }
+            
             // If this is our game connection (joiner), emit
             if (peerId === this.currentRoomPeerId) {
                 this.dataChannel = channel;
@@ -668,6 +726,13 @@ class ActionNetManagerP2P {
                     // Host: guest disconnected
                     this.emit('guestLeft', { peerId: peerId });
                 }
+            }
+            
+            // Host: Clean up pending join flags so they can retry
+            if (this.isHost) {
+                peerData._joinRequested = false;
+                peerData._joinAccepted = false;
+                peerData._joinUsername = null;
             }
         };
 
@@ -830,10 +895,8 @@ class ActionNetManagerP2P {
 
         peerData.pc = pc;
 
-        // Create data channel (joiner creates it)
-        const channel = pc.createDataChannel('game', { ordered: true });
-        peerData.channel = channel;
-        this.setupGameDataChannel(hostPeerId, channel);
+        // DON'T create data channel yet - wait until after offer/answer
+        // This lets ICE gathering and connection negotiation happen with proper state
 
         pc.onicecandidate = (evt) => {
             if (evt.candidate) {
@@ -842,6 +905,14 @@ class ActionNetManagerP2P {
                     candidate: evt.candidate
                 });
             }
+        };
+
+        pc.onicegatheringstatechange = () => {
+            this.log(`ICE gathering state with ${hostPeerId}: ${pc.iceGatheringState}`);
+        };
+
+        pc.onconnectionstatechange = () => {
+            this.log(`Connection state with ${hostPeerId}: ${pc.connectionState}`);
         };
 
         // Send join request through signaling channel
@@ -853,7 +924,11 @@ class ActionNetManagerP2P {
     }
 
     /**
-     * Step 2: Create and send WebRTC offer
+     * Step 2: Create and send WebRTC offer (with complete ICE gathering)
+     * 
+     * Waits for ICE gathering to complete before sending offer.
+     * This ensures the SDP includes the best available candidate addresses,
+     * which is crucial for constrained networks (mobile on LTE, CGNAT, etc).
      */
     async sendOffer(hostPeerId, timeout = 10000) {
         this.log(`Sending offer to ${hostPeerId}`);
@@ -869,13 +944,54 @@ class ActionNetManagerP2P {
             }, timeout);
 
             try {
-                // Create and send WebRTC offer
-                const offer = await peerData.pc.createOffer();
-                await peerData.pc.setLocalDescription(offer);
+                const pc = peerData.pc;
 
+                // Create data channel NOW, before creating offer
+                if (!peerData.channel) {
+                    const channel = pc.createDataChannel('game', { ordered: true });
+                    peerData.channel = channel;
+                    this.setupGameDataChannel(hostPeerId, channel);
+                    this.log(`Created data channel for ${hostPeerId}`);
+                }
+
+                // Create offer
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+
+                // Wait for ICE gathering to complete before sending
+                // This gives us all available candidate addresses upfront
+                if (pc.iceGatheringState === 'complete') {
+                    // Already complete
+                    this.log(`ICE gathering complete, sending offer`);
+                } else {
+                    // Wait for completion
+                    this.log(`Waiting for ICE gathering to complete...`);
+                    await new Promise((resolveGather, rejectGather) => {
+                        const gatherTimeoutHandle = setTimeout(() => {
+                            pc.removeEventListener('icegatheringstatechange', onGatherStateChange);
+                            // Fallback: send after timeout even if not complete (like ActionNetPeer does)
+                            this.log(`ICE gathering timeout - sending offer with partial candidates`);
+                            resolveGather();
+                        }, 3000);
+
+                        const onGatherStateChange = () => {
+                            this.log(`ICE gathering state: ${pc.iceGatheringState}`);
+                            if (pc.iceGatheringState === 'complete') {
+                                clearTimeout(gatherTimeoutHandle);
+                                pc.removeEventListener('icegatheringstatechange', onGatherStateChange);
+                                this.log(`ICE gathering complete`);
+                                resolveGather();
+                            }
+                        };
+
+                        pc.addEventListener('icegatheringstatechange', onGatherStateChange);
+                    });
+                }
+
+                // Now send the offer with complete (or best-effort) SDP
                 this.sendSignalingMessage(hostPeerId, {
                     type: 'offer',
-                    sdp: peerData.pc.localDescription.sdp
+                    sdp: pc.localDescription.sdp
                 });
 
                 clearTimeout(timeoutHandle);
@@ -910,6 +1026,16 @@ class ActionNetManagerP2P {
                     // Update connected users from host
                     this.connectedUsers = data.users || [];
                     
+                    // Guest: make sure we're in the user list (host adds us when channel opens, but we need to know now)
+                    if (!this.connectedUsers.some(u => u.id === this.peerId)) {
+                        this.connectedUsers.push({
+                            id: this.peerId,
+                            username: this.username,
+                            isHost: false,
+                            displayName: this.username
+                        });
+                    }
+                    
                     resolve(data);
                 }
             };
@@ -931,17 +1057,47 @@ class ActionNetManagerP2P {
     /**
      * Step 4: Wait for game data channel to actually open
      */
-    async openGameChannel(hostPeerId, timeout = 10000) {
-        this.log(`Waiting for game channel to open with ${hostPeerId}`);
+    async openGameChannel(hostPeerId, timeout = 15000) {
+        this.log(`Waiting for game channel with ${hostPeerId}`);
         
         const peerData = this.peerConnections.get(hostPeerId);
-        if (!peerData || !peerData.channel) {
+        if (!peerData || !peerData.pc || !peerData.channel) {
             throw new Error(`Channel not initialized for ${hostPeerId}`);
         }
 
+        const pc = peerData.pc;
         const channel = peerData.channel;
 
-        return new Promise((resolve, reject) => {
+        // Wait for peer connection to reach connected state
+        const pcReady = new Promise((resolve, reject) => {
+            if (pc.connectionState === 'connected' || pc.connectionState === 'completed') {
+                resolve();
+                return;
+            }
+
+            const timeoutHandle = setTimeout(() => {
+                pc.removeEventListener('connectionstatechange', onStateChange);
+                reject(new Error(`Peer connection timeout (state: ${pc.connectionState})`));
+            }, timeout);
+
+            const onStateChange = () => {
+                this.log(`PC connection state: ${pc.connectionState}`);
+                if (pc.connectionState === 'connected' || pc.connectionState === 'completed') {
+                    clearTimeout(timeoutHandle);
+                    pc.removeEventListener('connectionstatechange', onStateChange);
+                    resolve();
+                } else if (pc.connectionState === 'failed') {
+                    clearTimeout(timeoutHandle);
+                    pc.removeEventListener('connectionstatechange', onStateChange);
+                    reject(new Error('Peer connection failed'));
+                }
+            };
+
+            pc.addEventListener('connectionstatechange', onStateChange);
+        });
+
+        // Wait for data channel to open
+        const channelReady = new Promise((resolve, reject) => {
             if (channel.readyState === 'open') {
                 resolve();
                 return;
@@ -949,17 +1105,30 @@ class ActionNetManagerP2P {
 
             const timeoutHandle = setTimeout(() => {
                 channel.removeEventListener('open', onChannelOpen);
-                reject(new Error('Channel open timeout'));
+                channel.removeEventListener('error', onChannelError);
+                reject(new Error(`Data channel timeout (state: ${channel.readyState})`));
             }, timeout);
 
             const onChannelOpen = () => {
                 clearTimeout(timeoutHandle);
                 channel.removeEventListener('open', onChannelOpen);
+                channel.removeEventListener('error', onChannelError);
                 resolve();
             };
 
+            const onChannelError = (evt) => {
+                clearTimeout(timeoutHandle);
+                channel.removeEventListener('open', onChannelOpen);
+                channel.removeEventListener('error', onChannelError);
+                reject(new Error(`Data channel error: ${evt.error?.message || 'unknown'}`));
+            };
+
             channel.addEventListener('open', onChannelOpen);
+            channel.addEventListener('error', onChannelError);
         });
+
+        // Both must succeed
+        await Promise.all([pcReady, channelReady]);
     }
 
     /**
