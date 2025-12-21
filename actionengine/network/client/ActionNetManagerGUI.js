@@ -654,6 +654,38 @@ class ActionNetManagerGUI {
     }
 
     /**
+     * Render text with dynamic font sizing to fit within maxWidth
+     */
+    renderWrappedText(text, x, y, maxWidth, font = '16px Arial', textColor = '#ffffff') {
+        this.guiCtx.save();
+
+        this.guiCtx.textAlign = 'center';
+        this.guiCtx.textBaseline = 'middle';
+        this.guiCtx.fillStyle = textColor;
+
+        // Extract font size from font string (e.g., "20px Arial" -> 20)
+        let fontSize = parseInt(font, 10) || 16;
+        const fontFamily = font.split(' ').slice(1).join(' ') || 'Arial';
+
+        // Reduce font size until text fits
+        let textWidth = Infinity;
+        while (textWidth > maxWidth && fontSize > 8) {
+            this.guiCtx.font = `${fontSize}px ${fontFamily}`;
+            const metrics = this.guiCtx.measureText(text);
+            textWidth = metrics.width;
+
+            if (textWidth > maxWidth) {
+                fontSize--;
+            }
+        }
+
+        // Draw the text at the calculated size
+        this.guiCtx.fillText(text, x, y);
+
+        this.guiCtx.restore();
+    }
+
+    /**
      * Helper method to draw rounded rectangles
      */
     roundedRect(x, y, width, height, radius) {
@@ -1046,6 +1078,7 @@ class ActionNetManagerGUI {
             this.serverStatus = 'ONLINE';
             this.serverStatusColor = '#00ff00';
             this.isConnecting = false; // Stop spinner
+            this.connectionInProgress = false; // Connection complete, button is no longer greyed out
             // Clear server check interval since we're now connected
             if (this.serverCheckInterval) {
                 clearInterval(this.serverCheckInterval);
@@ -1464,8 +1497,8 @@ class ActionNetManagerGUI {
         // Title
         this.renderLabel(this.errorModalTitle, ActionNetManagerGUI.WIDTH / 2, modalY + 40, 'bold 32px Arial', '#ffffff', 'center', 'middle', 8, false);
 
-        // Message
-        this.renderLabel(this.errorModalMessage, ActionNetManagerGUI.WIDTH / 2, modalY + 90, '24px Arial', '#cccccc', 'center', 'middle', 8, false);
+        // Message (with text wrapping)
+        this.renderWrappedText(this.errorModalMessage, ActionNetManagerGUI.WIDTH / 2, modalY + 90, 370, '20px Arial', '#cccccc');
 
         // Back button (centered)
         const buttonWidth = 120;
