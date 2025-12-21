@@ -41,7 +41,11 @@ class ActionNetManagerP2P {
             iceServers: config.iceServers || [
                 { urls: "stun:stun.l.google.com:19302" },
                 { urls: "stun:stun1.l.google.com:19302" }
-            ]
+            ],
+            numwant: config.numwant || 50,
+            announceInterval: config.announceInterval || 5000,
+            maxAnnounceInterval: config.maxAnnounceInterval || 120000,
+            backoffMultiplier: config.backoffMultiplier || 1.1
         };
 
         // State
@@ -161,33 +165,34 @@ class ActionNetManagerP2P {
         // Create tracker client
         this.tracker = new ActionNetTrackerClient(trackerUrls, this.infohash, this.peerId, {
             debug: this.config.debug,
-            numwant: 50,
-            announceInterval: 5000,
-            maxAnnounceInterval: 120000,
-            backoffMultiplier: 1.1,
+            numwant: this.config.numwant,
+            announceInterval: this.config.announceInterval,
+            maxAnnounceInterval: this.config.maxAnnounceInterval,
+            backoffMultiplier: this.config.backoffMultiplier,
             iceServers: this.config.iceServers
         });
 
-        // Handle peer discovered (ActionNetPeer signaling channel ready)
-        this.tracker.on('peer', (data) => {
-            const peerId = data.id;
-            const peer = data.peer;
-            this.log(`Peer discovered: ${peerId}`);
+        // Handle DataConnection (ActionNetPeer signaling + negotiated RTCPeerConnection)
+        this.tracker.on('connection', (connection) => {
+            const peerId = connection.remotePeerId;
+            this.log(`DataConnection established with peer: ${peerId}`);
 
-            // Store peer connection
+            // Store connection
             if (!this.peerConnections.has(peerId)) {
                 this.peerConnections.set(peerId, {
-                    peer: peer,
+                    connection: connection,
                     status: 'signaling',
                     pc: null,
                     channel: null
                 });
 
-                // Listen for signaling messages on ActionNetPeer's data channel
-                peer.on('data', (data) => {
+                // Listen for signaling messages through DataConnection
+                connection.on('data', (data) => {
                     try {
                         let message;
-                        if (typeof data === 'string') {
+                        if (typeof data === 'object') {
+                            message = data;
+                        } else if (typeof data === 'string') {
                             message = JSON.parse(data);
                         } else {
                             message = JSON.parse(data.toString());
@@ -198,17 +203,17 @@ class ActionNetManagerP2P {
                     }
                 });
 
-                // Send initial handshake through signaling channel
-                peer.send(JSON.stringify({
+                // Send initial handshake through DataConnection
+                connection.send({
                     type: 'handshake',
                     peerId: this.peerId,
                     gameId: this.currentGameId,
                     username: this.username
-                }));
+                });
 
                 // If we're a host, broadcast room status
                 if (this.isHost) {
-                    peer.send(JSON.stringify({
+                    connection.send({
                         type: 'roomStatus',
                         peerId: this.peerId,
                         username: this.username,
@@ -217,7 +222,7 @@ class ActionNetManagerP2P {
                         maxPlayers: this.config.maxPlayers,
                         currentPlayers: this.connectedUsers.length,
                         slots: this.config.maxPlayers - this.connectedUsers.length
-                    }));
+                    });
                 }
             }
         });
@@ -407,8 +412,8 @@ class ActionNetManagerP2P {
         // If we're hosting, send room status back
         if (this.isHost) {
             const peerData = this.peerConnections.get(peerId);
-            if (peerData && peerData.peer) {
-                peerData.peer.send(JSON.stringify({
+            if (peerData && peerData.connection) {
+                peerData.connection.send({
                     type: 'roomStatus',
                     peerId: this.peerId,
                     username: this.username,
@@ -417,7 +422,7 @@ class ActionNetManagerP2P {
                     maxPlayers: this.config.maxPlayers,
                     currentPlayers: this.connectedUsers.length,
                     slots: this.config.maxPlayers - this.connectedUsers.length
-                }));
+                });
             }
         }
 
@@ -463,12 +468,12 @@ class ActionNetManagerP2P {
 
          // Check if room is full BEFORE storing join state
          if (this.connectedUsers.length >= this.config.maxPlayers) {
-             if (peerData && peerData.peer) {
-                 peerData.peer.send(JSON.stringify({
+             if (peerData && peerData.connection) {
+                 peerData.connection.send({
                      type: 'joinRejected',
                      peerId: this.peerId,
                      reason: 'Room is full'
-                 }));
+                 });
              }
              // Clean up join state to prevent further processing
              if (peerData) {
@@ -513,22 +518,22 @@ class ActionNetManagerP2P {
          // Check if room is full before accepting
          if (this.connectedUsers.length >= this.config.maxPlayers) {
              this.log(`Cannot accept join from ${peerId}: room is full`, 'error');
-             peerData.peer.send(JSON.stringify({
+             peerData.connection.send({
                  type: 'joinRejected',
                  peerId: this.peerId,
                  reason: 'Room is full'
-             }));
+             });
              return;
          }
 
          // Send joinAccepted through signaling channel
          // RTCPeerConnection will be created in handleOffer when offer arrives
          // User will be added to connectedUsers only when data channel opens
-         peerData.peer.send(JSON.stringify({
+         peerData.connection.send({
              type: 'joinAccepted',
              peerId: this.peerId,
              users: this.connectedUsers
-         }));
+         });
      }
 
     /**
@@ -640,18 +645,18 @@ class ActionNetManagerP2P {
     }
 
     /**
-     * Send signaling message through ActionNetPeer's data channel
+     * Send signaling message through DataConnection
      */
     sendSignalingMessage(peerId, message) {
         const peerData = this.peerConnections.get(peerId);
-        if (!peerData || !peerData.peer) {
-            this.log(`Cannot send signaling message: no peer for ${peerId}`, 'error');
+        if (!peerData || !peerData.connection) {
+            this.log(`Cannot send signaling message: no connection for ${peerId}`, 'error');
             return;
         }
 
         try {
             this.log(`Sending signaling message to ${peerId}: ${message.type}`);
-            peerData.peer.send(JSON.stringify(message));
+            peerData.connection.send(message);
         } catch (e) {
             this.log(`Error sending signaling message to ${peerId}: ${e.message}`, 'error');
         }
@@ -895,9 +900,6 @@ class ActionNetManagerP2P {
 
         peerData.pc = pc;
 
-        // DON'T create data channel yet - wait until after offer/answer
-        // This lets ICE gathering and connection negotiation happen with proper state
-
         pc.onicecandidate = (evt) => {
             if (evt.candidate) {
                 this.sendSignalingMessage(hostPeerId, {
@@ -916,11 +918,11 @@ class ActionNetManagerP2P {
         };
 
         // Send join request through signaling channel
-        peerData.peer.send(JSON.stringify({
+        peerData.connection.send({
             type: 'joinRequest',
             peerId: this.peerId,
             username: this.username
-        }));
+        });
     }
 
     /**
@@ -1068,35 +1070,7 @@ class ActionNetManagerP2P {
         const pc = peerData.pc;
         const channel = peerData.channel;
 
-        // Wait for peer connection to reach connected state
-        const pcReady = new Promise((resolve, reject) => {
-            if (pc.connectionState === 'connected' || pc.connectionState === 'completed') {
-                resolve();
-                return;
-            }
-
-            const timeoutHandle = setTimeout(() => {
-                pc.removeEventListener('connectionstatechange', onStateChange);
-                reject(new Error(`Peer connection timeout (state: ${pc.connectionState})`));
-            }, timeout);
-
-            const onStateChange = () => {
-                this.log(`PC connection state: ${pc.connectionState}`);
-                if (pc.connectionState === 'connected' || pc.connectionState === 'completed') {
-                    clearTimeout(timeoutHandle);
-                    pc.removeEventListener('connectionstatechange', onStateChange);
-                    resolve();
-                } else if (pc.connectionState === 'failed') {
-                    clearTimeout(timeoutHandle);
-                    pc.removeEventListener('connectionstatechange', onStateChange);
-                    reject(new Error('Peer connection failed'));
-                }
-            };
-
-            pc.addEventListener('connectionstatechange', onStateChange);
-        });
-
-        // Wait for data channel to open
+        // Wait for data channel to open (ignore peer connection state, like DataConnection does)
         const channelReady = new Promise((resolve, reject) => {
             if (channel.readyState === 'open') {
                 resolve();
@@ -1127,8 +1101,8 @@ class ActionNetManagerP2P {
             channel.addEventListener('error', onChannelError);
         });
 
-        // Both must succeed
-        await Promise.all([pcReady, channelReady]);
+        // Wait for data channel to open
+        await channelReady;
     }
 
     /**
@@ -1183,6 +1157,7 @@ class ActionNetManagerP2P {
 
     /**
      * Start room status broadcast
+     * Only hosts broadcast their status
      */
     startRoomBroadcast() {
         if (this.roomStatusInterval) return;
@@ -1190,8 +1165,8 @@ class ActionNetManagerP2P {
         this.roomStatusInterval = setInterval(() => {
             if (this.isHost && this.tracker) {
                 for (const [peerId, peerData] of this.peerConnections) {
-                    if (peerData.peer) {
-                        peerData.peer.send(JSON.stringify({
+                    if (peerData.connection) {
+                        peerData.connection.send({
                             type: 'roomStatus',
                             peerId: this.peerId,
                             username: this.username,
@@ -1200,7 +1175,7 @@ class ActionNetManagerP2P {
                             maxPlayers: this.config.maxPlayers,
                             currentPlayers: this.connectedUsers.length,
                             slots: this.config.maxPlayers - this.connectedUsers.length
-                        }));
+                        });
                     }
                 }
             }
@@ -1326,19 +1301,19 @@ class ActionNetManagerP2P {
 
         if (this.isHost) {
             // Host: notify all guests that host is leaving, then close connections
-            this.log('Host leaving - notifying guests');
-            for (const [peerId, peerData] of this.peerConnections) {
-                // Send disconnect notification through signaling channel if available
-                if (peerData.peer) {
-                    try {
-                        peerData.peer.send(JSON.stringify({
-                            type: 'hostLeft',
-                            peerId: this.peerId
-                        }));
-                    } catch (e) {
-                        this.log(`Could not notify guest ${peerId}: ${e.message}`, 'error');
-                    }
-                }
+             this.log('Host leaving - notifying guests');
+             for (const [peerId, peerData] of this.peerConnections) {
+                 // Send disconnect notification through signaling channel if available
+                 if (peerData.connection) {
+                     try {
+                         peerData.connection.send({
+                             type: 'hostLeft',
+                             peerId: this.peerId
+                         });
+                     } catch (e) {
+                         this.log(`Could not notify guest ${peerId}: ${e.message}`, 'error');
+                     }
+                 }
                 
                 if (peerData.channel) {
                     // Clear handlers before closing
@@ -1371,12 +1346,12 @@ class ActionNetManagerP2P {
             const peerData = this.peerConnections.get(leftRoomId);
             if (peerData) {
                 // Send disconnect notification
-                if (peerData.peer) {
+                if (peerData.connection) {
                     try {
-                        peerData.peer.send(JSON.stringify({
+                        peerData.connection.send({
                             type: 'guestLeft',
                             peerId: this.peerId
-                        }));
+                        });
                     } catch (e) {
                         this.log(`Could not notify host: ${e.message}`, 'error');
                     }
