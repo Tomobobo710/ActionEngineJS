@@ -1,25 +1,30 @@
 /**
- * DataConnection - Game Data Layer
+ * DataConnection - App Data Layer
  * 
- * Establishes a WebRTC data channel on top of a Peer connection.
- * Peer connection must be established first ('connect' event).
- * DataConnection then creates a second peer connection with its own data channel
- * and exchanges offer/answer through Peer's data channel.
+ * Standalone RTCPeerConnection for app data negotiation.
+ * Receives offer/answer/ICE candidates via signal() method.
+ * Emits 'data' events when data channel receives messages.
  * 
  * USAGE:
  * ```javascript
- * peer.on('connect', () => {
- *   const connection = new DataConnection(signalingPeer);
- *   connection.on('connect', () => {
- *     connection.send({ type: 'greeting', text: 'hello' });
- *   });
+ * const connection = new DataConnection({
+ *   localPeerId: 'peer1',
+ *   remotePeerId: 'peer2'
+ * });
+ * 
+ * // Handle tracker messages
+ * connection.signal(offerFromTracker);
+ * connection.signal(answerFromTracker);
+ * connection.signal(iceCandidate);
+ * 
+ * connection.on('connect', () => {
+ *   connection.send({ type: 'greeting' });
  * });
  * ```
  */
 
 class DataConnection {
-    constructor(signalingPeer, options = {}) {
-        this.signalingPeer = signalingPeer;
+    constructor(options = {}) {
         this.pc = null;
         this.dataChannel = null;
         this.handlers = new Map();
@@ -28,8 +33,18 @@ class DataConnection {
         this.localPeerId = options.localPeerId;
         this.remotePeerId = options.remotePeerId;
         
-        // Determine initiator: highest peer ID initiates
-        this.isInitiator = options.localPeerId > options.remotePeerId;
+        // Store ICE servers
+        this.iceServers = options.iceServers || [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' }
+        ];
+        
+        // Determine initiator: either explicitly set or by peer ID comparison
+        if (options.initiator !== undefined) {
+            this.isInitiator = options.initiator;
+        } else {
+            this.isInitiator = options.localPeerId > options.remotePeerId;
+        }
         
         this.connected = false;
         this.ready = false;
@@ -38,24 +53,22 @@ class DataConnection {
     }
 
     /**
-     * Setup DataConnection protocol
+     * Setup DataConnection with standalone RTCPeerConnection
      */
     _setup() {
-        // Create RTCPeerConnection for game data channel
+        // Create RTCPeerConnection for app data channel
         this.pc = new RTCPeerConnection({
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' }
-            ]
+            iceServers: this.iceServers
         });
 
-        // Listen for ICE candidates and send through signaling peer
+        // Listen for ICE candidates
         this.pc.onicecandidate = (evt) => {
             if (evt.candidate) {
-                this.signalingPeer.send(JSON.stringify({
-                    type: 'channel-ice-candidate',
+                // Emit ICE candidate so caller can relay it
+                this.emit('signal', {
+                    type: 'ice-candidate',
                     candidate: evt.candidate
-                }));
+                });
             }
         };
 
@@ -65,45 +78,9 @@ class DataConnection {
             this._setupDataChannel();
         };
 
-        // Listen for messages from signaling peer
-        const onData = (data) => {
-            try {
-                const message = typeof data === 'string' ? JSON.parse(data) : JSON.parse(data.toString());
-                
-                // Handle DataConnection signaling messages
-                if (message.type && message.type.startsWith('channel-')) {
-                    this._handleSignaling(message);
-                } else if (this.connected) {
-                    // Once connected, relay application data
-                    this.emit('data', message);
-                }
-            } catch (e) {
-                console.warn('[DataConnection] Failed to parse signaling message:', e.message);
-            }
-        };
-
-        this.signalingPeer.on('data', onData);
-
-        // Start negotiation once signaling peer's data channel is open
-        const startNegotiation = () => {
-            if (this.isInitiator) {
-                this._createOffer();
-            }
-        };
-
-        // Check if data channel is already open
-        if (this.signalingPeer.dataChannel && this.signalingPeer.dataChannel.readyState === 'open') {
-            startNegotiation();
-        } else if (this.signalingPeer.dataChannel) {
-            // Data channel exists but not open yet, wait for it
-            this.signalingPeer.dataChannel.onopen = startNegotiation;
-        } else {
-            // Data channel doesn't exist yet (responder), wait for it to be created
-            const originalOndatachannel = this.signalingPeer.pc.ondatachannel;
-            this.signalingPeer.pc.ondatachannel = (evt) => {
-                if (originalOndatachannel) originalOndatachannel(evt);
-                evt.channel.onopen = startNegotiation;
-            };
+        // If initiator, create offer
+        if (this.isInitiator) {
+            this._createOffer();
         }
     }
 
@@ -113,7 +90,7 @@ class DataConnection {
     async _createOffer() {
         try {
             // Create data channel
-            const channel = this.pc.createDataChannel('game', { ordered: true });
+            const channel = this.pc.createDataChannel('app', { ordered: true });
             this.dataChannel = channel;
             this._setupDataChannel();
 
@@ -121,11 +98,34 @@ class DataConnection {
             const offer = await this.pc.createOffer();
             await this.pc.setLocalDescription(offer);
 
-            // Send offer through signaling peer
-            this.signalingPeer.send(JSON.stringify({
-                type: 'channel-offer',
+            // Wait for ICE gathering to complete
+            await new Promise((resolve) => {
+                if (this.pc.iceGatheringState === 'complete') {
+                    resolve();
+                    return;
+                }
+                
+                const checkComplete = () => {
+                    if (this.pc.iceGatheringState === 'complete') {
+                        this.pc.removeEventListener('icegatheringstatechange', checkComplete);
+                        resolve();
+                    }
+                };
+                
+                this.pc.addEventListener('icegatheringstatechange', checkComplete);
+                
+                // Fallback timeout
+                setTimeout(() => {
+                    this.pc.removeEventListener('icegatheringstatechange', checkComplete);
+                    resolve();
+                }, 3000);
+            });
+
+            // Emit offer
+            this.emit('signal', {
+                type: 'offer',
                 sdp: this.pc.localDescription.sdp
-            }));
+            });
 
             this.ready = true;
         } catch (e) {
@@ -134,36 +134,69 @@ class DataConnection {
     }
 
     /**
-     * Handle signaling messages
+     * Handle incoming offer/answer/ICE from caller
      */
-    async _handleSignaling(message) {
-        try {
-            if (message.type === 'channel-offer') {
-                // Responder receives offer
-                await this.pc.setRemoteDescription({ type: 'offer', sdp: message.sdp });
-                const answer = await this.pc.createAnswer();
-                await this.pc.setLocalDescription(answer);
+    signal(data) {
+        if (!this.pc) return;
 
-                this.signalingPeer.send(JSON.stringify({
-                    type: 'channel-answer',
-                    sdp: this.pc.localDescription.sdp
-                }));
-
-                this.ready = true;
-            } 
-            else if (message.type === 'channel-answer') {
-                // Initiator receives answer
-                await this.pc.setRemoteDescription({ type: 'answer', sdp: message.sdp });
-            } 
-            else if (message.type === 'channel-ice-candidate') {
-                // Add ICE candidate
-                try {
-                    await this.pc.addIceCandidate(new RTCIceCandidate(message.candidate));
-                } catch (e) {
-                    // ICE errors are non-fatal (candidates arrive out of order)
+        if (data.type === 'offer') {
+            // Responder receives offer
+            this._handleOffer(data);
+        } else if (data.type === 'answer') {
+            // Initiator receives answer
+            this.pc.setRemoteDescription({ type: 'answer', sdp: data.sdp })
+                .catch((error) => {
+                    this.emit('error', new Error(`Failed to set remote answer: ${error.message}`));
+                });
+        } else if (data.candidate) {
+            // ICE candidate
+            this.pc.addIceCandidate(new RTCIceCandidate(data.candidate))
+                .catch((e) => {
                     console.debug('[DataConnection] ICE candidate error (non-fatal):', e.message);
+                });
+        }
+    }
+
+    /**
+     * Handle incoming offer (responder side)
+     */
+    async _handleOffer(data) {
+        try {
+            await this.pc.setRemoteDescription({ type: 'offer', sdp: data.sdp });
+            
+            const answer = await this.pc.createAnswer();
+            await this.pc.setLocalDescription(answer);
+            
+            // Wait for ICE gathering to complete
+            await new Promise((resolve) => {
+                if (this.pc.iceGatheringState === 'complete') {
+                    resolve();
+                    return;
                 }
-            }
+                
+                const checkComplete = () => {
+                    if (this.pc.iceGatheringState === 'complete') {
+                        this.pc.removeEventListener('icegatheringstatechange', checkComplete);
+                        resolve();
+                    }
+                };
+                
+                this.pc.addEventListener('icegatheringstatechange', checkComplete);
+                
+                // Fallback timeout
+                setTimeout(() => {
+                    this.pc.removeEventListener('icegatheringstatechange', checkComplete);
+                    resolve();
+                }, 3000);
+            });
+            
+            // Emit answer
+            this.emit('signal', {
+                type: 'answer',
+                sdp: this.pc.localDescription.sdp
+            });
+
+            this.ready = true;
         } catch (e) {
             this.emit('error', e);
         }
@@ -229,7 +262,7 @@ class DataConnection {
             try {
                 handler(...args);
             } catch (e) {
-                // Silently fail
+                console.error(`[DataConnection] Error in ${event} handler:`, e);
             }
         }
     }

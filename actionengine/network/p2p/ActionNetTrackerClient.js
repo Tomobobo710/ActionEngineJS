@@ -177,6 +177,8 @@ class ActionNetTrackerClient {
             const peer = new ActionNetPeer({
                 initiator: true,
                 trickle: false,
+                localPeerId: this.peerId,
+                remotePeerId: 'tracker',
                 iceServers: this.options.iceServers || [
                     { urls: 'stun:stun.l.google.com:19302' }
                 ]
@@ -198,7 +200,7 @@ class ActionNetTrackerClient {
                             this.pendingOffers.delete(offerId);
                             if (!peer.destroyed) peer.destroy();
                         }
-                    }, 50 * 1000); // 50 second timeout like bittorrent-tracker
+                    }, 5 * 1000); // 5 second timeout
 
                     // Attach timeout to peer so we can clear it later
                     peer._offerTimeout = timeout;
@@ -348,6 +350,10 @@ class ActionNetTrackerClient {
             } else if (message.answer && message.peer_id) {
                 // Peer is answering our offer
                 this.handlePeerAnswer(message);
+            } else if (message['failure reason']) {
+                // Tracker sent a failure response
+                this.log(`Tracker failure: ${message['failure reason']}`, 'warn');
+                console.log('[TrackerClient] Tracker failure:', message['failure reason']);
             } else if (message.action === 'announce') {
                 // Regular announce response (with stats)
                 this.handleAnnounceResponse(message);
@@ -401,6 +407,8 @@ class ActionNetTrackerClient {
         const peer = new ActionNetPeer({
             initiator: false,
             trickle: false,
+            localPeerId: this.peerId,
+            remotePeerId: peerId,
             iceServers: this.options.iceServers || [
                 { urls: 'stun:stun.l.google.com:19302' }
             ]
@@ -421,7 +429,7 @@ class ActionNetTrackerClient {
             }
         });
 
-        // Create DataConnection when peer connects
+        // Emit peer's internal DataConnection when tracker signaling is complete
         peer.once('connect', () => {
             this.connectedPeerIds.add(peerId);
             
@@ -432,15 +440,9 @@ class ActionNetTrackerClient {
                 source: 'tracker'
             });
             
-            const connection = new DataConnection(peer, {
-                localPeerId: this.peerId,
-                remotePeerId: peerId
-            });
-            
-            // Emit connection after DataConnection is fully negotiated and ready
-            // At this point, the ActionNetPeer signaling phase is complete and the
-            // application data channel is connected. Send handshakes here to validate peers.
-            this.emit('connection', connection);
+            // ActionNetPeer has an internal DataConnection
+            // Emit that connection directly (no extra wrapper needed)
+            this.emit('connection', peer.connection);
         });
 
         peer.on('error', (err) => {
@@ -481,6 +483,11 @@ class ActionNetTrackerClient {
             // Mark offer as answered (no longer pending)
             this.pendingOffers.delete(offerId);
             
+            // Now we know the real remote peer ID, update the connection
+            if (peer.connection) {
+                peer.connection.remotePeerId = peerId;
+            }
+            
             // Signal the answer to the peer
             peer.signal(answer);
 
@@ -490,30 +497,22 @@ class ActionNetTrackerClient {
                 peer._offerTimeout = null;
             }
 
-            // Emit connected event once the peer connects
-            peer.once('connect', () => {
-                // Mark this peer ID as connected
-                this.connectedPeerIds.add(peerId);
-                
-                // Emit peer event
-                this.emit('peer', {
-                    id: peerId,
-                    peer: peer,
-                    source: 'tracker'
-                });
-                
-                // Create DataConnection on top of Peer
-                const connection = new DataConnection(peer, {
-                    localPeerId: this.peerId,
-                    remotePeerId: peerId
-                });
-                
-                // Emit connection after DataConnection is fully negotiated and ready
-                // At this point, the ActionNetPeer signaling phase is complete and the
-                // application data channel is connected. Send handshakes here to validate peers.
-                this.emit('connection', connection);
-                // Keep the peer in the map so it stays alive
-            });
+            // Emit peer's internal DataConnection when tracker signaling is complete
+             peer.once('connect', () => {
+                 // Mark this peer ID as connected
+                 this.connectedPeerIds.add(peerId);
+                 
+                 // Emit peer event
+                 this.emit('peer', {
+                     id: peerId,
+                     peer: peer,
+                     source: 'tracker'
+                 });
+                 
+                 // ActionNetPeer has an internal DataConnection
+                 // Emit that connection directly (no extra wrapper needed)
+                 this.emit('connection', peer.connection);
+             });
 
             peer.on('error', (err) => {
                 console.warn('[TrackerClient] Peer error:', err.message);

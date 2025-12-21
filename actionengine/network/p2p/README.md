@@ -32,34 +32,36 @@ See `example.html` for a complete example of how to build on top of this library
 
 ### ActionNetPeer (ActionNetPeer.js)
 
-A WebRTC peer connection wrapper that provides a simple interface for creating and managing connections.
+A thin wrapper around DataConnection that provides compatibility and delegation.
 
 **Constructor:**
 ```javascript
 const peer = new ActionNetPeer({
     initiator: true,                    // Whether this peer creates the offer
     trickle: false,                     // Wait for complete ICE before signaling (default: true)
+    localPeerId: 'peer_xyz',            // This peer's ID
+    remotePeerId: 'peer_abc',           // Remote peer's ID
     iceServers: [{ urls: 'stun:...' }]  // STUN/TURN servers
 });
 ```
 
 **Key Features:**
+- Wraps an internal DataConnection
 - Initiators create WebRTC offers automatically
 - Responders handle incoming offers via `signal(data)`
-- Waits for complete ICE gathering before emitting offers/answers (ensures complete SDP)
-- Creates default data channel for signaling
-- Full state tracking with connection state machine
+- Exposes `peer.connection` which is the internal DataConnection
+- Delegates all calls to the internal DataConnection
 
 **Events:**
 - `signal` - Emit offer/answer with complete SDP (ready to send to remote peer)
-- `connect` - WebRTC connection established
-- `data` - Received data on data channel
+- `connect` - WebRTC connection established (tracker signaling complete)
+- `data` - Received data through DataConnection
 - `close` - Connection closed
 - `error` - Connection error
 
 **Methods:**
-- `signal(data)` - Handle remote offer/answer/ICE candidate
-- `send(data)` - Send data on default data channel (returns boolean)
+- `signal(data)` - Handle remote offer/answer/ICE candidate (delegates to DataConnection)
+- `send(data)` - Send data through DataConnection
 - `destroy()` - Clean up connection
 
 ### ActionNetTrackerClient (ActionNetTrackerClient.js)
@@ -116,33 +118,50 @@ const tracker = new ActionNetTrackerClient(
 
 ### DataConnection (DataConnection.js)
 
-Application protocol layer that creates a second WebRTC connection for application data.
+Standalone RTCPeerConnection for tracker-level signaling (offer/answer/ICE exchange).
 
 **Purpose:**
-Uses a connected ActionNetPeer instance as a signaling channel to establish a second WebRTC peer connection. This provides clean separation between peer discovery (ActionNetPeer) and application communication (DataConnection).
+Manages the RTCPeerConnection for tracker discovery and signaling. Receives offer/answer/ICE via `signal()` method. Used internally by ActionNetPeer and emitted by ActionNetTrackerClient.
 
 **Constructor:**
 ```javascript
-const connection = new DataConnection(signalingPeer, {
-    localPeerId: 'peer_xyz',   // This peer's ID
-    remotePeerId: 'peer_abc'   // Connected peer's ID
+const connection = new DataConnection({
+    localPeerId: 'peer_xyz',    // This peer's ID
+    remotePeerId: 'peer_abc',   // Remote peer's ID
+    initiator: true,             // Whether this peer creates the offer
+    iceServers: [...]            // Optional STUN/TURN servers
 });
 ```
 
 **Negotiation Flow:**
-1. Waits for signaling ActionNetPeer's data channel to actually be open (ready state)
-2. ActionNetPeer with lexicographically higher ID acts as initiator (avoids race conditions)
-3. If initiator: creates data channel, generates WebRTC offer, sends via signaling peer
-4. If responder: receives offer, generates answer, sends via signaling peer
-5. Both sides send ICE candidates through signaling peer
-6. When application data channel opens, emits `connect` event
+1. Initiator (determined by constructor option or peer ID comparison) creates offer
+2. Offer/answer/ICE candidates exchanged via `signal()` method
+3. Emits `signal` events with offer/answer/ICE to be relayed (e.g., through tracker)
+4. When ICE connection completes, emits `connect` event
 
-**Signal Messages (sent through signaling peer's data channel):**
-- `{ type: 'channel-offer', sdp: '...' }` - WebRTC offer
-- `{ type: 'channel-answer', sdp: '...' }` - WebRTC answer
-- `{ type: 'channel-ice-candidate', candidate: {...} }` - ICE candidate
+**Events:**
+- `signal` - Emit offer/answer/ICE for relay to remote peer (e.g., via tracker)
+- `connect` - Tracker-level RTCPeerConnection established
+- `close` - Connection closed
+- `error` - Connection error
 
-**Application Messages (sent through DataConnection's data channel):**
+**Methods:**
+- `signal(data)` - Receive offer/answer/ICE from remote peer
+  - `{ type: 'offer', sdp: '...' }` - WebRTC offer
+  - `{ type: 'answer', sdp: '...' }` - WebRTC answer
+  - `{ candidate: {...} }` - ICE candidate
+- `send(message)` - Send JSON object through data channel (auto-stringified, returns boolean)
+- `close()` - Clean up connection
+- `on(event, handler)` - Register event listener
+
+**Events:**
+- `signal` - Emit offer/answer/ICE for relay to remote peer
+- `connect` - Data channel established
+- `data` - Received message on data channel (already parsed JSON)
+- `close` - Connection closed
+- `error` - Connection error
+
+**Data Channel Messages:**
 
 DataConnection automatically serializes/deserializes JSON. Send objects, receive parsed objects:
 
@@ -192,16 +211,7 @@ connection.on('data', (message) => {
 });
 ```
 
-**Events:**
-- `connect` - Application data channel established
-- `data` - Received message on application data channel (already parsed JSON)
-- `close` - Data channel closed
-- `error` - Connection error
-
-**Methods:**
-- `send(message)` - Send JSON object through application data channel (auto-stringified, returns boolean)
-- `close()` - Clean up and close connection
-- `on(event, handler)` - Register event listener
+**Note:** DataConnection handles both tracker signaling (offer/answer/ICE via `signal()`) and application communication (messages via `send()`/`on('data')`). This provides a unified communication channel that works for both peer discovery and application-level messaging.
 
 ## Message Protocol
 
@@ -346,43 +356,42 @@ Initiator (Tab A)                    Tracker                    Responder (Tab B
 
 ## Connection Model
 
-The library uses a **two-phase connection** to separate peer discovery from application communication:
+The library handles peer discovery and provides a ready-to-use communication channel:
 
-1. **Discovery Phase (ActionNetPeer)**: 
-   - TrackerClient announces offers to tracker
+1. **Peer Discovery (ActionNetTrackerClient)**:
+   - Announces offers to tracker
    - Tracker relays offers to other peers
-   - Peers exchange answer through tracker
-   - Result: One RTCPeerConnection per peer (used for signaling only)
+   - Manages peer lifecycle (connect, disconnect, failures)
 
-2. **Application Phase (DataConnection)**:
-   - DataConnection creates a second RTCPeerConnection on top of the first
-   - Offer/answer negotiated through the signaling ActionNetPeer's data channel
-   - Result: Isolated application data channel completely separate from signaling
-   - No need to layer additional protocols—DataConnection handles everything
+2. **Peer-to-Peer Communication (DataConnection)**:
+   - Each peer gets a DataConnection with its own RTCPeerConnection
+   - Handles offer/answer/ICE signaling automatically
+   - Provides a data channel for sending/receiving application messages
+   - Application uses `connection.send()` and `connection.on('data')`
 
-**Why two phases?** It provides clean separation: signaling is automatic and transparent, application data is isolated and can be replaced/upgraded independently.
+**Why this design?** The library handles all the complexity of peer discovery and WebRTC negotiation. Your application just listens for connections and sends/receives messages. No need to manage offers/answers yourself.
 
 ## Key Design Decisions
 
-**Two-Phase Connection:**
-- Phase 1 (ActionNetPeer): WebRTC signaling for peer discovery, handled by tracker
-- Phase 2 (DataConnection): WebRTC data channel for application messages, negotiated through signaling peer
+**One RTCPeerConnection Per Peer:**
+- DataConnection wraps a single RTCPeerConnection for all peer-to-peer communication
+- Handles both tracker signaling and application messaging through the same connection
 
-**Deterministic Peer Selection:**
-- DataConnection initiator always selected based on peer ID comparison (lexicographically highest initiates)
+**Deterministic Initiator Selection:**
+- DataConnection initiator selected based on peer ID comparison (lexicographically highest initiates)
 - Guarantees both sides agree on who initiates, preventing simultaneous offers
 
 **Complete ICE Gathering:**
-- ActionNetPeer waits for ICE gathering to complete before emitting offer/answer
+- DataConnection waits for ICE gathering to complete before emitting offer/answer
 - Ensures SDP includes all ICE candidates
 - Prevents trickle ICE complexity at tracker level
 
-**Message Ordering:**
-- Both ActionNetPeer and DataConnection data channels created with `ordered: true`
+**Ordered Messages:**
+- Data channels created with `ordered: true`
 - Guarantees in-order message delivery
 
 **Zero Dependencies:**
-- Custom ActionNetPeer implementation using native WebRTC APIs
+- Native WebRTC APIs only
 - No external libraries required
 - Works in any modern browser
 
@@ -495,7 +504,7 @@ Watch the stats and confirmed peers list update as connections establish.
 ## Limitations
 
 **Current Limitations:**
-1. Requires public WebSocket tracker (no DHT fallback)
+1. Requires public WebSocket tracker (no DHT)
 2. Peer connections not persisted across disconnects (rejoin requires new TrackerClient)
 3. No connection pooling (single Peer per remote peer)
 4. No message fragmentation for large payloads
