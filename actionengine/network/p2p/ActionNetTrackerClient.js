@@ -193,14 +193,14 @@ class ActionNetTrackerClient {
                     this.outgoingPeers.set(offerId, peer);
                     this.pendingOffers.add(offerId); // Mark as pending
                     
-                    // Set a timeout to clean up if answer never comes
+                    // Set a timeout to clean up if answer never comes (2 announce cycles)
                     const timeout = setTimeout(() => {
                         if (this.outgoingPeers.has(offerId)) {
                             this.outgoingPeers.delete(offerId);
                             this.pendingOffers.delete(offerId);
                             if (!peer.destroyed) peer.destroy();
                         }
-                    }, 5 * 1000); // 5 second timeout
+                    }, this.options.announceInterval * 2);
 
                     // Attach timeout to peer so we can clear it later
                     peer._offerTimeout = timeout;
