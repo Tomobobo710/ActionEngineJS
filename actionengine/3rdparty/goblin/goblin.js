@@ -1,5 +1,8 @@
 /**
-* Goblin Physics
+* Goblin Physics - Modified Fork
+* 
+* Original: https://github.com/chandlerprall/GoblinPhysics
+* License: Zlib License (see LICENSE file in project root)
 *
 * @module Goblin
 */
