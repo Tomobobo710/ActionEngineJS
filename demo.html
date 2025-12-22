@@ -8,8 +8,17 @@
                 <meta name="mobile-web-app-capable" content="yes" />
                 <meta name="apple-mobile-web-app-capable" content="yes" />
                 <title>ActionEngine Game</title>
-                <link rel="stylesheet" href="actionengine/input/css/overlay.css" />
-        </head>
+                <style>
+                	html, body {
+                		margin: 0;
+                		padding: 0;
+                		background: #0a0a2a;
+                		width: 100%;
+                		height: 100%;
+                		overflow: hidden;
+                	}
+                </style>
+                </head>
         <body>
                 <div id="appContainer">
                         <div id="UIControlsContainer"></div>
@@ -18,9 +27,6 @@
                 <!--3rd party libs--->
                 <!--Goblin fork of https://github.com/chandlerprall/GoblinPhysics----https://github.com/Tomobobo710/GoblinPhysics-->
                 <script src="actionengine/3rdparty/goblin/goblin.js"></script>
-				
-				<!-- WebTorrent for P2P (uncomment if using actionnet p2p) -->
-				<!--<script src="https://cdn.jsdelivr.net/npm/webtorrent@1.9.7/webtorrent.min.js"></script>-->
 
                 <!------Action Engine Modules---- -->
 
@@ -102,21 +108,21 @@
                 <script src="actionengine/math/physics/actionphysics.js"></script>
 
                 <!--Action Engine Sound-->
-				<script src="actionengine/sound/soundfont/actionreverb.js"></script>
-				<script src="actionengine/sound/soundfont/actionparser.js"></script>
-				<script src="actionengine/sound/soundfont/actionsoundfont.js"></script>
-				<script src="actionengine/sound/soundfont/soundfont.js"></script>
+		<script src="actionengine/sound/soundfont/actionreverb.js"></script>
+		<script src="actionengine/sound/soundfont/actionparser.js"></script>
+		<script src="actionengine/sound/soundfont/actionsoundfont.js"></script>
+		<script src="actionengine/sound/soundfont/soundfont.js"></script>
                 <script src="actionengine/sound/audiomanager.js"></script>
 
                 <!--Action Engine Input-->
                 <script src="actionengine/input/inputhandler.js"></script>
                 <script src="actionengine/input/actionscrollablearea.js"></script>
 
-				<!-- ActionNet -->
-				<script src="actionengine/network/client/ActionNetManager.js"></script>
-				<script src="actionengine/network/client/SyncSystem.js"></script>
-				<script src="actionengine/network/client/ActionNetManagerGUI.js"></script>
-				<script src="actionengine/network/client/ActionNetManagerP2P.js"></script>
+		<!-- ActionNet -->
+		<script src="actionengine/network/client/ActionNetManager.js"></script>
+		<script src="actionengine/network/client/SyncSystem.js"></script>
+		<script src="actionengine/network/client/ActionNetManagerGUI.js"></script>
+		<script src="actionengine/network/client/ActionNetManagerP2P.js"></script>
 
                 <!--Action Engine Camera-->
                 <script src="actionengine/camera/actioncamera.js"></script>
