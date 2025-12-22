@@ -1,0 +1,35 @@
+{
+  "name": "action-engine-js",
+  "version": "1.0.0",
+  "description": "A comprehensive JavaScript game framework that abstracts away boilerplate complexity—input systems, audio, rendering, physics, and more—so you can focus on building your game.",
+  "main": "dist/action-engine.min.js",
+  "scripts": {
+    "build": "node build.js"
+  },
+  "keywords": [
+    "game",
+    "engine",
+    "javascript",
+    "webgl",
+    "physics",
+    "audio",
+    "3d",
+    "gamedev",
+    "canvas"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Tomobobo710/ActionEngineJS.git"
+  },
+  "author": "Tomobobo",
+  "license": "MIT",
+  "files": [
+    "dist/",
+    "actionengine/",
+    "README.md",
+    "LICENSE"
+  ],
+  "devDependencies": {
+    "esbuild": "^0.20.0"
+  }
+}
