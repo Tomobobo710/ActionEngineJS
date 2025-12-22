@@ -19,6 +19,70 @@ Action Engine simplifies game creation by handling all the tedious infrastructur
 
 ## Quick Start
 
+### Installation
+
+**Option 1: CDN (instant, no build step)**
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Game</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body>
+  <div id="appContainer">
+    <div id="UIControlsContainer"></div>
+  </div>
+  
+  <script src="https://unpkg.com/action-engine-js@latest/dist/action-engine.min.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
+```
+
+**Option 2: npm (for bundlers)**
+```bash
+npm install action-engine-js
+```
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Game</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body>
+  <div id="appContainer">
+    <div id="UIControlsContainer"></div>
+  </div>
+  
+  <script src="node_modules/action-engine-js/dist/action-engine.min.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
+```
+
 ### Create a Game Class
 
 ```javascript
@@ -343,6 +407,17 @@ this.audio.playSound("kick", {
 - ✅ Math utilities (vectors, matrices)
 - ✅ Debug visualization tools
 
+## Development
+
+To build the minified bundle locally:
+
+```bash
+npm install
+npm run build
+```
+
+This generates `dist/action-engine.min.js` from all source files in dependency order.
+
 ---
 
-**Ready to build?** Start with `game.js` as your template, reference `demo.js` for examples, and check the demo app running in your browser!
+**Ready to build?** Start with the HTML template above, create your `game.js`, and you're good to go!
