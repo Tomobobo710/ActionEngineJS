@@ -1,0 +1,6 @@
+node_modules/
+dist/action-engine.min.js
+dist/action-engine-temp.js
+.DS_Store
+*.log
+npm-debug.log*
