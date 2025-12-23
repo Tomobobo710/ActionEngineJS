@@ -1,6 +1,6 @@
 {
   "name": "action-engine-js",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A comprehensive JavaScript game framework that abstracts away boilerplate complexity—input systems, audio, rendering, physics, and more—so you can focus on building your game.",
   "main": "dist/action-engine.min.js",
   "scripts": {

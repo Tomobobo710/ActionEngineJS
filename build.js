@@ -132,14 +132,13 @@ async function bundle() {
     fs.writeFileSync(tempFile, content);
     
     try {
-        // Minify with esbuild
-        await esbuild.build({
-            entryPoints: [tempFile],
-            outfile: 'dist/action-engine.min.js',
-            minify: true,
-            bundle: false, // Don't bundle, we already concatenated
-            format: 'iife' // Immediately Invoked Function Expression for global scope
-        });
+         // Minify with esbuild
+         await esbuild.build({
+             entryPoints: [tempFile],
+             outfile: 'dist/action-engine.min.js',
+             minify: true,
+             bundle: false // Don't bundle, we already concatenated
+         });
         
         console.log('✓ Built: dist/action-engine.min.js');
         
