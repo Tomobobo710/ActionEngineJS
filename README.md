@@ -33,6 +33,7 @@ Action Engine simplifies game creation by handling all the tedious infrastructur
     html, body {
       margin: 0;
       padding: 0;
+      background: #0a0a2a;
       width: 100%;
       height: 100%;
       overflow: hidden;
@@ -66,6 +67,7 @@ npm install action-engine-js
     html, body {
       margin: 0;
       padding: 0;
+      background: #0a0a2a;
       width: 100%;
       height: 100%;
       overflow: hidden;
@@ -359,7 +361,7 @@ action_update(deltaTime) {
     // Move up
   }
   
-  if (this.input.isKeyPressed("Action1")) {
+  if (this.input.isKeyJustPressed("Action1")) {
     this.player.jump();
   }
 }
