@@ -210,7 +210,7 @@ class ActionNetTrackerClient {
             });
 
             peer.on('error', (err) => {
-                console.warn('Error generating offer:', err);
+                this.log(`Error generating offer: ${err}`, 'warn');
                 if (!peer.destroyed) peer.destroy();
                 if (this.outgoingPeers.has(offerId)) {
                     this.outgoingPeers.delete(offerId);
@@ -307,7 +307,7 @@ class ActionNetTrackerClient {
         }
 
         const msgStr = JSON.stringify(request);
-        console.log('[TrackerClient] Announcing:', msgStr);
+        this.log(`Announcing: ${msgStr}`);
         this.log(`Announcing with ${offers.length} offers`);
 
         // Send to specific tracker or all
@@ -340,7 +340,7 @@ class ActionNetTrackerClient {
                 message = JSON.parse(str);
             }
 
-            console.log(`[TrackerClient] MESSAGE #${this.messageCount}:`, message);
+            this.log(`MESSAGE #${this.messageCount}: ${JSON.stringify(message)}`);
 
             // Check for peer offer/answer FIRST before general announce response
             // (tracker sends all of these with action: 'announce')
@@ -353,7 +353,6 @@ class ActionNetTrackerClient {
             } else if (message['failure reason']) {
                 // Tracker sent a failure response
                 this.log(`Tracker failure: ${message['failure reason']}`, 'warn');
-                console.log('[TrackerClient] Tracker failure:', message['failure reason']);
             } else if (message.action === 'announce') {
                 // Regular announce response (with stats)
                 this.handleAnnounceResponse(message);
@@ -361,11 +360,11 @@ class ActionNetTrackerClient {
                 // Scrape response
                 this.emit('scrape', message);
             } else {
-                console.log('[TrackerClient] Unknown message type:', Object.keys(message).join(', '));
+                this.log(`Unknown message type: ${Object.keys(message).join(', ')}`);
             }
         } catch (error) {
             this.log(`Failed to parse tracker message: ${error.message}`, 'error');
-            console.error('[TrackerClient] Raw data:', data);
+            this.log(`Raw data: ${data}`, 'error');
         }
     }
 
@@ -373,7 +372,7 @@ class ActionNetTrackerClient {
      * Handle announce response (ACK from tracker with stats)
      */
     handleAnnounceResponse(response) {
-        console.log('[TrackerClient] Announce response:', response);
+        this.log(`Announce response: ${JSON.stringify(response)}`);
 
         const complete = response.complete || 0;
         const incomplete = response.incomplete || 0;
@@ -395,11 +394,11 @@ class ActionNetTrackerClient {
         const offerId = message.offer_id;
         const offer = message.offer;
 
-        console.log('[TrackerClient] Received offer from peer:', peerId);
+        this.log(`Received offer from peer: ${peerId}`);
 
         // Skip if we already have a connection to this peer
         if (this.connectedPeerIds.has(peerId)) {
-            console.log('[TrackerClient] Already connected to peer:', peerId, '- ignoring offer');
+            this.log(`Already connected to peer: ${peerId} - ignoring offer`);
             return;
         }
 
@@ -424,7 +423,7 @@ class ActionNetTrackerClient {
         // Listen for answer signal
         peer.on('signal', (data) => {
             if (data.type === 'answer') {
-                console.log('[TrackerClient] Sending answer to peer:', peerId);
+                this.log(`Sending answer to peer: ${peerId}`);
                 this.sendAnswer(offerId, peerId, data);
             }
         });
@@ -446,7 +445,7 @@ class ActionNetTrackerClient {
         });
 
         peer.on('error', (err) => {
-            console.warn('[TrackerClient] Responder peer error:', err.message);
+            this.log(`Responder peer error: ${err.message}`, 'warn');
             this.outgoingPeers.delete(offerId);
             this.connectedPeerIds.delete(peerId);
             this.emit('peer-failed', {
@@ -475,7 +474,7 @@ class ActionNetTrackerClient {
         const offerId = message.offer_id;
         const answer = message.answer;
 
-        console.log('[TrackerClient] Received answer from peer:', peerId);
+        this.log(`Received answer from peer: ${peerId}`);
 
         // Check if we have the SimplePeer for this offer
         const peer = this.outgoingPeers.get(offerId);
@@ -515,7 +514,7 @@ class ActionNetTrackerClient {
              });
 
             peer.on('error', (err) => {
-                console.warn('[TrackerClient] Peer error:', err.message);
+                this.log(`Peer error: ${err.message}`, 'warn');
                 this.outgoingPeers.delete(offerId);
                 this.connectedPeerIds.delete(peerId);
                 this.emit('peer-failed', {
@@ -532,7 +531,7 @@ class ActionNetTrackerClient {
                 });
             });
         } else {
-            console.warn('[TrackerClient] Got answer for unknown offer:', offerId);
+            this.log(`Got answer for unknown offer: ${offerId}`, 'warn');
         }
     }
 
@@ -550,8 +549,8 @@ class ActionNetTrackerClient {
         };
 
         const msgStr = JSON.stringify(response);
-        console.log('[TrackerClient] Sending answer:', msgStr);
-        
+        this.log(`Sending answer: ${msgStr}`);
+
         // Send to all connected trackers
         for (const [, trackerData] of this.trackers) {
             if (trackerData.ws && trackerData.ws.readyState === WebSocket.OPEN) {
