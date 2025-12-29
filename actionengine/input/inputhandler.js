@@ -248,7 +248,19 @@ class ActionInputHandler {
             ["NumpadDecimal", ["NumpadDecimal"]], // Numpad period/del
             ["NumpadEnter", ["NumpadEnter"]], // Numpad enter
             ["NumpadAdd", ["NumpadAdd"]], // Numpad plus
-            ["NumpadSubtract", ["NumpadSubtract"]] // Numpad minus
+            ["NumpadSubtract", ["NumpadSubtract"]], // Numpad minus
+
+            // Hotbar number keys (1-9)
+            ["Digit1", ["Hotbar1"]],
+            ["Digit2", ["Hotbar2"]],
+            ["Digit3", ["Hotbar3"]],
+            ["Digit4", ["Hotbar4"]],
+            ["Digit5", ["Hotbar5"]],
+            ["Digit6", ["Hotbar6"]],
+            ["Digit7", ["Hotbar7"]],
+            ["Digit8", ["Hotbar8"]],
+            ["Digit9", ["Hotbar9"]],
+            ["Digit0", ["Hotbar0"]]
         ]);
 
         // Extract all key codes the game uses from actionMap
