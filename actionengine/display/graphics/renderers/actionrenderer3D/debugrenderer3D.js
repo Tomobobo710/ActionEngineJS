@@ -149,11 +149,19 @@ class DebugRenderer3D {
             lightPos.z + lightDir.z * 100
         );
 
+        // Choose an appropriate up vector that avoids collinearity with light direction
+        // Must match the logic in ActionDirectionalShadowLight.updateLightSpaceMatrix()
+        let upVector = [0, 1, 0]; // Default up vector
+        if (Math.abs(lightDir.y) > 0.99) {
+            // If pointing almost straight up/down, use Z axis as up vector instead
+            upVector = [0, 0, 1];
+        }
+
         Matrix4.lookAt(
             lightViewMatrix,
             lightPos.toArray(),
             lightTarget.toArray(),
-            [0, 1, 0] // Up vector
+            upVector
         );
 
         // Invert the light view matrix to transform frustum from light space to world space
