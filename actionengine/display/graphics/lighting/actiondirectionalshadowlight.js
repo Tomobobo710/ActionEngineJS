@@ -100,32 +100,37 @@ class ActionDirectionalShadowLight extends ActionLight {
     }
     
     /**
-     * Update properties from global lighting constants
-     */
+    * Update properties from global lighting constants
+    */
     syncWithConstants() {
-        // Update position from constants
-        this.position.x = this.constants.LIGHT_POSITION.x;
-        this.position.y = this.constants.LIGHT_POSITION.y;
-        this.position.z = this.constants.LIGHT_POSITION.z;
-        
-        // Update direction from constants
-        this.direction.x = this.constants.LIGHT_DIRECTION.x;
-        this.direction.y = this.constants.LIGHT_DIRECTION.y;
-        this.direction.z = this.constants.LIGHT_DIRECTION.z;
-        
-        // Update intensity from constants
-        this.intensity = this.constants.LIGHT_INTENSITY.value;
-        
-        // Check if shadow map size has changed
-        if (this.shadowMapSize !== this.constants.SHADOW_MAP.SIZE.value) {
-            this.shadowMapSize = this.constants.SHADOW_MAP.SIZE.value;
-            if (this.castsShadows) {
-                this.setupShadowMap(); // Recreate shadow map with new size
-            }
-        }
-        
-        // Update bias value
-        this.shadowBias = this.constants.SHADOW_MAP.BIAS.value;
+       // Update position from constants
+       this.position.x = this.constants.LIGHT_POSITION.x;
+       this.position.y = this.constants.LIGHT_POSITION.y;
+       this.position.z = this.constants.LIGHT_POSITION.z;
+       
+       // Update direction from constants
+       this.direction.x = this.constants.LIGHT_DIRECTION.x;
+       this.direction.y = this.constants.LIGHT_DIRECTION.y;
+       this.direction.z = this.constants.LIGHT_DIRECTION.z;
+       
+       // Update intensity from constants
+       this.intensity = this.constants.LIGHT_INTENSITY.value;
+       
+       // Check if shadow map size has changed
+       if (this.shadowMapSize !== this.constants.SHADOW_MAP.SIZE.value) {
+           this.shadowMapSize = this.constants.SHADOW_MAP.SIZE.value;
+           if (this.castsShadows) {
+               this.setupShadowMap(); // Recreate shadow map with new size
+           }
+       }
+       
+       // Update bias value
+       this.shadowBias = this.constants.SHADOW_MAP.BIAS.value;
+       
+       // Recalculate light space matrix with updated frustum bounds
+       if (this.castsShadows) {
+           this.updateLightSpaceMatrix();
+       }
     }
     
     /**
