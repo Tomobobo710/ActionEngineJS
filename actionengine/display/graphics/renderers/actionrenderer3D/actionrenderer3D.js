@@ -258,6 +258,11 @@ class ActionRenderer3D {
             );
             this.debugRenderer.drawDebugLines(camera, character, this.currentTime);
         }
+        
+        // Shadow map visualization can show independently of panel
+        if (lightingConstants.DEBUG.VISUALIZE_SHADOW_MAP && camera) {
+            this.debugRenderer.drawShadowMapDebug(camera);
+        }
     }
     
     /**
