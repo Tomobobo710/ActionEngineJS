@@ -112,6 +112,15 @@ class SpriteRenderer3D {
         
         const gl = this.gl;
         
+        // Save GL state
+        const prevProgram = gl.getParameter(gl.CURRENT_PROGRAM);
+        const wasBlendEnabled = gl.isEnabled(gl.BLEND);
+        const wasDepthTestEnabled = gl.isEnabled(gl.DEPTH_TEST);
+        const prevDepthFunc = gl.getParameter(gl.DEPTH_FUNC);
+        const prevDepthMask = gl.getParameter(gl.DEPTH_WRITEMASK);
+        const prevBlendSrc = gl.getParameter(gl.BLEND_SRC_RGB);
+        const prevBlendDst = gl.getParameter(gl.BLEND_DST_RGB);
+        
         // Use billboard shader program
         gl.useProgram(this.program);
         
@@ -186,11 +195,20 @@ class SpriteRenderer3D {
             gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
         }
         
-        // Restore depth writing
-        gl.depthMask(true);
+        // Restore GL state
+        gl.depthMask(prevDepthMask);
+        gl.depthFunc(prevDepthFunc);
+        gl.blendFunc(prevBlendSrc, prevBlendDst);
         
-        // Restore normal blending
-        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        if (!wasBlendEnabled) {
+            gl.disable(gl.BLEND);
+        }
+        if (!wasDepthTestEnabled) {
+            gl.disable(gl.DEPTH_TEST);
+        }
+        
+        // Restore previous shader program
+        gl.useProgram(prevProgram);
         
         // Cleanup
         gl.disableVertexAttribArray(this.locations.position);
