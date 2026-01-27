@@ -263,11 +263,6 @@ class LightManager {
         this.frameCount++;
         let changed = false;
 
-        // Only update every few frames for performance
-        if (this.frameCount % 5 !== 0) {
-            return false;
-        }
-
         // Update directional lights
         for (const light of this.directionalLights) {
             const lightChanged = light.update();
