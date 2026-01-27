@@ -267,10 +267,6 @@ class DebugRenderer3D {
             }
             return;
         }
-        
-        // Force visualization frustum on when debug shadow map is on
-        // This ensures we can always see both
-        this.constants.DEBUG.VISUALIZE_FRUSTUM = true;
 
         // Only render if we have a light manager and main directional light
         if (!this.lightManager) return;
@@ -315,13 +311,6 @@ class DebugRenderer3D {
                         // Mode 1: Raw grayscale using just the red channel, no enhancements
                         float depth = rawValue.r;
                         gl_FragColor = vec4(depth, depth, depth, 1.0);
-                    }
-
-                    // Optional border
-                    float border = 0.01;
-                    if (vTexCoord.x < border || vTexCoord.x > 1.0 - border || 
-                        vTexCoord.y < border || vTexCoord.y > 1.0 - border) {
-                        gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
                     }
                 }
             `;
