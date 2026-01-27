@@ -67,28 +67,33 @@ class ActionRenderer3D {
         
         this.currentTime = (performance.now() - this.startTime) / 1000.0;
 
-        // Cache current variant name
-        if (!this._cachedVariant) {
-            this._cachedVariant = this.programManager.getCurrentVariant();
-            
-            // Set clear color based on current variant
-            if (this._cachedVariant === "virtualboy") {
-                this.canvasManager.setClearColor(0.0, 0.0, 0.0, 1.0); // Black
-            } else {
-                this.canvasManager.setClearColor(0.529, 0.808, 0.922, 1.0); // Original blue
+        // Set clear color from render data or use defaults
+        if (renderData.clearColor) {
+            this.canvasManager.setClearColor(renderData.clearColor.r, renderData.clearColor.g, renderData.clearColor.b, renderData.clearColor.a);
+        } else {
+            // Cache current variant name
+            if (!this._cachedVariant) {
+                this._cachedVariant = this.programManager.getCurrentVariant();
+                
+                // Set clear color based on current variant
+                if (this._cachedVariant === "virtualboy") {
+                    this.canvasManager.setClearColor(0.0, 0.0, 0.0, 1.0); // Black
+                } else {
+                    this.canvasManager.setClearColor(0.529, 0.808, 0.922, 1.0); // Original blue
+                }
             }
-        }
-        
-        // Check if shader variant changed
-        const currentVariant = this.programManager.getCurrentVariant();
-        if (currentVariant !== this._cachedVariant) {
-            this._cachedVariant = currentVariant;
             
-            // Update clear color if variant changed
-            if (this._cachedVariant === "virtualboy") {
-                this.canvasManager.setClearColor(0.0, 0.0, 0.0, 1.0); // Black
-            } else {
-                this.canvasManager.setClearColor(0.529, 0.808, 0.922, 1.0); // Original blue
+            // Check if shader variant changed
+            const currentVariant = this.programManager.getCurrentVariant();
+            if (currentVariant !== this._cachedVariant) {
+                this._cachedVariant = currentVariant;
+                
+                // Update clear color if variant changed
+                if (this._cachedVariant === "virtualboy") {
+                    this.canvasManager.setClearColor(0.0, 0.0, 0.0, 1.0); // Black
+                } else {
+                    this.canvasManager.setClearColor(0.529, 0.808, 0.922, 1.0); // Original blue
+                }
             }
         }
 
@@ -359,7 +364,6 @@ class ActionRenderer3D {
      * This ensures both default and PBR shaders can render shadows
      */
     _initShadowsForAllShaders() {
-        console.log("_initShadowsForAllShaders called");
         // Constant for shadow texture unit
         const SHADOW_MAP_TEXTURE_UNIT = 4;
         const POINT_SHADOW_TEXTURE_UNIT = 3; // Point shadows use texture unit 3
@@ -374,7 +378,6 @@ class ActionRenderer3D {
         if (mainLight) {
             // Verify that the light and its texture are properly initialized
             if (!mainLight.shadowTexture) {
-                console.log("Reinitializing shadow map for directional light");
                 mainLight.setupShadowMap();
             }
             
@@ -384,14 +387,12 @@ class ActionRenderer3D {
             this.gl.bindTexture(this.gl.TEXTURE_2D, null);
             // Now bind the shadow texture - this ensures proper rebinding when toggling
             this.gl.bindTexture(this.gl.TEXTURE_2D, mainLight.shadowTexture);
-            console.log("Bound directional light shadow texture to unit 4");
         }
         
         // Now set up point light shadow if available
         if (pointLight) {
             // Verify the point light texture is present
             if (!pointLight.shadowTexture) {
-                console.log("Initializing shadow map for point light");
                 pointLight.setupShadowMap();
             }
             
@@ -403,13 +404,11 @@ class ActionRenderer3D {
                 this.gl.bindTexture(this.gl.TEXTURE_CUBE_MAP, null);
                 // For WebGL2, bind as CUBE_MAP
                 this.gl.bindTexture(this.gl.TEXTURE_CUBE_MAP, pointLight.shadowTexture);
-                console.log("Bound point light shadow cubemap texture to unit 3");
             } else {
                 // For WebGL1, we have individual textures
                 this.gl.bindTexture(this.gl.TEXTURE_2D, null);
                 if (pointLight.shadowTextures && pointLight.shadowTextures.length > 0) {
                     this.gl.bindTexture(this.gl.TEXTURE_2D, pointLight.shadowTextures[0]);
-                    console.log("Bound point light shadow texture (face 0) to unit 3 (WebGL1)");
                 }
             }
         }
@@ -434,13 +433,11 @@ class ActionRenderer3D {
                 // Set shadow map texture uniform
                 if (shadowMapLoc !== null) {
                     this.gl.uniform1i(shadowMapLoc, SHADOW_MAP_TEXTURE_UNIT);
-                    console.log("Set uShadowMap to texture unit", SHADOW_MAP_TEXTURE_UNIT);
                 }
                 
                 // Set shadow enabled flag
                 if (shadowEnabledLoc !== null) {
                     this.gl.uniform1i(shadowEnabledLoc, 1);
-                    console.log("Set uShadowsEnabled to 1");
                 }
                 
                 // Set initial light space matrix if available
@@ -488,14 +485,12 @@ class ActionRenderer3D {
                 // Set far plane for point light shadow mapping
                 if (farPlaneLoc !== null) {
                     this.gl.uniform1f(farPlaneLoc, 500.0); // Match the value in pointLight.applyToShader
-                    console.log("Set uFarPlane to 500.0");
                 }
             } else {
                 // No point light, set count to 0
                 const pointLightCountLoc = this.gl.getUniformLocation(currentProgram, 'uPointLightCount');
                 if (pointLightCountLoc !== null) {
                     this.gl.uniform1i(pointLightCountLoc, 0);
-                    console.log("Set uPointLightCount to 0 - no point light");
                 }
             }
             
