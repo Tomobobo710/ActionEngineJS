@@ -59,6 +59,11 @@ class WeatherRenderer3D {
 
         this.gl.uniformMatrix4fv(this.particleLocations.projectionMatrix, false, projection);
         this.gl.uniformMatrix4fv(this.particleLocations.viewMatrix, false, view);
+        
+        // Set far plane for logarithmic depth
+        if (this.particleLocations.farPlane) {
+            this.gl.uniform1f(this.particleLocations.farPlane, 10000.0);
+        }
 
         // Update and bind position buffer
         this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.particleBuffers.position);

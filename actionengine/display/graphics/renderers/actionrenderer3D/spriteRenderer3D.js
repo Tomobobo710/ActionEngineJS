@@ -140,6 +140,12 @@ class SpriteRenderer3D {
         gl.uniformMatrix4fv(this.locations.projectionMatrix, false, projectionMatrix);
         gl.uniformMatrix4fv(this.locations.viewMatrix, false, viewMatrix);
         
+        // Set far plane for logarithmic depth (match object renderer)
+        const farPlaneLoc = gl.getUniformLocation(this.program, 'uFarPlane');
+        if (farPlaneLoc !== -1 && farPlaneLoc !== null) {
+            gl.uniform1f(farPlaneLoc, 10000.0);
+        }
+        
         // Calculate camera vectors for billboarding
         const cameraVectors = this._calculateCameraVectors(camera);
         gl.uniform3fv(this.locations.cameraPosition, camera.position.toArray());
@@ -153,7 +159,8 @@ class SpriteRenderer3D {
         // Ensure depth function matches the main 3D renderer for consistent depth testing
         gl.depthFunc(gl.LEQUAL);
         
-        gl.depthMask(false); // Don't write to depth buffer for billboards
+        // Write logarithmic depth for proper depth testing with logarithmic depth buffer
+        gl.depthMask(true);
         
         // Render each sprite
         for (const sprite of sprites) {

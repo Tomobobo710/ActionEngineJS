@@ -63,8 +63,13 @@ class LineShader {
     uniform mat4 uViewMatrix;
     uniform float uTime;
     
+    ${isWebGL2 ? "out" : "varying"} float vFragDepth;  // For logarithmic depth
+    
     void main() {
         gl_Position = uProjectionMatrix * uViewMatrix * vec4(aPosition, 1.0);
+        
+        // Store depth for logarithmic depth buffer
+        vFragDepth = 1.0 + gl_Position.w;
     }`;
     }
     
@@ -78,10 +83,17 @@ class LineShader {
     precision mediump float;
     ${isWebGL2 ? "out vec4 fragColor;\n" : ""}
     
+    ${isWebGL2 ? "in" : "varying"} float vFragDepth;  // For logarithmic depth
+    
     uniform vec3 uColor;
+    uniform float uFarPlane;  // For logarithmic depth
     
     void main() {
         ${isWebGL2 ? "fragColor" : "gl_FragColor"} = vec4(uColor, 1.0);
+        
+        // Logarithmic depth buffer encoding
+        float logDepth = log2(vFragDepth) / log2(uFarPlane + 1.0);
+        ${isWebGL2 ? "gl_FragDepth" : "gl_FragDepth"} = logDepth;
     }`;
     }
     
@@ -96,8 +108,13 @@ class LineShader {
     uniform mat4 uProjectionMatrix;
     uniform mat4 uViewMatrix;
     
+    ${isWebGL2 ? "out" : "varying"} float vFragDepth;  // For logarithmic depth
+    
     void main() {
         gl_Position = uProjectionMatrix * uViewMatrix * vec4(aPosition, 1.0);
+        
+        // Store depth for logarithmic depth buffer
+        vFragDepth = 1.0 + gl_Position.w;
     }`;
     }
     
@@ -111,8 +128,16 @@ class LineShader {
     precision mediump float;
     ${isWebGL2 ? "out vec4 fragColor;\n" : ""}
     
+    ${isWebGL2 ? "in" : "varying"} float vFragDepth;  // For logarithmic depth
+    
+    uniform float uFarPlane;  // For logarithmic depth
+    
     void main() {
         ${isWebGL2 ? "fragColor" : "gl_FragColor"} = vec4(1.0, 0.0, 0.0, 1.0);
+        
+        // Logarithmic depth buffer encoding
+        float logDepth = log2(vFragDepth) / log2(uFarPlane + 1.0);
+        ${isWebGL2 ? "gl_FragDepth" : "gl_FragDepth"} = logDepth;
     }`;
     }
 }

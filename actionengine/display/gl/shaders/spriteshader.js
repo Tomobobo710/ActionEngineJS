@@ -29,41 +29,45 @@ class SpriteShader {
         uniform vec3 uSpriteUp;        // Sprite up direction (for non-billboard)
         
         ${isWebGL2 ? "out" : "varying"} vec2 vTexCoord;
-        
-        void main() {
-            vec3 worldPos;
+         ${isWebGL2 ? "out" : "varying"} float vFragDepth;  // For logarithmic depth
+         
+         void main() {
+             vec3 worldPos;
 
-            if (uIsBillboard) {
-                // Calculate billboard position in world space
-                // aPosition.xy contains the quad vertices (-0.5 to 0.5)
-                worldPos = uSpritePosition
-                         + uCameraRight * aPosition.x * uSpriteSize.x
-                         + uCameraUp * aPosition.y * uSpriteSize.y;
-            } else {
-                // Non-billboard mode: Use sprite's own orientation
-                // Create a basis using sprite's forward and up vectors
-                vec3 forward = normalize(uSpriteForward);
-                vec3 up = normalize(uSpriteUp);
+             if (uIsBillboard) {
+                 // Calculate billboard position in world space
+                 // aPosition.xy contains the quad vertices (-0.5 to 0.5)
+                 worldPos = uSpritePosition
+                          + uCameraRight * aPosition.x * uSpriteSize.x
+                          + uCameraUp * aPosition.y * uSpriteSize.y;
+             } else {
+                 // Non-billboard mode: Use sprite's own orientation
+                 // Create a basis using sprite's forward and up vectors
+                 vec3 forward = normalize(uSpriteForward);
+                 vec3 up = normalize(uSpriteUp);
 
-                // Calculate right vector (perpendicular to forward and up)
-                vec3 right = normalize(cross(forward, up));
+                 // Calculate right vector (perpendicular to forward and up)
+                 vec3 right = normalize(cross(forward, up));
 
-                // Recalculate up to ensure orthogonality (in case forward/up weren't perfectly perpendicular)
-                vec3 correctedUp = normalize(cross(right, forward));
+                 // Recalculate up to ensure orthogonality (in case forward/up weren't perfectly perpendicular)
+                 vec3 correctedUp = normalize(cross(right, forward));
 
-                // Calculate world position using sprite's local coordinate system
-                worldPos = uSpritePosition
-                         + right * aPosition.x * uSpriteSize.x
-                         + correctedUp * aPosition.y * uSpriteSize.y;
-            }
+                 // Calculate world position using sprite's local coordinate system
+                 worldPos = uSpritePosition
+                          + right * aPosition.x * uSpriteSize.x
+                          + correctedUp * aPosition.y * uSpriteSize.y;
+             }
 
-            // Transform to screen space
-            vec4 viewPos = uViewMatrix * vec4(worldPos, 1.0);
-            gl_Position = uProjectionMatrix * viewPos;
+             // Transform to screen space
+             vec4 viewPos = uViewMatrix * vec4(worldPos, 1.0);
+             gl_Position = uProjectionMatrix * viewPos;
 
-            // Pass through texture coordinates
-            vTexCoord = aTexCoord;
-        }`;
+             // Store depth for logarithmic depth buffer (match object shader)
+             vFragDepth = 1.0 + gl_Position.w;
+
+             // Pass through texture coordinates
+             vTexCoord = aTexCoord;
+         }`;
     }
 
     /**
@@ -76,10 +80,12 @@ class SpriteShader {
         precision mediump float;
         
         ${isWebGL2 ? "in" : "varying"} vec2 vTexCoord;
+        ${isWebGL2 ? "in" : "varying"} float vFragDepth;  // For logarithmic depth
         
         uniform sampler2D uTexture;
         uniform vec3 uColor;       // Color tint
         uniform float uAlpha;      // Alpha value
+        uniform float uFarPlane;   // For logarithmic depth
         
         ${isWebGL2 ? "out vec4 fragColor;" : ""}
         
@@ -95,6 +101,10 @@ class SpriteShader {
             }
             
             ${isWebGL2 ? "fragColor = finalColor;" : "gl_FragColor = finalColor;"}
+            
+            // Logarithmic depth buffer encoding (match object shader)
+            float logDepth = log2(vFragDepth) / log2(uFarPlane + 1.0);
+            ${isWebGL2 ? "gl_FragDepth" : "gl_FragDepth"} = logDepth;
         }`;
     }
 }

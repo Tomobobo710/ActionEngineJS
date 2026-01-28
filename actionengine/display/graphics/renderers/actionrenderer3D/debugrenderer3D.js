@@ -226,7 +226,8 @@ class DebugRenderer3D {
                     position: this.gl.getAttribLocation(lineShader.program, "aPosition"),
                     projectionMatrix: this.gl.getUniformLocation(lineShader.program, "uProjectionMatrix"),
                     viewMatrix: this.gl.getUniformLocation(lineShader.program, "uViewMatrix"),
-                    color: this.gl.getUniformLocation(lineShader.program, "uColor")
+                    color: this.gl.getUniformLocation(lineShader.program, "uColor"),
+                    farPlane: this.gl.getUniformLocation(lineShader.program, "uFarPlane")
                 };
             }
 
@@ -238,6 +239,12 @@ class DebugRenderer3D {
             const colorLocation = lineShader.locations.color || this.gl.getUniformLocation(lineShader.program, "uColor");
             if (colorLocation) {
                 this.gl.uniform3fv(colorLocation, color);
+            }
+            
+            // Set far plane for logarithmic depth
+            const farPlaneLocation = lineShader.locations.farPlane || this.gl.getUniformLocation(lineShader.program, "uFarPlane");
+            if (farPlaneLocation) {
+                this.gl.uniform1f(farPlaneLocation, 10000.0);
             }
 
             // Buffer and draw the line

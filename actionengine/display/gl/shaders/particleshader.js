@@ -10,11 +10,15 @@ class ParticleShader {
         uniform mat4 uViewMatrix;
     
         ${isWebGL2 ? "out" : "varying"} vec4 vColor;
+        ${isWebGL2 ? "out" : "varying"} float vFragDepth;  // For logarithmic depth
     
         void main() {
             gl_Position = uProjectionMatrix * uViewMatrix * vec4(aPosition, 1.0);
             gl_PointSize = aSize;
             vColor = aColor;
+            
+            // Store depth for logarithmic depth buffer
+            vFragDepth = 1.0 + gl_Position.w;
         }`;
     }
 
@@ -22,8 +26,10 @@ class ParticleShader {
         return `${isWebGL2 ? "#version 300 es\n" : ""}
         precision mediump float;
         ${isWebGL2 ? "in" : "varying"} vec4 vColor;
+        ${isWebGL2 ? "in" : "varying"} float vFragDepth;  // For logarithmic depth
         ${isWebGL2 ? "out vec4 fragColor;\n" : ""}
         uniform int uParticleType;
+        uniform float uFarPlane;  // For logarithmic depth
         void main() {
             vec2 coord = gl_PointCoord * 2.0 - 1.0;
             if (uParticleType == 1 || uParticleType == 2) {  // Rain types
@@ -38,6 +44,10 @@ class ParticleShader {
                 if (r > 1.0) discard;
                 ${isWebGL2 ? "fragColor" : "gl_FragColor"} = vColor;
             }
+            
+            // Logarithmic depth buffer encoding
+            float logDepth = log2(vFragDepth) / log2(uFarPlane + 1.0);
+            ${isWebGL2 ? "gl_FragDepth" : "gl_FragDepth"} = logDepth;
         }`;
     }
 }

@@ -20,9 +20,14 @@ class SunRenderer3D {
         uniform mat4 uViewMatrix;
         uniform float uPointSize;
         
+        out float vFragDepth;  // For logarithmic depth
+        
         void main() {
             gl_Position = uProjectionMatrix * uViewMatrix * vec4(aPosition, 1.0);
             gl_PointSize = uPointSize;
+            
+            // Store depth for logarithmic depth buffer
+            vFragDepth = 1.0 + gl_Position.w;
         }`;
         
         // Fragment shader with a circular point
@@ -30,6 +35,8 @@ class SunRenderer3D {
         precision mediump float;
         
         uniform vec3 uSunColor;
+        uniform float uFarPlane;  // For logarithmic depth
+        in float vFragDepth;  // For logarithmic depth
         out vec4 fragColor;
         
         void main() {
@@ -42,6 +49,10 @@ class SunRenderer3D {
             
             // Sun color with alpha based on distance
             fragColor = vec4(uSunColor, alpha);
+            
+            // Logarithmic depth buffer encoding
+            float logDepth = log2(vFragDepth) / log2(uFarPlane + 1.0);
+            gl_FragDepth = logDepth;
         }`;
         
         // Create shader program
@@ -64,7 +75,8 @@ class SunRenderer3D {
             projectionMatrix: this.gl.getUniformLocation(this.program, 'uProjectionMatrix'),
             viewMatrix: this.gl.getUniformLocation(this.program, 'uViewMatrix'),
             pointSize: this.gl.getUniformLocation(this.program, 'uPointSize'),
-            sunColor: this.gl.getUniformLocation(this.program, 'uSunColor')
+            sunColor: this.gl.getUniformLocation(this.program, 'uSunColor'),
+            farPlane: this.gl.getUniformLocation(this.program, 'uFarPlane')
         };
     }
     
@@ -105,6 +117,11 @@ class SunRenderer3D {
         
         gl.uniformMatrix4fv(this.locations.projectionMatrix, false, projectionMatrix);
         gl.uniformMatrix4fv(this.locations.viewMatrix, false, viewMatrix);
+        
+        // Set far plane for logarithmic depth
+        if (this.locations.farPlane) {
+            gl.uniform1f(this.locations.farPlane, 10000.0);
+        }
         
         // Set sun color based on active shader
         if (isVirtualBoyMode) {

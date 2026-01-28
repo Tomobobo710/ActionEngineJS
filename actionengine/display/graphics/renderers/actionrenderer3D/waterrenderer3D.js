@@ -79,7 +79,7 @@ class WaterRenderer3D {
 
         // Enhanced depth and blending setup
         this.gl.enable(this.gl.DEPTH_TEST);
-        this.gl.depthMask(false); // Changed to false for better transparency handling
+        this.gl.depthMask(true); // Write logarithmic depth for proper depth testing
         this.gl.enable(this.gl.BLEND);
         this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
 
@@ -98,6 +98,12 @@ class WaterRenderer3D {
         this.gl.uniform1f(this.waterLocations.time, currentTime * this.waterConfig.waveSpeed);
         this.gl.uniform3fv(this.waterLocations.cameraPos, camera.position.toArray());
         this.gl.uniform3fv(this.waterLocations.lightDir, [0.5, -1.0, 0.5]);
+        
+        // Set far plane for logarithmic depth
+        const farPlaneLoc = this.gl.getUniformLocation(this.waterProgram, 'uFarPlane');
+        if (farPlaneLoc !== -1 && farPlaneLoc !== null) {
+            this.gl.uniform1f(farPlaneLoc, 10000.0);
+        }
         
         // Add new water configuration uniforms
         this.gl.uniform1f(this.waterLocations.waveHeight, this.waterConfig.waveHeight);

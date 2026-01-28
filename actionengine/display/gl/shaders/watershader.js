@@ -13,6 +13,7 @@ class WaterShader {
         ${isWebGL2 ? "out" : "varying"} vec3 vPosition;
         ${isWebGL2 ? "out" : "varying"} vec3 vNormal;
         ${isWebGL2 ? "out" : "varying"} vec2 vTexCoord;
+        ${isWebGL2 ? "out" : "varying"} float vFragDepth;  // For logarithmic depth
         
         void main() {
             vec3 pos = aPosition;
@@ -29,7 +30,11 @@ class WaterShader {
             vNormal = normal;
             vTexCoord = aTexCoord;
             
-            gl_Position = uProjectionMatrix * uViewMatrix * vec4(vPosition, 1.0);
+            vec4 clipPos = uProjectionMatrix * uViewMatrix * vec4(vPosition, 1.0);
+            gl_Position = clipPos;
+            
+            // Store depth for logarithmic depth buffer
+            vFragDepth = 1.0 + clipPos.w;
         }`;
     }
 
@@ -40,10 +45,12 @@ class WaterShader {
         ${isWebGL2 ? "in" : "varying"} vec3 vPosition;
         ${isWebGL2 ? "in" : "varying"} vec3 vNormal;
         ${isWebGL2 ? "in" : "varying"} vec2 vTexCoord;
+        ${isWebGL2 ? "in" : "varying"} float vFragDepth;  // For logarithmic depth
         
         uniform vec3 uCameraPos;
         uniform vec3 uLightDir;
         uniform float uTime;
+        uniform float uFarPlane;  // For logarithmic depth
         
         ${isWebGL2 ? "out vec4 fragColor;\n" : ""}
         
@@ -62,6 +69,10 @@ class WaterShader {
             float alpha = mix(0.6, 0.9, fresnel);
             
             ${isWebGL2 ? "fragColor" : "gl_FragColor"} = vec4(finalColor, alpha);
+            
+            // Logarithmic depth buffer encoding (match other shaders)
+            float logDepth = log2(vFragDepth) / log2(uFarPlane + 1.0);
+            ${isWebGL2 ? "gl_FragDepth" : "gl_FragDepth"} = logDepth;
         }`;
     }
 }

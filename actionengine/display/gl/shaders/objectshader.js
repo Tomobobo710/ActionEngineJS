@@ -98,11 +98,16 @@ class ObjectShader {
     ${isWebGL2 ? "out" : "varying"} vec4 vFragPosLightSpace;  // Added for shadow mapping
     ${isWebGL2 ? "out" : "varying"} vec3 vNormal;
     ${isWebGL2 ? "out" : "varying"} vec3 vFragPos;
+    ${isWebGL2 ? "out" : "varying"} float vFragDepth;  // For logarithmic depth buffer
     
     void main() {
         vec4 worldPos = uModelMatrix * vec4(aPosition, 1.0);
         vFragPos = worldPos.xyz;
         gl_Position = uProjectionMatrix * uViewMatrix * worldPos;
+        
+        // Store depth for logarithmic depth buffer
+        // gl_Position.w contains the linear depth after view transformation
+        vFragDepth = 1.0 + gl_Position.w;
         
         // Position in light space for shadow mapping
         vFragPosLightSpace = uLightSpaceMatrix * worldPos;
@@ -330,6 +335,7 @@ class ObjectShader {
     ${isWebGL2 ? "in" : "varying"} vec4 vFragPosLightSpace;
     ${isWebGL2 ? "in" : "varying"} vec3 vNormal;
     ${isWebGL2 ? "in" : "varying"} vec3 vFragPos;
+    ${isWebGL2 ? "in" : "varying"} float vFragDepth;  // For logarithmic depth
     
     // Texture array for albedo textures
     ${isWebGL2 ? "uniform sampler2DArray uTextureArray;" : "uniform sampler2D uTexture;"}
@@ -385,7 +391,8 @@ class ObjectShader {
     uniform float uShadowSoftness; // Controls shadow edge softness (0-1)
     uniform int uPCFSize; // Controls PCF kernel size (1, 3, 5, 7, 9)
     uniform bool uPCFEnabled; // Controls whether PCF filtering is enabled
-    uniform float uFarPlane; // Far plane for point light shadows
+    uniform float uFarPlane; // Far plane for logarithmic depth buffer
+    uniform float uPointShadowFarPlane; // Far plane for point light shadow depth comparison
     
     // Structures to hold light data
     struct DirectionalLight {
@@ -715,25 +722,25 @@ class ObjectShader {
                 switch(lightIdx) {
                     case 0:
                         if (uPointShadowsEnabled) {
-                            float pointShadowFactor = pointShadowCalculationPCF(vFragPos, light.position, uPointShadowMap, uFarPlane);
+                            float pointShadowFactor = pointShadowCalculationPCF(vFragPos, light.position, uPointShadowMap, uPointShadowFarPlane);
                             pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
                         }
                         break;
                     case 1:
                         if (uPointShadowsEnabled1) {
-                            float pointShadowFactor = pointShadowCalculationPCF(vFragPos, light.position, uPointShadowMap1, uFarPlane);
+                            float pointShadowFactor = pointShadowCalculationPCF(vFragPos, light.position, uPointShadowMap1, uPointShadowFarPlane);
                             pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
                         }
                         break;
                     case 2:
                         if (uPointShadowsEnabled2) {
-                            float pointShadowFactor = pointShadowCalculationPCF(vFragPos, light.position, uPointShadowMap2, uFarPlane);
+                            float pointShadowFactor = pointShadowCalculationPCF(vFragPos, light.position, uPointShadowMap2, uPointShadowFarPlane);
                             pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
                         }
                         break;
                     case 3:
                         if (uPointShadowsEnabled3) {
-                            float pointShadowFactor = pointShadowCalculationPCF(vFragPos, light.position, uPointShadowMap3, uFarPlane);
+                            float pointShadowFactor = pointShadowCalculationPCF(vFragPos, light.position, uPointShadowMap3, uPointShadowFarPlane);
                             pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
                         }
                         break;
@@ -758,7 +765,7 @@ class ObjectShader {
             
             float pointShadow = 1.0;
             if (uPointShadowsEnabled) {
-                float pointShadowFactor = pointShadowCalculationPCF(vFragPos, uPointLightPos, uPointShadowMap, uFarPlane);
+                float pointShadowFactor = pointShadowCalculationPCF(vFragPos, uPointLightPos, uPointShadowMap, uPointShadowFarPlane);
                 pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
             }
             
@@ -775,7 +782,7 @@ class ObjectShader {
                 
                 pointShadow = 1.0;
                 if (uPointShadowsEnabled1) {
-                    float pointShadowFactor = pointShadowCalculationPCF(vFragPos, uPointLightPos1, uPointShadowMap1, uFarPlane);
+                    float pointShadowFactor = pointShadowCalculationPCF(vFragPos, uPointLightPos1, uPointShadowMap1, uPointShadowFarPlane);
                     pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
                 }
                 
@@ -838,7 +845,13 @@ class ObjectShader {
         }
         
         ${isWebGL2 ? "fragColor" : "gl_FragColor"} = vec4(result, baseColor.a);
-    }`;
+        
+        // Logarithmic depth buffer encoding
+        // Provides exponentially more precision at distance
+        // Formula: log2(depth) / log2(farPlane + 1.0)
+        float logDepth = log2(vFragDepth) / log2(uFarPlane + 1.0);
+        ${isWebGL2 ? "gl_FragDepth" : "gl_FragDepth"} = logDepth;
+        }`;
     }
 
     //--------------------------------------------------------------------------
@@ -1598,25 +1611,25 @@ void main() {
             switch(lightIdx) {
                 case 0:
                     if (uPointShadowsEnabled) {
-                        float pointShadowFactor = pointShadowCalculationPCF(vFragPos, light.position, uPointShadowMap, uFarPlane);
+                        float pointShadowFactor = pointShadowCalculationPCF(vFragPos, light.position, uPointShadowMap, uPointShadowFarPlane);
                         pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
                     }
                     break;
                 case 1:
                     if (uPointShadowsEnabled1) {
-                        float pointShadowFactor = pointShadowCalculationPCF(vFragPos, light.position, uPointShadowMap1, uFarPlane);
+                        float pointShadowFactor = pointShadowCalculationPCF(vFragPos, light.position, uPointShadowMap1, uPointShadowFarPlane);
                         pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
                     }
                     break;
                 case 2:
                     if (uPointShadowsEnabled2) {
-                        float pointShadowFactor = pointShadowCalculationPCF(vFragPos, light.position, uPointShadowMap2, uFarPlane);
+                        float pointShadowFactor = pointShadowCalculationPCF(vFragPos, light.position, uPointShadowMap2, uPointShadowFarPlane);
                         pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
                     }
                     break;
                 case 3:
                     if (uPointShadowsEnabled3) {
-                        float pointShadowFactor = pointShadowCalculationPCF(vFragPos, light.position, uPointShadowMap3, uFarPlane);
+                        float pointShadowFactor = pointShadowCalculationPCF(vFragPos, light.position, uPointShadowMap3, uPointShadowFarPlane);
                         pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
                     }
                     break;
@@ -1642,7 +1655,7 @@ void main() {
         
         float pointShadow = 1.0;
         if (uPointShadowsEnabled) {
-            float pointShadowFactor = pointShadowCalculationPCF(vFragPos, uPointLightPos, uPointShadowMap, uFarPlane);
+            float pointShadowFactor = pointShadowCalculationPCF(vFragPos, uPointLightPos, uPointShadowMap, uPointShadowFarPlane);
             pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
         }
         
@@ -1663,7 +1676,7 @@ void main() {
             
             pointShadow = 1.0;
             if (uPointShadowsEnabled1) {
-                float pointShadowFactor = pointShadowCalculationPCF(vFragPos, uPointLightPos1, uPointShadowMap1, uFarPlane);
+                float pointShadowFactor = pointShadowCalculationPCF(vFragPos, uPointLightPos1, uPointShadowMap1, uPointShadowFarPlane);
                 pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
             }
             

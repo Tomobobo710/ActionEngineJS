@@ -38,23 +38,24 @@ class ProgramManager {
         };
         
         this.uniformNames = {
-            projectionMatrix: 'uProjectionMatrix',
-            viewMatrix: 'uViewMatrix',
-            modelMatrix: 'uModelMatrix',
-            lightPos: 'uLightPos',
-            lightDir: 'uLightDir',
-            lightIntensity: 'uLightIntensity',
-            pointLightIntensity: 'uPointLightIntensity',
-            roughness: 'uRoughness',
-            metallic: 'uMetallic',
-            baseReflectivity: 'uBaseReflectivity',
-            cameraPos: 'uCameraPos',
-            time: 'uTime',
-            lightSpaceMatrix: 'uLightSpaceMatrix',
-            shadowMap: 'uShadowMap',
-            shadowsEnabled: 'uShadowsEnabled',
-            intensityFactor: 'uIntensityFactor'
-        };
+             projectionMatrix: 'uProjectionMatrix',
+             viewMatrix: 'uViewMatrix',
+             modelMatrix: 'uModelMatrix',
+             lightPos: 'uLightPos',
+             lightDir: 'uLightDir',
+             lightIntensity: 'uLightIntensity',
+             pointLightIntensity: 'uPointLightIntensity',
+             roughness: 'uRoughness',
+             metallic: 'uMetallic',
+             baseReflectivity: 'uBaseReflectivity',
+             cameraPos: 'uCameraPos',
+             time: 'uTime',
+             lightSpaceMatrix: 'uLightSpaceMatrix',
+             shadowMap: 'uShadowMap',
+             shadowsEnabled: 'uShadowsEnabled',
+             intensityFactor: 'uIntensityFactor',
+             farPlane: 'uFarPlane'
+         };
         
         this.textureUniforms = {
             standard: this.isWebGL2 ? 'uTextureArray' : 'uTexture',
@@ -356,7 +357,8 @@ class ProgramManager {
             size: this.gl.getAttribLocation(this.particleProgram, "aSize"),
             color: this.gl.getAttribLocation(this.particleProgram, "aColor"),
             projectionMatrix: this.gl.getUniformLocation(this.particleProgram, "uProjectionMatrix"),
-            viewMatrix: this.gl.getUniformLocation(this.particleProgram, "uViewMatrix")
+            viewMatrix: this.gl.getUniformLocation(this.particleProgram, "uViewMatrix"),
+            farPlane: this.gl.getUniformLocation(this.particleProgram, "uFarPlane")
         };
     }
 
@@ -469,6 +471,7 @@ class ProgramManager {
             pointLightTextureSize: gl.getUniformLocation(program, "uPointLightTextureSize"),
             
             farPlane: gl.getUniformLocation(program, "uFarPlane"),
+            pointShadowFarPlane: gl.getUniformLocation(program, "uPointShadowFarPlane"),
             
             // Legacy light uniforms
             pointLightPos: gl.getUniformLocation(program, "uPointLightPos"),

@@ -442,6 +442,16 @@ class ObjectRenderer3D {
             gl.uniform3fv(locations.cameraPos, camera.position.toArray());
         }
 
+        // Set far plane for logarithmic depth (assuming 10000 as before)
+        if (locations.farPlane !== -1 && locations.farPlane !== null) {
+            gl.uniform1f(locations.farPlane, 10000.0);
+        }
+        
+        // Set far plane for point shadow depth comparison (500.0 matches shadow map rendering)
+        if (locations.pointShadowFarPlane !== -1 && locations.pointShadowFarPlane !== null) {
+            gl.uniform1f(locations.pointShadowFarPlane, 500.0);
+        }
+
         // Only set light uniforms if we actually have a directional light
         // Otherwise the shader will skip directional light calculations entirely
         const config = this._uniformCache.lightConfig;
