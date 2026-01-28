@@ -7,8 +7,9 @@
  * Games should provide their own title screen and integrate this component for multiplayer features.
  */
 class ActionNetManagerGUI {
-    static WIDTH = 800;
-    static HEIGHT = 600;
+    // Dynamic getters that reference Game's resolution
+    static get WIDTH() { return Game.WIDTH || 800; }
+    static get HEIGHT() { return Game.HEIGHT || 600; }
 
     // Network configuration - matches Game.NETWORK_CONFIG
     static NETWORK_CONFIG = {
