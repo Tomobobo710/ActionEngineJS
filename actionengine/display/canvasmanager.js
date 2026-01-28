@@ -1,9 +1,8 @@
 // actionengine/display/canvasmanager.js
 class CanvasManager {
-    static get WIDTH() { return 800; }
-    static get HEIGHT() { return 600; }
-
-    constructor() {
+    constructor(width = 800, height = 600) {
+        this.width = width;
+        this.height = height;
         this.container = document.getElementById("appContainer");
 
         // Create the three canvases with explicit roles
@@ -25,8 +24,8 @@ class CanvasManager {
     createCanvas(id) {
         const canvas = document.createElement("canvas");
         canvas.id = id;
-        canvas.width = CanvasManager.WIDTH;
-        canvas.height = CanvasManager.HEIGHT;
+        canvas.width = this.width;
+        canvas.height = this.height;
         this.container.appendChild(canvas);
         return canvas;
     }
@@ -51,10 +50,10 @@ class CanvasManager {
         const containerWidth = this.container.clientWidth;
         const containerHeight = this.container.clientHeight;
 
-        const scale = Math.min(containerWidth / CanvasManager.WIDTH, containerHeight / CanvasManager.HEIGHT);
+        const scale = Math.min(containerWidth / this.width, containerHeight / this.height);
 
-        const scaledWidth = CanvasManager.WIDTH * scale;
-        const scaledHeight = CanvasManager.HEIGHT * scale;
+        const scaledWidth = this.width * scale;
+        const scaledHeight = this.height * scale;
 
         // Apply scaling to all canvases
         [this.gameCanvas, this.guiCanvas, this.debugCanvas].forEach((canvas) => {
