@@ -334,7 +334,11 @@ canvas {
 
 class App {
     constructor(options = {}) {
-        this.threelayersystem = new CanvasManager();
+        // Check if Game class specifies resolution (allows per-game configuration)
+        const width = Game.WIDTH || 800;
+        const height = Game.HEIGHT || 600;
+        
+        this.threelayersystem = new CanvasManager(width, height);
         const canvases = this.threelayersystem.getCanvases();
         this.audio = new ActionAudioManager();
         this.input = new ActionInputHandler(this.audio, canvases);
