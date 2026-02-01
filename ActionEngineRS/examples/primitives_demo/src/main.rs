@@ -1,13 +1,23 @@
 //! Primitives Demo - showcases all rendering primitives
-//! Circles, lines, rects, paths, transforms, gradients, images
+//! Circles, lines, rects, paths, transforms, gradients, images, text, audio
 
 use action_engine::{
-    Action, Color, Game, Image, Input, LinearGradient, MouseButton, Pos2, Rect, Renderer, Stroke,
-    Vec2,
+    AudioManager, Color, Font, Game, Image, Input, LinearGradient, MouseButton, Pos2, Rect,
+    Renderer, Sound, SoundHandle, Stroke, TextStyle, Vec2, Action,
 };
 use std::collections::VecDeque;
 
 struct PrimitivesDemo {
+    // Audio
+    audio: Option<AudioManager>,
+    laser_sounds: Vec<Sound>,
+
+    // Music
+    music_tracks: Vec<Sound>,
+    music_names: Vec<&'static str>,
+    current_track: usize,
+    music_handle: Option<SoundHandle>,
+
     // Player (now a circle!)
     player_x: f32,
     player_y: f32,
@@ -41,10 +51,15 @@ struct PrimitivesDemo {
     image_jpg: Option<Image>,
     image_webp: Option<Image>,
 
-    // FPS tracking (minimum over last 5 seconds)
-    fps_min: f32,
-    fps_history: VecDeque<(f32, f32)>, // (timestamp, fps)
+    // Loaded fonts
+    font_regular: Font,
+    font_bold: Font,
 }
+
+// Radio UI constants
+const RADIO_X: f32 = 730.0;
+const RADIO_Y: f32 = 560.0;
+const RADIO_RADIUS: f32 = 25.0;
 
 impl Game for PrimitivesDemo {
     const WIDTH: u32 = 800;
@@ -60,7 +75,46 @@ impl Game for PrimitivesDemo {
         let image_jpg = Image::from_jpeg(jpg_data).ok();
         let image_webp = Image::from_webp(webp_data).ok();
 
+        // Load fonts from assets (embedded at compile time)
+        let font_regular_data = include_bytes!("../assets/Ubuntu-Regular.ttf");
+        let font_bold_data = include_bytes!("../assets/Ubuntu-Bold.ttf");
+
+        let font_regular =
+            Font::from_bytes(font_regular_data).expect("Failed to load Ubuntu-Regular.ttf");
+        let font_bold =
+            Font::from_bytes(font_bold_data).expect("Failed to load Ubuntu-Bold.ttf");
+
+        // Initialize audio (may fail gracefully)
+        let audio = match AudioManager::new() {
+            Ok(am) => Some(am),
+            Err(e) => {
+                eprintln!("Warning: Failed to initialize audio: {}", e);
+                None
+            }
+        };
+
+        // Load laser sound effects
+        let laser_sounds = vec![
+            Sound::from_wav(include_bytes!("../assets/laser1.wav")).expect("Failed to load laser1"),
+            Sound::from_wav(include_bytes!("../assets/laser2.wav")).expect("Failed to load laser2"),
+            Sound::from_wav(include_bytes!("../assets/laser3.wav")).expect("Failed to load laser3"),
+            Sound::from_wav(include_bytes!("../assets/laser5.wav")).expect("Failed to load laser5"),
+        ];
+
+        // Load music tracks (works on all platforms - native and WASM)
+        let music_tracks = vec![
+            Sound::from_mp3(include_bytes!("../assets/music_1.mp3")).expect("Failed to load music_1.mp3"),
+            Sound::from_ogg(include_bytes!("../assets/music_2.ogg")).expect("Failed to load music_2.ogg"),
+        ];
+        let music_names = vec!["Track 1 (MP3)", "Track 2 (OGG)"];
+
         Self {
+            audio,
+            laser_sounds,
+            music_tracks,
+            music_names,
+            current_track: 0,
+            music_handle: None,
             player_x: 400.0,
             player_y: 300.0,
             player_speed: 200.0,
@@ -80,8 +134,8 @@ impl Game for PrimitivesDemo {
             image_png,
             image_jpg,
             image_webp,
-            fps_min: 60.0,
-            fps_history: VecDeque::with_capacity(512),
+            font_regular,
+            font_bold,
         }
     }
 
@@ -89,25 +143,11 @@ impl Game for PrimitivesDemo {
         // Advance animation time
         self.time += dt;
 
-        // Track minimum FPS over the last 5 seconds
-        if dt > 0.0 {
-            let current_fps = 1.0 / dt;
-            self.fps_history.push_back((self.time, current_fps));
-
-            // Remove samples older than 5 seconds
-            while let Some(&(t, _)) = self.fps_history.front() {
-                if self.time - t > 5.0 {
-                    self.fps_history.pop_front();
-                } else {
-                    break;
-                }
+        // Auto-start music on first frame (only if we have tracks)
+        if self.music_handle.is_none() && !self.music_tracks.is_empty() {
+            if let Some(audio) = &mut self.audio {
+                self.music_handle = Some(audio.play(&self.music_tracks[self.current_track], 0.3, true));
             }
-
-            // Find minimum FPS in the window
-            self.fps_min = self.fps_history
-                .iter()
-                .map(|(_, fps)| *fps)
-                .fold(f32::INFINITY, f32::min);
         }
 
         // Move player with directional input
@@ -136,18 +176,30 @@ impl Game for PrimitivesDemo {
             }
         }
 
-        // Flash on action button press
+        // Flash on action button press and play laser sounds
         if input.is_action_just_pressed(Action::Action1) {
             self.action_flash[0] = 1.0;
+            if let Some(audio) = &mut self.audio {
+                audio.play(&self.laser_sounds[0], 0.5, false);
+            }
         }
         if input.is_action_just_pressed(Action::Action2) {
             self.action_flash[1] = 1.0;
+            if let Some(audio) = &mut self.audio {
+                audio.play(&self.laser_sounds[1], 0.5, false);
+            }
         }
         if input.is_action_just_pressed(Action::Action3) {
             self.action_flash[2] = 1.0;
+            if let Some(audio) = &mut self.audio {
+                audio.play(&self.laser_sounds[2], 0.5, false);
+            }
         }
         if input.is_action_just_pressed(Action::Action4) {
             self.action_flash[3] = 1.0;
+            if let Some(audio) = &mut self.audio {
+                audio.play(&self.laser_sounds[3], 0.5, false);
+            }
         }
 
         // Decay flash timers
@@ -155,11 +207,27 @@ impl Game for PrimitivesDemo {
             *flash = (*flash - dt * 3.0).max(0.0);
         }
 
-        // Track clicks
+        // Check for click on radio to change track (only if we have tracks)
         if input.is_mouse_button_just_pressed(MouseButton::Left) {
-            self.click_pos = Some(mouse_pos);
-            self.click_timer = 1.0;
+            let dx = mouse_pos.x - RADIO_X;
+            let dy = mouse_pos.y - RADIO_Y;
+            if !self.music_tracks.is_empty() && dx * dx + dy * dy <= RADIO_RADIUS * RADIO_RADIUS {
+                // Clicked on radio - stop current music and play next track
+                if let Some(handle) = &self.music_handle {
+                    handle.stop();
+                }
+                self.current_track = (self.current_track + 1) % self.music_tracks.len();
+                if let Some(audio) = &mut self.audio {
+                    self.music_handle =
+                        Some(audio.play(&self.music_tracks[self.current_track], 0.3, true));
+                }
+            } else {
+                // Normal click indicator
+                self.click_pos = Some(mouse_pos);
+                self.click_timer = 1.0;
+            }
         }
+
         self.click_timer = (self.click_timer - dt * 2.0).max(0.0);
         if self.click_timer <= 0.0 {
             self.click_pos = None;
@@ -311,7 +379,11 @@ impl Game for PrimitivesDemo {
             10.0,
             if self.mouse_middle { mouse_on } else { off },
         );
-        renderer.stroke_circle(Pos2::new(mb_x + 35.0, mb_y), 10.0, Stroke::new(1.0, Color::WHITE));
+        renderer.stroke_circle(
+            Pos2::new(mb_x + 35.0, mb_y),
+            10.0,
+            Stroke::new(1.0, Color::WHITE),
+        );
 
         // Right mouse
         renderer.fill_circle(
@@ -319,7 +391,11 @@ impl Game for PrimitivesDemo {
             15.0,
             if self.mouse_right { mouse_on } else { off },
         );
-        renderer.stroke_circle(Pos2::new(mb_x + 70.0, mb_y), 15.0, Stroke::new(1.0, Color::WHITE));
+        renderer.stroke_circle(
+            Pos2::new(mb_x + 70.0, mb_y),
+            15.0,
+            Stroke::new(1.0, Color::WHITE),
+        );
 
         // === GRADIENT SHOWCASE ===
         // Top-left: horizontal gradient
@@ -473,78 +549,73 @@ impl Game for PrimitivesDemo {
             Stroke::new(1.0, Color::rgba(255, 255, 255, 50)),
         );
 
-        // === FPS COUNTER (top-right, 50% opacity, shows 5-second low) ===
-        let fps_str = format!("{:.0}", self.fps_min);
-        let digit_w = 12.0;
-        let digit_h = 20.0;
-        let digit_gap = 3.0;
-        let total_w = fps_str.len() as f32 * (digit_w + digit_gap);
-        let fps_x = Self::WIDTH as f32 - total_w - 10.0;
-        let fps_y = 10.0;
-        let fps_color = Color::rgba(255, 255, 255, 128); // 50% opacity
+        // === RADIO UI (bottom right) ===
+        // Only show if we have music tracks
+        if !self.music_tracks.is_empty() {
+            // Background circle
+            renderer.fill_circle(Pos2::new(RADIO_X, RADIO_Y), RADIO_RADIUS, Color::rgb(50, 50, 60));
 
-        for (i, ch) in fps_str.chars().enumerate() {
-            let x = fps_x + i as f32 * (digit_w + digit_gap);
-            draw_7seg_digit(renderer, x, fps_y, digit_w, digit_h, ch, fps_color);
+            // Animated music waves
+            let wave_phase = self.time * 4.0;
+            for i in 0..3 {
+                let wave_offset = i as f32 * 0.5;
+                let wave_height = 5.0 + 3.0 * (wave_phase + wave_offset).sin().abs();
+                let x_offset = (i as f32 - 1.0) * 8.0;
+                renderer.fill_rect(
+                    Rect::from_min_size(
+                        Pos2::new(RADIO_X + x_offset - 2.0, RADIO_Y - wave_height),
+                        Vec2::new(4.0, wave_height * 2.0),
+                    ),
+                    Color::rgb(100, 200, 255),
+                );
+            }
+
+            // Border
+            renderer.stroke_circle(
+                Pos2::new(RADIO_X, RADIO_Y),
+                RADIO_RADIUS,
+                Stroke::new(2.0, Color::rgb(100, 200, 255)),
+            );
+
+            // Track name label
+            let track_style = TextStyle::new(&self.font_regular, 10.0, Color::rgba(180, 180, 180, 200));
+            let track_name = self.music_names[self.current_track];
+            let track_w = renderer.measure_text(track_name, &track_style).x;
+            renderer.draw_text(
+                track_name,
+                Pos2::new(RADIO_X - track_w / 2.0, RADIO_Y - RADIO_RADIUS - 15.0),
+                &track_style,
+            );
+
+            // "Click to change" hint
+            let hint_style = TextStyle::new(&self.font_regular, 8.0, Color::rgba(120, 120, 120, 180));
+            renderer.draw_text("click to change", Pos2::new(RADIO_X - 35.0, RADIO_Y + RADIO_RADIUS + 5.0), &hint_style);
         }
-    }
-}
 
-/// Draw a 7-segment style digit
-fn draw_7seg_digit(
-    renderer: &mut dyn Renderer,
-    x: f32,
-    y: f32,
-    w: f32,
-    h: f32,
-    digit: char,
-    color: Color,
-) {
-    let stroke = Stroke::new(2.0, color);
-    let half_h = h / 2.0;
+        // === TEXT SHOWCASE ===
+        // Title
+        let title_style = TextStyle::new(&self.font_bold, 24.0, Color::CYAN);
+        renderer.draw_text("ActionEngineRS", Pos2::new(300.0, 560.0), &title_style);
 
-    // Segment map: [top, top-right, bottom-right, bottom, bottom-left, top-left, middle]
-    let segments: [bool; 7] = match digit {
-        '0' => [true, true, true, true, true, true, false],
-        '1' => [false, true, true, false, false, false, false],
-        '2' => [true, true, false, true, true, false, true],
-        '3' => [true, true, true, true, false, false, true],
-        '4' => [false, true, true, false, false, true, true],
-        '5' => [true, false, true, true, false, true, true],
-        '6' => [true, false, true, true, true, true, true],
-        '7' => [true, true, true, false, false, false, false],
-        '8' => [true, true, true, true, true, true, true],
-        '9' => [true, true, true, true, false, true, true],
-        _ => [false; 7],
-    };
+        // Subtitle with regular font
+        let subtitle_style =
+            TextStyle::new(&self.font_regular, 14.0, Color::rgba(200, 200, 200, 200));
+        renderer.draw_text("Primitives Demo", Pos2::new(300.0, 585.0), &subtitle_style);
 
-    // Top
-    if segments[0] {
-        renderer.draw_line(Pos2::new(x, y), Pos2::new(x + w, y), stroke);
-    }
-    // Top-right
-    if segments[1] {
-        renderer.draw_line(Pos2::new(x + w, y), Pos2::new(x + w, y + half_h), stroke);
-    }
-    // Bottom-right
-    if segments[2] {
-        renderer.draw_line(Pos2::new(x + w, y + half_h), Pos2::new(x + w, y + h), stroke);
-    }
-    // Bottom
-    if segments[3] {
-        renderer.draw_line(Pos2::new(x, y + h), Pos2::new(x + w, y + h), stroke);
-    }
-    // Bottom-left
-    if segments[4] {
-        renderer.draw_line(Pos2::new(x, y + half_h), Pos2::new(x, y + h), stroke);
-    }
-    // Top-left
-    if segments[5] {
-        renderer.draw_line(Pos2::new(x, y), Pos2::new(x, y + half_h), stroke);
-    }
-    // Middle
-    if segments[6] {
-        renderer.draw_line(Pos2::new(x, y + half_h), Pos2::new(x + w, y + half_h), stroke);
+        // Labels for showcases
+        let label_style =
+            TextStyle::new(&self.font_regular, 12.0, Color::rgba(180, 180, 180, 200));
+        renderer.draw_text("Gradients", Pos2::new(20.0, 135.0), &label_style);
+        renderer.draw_text("Paths", Pos2::new(165.0, 135.0), &label_style);
+        renderer.draw_text("Transforms", Pos2::new(360.0, 135.0), &label_style);
+        renderer.draw_text("Images", Pos2::new(20.0, 335.0), &label_style);
+
+        // Action button labels
+        let key_style = TextStyle::new(&self.font_bold, 12.0, Color::WHITE);
+        renderer.draw_text("J", Pos2::new(175.0, 553.0), &key_style);
+        renderer.draw_text("K", Pos2::new(295.0, 553.0), &key_style);
+        renderer.draw_text("L", Pos2::new(415.0, 553.0), &key_style);
+        renderer.draw_text(";", Pos2::new(537.0, 553.0), &key_style);
     }
 }
 

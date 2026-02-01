@@ -1,7 +1,11 @@
 //! Input handling abstractions for ActionEngine
 //!
-//! Provides backend-agnostic input types and traits. Backends (like eframe)
-//! implement the `Input` trait to provide actual input state.
+//! Provides backend-agnostic input types and traits. Backends implement
+//! the `Input` trait to provide actual input state.
+
+// Backend-specific implementations
+#[cfg(feature = "glow-backend")]
+pub mod winit;
 
 use crate::{Pos2, Vec2};
 

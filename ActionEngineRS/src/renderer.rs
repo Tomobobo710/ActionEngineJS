@@ -416,6 +416,67 @@ impl GlowRenderer {
     pub fn gl(&self) -> &glow::Context {
         &self.gl
     }
+
+    /// Helper to draw a text texture (internal use)
+    fn draw_text_texture(&mut self, rgba: &[u8], tex_w: u32, tex_h: u32, pos: Pos2, draw_w: f32, draw_h: f32) {
+        // Flush current batches before drawing texture
+        self.end_frame();
+        self.triangle_batch.clear();
+        self.line_batch.clear();
+
+        unsafe {
+            // Create texture
+            let texture = self.gl.create_texture().expect("Cannot create texture");
+            self.gl.bind_texture(glow::TEXTURE_2D, Some(texture));
+            self.gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MIN_FILTER, glow::LINEAR as i32);
+            self.gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MAG_FILTER, glow::LINEAR as i32);
+            self.gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_S, glow::CLAMP_TO_EDGE as i32);
+            self.gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_T, glow::CLAMP_TO_EDGE as i32);
+
+            self.gl.tex_image_2d(
+                glow::TEXTURE_2D,
+                0,
+                glow::RGBA as i32,
+                tex_w as i32,
+                tex_h as i32,
+                0,
+                glow::RGBA,
+                glow::UNSIGNED_BYTE,
+                glow::PixelUnpackData::Slice(Some(rgba)),
+            );
+
+            // Calculate NDC coordinates
+            let rect = Rect::from_min_size(pos, Vec2::new(draw_w, draw_h));
+            let (x1, y1) = self.to_ndc(rect.min);
+            let (w, h) = self.size_to_ndc(rect.size());
+            let x2 = x1 + w;
+            let y2 = y1 - h;
+
+            #[rustfmt::skip]
+            let vertices: [f32; 24] = [
+                x1, y1, 0.0, 0.0,
+                x2, y1, 1.0, 0.0,
+                x2, y2, 1.0, 1.0,
+                x1, y1, 0.0, 0.0,
+                x2, y2, 1.0, 1.0,
+                x1, y2, 0.0, 1.0,
+            ];
+
+            self.gl.use_program(Some(self.texture_program));
+            self.gl.bind_vertex_array(Some(self.texture_vao));
+            self.gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.texture_vbo));
+            self.gl.buffer_data_u8_slice(
+                glow::ARRAY_BUFFER,
+                bytemuck::cast_slice(&vertices),
+                glow::STREAM_DRAW,
+            );
+            self.gl.draw_arrays(glow::TRIANGLES, 0, 6);
+            self.gl.bind_vertex_array(None);
+
+            // Clean up texture
+            self.gl.delete_texture(texture);
+        }
+    }
 }
 
 impl Renderer for GlowRenderer {
@@ -719,14 +780,86 @@ impl Renderer for GlowRenderer {
         self.triangle_batch.extend_from_slice(&[x1, y2, c_bl[0], c_bl[1], c_bl[2], c_bl[3]]);
     }
 
-    // === Text API (stubs) ===
+    // === Text API ===
 
-    fn draw_text(&mut self, _text: &str, _pos: Pos2, _style: &TextStyle) {
-        // Stub: would require font rasterization library
+    fn draw_text(&mut self, text: &str, pos: Pos2, style: &TextStyle<'_>) {
+        if text.is_empty() {
+            return;
+        }
+
+        // Measure and rasterize all glyphs
+        let mut glyphs: Vec<(fontdue::Metrics, Vec<u8>)> = Vec::with_capacity(text.len());
+        let mut total_width = 0.0f32;
+        let mut max_height = 0u32;
+        let mut max_ascent = 0i32; // Distance from top to baseline
+
+        for ch in text.chars() {
+            let (metrics, bitmap) = style.font.rasterize(ch, style.size);
+            total_width += metrics.advance_width;
+            max_height = max_height.max(metrics.height as u32);
+            // ymin is negative for characters that go above baseline
+            max_ascent = max_ascent.max(metrics.height as i32 + metrics.ymin);
+            glyphs.push((metrics, bitmap));
+        }
+
+        if total_width <= 0.0 || max_height == 0 {
+            return;
+        }
+
+        // Create RGBA buffer for the entire text
+        let tex_width = total_width.ceil() as u32;
+        let tex_height = (style.size * 1.2).ceil() as u32; // Add some padding for descenders
+        let mut rgba = vec![0u8; (tex_width * tex_height * 4) as usize];
+
+        // Composite each glyph into the buffer
+        let mut cursor_x = 0.0f32;
+        let baseline_y = max_ascent as f32;
+
+        for (metrics, bitmap) in &glyphs {
+            if bitmap.is_empty() {
+                cursor_x += metrics.advance_width;
+                continue;
+            }
+
+            // Calculate position for this glyph
+            let glyph_x = cursor_x + metrics.xmin as f32;
+            let glyph_y = baseline_y - metrics.height as f32 - metrics.ymin as f32;
+
+            // Copy glyph bitmap into RGBA buffer
+            for gy in 0..metrics.height {
+                for gx in 0..metrics.width {
+                    let src_idx = gy * metrics.width + gx;
+                    let alpha = bitmap[src_idx];
+                    if alpha == 0 {
+                        continue;
+                    }
+
+                    let dst_x = (glyph_x + gx as f32) as i32;
+                    let dst_y = (glyph_y + gy as f32) as i32;
+
+                    if dst_x >= 0 && dst_x < tex_width as i32 && dst_y >= 0 && dst_y < tex_height as i32 {
+                        let dst_idx = ((dst_y as u32 * tex_width + dst_x as u32) * 4) as usize;
+                        // Premultiplied alpha with text color
+                        let a = alpha as f32 / 255.0;
+                        rgba[dst_idx] = (style.color.r as f32 * a) as u8;
+                        rgba[dst_idx + 1] = (style.color.g as f32 * a) as u8;
+                        rgba[dst_idx + 2] = (style.color.b as f32 * a) as u8;
+                        rgba[dst_idx + 3] = alpha;
+                    }
+                }
+            }
+
+            cursor_x += metrics.advance_width;
+        }
+
+        // Draw the text texture
+        self.draw_text_texture(&rgba, tex_width, tex_height, pos, total_width, tex_height as f32);
     }
 
-    fn measure_text(&self, _text: &str, _style: &TextStyle) -> Vec2 {
-        Vec2::ZERO
+    fn measure_text(&self, text: &str, style: &TextStyle<'_>) -> Vec2 {
+        let width = style.font.measure_width(text, style.size);
+        let height = style.size * 1.2; // Approximate line height
+        Vec2::new(width, height)
     }
 
     fn width(&self) -> f32 {

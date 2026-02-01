@@ -1,8 +1,8 @@
 //! Game runner using winit + glutin + glow
 
+use crate::input::winit::WinitInput;
+use crate::renderer::GlowRenderer;
 use crate::{Game, GameLoop};
-use super::input::WinitInput;
-use super::renderer::GlowRenderer;
 
 use std::ffi::CString;
 use std::num::NonZeroU32;
@@ -172,7 +172,11 @@ impl<G: Game> ApplicationHandler for GlowApp<G> {
                 state.input.handle_mouse_move(position.x, position.y);
             }
 
-            WindowEvent::MouseInput { button, state: btn_state, .. } => {
+            WindowEvent::MouseInput {
+                button,
+                state: btn_state,
+                ..
+            } => {
                 state.input.handle_mouse_button(button, btn_state);
             }
 
@@ -195,6 +199,14 @@ impl<G: Game> ApplicationHandler for GlowApp<G> {
                 // Render
                 state.renderer.begin_frame();
                 state.game_loop.draw(&mut state.renderer);
+
+                // Draw debug overlay (only in debug builds)
+                #[cfg(debug_assertions)]
+                state
+                    .game_loop
+                    .debug_stats
+                    .draw_overlay(&mut state.renderer);
+
                 state.renderer.end_frame();
 
                 // Swap buffers

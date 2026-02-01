@@ -4,5 +4,4 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-# Note: avif-decode requires newer nasm, disabled for now
 action-engine = { path = "../..", features = ["glow-backend", "png", "jpeg-decoder", "image-webp"] }

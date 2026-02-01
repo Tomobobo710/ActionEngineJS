@@ -1,8 +1,8 @@
 //! Game runner for WebAssembly using winit + glow (WebGL)
 
+use crate::input::winit::WinitInput;
+use crate::renderer::GlowRenderer;
 use crate::{Game, GameLoop};
-use super::input::WinitInput;
-use super::renderer::GlowRenderer;
 
 use wasm_bindgen::JsCast;
 use winit::application::ApplicationHandler;
@@ -163,6 +163,11 @@ impl<G: Game> ApplicationHandler for WebApp<G> {
                 // Render
                 state.renderer.begin_frame();
                 state.game_loop.draw(&mut state.renderer);
+
+                // Draw debug overlay (only in debug builds)
+                #[cfg(debug_assertions)]
+                state.game_loop.debug_stats.draw_overlay(&mut state.renderer);
+
                 state.renderer.end_frame();
 
                 // Clear "just pressed" states for next frame

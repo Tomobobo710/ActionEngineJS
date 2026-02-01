@@ -28,15 +28,33 @@
 //! ```
 
 mod input;
+mod audio;
+mod debug;
 
 pub use input::*;
+pub use audio::Sound;
+pub use debug::DebugStats;
 
 // Glow/OpenGL backend (optional)
+#[cfg(feature = "glow-backend")]
+mod renderer;
 #[cfg(feature = "glow-backend")]
 mod backend;
 
 #[cfg(feature = "glow-backend")]
-pub use backend::{run, GlowRenderer, WinitInput};
+pub use backend::run;
+#[cfg(feature = "glow-backend")]
+pub use renderer::GlowRenderer;
+#[cfg(feature = "glow-backend")]
+pub use input::winit::WinitInput;
+
+// Platform-specific audio managers
+#[cfg(all(feature = "glow-backend", target_os = "linux"))]
+pub use audio::pulse::{AudioManager, SoundHandle};
+#[cfg(all(feature = "glow-backend", any(target_os = "windows", target_os = "macos")))]
+pub use audio::cpal::{AudioManager, SoundHandle};
+#[cfg(all(feature = "glow-backend", target_arch = "wasm32"))]
+pub use audio::web::{AudioManager, SoundHandle};
 
 /// A 2D position
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
@@ -214,11 +232,11 @@ pub trait Renderer {
 
     // === Text API ===
 
-    /// Draw text at the given position
-    fn draw_text(&mut self, text: &str, pos: Pos2, style: &TextStyle);
+    /// Draw text at the given position (top-left of text bounds)
+    fn draw_text(&mut self, text: &str, pos: Pos2, style: &TextStyle<'_>);
 
     /// Measure text dimensions without drawing
-    fn measure_text(&self, text: &str, style: &TextStyle) -> Vec2;
+    fn measure_text(&self, text: &str, style: &TextStyle<'_>) -> Vec2;
 
     /// Get the canvas width in game coordinates
     fn width(&self) -> f32;
@@ -373,26 +391,6 @@ impl Image {
         })
     }
 
-    /// Load an AVIF image from bytes (requires `avif-decode` feature)
-    #[cfg(feature = "avif-decode")]
-    pub fn from_avif(data: &[u8]) -> Result<Self, String> {
-        let decoded = avif_decode::decode(data).map_err(|e| e.to_string())?;
-        let width = decoded.width() as u32;
-        let height = decoded.height() as u32;
-
-        // Convert to RGBA
-        let rgba: Vec<u8> = decoded
-            .to_vec()
-            .into_iter()
-            .flat_map(|pixel| [pixel.r, pixel.g, pixel.b, pixel.a])
-            .collect();
-
-        Ok(Self {
-            width,
-            height,
-            data: rgba,
-        })
-    }
 }
 
 /// A linear gradient
@@ -430,25 +428,58 @@ impl LinearGradient {
     }
 }
 
+/// A font that can be used for text rendering
+pub struct Font {
+    inner: fontdue::Font,
+}
+
+impl Font {
+    /// Load a font from TTF/OTF bytes
+    pub fn from_bytes(data: &[u8]) -> Result<Self, String> {
+        let settings = fontdue::FontSettings::default();
+        let font = fontdue::Font::from_bytes(data, settings).map_err(|e| e.to_string())?;
+        Ok(Self { inner: font })
+    }
+
+    /// Rasterize a character at the given size, returns (metrics, bitmap)
+    pub fn rasterize(&self, ch: char, size: f32) -> (fontdue::Metrics, Vec<u8>) {
+        self.inner.rasterize(ch, size)
+    }
+
+    /// Get metrics for a character without rasterizing
+    pub fn metrics(&self, ch: char, size: f32) -> fontdue::Metrics {
+        self.inner.metrics(ch, size)
+    }
+
+    /// Get the horizontal advance for a character
+    pub fn advance(&self, ch: char, size: f32) -> f32 {
+        self.inner.metrics(ch, size).advance_width
+    }
+
+    /// Measure the width of a string at the given size
+    pub fn measure_width(&self, text: &str, size: f32) -> f32 {
+        text.chars().map(|ch| self.advance(ch, size)).sum()
+    }
+
+    /// Get the line height (ascent + descent) for a given size
+    pub fn line_height(&self, size: f32) -> f32 {
+        // Use 'M' as reference character for height
+        let metrics = self.inner.metrics('M', size);
+        metrics.height as f32
+    }
+}
+
 /// Text styling options
-#[derive(Debug, Clone)]
-pub struct TextStyle {
+#[derive(Clone)]
+pub struct TextStyle<'a> {
+    pub font: &'a Font,
     pub size: f32,
     pub color: Color,
 }
 
-impl Default for TextStyle {
-    fn default() -> Self {
-        Self {
-            size: 16.0,
-            color: Color::WHITE,
-        }
-    }
-}
-
-impl TextStyle {
-    pub fn new(size: f32, color: Color) -> Self {
-        Self { size, color }
+impl<'a> TextStyle<'a> {
+    pub fn new(font: &'a Font, size: f32, color: Color) -> Self {
+        Self { font, size, color }
     }
 }
 
@@ -498,6 +529,9 @@ pub struct GameLoop<G: Game> {
     pub game: G,
     pub accumulated_time: f32,
     pub fixed_timestep: f32,
+    /// Debug stats (only used in debug builds)
+    #[cfg(debug_assertions)]
+    pub debug_stats: DebugStats,
 }
 
 impl<G: Game> GameLoop<G> {
@@ -506,6 +540,8 @@ impl<G: Game> GameLoop<G> {
             game: G::new(),
             accumulated_time: 0.0,
             fixed_timestep,
+            #[cfg(debug_assertions)]
+            debug_stats: DebugStats::new(),
         }
     }
 
@@ -513,6 +549,10 @@ impl<G: Game> GameLoop<G> {
     pub fn update(&mut self, dt: f32, input: &dyn Input) {
         // Cap delta time to prevent spiral of death
         let dt = dt.min(0.25);
+
+        // Update debug stats
+        #[cfg(debug_assertions)]
+        self.debug_stats.update(dt);
 
         // Accumulate time for fixed updates
         self.accumulated_time += dt;

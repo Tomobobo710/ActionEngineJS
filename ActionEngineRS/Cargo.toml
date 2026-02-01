@@ -6,16 +6,16 @@ resolver = "2"
 name = "action-engine"
 version = "0.1.0"
 edition = "2024"
-description = "A platform-independent game engine inspired by ActionEngineJS"
-license = "MIT"
 
 [dependencies]
-avif-decode = { version = "1.0.1", optional = true }
 bytemuck = { version = "1.25.0", optional = true }
+fontdue = "0.9.3"
 glow = { version = "0.16.0", optional = true }
 image-webp = { version = "0.2.4", optional = true }
 jpeg-decoder = { version = "0.3.2", optional = true }
+lewton = "0.10.2"
 png = { version = "0.18.0", optional = true }
+puremp3 = "0.1.0"
 winit = { version = "0.30.12", optional = true }
 
 # Native-only dependencies
@@ -24,6 +24,15 @@ gilrs = { version = "0.11.1", optional = true }
 glutin = { version = "0.32.3", optional = true }
 glutin-winit = { version = "0.5.0", optional = true }
 raw-window-handle = { version = "0.6.2", optional = true }
+
+# Linux audio (PulseAudio - works with PipeWire via pipewire-pulse)
+[target.'cfg(target_os = "linux")'.dependencies]
+libpulse-binding = "2.30.1"
+libpulse-simple-binding = "2.29.0"
+
+# Windows/macOS audio (cpal)
+[target.'cfg(any(target_os = "windows", target_os = "macos"))'.dependencies]
+cpal = "0.17.1"
 
 # Web-only dependencies
 [target.'cfg(target_arch = "wasm32")'.dependencies]
@@ -38,6 +47,14 @@ web-sys = { version = "0.3", optional = true, features = [
     "WebGlRenderingContext",
     "WebGl2RenderingContext",
     "Performance",
+    # WebAudio features
+    "AudioContext",
+    "AudioDestinationNode",
+    "AudioBuffer",
+    "AudioBufferSourceNode",
+    "GainNode",
+    "AudioNode",
+    "AudioParam",
 ] }
 
 [features]
@@ -51,4 +68,13 @@ web-backend = ["dep:wasm-bindgen", "dep:web-sys", "dep:console_error_panic_hook"
 png = ["dep:png"]
 jpeg-decoder = ["dep:jpeg-decoder"]
 image-webp = ["dep:image-webp"]
-avif-decode = ["dep:avif-decode"]
+
+# Optimize audio decoders even in debug builds (pure Rust decoders are too slow otherwise)
+[profile.dev.package.puremp3]
+opt-level = 3
+
+[profile.dev.package.lewton]
+opt-level = 3
+
+[profile.dev.package.ogg]
+opt-level = 3
