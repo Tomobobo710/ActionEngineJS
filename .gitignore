@@ -4,3 +4,6 @@ dist/action-engine-temp.js
 .DS_Store
 *.log
 npm-debug.log*
+/ActionEngineRS/target
+CLAUDE.md
+/ActionEngineRS/examples/*/dist
