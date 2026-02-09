@@ -267,47 +267,68 @@ class ObjectRenderer3D {
                 indices[indexBaseOffset + 1] = (triangleOffset + i) * 3 + 1;
                 indices[indexBaseOffset + 2] = (triangleOffset + i) * 3 + 2;
 
-                // Check if this triangle has texture
-                if (triangle.texture) {
-                    // First texture encountered in this object or frame
-                    this._hasTextures = true;
-                    
-                    const baseUVIndex = (triangleOffset + i) * 6;
-                    const baseFlagIndex = (triangleOffset + i) * 3;
-                    const { uvs, textureIndices, useTextureFlags } = this.textureArrays;
-                    
-                    // Handle UVs
-                    if (triangle.uvs) {
-                        for (let j = 0; j < 3; j++) {
-                            const uv = triangle.uvs[j];
-                            uvs[baseUVIndex + j * 2] = uv.u;
-                            uvs[baseUVIndex + j * 2 + 1] = uv.v;
-                        }
-                    } else {
-                        // Default UVs
-                        uvs[baseUVIndex] = 0;
-                        uvs[baseUVIndex + 1] = 0;
-                        uvs[baseUVIndex + 2] = 1;
-                        uvs[baseUVIndex + 3] = 0;
-                        uvs[baseUVIndex + 4] = 0.5;
-                        uvs[baseUVIndex + 5] = 1;
-                    }
-                    
-                    // Set texture index - use cached value if possible
-                    let textureIndex = this._textureCache.get(triangle.texture);
-                    if (textureIndex === undefined) {
-                        textureIndex = this.getTextureIndexForProceduralTexture(triangle.texture);
-                        this._textureCache.set(triangle.texture, textureIndex);
-                    }
-                    
-                    textureIndices[baseFlagIndex] = textureIndex;
-                    textureIndices[baseFlagIndex + 1] = textureIndex;
-                    textureIndices[baseFlagIndex + 2] = textureIndex;
-                    
-                    useTextureFlags[baseFlagIndex] = 1;
-                    useTextureFlags[baseFlagIndex + 1] = 1;
-                    useTextureFlags[baseFlagIndex + 2] = 1;
+                // Always populate texture arrays, even for non-textured triangles
+                const baseUVIndex = (triangleOffset + i) * 6;
+                const baseFlagIndex = (triangleOffset + i) * 3;
+                const { uvs, textureIndices, useTextureFlags } = this.textureArrays;
+                
+                // Check if this triangle has texture (either from material or legacy texture property)
+                const shouldUseTexture = (triangle.material && triangle.material.useTexture) || triangle.texture;
+                
+                // Handle UVs
+                let uvsToUse = triangle.uvs;
+                if (triangle.material && triangle.material.texCoords && !uvsToUse) {
+                    uvsToUse = triangle.material.texCoords;
                 }
+                
+                if (uvsToUse) {
+                    for (let j = 0; j < 3; j++) {
+                        const uv = uvsToUse[j];
+                        uvs[baseUVIndex + j * 2] = uv.u || uv.x || 0;
+                        uvs[baseUVIndex + j * 2 + 1] = uv.v || uv.y || 0;
+                    }
+                } else {
+                    // Default UVs
+                    uvs[baseUVIndex] = 0;
+                    uvs[baseUVIndex + 1] = 0;
+                    uvs[baseUVIndex + 2] = 1;
+                    uvs[baseUVIndex + 3] = 0;
+                    uvs[baseUVIndex + 4] = 0.5;
+                    uvs[baseUVIndex + 5] = 1;
+                }
+                
+                // Determine texture index and useTexture flag
+                let textureIndex = 0;
+                let useTextureValue = 0;
+                
+                if (shouldUseTexture) {
+                    this._hasTextures = true;
+                    useTextureValue = 1;
+                    
+                    if (triangle.material && triangle.material.useTexture && triangle.material.textureIndex >= 0) {
+                        // Use embedded texture index from material
+                        textureIndex = triangle.material.textureIndex;
+                    } else if (triangle.texture) {
+                        // Use legacy procedural texture lookup
+                        let cachedIndex = this._textureCache.get(triangle.texture);
+                        if (cachedIndex === undefined) {
+                            cachedIndex = this.getTextureIndexForProceduralTexture(triangle.texture);
+                            this._textureCache.set(triangle.texture, cachedIndex);
+                        }
+                        textureIndex = cachedIndex;
+                    }
+                }
+                
+                // Set texture data for all three vertices of triangle
+                textureIndices[baseFlagIndex] = textureIndex;
+                textureIndices[baseFlagIndex + 1] = textureIndex;
+                textureIndices[baseFlagIndex + 2] = textureIndex;
+                
+                useTextureFlags[baseFlagIndex] = useTextureValue;
+                useTextureFlags[baseFlagIndex + 1] = useTextureValue;
+                useTextureFlags[baseFlagIndex + 2] = useTextureValue;
+                
+
             }
             
             // Update triangle offset for next object
@@ -348,6 +369,7 @@ class ObjectRenderer3D {
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.buffers.indices);
         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, DYNAMIC_DRAW);
 
+
         // PRE-COMPUTE ALL MATRICES AND UNIFORMS ONCE PER FRAME
         this.updateUniformCache(camera);
 
@@ -355,10 +377,18 @@ class ObjectRenderer3D {
         const program = this.programManager.getObjectProgram();
         const locations = this.programManager.getObjectLocations();
         gl.useProgram(program);
+        
+        // Enable alpha blending to render semi-transparent textures correctly
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        
         this.setupObjectShader(locations, camera);
 
         // Draw all objects in one batch
         this.drawObject(locations, totalIndexCount);
+        
+        // Disable blending for next renderer
+        gl.disable(gl.BLEND);
         
         // Reset frame tracking for next frame
         this._frameInitialized = false;
@@ -714,31 +744,37 @@ class ObjectRenderer3D {
         }
         
         // --- GROUP 3: TEXTURE ARRAYS ---
+        // Determine which shader variant to use
+        if (!this._lastCheckedVariant || this._lastCheckedVariant !== this.programManager.getCurrentVariant()) {
+            this._lastCheckedVariant = this.programManager.getCurrentVariant();
+            this._currentShaderVariant = this._lastCheckedVariant === "pbr" ? "pbr" : "other";
+        }
+        
+        // Use unit 20 for standard shader, 21 for PBR shader
+        const targetUnit = this._currentShaderVariant === "pbr" ? 21 : 20;
+        
         // Bind texture array (2D array texture)
+        // Prefer embedded texture array if available, otherwise use procedural texture array
         if (locations.textureArray !== -1 && locations.textureArray !== null) {
-            const textureArray = this.renderer?.textureArray;
-            if (textureArray) {
-                // Determine which shader variant to use
-                if (!this._lastCheckedVariant || this._lastCheckedVariant !== this.programManager.getCurrentVariant()) {
-                    this._lastCheckedVariant = this.programManager.getCurrentVariant();
-                    this._currentShaderVariant = this._lastCheckedVariant === "pbr" ? "pbr" : "other";
-                }
-                
-                // Use unit 20 for standard shader, 21 for PBR shader
-                const targetUnit = this._currentShaderVariant === "pbr" ? 21 : 20;
-                
+            const embeddedTextureArray = this.renderer?.textureManager?.embeddedTextureArray;
+            const embeddedReady = this.renderer?.textureManager?.embeddedTextureArrayReady;
+            const proceduralTextureArray = this.renderer?.textureArray;
+            const textureArrayToBind = embeddedTextureArray || proceduralTextureArray;
+            
+            
+            if (textureArrayToBind) {
                 // Only change binding if needed
                 if (this._currentTextureUnit !== targetUnit || 
-                    this._currentBoundTexture !== textureArray || 
+                    this._currentBoundTexture !== textureArrayToBind || 
                     this._currentBoundTextureType !== gl.TEXTURE_2D_ARRAY) {
                     
                     gl.activeTexture(gl.TEXTURE0 + targetUnit);
-                    gl.bindTexture(gl.TEXTURE_2D_ARRAY, textureArray);
+                    gl.bindTexture(gl.TEXTURE_2D_ARRAY, textureArrayToBind);
                     gl.uniform1i(locations.textureArray, targetUnit);
                     
                     // Update state tracking
                     this._currentTextureUnit = targetUnit;
-                    this._currentBoundTexture = textureArray;
+                    this._currentBoundTexture = textureArrayToBind;
                     this._currentBoundTextureType = gl.TEXTURE_2D_ARRAY;
                 }
                 

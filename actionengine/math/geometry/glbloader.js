@@ -10,12 +10,14 @@ class GLBLoader {
      * Initializes empty arrays for storing model data.
      */
     constructor() {
-        this.nodes = [];
-        this.meshes = [];
-        this.skins = [];
-        this.animations = [];
-        this.triangles = [];
-    }
+         this.nodes = [];
+         this.meshes = [];
+         this.skins = [];
+         this.animations = [];
+         this.triangles = [];
+         this.textures = [];  // Array of texture image data
+         this.textureMetadata = [];  // Array of texture metadata (name, width, height)
+     }
 
     /**
      * Loads a 3D model from either base64 string or ArrayBuffer input.
@@ -57,128 +59,251 @@ class GLBLoader {
      * @private
      */
     static loadFromArrayBuffer(arrayBuffer) {
-        const model = new GLBLoader();
-        const { gltf, binaryData } = GLBLoader.parseGLB(arrayBuffer);
-        gltf.binaryData = binaryData;
+         const model = new GLBLoader();
+         const { gltf, binaryData } = GLBLoader.parseGLB(arrayBuffer);
+         gltf.binaryData = binaryData;
 
-        // First create all nodes
-        if (gltf.nodes) {
-            model.nodes = gltf.nodes.map((node, i) => new Node(node, i));
+         // Extract embedded textures from the model
+         GLBLoader.loadTextures(model, gltf, binaryData);
 
-            // Then hook up node hierarchy
-            for (let i = 0; i < gltf.nodes.length; i++) {
-                const nodeData = gltf.nodes[i];
-                if (nodeData.children) {
-                    // Convert child indices to actual node references
-                    model.nodes[i].children = nodeData.children.map((childIndex) => model.nodes[childIndex]);
-                }
-            }
-        }
+         // First create all nodes
+         if (gltf.nodes) {
+             model.nodes = gltf.nodes.map((node, i) => new Node(node, i));
 
-        // Create skins after nodes exist
-        if (gltf.skins) {
-            model.skins = gltf.skins.map((skin, i) => new Skin(gltf, skin, i));
+             // Then hook up node hierarchy
+             for (let i = 0; i < gltf.nodes.length; i++) {
+                 const nodeData = gltf.nodes[i];
+                 if (nodeData.children) {
+                     // Convert child indices to actual node references
+                     model.nodes[i].children = nodeData.children.map((childIndex) => model.nodes[childIndex]);
+                 }
+             }
+             // Update world matrices for all nodes (hierarchical transforms)
+             // Identify root nodes (nodes that are not children of any other node)
+             const childSet = new Set();
+             for (const node of model.nodes) {
+                 for (const child of node.children) {
+                     childSet.add(child);
+                 }
+             }
+             for (const node of model.nodes) {
+                 if (!childSet.has(node)) {
+                     node.updateWorldMatrix();
+                 }
+             }
+         }
 
-            // Hook up skin references in nodes
-            for (const node of model.nodes) {
-                if (node.skin !== null) {
-                    node.skin = model.skins[node.skin];
-                }
-            }
-        }
+         // Create skins after nodes exist
+         if (gltf.skins) {
+             model.skins = gltf.skins.map((skin, i) => new Skin(gltf, skin, i));
 
-        // Load meshes with skin data
-        GLBLoader.loadMeshes(model, gltf, binaryData);
+             // Hook up skin references in nodes
+             for (const node of model.nodes) {
+                 if (node.skin !== null) {
+                     node.skin = model.skins[node.skin];
+                 }
+             }
+         }
 
-        // Finally load animations after everything else is set up
-        if (gltf.animations) {
-            model.animations = gltf.animations.map((anim) => new Animation(gltf, anim));
-        }
+         // Load meshes with skin data
+         GLBLoader.loadMeshes(model, gltf, binaryData);
 
-        return model;
-    }
+         // Finally load animations after everything else is set up
+         if (gltf.animations) {
+             model.animations = gltf.animations.map((anim) => new Animation(gltf, anim));
+         }
 
-    /**
-     * Parses a GLB format binary buffer into JSON and binary data chunks.
-     * @param {ArrayBuffer} arrayBuffer - The GLB file data
-     * @returns {{gltf: Object, binaryData: ArrayBuffer}} Parsed GLB containing JSON and binary chunks
-     * @throws {Error} If GLB file format is invalid
-     * @private
-     */
-    static parseGLB(arrayBuffer) {
-        const dataView = new DataView(arrayBuffer);
-        const magic = dataView.getUint32(0, true);
-        if (magic !== 0x46546c67) {
-            throw new Error("Invalid GLB file");
-        }
-
-        const jsonLength = dataView.getUint32(12, true);
-        const jsonText = new TextDecoder().decode(new Uint8Array(arrayBuffer, 20, jsonLength));
-        const json = JSON.parse(jsonText);
-        const binaryData = arrayBuffer.slice(20 + jsonLength + 8);
-
-        return { gltf: json, binaryData };
-    }
+         return model;
+     }
 
     /**
-     * Processes mesh data from the GLTF JSON and creates triangle geometry.
-     * @param {GLBLoader} model - The loader instance to store processed mesh data
-     * @param {Object} gltf - The parsed GLTF JSON data
-     * @param {ArrayBuffer} binaryData - The binary buffer containing geometry data
-     * @private
-     */
-    static loadMeshes(model, gltf, binaryData) {
-        if (!gltf.meshes) return;
+      * Parses a GLB format binary buffer into JSON and binary data chunks.
+      * @param {ArrayBuffer} arrayBuffer - The GLB file data
+      * @returns {{gltf: Object, binaryData: ArrayBuffer}} Parsed GLB containing JSON and binary chunks
+      * @throws {Error} If GLB file format is invalid
+      * @private
+      */
+     static parseGLB(arrayBuffer) {
+         const dataView = new DataView(arrayBuffer);
+         const magic = dataView.getUint32(0, true);
+         if (magic !== 0x46546c67) {
+             throw new Error("Invalid GLB file");
+         }
 
-        for (const mesh of gltf.meshes) {
-            const meshData = {
-                name: mesh.name || `mesh_${model.meshes.length}`,
-                primitives: []
-            };
+         const jsonLength = dataView.getUint32(12, true);
+         const jsonText = new TextDecoder().decode(new Uint8Array(arrayBuffer, 20, jsonLength));
+         const json = JSON.parse(jsonText);
+         const binaryData = arrayBuffer.slice(20 + jsonLength + 8);
 
-            for (const primitive of mesh.primitives) {
-                const primData = {
-                    positions: GLBLoader.getAttributeData(primitive.attributes.POSITION, gltf, binaryData),
-                    indices: GLBLoader.getIndexData(primitive.indices, gltf, binaryData),
-                    joints: primitive.attributes.JOINTS_0
-                        ? GLBLoader.getAttributeData(primitive.attributes.JOINTS_0, gltf, binaryData)
-                        : null,
-                    weights: primitive.attributes.WEIGHTS_0
-                        ? GLBLoader.getAttributeData(primitive.attributes.WEIGHTS_0, gltf, binaryData)
-                        : null,
-                    material:
-                        primitive.material !== undefined
-                            ? GLBLoader.getMaterialColor(gltf.materials[primitive.material])
-                            : null
-                };
+         return { gltf: json, binaryData };
+     }
 
-                GLBLoader.addPrimitiveTriangles(model, primData);
-                meshData.primitives.push(primData);
-            }
+     /**
+      * Loads and processes embedded textures from the GLTF model.
+      * Extracts image data and stores it for later use by the TextureManager.
+      * @param {GLBLoader} model - The loader instance to store texture data
+      * @param {Object} gltf - The parsed GLTF JSON data
+      * @param {ArrayBuffer} binaryData - The binary buffer containing texture data
+      * @private
+      */
+     static loadTextures(model, gltf, binaryData) {
+         if (!gltf.images) return;
 
-            model.meshes.push(meshData);
-        }
-    }
+         for (let i = 0; i < gltf.images.length; i++) {
+             const imageData = gltf.images[i];
+             let textureData = null;
+
+             // Handle URI-based images (data URIs or file paths)
+             if (imageData.uri) {
+                 if (imageData.uri.startsWith("data:")) {
+                     // Data URI embedded in JSON
+                     const base64Data = imageData.uri.split(",")[1];
+                     const binaryString = atob(base64Data);
+                     const bytes = new Uint8Array(binaryString.length);
+                     for (let j = 0; j < binaryString.length; j++) {
+                         bytes[j] = binaryString.charCodeAt(j);
+                     }
+                     textureData = bytes;
+                 }
+             } 
+             // Handle buffer view-based images (binary data in GLB)
+             else if (imageData.bufferView !== undefined) {
+                 const bufferView = gltf.bufferViews[imageData.bufferView];
+                 const byteOffset = bufferView.byteOffset || 0;
+                 const byteLength = bufferView.byteLength;
+                 textureData = new Uint8Array(binaryData, byteOffset, byteLength);
+             }
+
+             if (textureData) {
+                 model.textures.push(textureData);
+                 model.textureMetadata.push({
+                     name: imageData.name || `texture_${i}`,
+                     mimeType: imageData.mimeType || "image/png"
+                 });
+             }
+         }
+     }
 
     /**
-     * Extracts color information from a GLTF material.
-     * @param {Object} material - GLTF material data
-     * @returns {string|null} Hex color string or null if no color defined
-     * @private
-     */
-    static getMaterialColor(material) {
-        if (material?.pbrMetallicRoughness?.baseColorFactor) {
-            const [r, g, b] = material.pbrMetallicRoughness.baseColorFactor;
-            return `#${Math.floor(r * 255)
-                .toString(16)
-                .padStart(2, "0")}${Math.floor(g * 255)
-                .toString(16)
-                .padStart(2, "0")}${Math.floor(b * 255)
-                .toString(16)
-                .padStart(2, "0")}`;
-        }
-        return null;
-    }
+      * Processes mesh data from the GLTF JSON and creates triangle geometry.
+      * @param {GLBLoader} model - The loader instance to store processed mesh data
+      * @param {Object} gltf - The parsed GLTF JSON data
+      * @param {ArrayBuffer} binaryData - The binary buffer containing geometry data
+      * @private
+      */
+     static loadMeshes(model, gltf, binaryData) {
+         if (!gltf.meshes) return;
+
+         // Process meshes per node to support instancing (multiple nodes referencing the same mesh)
+         if (gltf.nodes) {
+             for (let nodeIdx = 0; nodeIdx < gltf.nodes.length; nodeIdx++) {
+                 const nodeData = gltf.nodes[nodeIdx];
+                 if (nodeData.mesh !== undefined) {
+                     const meshIdx = nodeData.mesh;
+                     const mesh = gltf.meshes[meshIdx];
+                     const meshData = {
+                         name: mesh.name || `mesh_${model.meshes.length}`,
+                         primitives: [],
+                         nodeMatrix: model.nodes[nodeIdx].matrix
+                     };
+
+                     for (const primitive of mesh.primitives) {
+                         const primData = {
+                             positions: GLBLoader.getAttributeData(primitive.attributes.POSITION, gltf, binaryData),
+                             indices: GLBLoader.getIndexData(primitive.indices, gltf, binaryData),
+                             joints: primitive.attributes.JOINTS_0
+                                 ? GLBLoader.getAttributeData(primitive.attributes.JOINTS_0, gltf, binaryData)
+                                 : null,
+                             weights: primitive.attributes.WEIGHTS_0
+                                 ? GLBLoader.getAttributeData(primitive.attributes.WEIGHTS_0, gltf, binaryData)
+                                 : null,
+                             material:
+                                 primitive.material !== undefined
+                                     ? GLBLoader.getMaterialData(gltf.materials[primitive.material], gltf)
+                                     : { useTexture: false, textureIndex: -1, color: null },
+                             nodeMatrix: model.nodes[nodeIdx].matrix
+                         };
+
+                         // Extract UV coordinates if present
+                         if (primitive.attributes.TEXCOORD_0) {
+                             primData.texCoords = GLBLoader.getAttributeData(primitive.attributes.TEXCOORD_0, gltf, binaryData);
+                         }
+
+                         GLBLoader.addPrimitiveTriangles(model, primData);
+                         meshData.primitives.push(primData);
+                     }
+
+                     model.meshes.push(meshData);
+                 }
+             }
+         }
+     }
+
+    /**
+      * Extracts material information from a GLTF material.
+      * Returns both color and texture data if available.
+      * @param {Object} material - GLTF material data
+      * @param {Object} gltf - The complete GLTF data object
+      * @returns {Object} Material data with color and optional texture index
+      * @private
+      */
+     static getMaterialData(material, gltf) {
+         const materialData = {
+             useTexture: false,
+             textureIndex: -1,
+             color: null
+         };
+
+         if (!material) return materialData;
+
+         // Extract base color texture if present
+         if (material.pbrMetallicRoughness?.baseColorTexture) {
+             const texIdx = material.pbrMetallicRoughness.baseColorTexture.index;
+             // Resolve texture index to image source index
+             const texture = gltf.textures ? gltf.textures[texIdx] : null;
+             const imageIdx = texture && typeof texture.source === "number" ? texture.source : texIdx;
+             if (imageIdx !== undefined && gltf.images && gltf.images[imageIdx]) {
+                 materialData.useTexture = true;
+                 materialData.textureIndex = imageIdx;
+             } else if (texIdx >= 0) {
+                 console.warn(`[GLBLoader] Material requests texture index ${texIdx} but image source not found`);
+             }
+         }
+
+         // Always extract color factor as fallback
+         if (material.pbrMetallicRoughness?.baseColorFactor) {
+             const [r, g, b] = material.pbrMetallicRoughness.baseColorFactor;
+             materialData.color = `#${Math.floor(r * 255)
+                 .toString(16)
+                 .padStart(2, "0")}${Math.floor(g * 255)
+                 .toString(16)
+                 .padStart(2, "0")}${Math.floor(b * 255)
+                 .toString(16)
+                 .padStart(2, "0")}`;
+         }
+
+         return materialData;
+     }
+
+     /**
+      * Extracts color information from a GLTF material (legacy method for compatibility).
+      * @param {Object} material - GLTF material data
+      * @returns {string|null} Hex color string or null if no color defined
+      * @private
+      */
+     static getMaterialColor(material) {
+         if (material?.pbrMetallicRoughness?.baseColorFactor) {
+             const [r, g, b] = material.pbrMetallicRoughness.baseColorFactor;
+             return `#${Math.floor(r * 255)
+                 .toString(16)
+                 .padStart(2, "0")}${Math.floor(g * 255)
+                 .toString(16)
+                 .padStart(2, "0")}${Math.floor(b * 255)
+                 .toString(16)
+                 .padStart(2, "0")}`;
+         }
+         return null;
+     }
 
     /**
      * Gets typed array data from a GLTF accessor.
@@ -249,36 +374,78 @@ class GLBLoader {
      * @private
      */
     static addPrimitiveTriangles(model, primitive) {
-        const { positions, indices, joints, weights, material } = primitive;
+        const { positions, indices, joints, weights, material, texCoords, nodeMatrix } = primitive;
 
         // First create all vertices
         const vertexData = [];
         for (let i = 0; i < positions.length / 3; i++) {
+            let position = new Vector3(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]);
+            
+            // Apply node transform if available
+            if (nodeMatrix) {
+                // Transform position by node matrix: p' = M * p
+                const x = position.x, y = position.y, z = position.z;
+                position.x = nodeMatrix[0] * x + nodeMatrix[4] * y + nodeMatrix[8] * z + nodeMatrix[12];
+                position.y = nodeMatrix[1] * x + nodeMatrix[5] * y + nodeMatrix[9] * z + nodeMatrix[13];
+                position.z = nodeMatrix[2] * x + nodeMatrix[6] * y + nodeMatrix[10] * z + nodeMatrix[14];
+            }
+            
             vertexData.push({
-                position: new Vector3(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]),
+                position: position,
                 jointIndices: joints ? [joints[i * 4], joints[i * 4 + 1], joints[i * 4 + 2], joints[i * 4 + 3]] : null,
-                weights: weights ? [weights[i * 4], weights[i * 4 + 1], weights[i * 4 + 2], weights[i * 4 + 3]] : null
+                weights: weights ? [weights[i * 4], weights[i * 4 + 1], weights[i * 4 + 2], weights[i * 4 + 3]] : null,
+                uv: texCoords ? { u: texCoords[i * 2], v: texCoords[i * 2 + 1] } : null
             });
         }
 
+        // Track material indices used in this primitive
+        const materialIndicesUsed = new Set();
+
         // Then create triangles using indices
-        for (let i = 0; i < indices.length; i += 3) {
-            const vertices = [vertexData[indices[i]], vertexData[indices[i + 1]], vertexData[indices[i + 2]]];
+         for (let i = 0; i < indices.length; i += 3) {
+             const vertices = [vertexData[indices[i]], vertexData[indices[i + 1]], vertexData[indices[i + 2]]];
 
-            const triangle = new Triangle(
-                vertices[0].position,
-                vertices[1].position,
-                vertices[2].position,
-                material || "#FF0000"
-            );
+             // Extract color from material object, use white as default for textured models
+             let color = "#FFFFFF";
+             if (material && material.color) {
+                 color = material.color;
+             }
 
-            if (joints && weights) {
-                triangle.jointData = vertices.map((v) => v.jointIndices);
-                triangle.weightData = vertices.map((v) => v.weights);
-            }
+             const triangle = new Triangle(
+                 vertices[0].position,
+                 vertices[1].position,
+                 vertices[2].position,
+                 color
+             );
 
-            model.triangles.push(triangle);
-        }
+             // Store full material data on triangle for texture sampling in shader
+             if (material) {
+                 triangle.material = material;
+                 if (material.useTexture && material.textureIndex >= 0) {
+                     materialIndicesUsed.add(material.textureIndex);
+                 } else if (!material.useTexture) {
+                     // Track non-textured primitives
+                     if (!model.nonTexturedPrimitives) {
+                         model.nonTexturedPrimitives = [];
+                     }
+                     model.nonTexturedPrimitives.push(material.color);
+                 }
+             }
+
+             // Store UV coordinates from vertices if available
+             if (texCoords) {
+                 triangle.uvs = vertices.map((v) => v.uv);
+             }
+
+             if (joints && weights) {
+                 triangle.jointData = vertices.map((v) => v.jointIndices);
+                 triangle.weightData = vertices.map((v) => v.weights);
+             }
+
+             model.triangles.push(triangle);
+         }
+         
+
     }
 }
 

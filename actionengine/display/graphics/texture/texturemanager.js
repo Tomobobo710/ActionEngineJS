@@ -1,22 +1,26 @@
 // actionengine/display/graphics/texture/texturemanager.js
 class TextureManager {
-    constructor(gl) {
-        this.gl = gl;
-        this.isWebGL2 = gl.getParameter(gl.VERSION).includes("WebGL 2.0");
-        this.textureArray = this.createTextureArray();
-        
-        // Create material properties texture
-        this.materialPropertiesTexture = this.createMaterialPropertiesTexture();
-        
-        // Flag to control per-texture material usage
-        this.usePerTextureMaterials = true;
-        
-        // Add a flag to track if material properties need updating
-        this.materialPropertiesDirty = true;
-        
-        // Store a hash of the last material properties to detect changes
-        this._lastMaterialPropertiesHash = 0;
-    }
+     constructor(gl) {
+         this.gl = gl;
+         this.isWebGL2 = gl.getParameter(gl.VERSION).includes("WebGL 2.0");
+         this.textureArray = this.createTextureArray();
+         
+         // Store for embedded model textures
+         this.embeddedTextures = [];  // WebGL texture objects for embedded model textures
+         this.embeddedTextureCount = 0;  // Counter for tracking embedded texture indices
+         
+         // Create material properties texture
+         this.materialPropertiesTexture = this.createMaterialPropertiesTexture();
+         
+         // Flag to control per-texture material usage
+         this.usePerTextureMaterials = true;
+         
+         // Add a flag to track if material properties need updating
+         this.materialPropertiesDirty = true;
+         
+         // Store a hash of the last material properties to detect changes
+         this._lastMaterialPropertiesHash = 0;
+     }
 
     createTextureArray() {
         if (this.isWebGL2) {
@@ -231,12 +235,147 @@ class TextureManager {
     }
     
     // Toggle per-texture material usage
-    togglePerTextureMaterials(enabled) {
-        this.usePerTextureMaterials = enabled;
-        
-        // If enabling and we don't have a material texture, create one
-        if (enabled && !this.materialPropertiesTexture) {
-            this.materialPropertiesTexture = this.createMaterialPropertiesTexture();
-        }
+     togglePerTextureMaterials(enabled) {
+         this.usePerTextureMaterials = enabled;
+         
+         // If enabling and we don't have a material texture, create one
+         if (enabled && !this.materialPropertiesTexture) {
+             this.materialPropertiesTexture = this.createMaterialPropertiesTexture();
+         }
+     }
+
+     /**
+      * Loads embedded textures from a GLB model into a 2D array texture.
+      * @param {GLBLoader} model - The loaded GLB model containing texture data
+      * @returns {number} Starting index for the embedded textures in the global texture space
+      */
+     loadEmbeddedTextures(model) {
+         if (!model.textures || model.textures.length === 0) {
+             return -1;
+         }
+
+         // Check if these textures have already been loaded
+         if (model._texturesLoaded) {
+             return model._textureStartIndex;
+         }
+
+         const startIndex = 0; // Always load embedded textures starting at layer 0
+         const gl = this.gl;
+         const textureCount = model.textures.length;
+
+         // Load all images first, then create array texture
+         let loadedImages = [];
+         let loadedCount = 0;
+
+         for (let i = 0; i < textureCount; i++) {
+             const textureData = model.textures[i];
+             const metadata = model.textureMetadata[i];
+
+             // Create a blob and object URL to load the image
+             const blob = new Blob([textureData], { type: metadata.mimeType });
+             const url = URL.createObjectURL(blob);
+
+             const img = new Image();
+             img.onload = () => {
+                 loadedImages[i] = img;
+                 loadedCount++;
+
+                 // Once all images are loaded, create the 2D array texture
+                 if (loadedCount === textureCount) {
+                     this.createEmbeddedTextureArray(loadedImages, startIndex, textureCount);
+                 }
+
+                 // Clean up
+                 URL.revokeObjectURL(url);
+             };
+
+             img.onerror = () => {
+                 console.error(`Failed to load embedded texture: ${metadata.name}`);
+                 URL.revokeObjectURL(url);
+             };
+
+             img.src = url;
+         }
+
+         // Mark this model as having had its textures loaded
+         model._texturesLoaded = true;
+         model._textureStartIndex = startIndex;
+         
+         return startIndex;
+     }
+
+     /**
+      * Creates a 2D array texture from loaded embedded texture images.
+      * @private
+      */
+     createEmbeddedTextureArray(images, startIndex, count) {
+         const gl = this.gl;
+
+         // Use a fixed safe size for 3D array textures (1024 is safe for most WebGL2 implementations)
+         const width = 1024;
+         const height = 1024;
+
+         // Always create/recreate the embedded texture array (replaces previous model's textures)
+         this.embeddedTextureArray = gl.createTexture();
+         this.embeddedTextureArrayReady = false; // Mark as not ready until fully uploaded
+         gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.embeddedTextureArray);
+
+         // Allocate storage for embedded textures
+         if (this.isWebGL2) {
+             gl.texImage3D(
+                 gl.TEXTURE_2D_ARRAY,
+                 0, // mip level
+                 gl.RGBA, // internal format
+                 width,
+                 height,
+                 count, // Exact count for this model's textures
+                 0, // border
+                 gl.RGBA,
+                 gl.UNSIGNED_BYTE,
+                 null // data
+             );
+         }
+
+         // Set texture parameters
+         gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+         gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+         gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_S, gl.REPEAT);
+         gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_T, gl.REPEAT);
+
+         // Upload each image as a layer (resize to match array dimensions if needed)
+         for (let i = 0; i < count; i++) {
+             const img = images[i];
+             
+             // Create a canvas with the standardized size
+             const canvas = document.createElement('canvas');
+             canvas.width = width;
+             canvas.height = height;
+             const ctx = canvas.getContext('2d');
+             
+             // Draw image centered if smaller than canvas, or scaled if larger
+             if (img.width === width && img.height === height) {
+                 ctx.drawImage(img, 0, 0);
+             } else {
+                 // Scale image to fit the texture array dimensions
+                 ctx.drawImage(img, 0, 0, width, height);
+             }
+             
+             gl.texSubImage3D(
+                 gl.TEXTURE_2D_ARRAY,
+                 0, // mip level
+                 0, // x offset
+                 0, // y offset
+                 i, // z offset (layer) - always start at 0 for this array
+                 width,
+                 height,
+                 1, // depth
+                 gl.RGBA,
+                 gl.UNSIGNED_BYTE,
+                 canvas
+             );
+         }
+         
+         // Mark as ready after all textures are uploaded
+         this.embeddedTextureArrayReady = true;
+     }
     }
-}
