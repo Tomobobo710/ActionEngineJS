@@ -1,0 +1,57 @@
+# Maintainer: shellsort
+pkgname=bullet-hell
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Bullet Hell game built with ActionEngineRS and Tauri"
+arch=('x86_64')
+url="https://github.com/shellsort"
+license=('MIT')
+depends=(
+    'webkit2gtk-4.1'
+    'gtk3'
+    'gst-plugins-base'
+    'gst-plugins-good'
+)
+makedepends=(
+    'rust'
+    'rust-wasm'
+)
+options=('!strip')
+
+build() {
+    cd "$startdir"
+
+    # Install cargo tools if not present
+    command -v trunk >/dev/null 2>&1 || cargo install trunk
+    command -v cargo-tauri >/dev/null 2>&1 || cargo install tauri-cli
+
+    cargo tauri build --bundles deb
+}
+
+package() {
+    cd "$startdir"
+
+    # Binary
+    install -Dm755 "src-tauri/target/release/bullet_hell_tauri_app" \
+        "$pkgdir/usr/bin/bullet-hell"
+
+    # Desktop entry
+    install -Dm644 /dev/stdin "$pkgdir/usr/share/applications/bullet-hell.desktop" <<EOF
+[Desktop Entry]
+Categories=Game;
+Comment=Bullet Hell game built with ActionEngineRS
+Exec=bullet-hell
+Icon=bullet-hell
+Name=Bullet Hell
+Terminal=false
+Type=Application
+EOF
+
+    # Icons
+    install -Dm644 "src-tauri/icons/32x32.png" \
+        "$pkgdir/usr/share/icons/hicolor/32x32/apps/bullet-hell.png"
+    install -Dm644 "src-tauri/icons/128x128.png" \
+        "$pkgdir/usr/share/icons/hicolor/128x128/apps/bullet-hell.png"
+    install -Dm644 "src-tauri/icons/128x128@2x.png" \
+        "$pkgdir/usr/share/icons/hicolor/256x256/apps/bullet-hell.png"
+}

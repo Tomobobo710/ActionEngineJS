@@ -55,6 +55,7 @@ web-sys = { version = "0.3", optional = true, features = [
     "GainNode",
     "AudioNode",
     "AudioParam",
+    "AudioContextState",
 ] }
 
 [features]

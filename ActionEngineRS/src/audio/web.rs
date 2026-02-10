@@ -75,6 +75,11 @@ impl AudioManager {
 
     /// Play a sound and return a handle to control it
     pub fn play(&mut self, sound: &Sound, volume: f32, looping: bool) -> SoundHandle {
+        // Resume the AudioContext if suspended (browser autoplay policy)
+        if self.context.state() == web_sys::AudioContextState::Suspended {
+            let _ = self.context.resume();
+        }
+
         let stopped = Arc::new(Mutex::new(false));
         let source_holder: Arc<Mutex<Option<AudioBufferSourceNode>>> = Arc::new(Mutex::new(None));
 

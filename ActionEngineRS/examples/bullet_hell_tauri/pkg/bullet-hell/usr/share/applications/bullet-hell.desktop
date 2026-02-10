@@ -1,0 +1,8 @@
+[Desktop Entry]
+Categories=Game;
+Comment=Bullet Hell game built with ActionEngineRS
+Exec=bullet-hell
+Icon=bullet-hell
+Name=Bullet Hell
+Terminal=false
+Type=Application

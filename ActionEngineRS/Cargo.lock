@@ -191,6 +191,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "bullet_hell_tauri"
+version = "0.1.0"
+dependencies = [
+ "action-engine",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.19.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
