@@ -433,9 +433,6 @@ class DebugRenderer3D {
         if (!this._lastVisualizationTime || performance.now() - this._lastVisualizationTime > 2000) {
             this._shadowVisualizationMode = (this._shadowVisualizationMode + 1) % 2; // Just 2 modes now
             this._lastVisualizationTime = performance.now();
-            console.log(
-                `Shadow map visualization mode: ${this._shadowVisualizationMode ? "Decoded Grayscale" : "Raw RGBA"}`
-            );
         }
 
         // Draw the quad
