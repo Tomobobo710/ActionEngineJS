@@ -450,10 +450,10 @@ class LightManager {
 
         // Bind point light shadow maps
         const pointLightShadowMaps = [
-            { logicalName: "pointShadowMap0", uniformName: "uPointShadowMap", enabledName: "pointShadowsEnabled" },
-            { logicalName: "pointShadowMap1", uniformName: "uPointShadowMap1", enabledName: "pointShadowsEnabled1" },
-            { logicalName: "pointShadowMap2", uniformName: "uPointShadowMap2", enabledName: "pointShadowsEnabled2" },
-            { logicalName: "pointShadowMap3", uniformName: "uPointShadowMap3", enabledName: "pointShadowsEnabled3" }
+            { logicalName: "pointShadowMap0", uniformName: "uPointShadowMap", enabledName: "uPointShadowsEnabled" },
+            { logicalName: "pointShadowMap1", uniformName: "uPointShadowMap1", enabledName: "uPointShadowsEnabled1" },
+            { logicalName: "pointShadowMap2", uniformName: "uPointShadowMap2", enabledName: "uPointShadowsEnabled2" },
+            { logicalName: "pointShadowMap3", uniformName: "uPointShadowMap3", enabledName: "uPointShadowsEnabled3" }
         ];
 
         for (let i = 0; i < Math.min(this.pointLights.length, pointLightShadowMaps.length); i++) {
