@@ -6,7 +6,7 @@ class ActionSprite3D extends RenderableObject {
 
         // Required options
         if (!options.base64Data) {
-            throw new Error('ActionSprite3D: base64Data is required');
+            throw new Error("ActionSprite3D: base64Data is required");
         }
 
         // Store sprite properties
@@ -16,7 +16,7 @@ class ActionSprite3D extends RenderableObject {
         this.height = options.height || 1.0;
         this.color = options.color || [1.0, 1.0, 1.0]; // RGB tint
         this.alpha = options.alpha !== undefined ? options.alpha : 1.0;
-        this.blendMode = options.blendMode || 'normal'; // 'normal', 'additive', 'multiply'
+        this.blendMode = options.blendMode || "normal"; // 'normal', 'additive', 'multiply'
 
         // Billboard mode - defaults to true for backward compatibility
         this.isBillboard = options.billboard !== undefined ? options.billboard : true;
@@ -36,7 +36,7 @@ class ActionSprite3D extends RenderableObject {
         // Create texture from base64 data
         this._createTextureFromBase64();
     }
-    
+
     /**
      * Create WebGL texture from base64 image data
      * @private
@@ -44,52 +44,52 @@ class ActionSprite3D extends RenderableObject {
     _createTextureFromBase64() {
         // Check if base64 data is placeholder or invalid
         if (!this.base64Data || this.base64Data === "replace_this_base_64_string") {
-            console.warn('ActionSprite3D: Using placeholder base64 data, creating default texture');
+            console.warn("ActionSprite3D: Using placeholder base64 data, creating default texture");
             this._createDefaultTexture();
             return;
         }
-        
+
         // Create image element
         const image = new Image();
-        
+
         image.onload = () => {
             // Will be set by the billboard renderer when GL context is available
             this._imageData = image;
             this.isTextureLoaded = true;
         };
-        
+
         image.onerror = () => {
-            console.error('ActionSprite3D: Failed to load image from base64 data, using fallback');
+            console.error("ActionSprite3D: Failed to load image from base64 data, using fallback");
             this._createDefaultTexture();
         };
-        
+
         // Set source as data URL
         image.src = `data:image/png;base64,${this.base64Data}`;
     }
-    
+
     /**
      * Create a default texture when base64 data is missing or invalid
      * @private
      */
     _createDefaultTexture() {
         // Create a small default texture (4x4 orange gradient)
-        const canvas = document.createElement('canvas');
+        const canvas = document.createElement("canvas");
         canvas.width = 4;
         canvas.height = 4;
-        const ctx = canvas.getContext('2d');
-        
+        const ctx = canvas.getContext("2d");
+
         // Create a simple gradient
         const gradient = ctx.createLinearGradient(0, 0, 4, 4);
-        gradient.addColorStop(0, '#ff6600'); // Orange
-        gradient.addColorStop(1, '#ff3300'); // Red-orange
-        
+        gradient.addColorStop(0, "#ff6600"); // Orange
+        gradient.addColorStop(1, "#ff3300"); // Red-orange
+
         ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, 4, 4);
-        
+
         this._imageData = canvas;
         this.isTextureLoaded = true;
     }
-    
+
     /**
      * Create the actual WebGL texture (called by renderer)
      * @param {WebGLRenderingContext} gl - WebGL context
@@ -98,23 +98,23 @@ class ActionSprite3D extends RenderableObject {
         if (!this._imageData || this.texture) {
             return;
         }
-        
+
         this.texture = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, this.texture);
-        
+
         // Upload the image data
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this._imageData);
-        
+
         // Set texture parameters
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        
+
         // Unbind
         gl.bindTexture(gl.TEXTURE_2D, null);
     }
-    
+
     /**
      * Attach this sprite to another object with a local offset
      * @param {Object} object - Object to attach to (must have position property)
@@ -124,7 +124,7 @@ class ActionSprite3D extends RenderableObject {
         this.attachedTo = object;
         this.localOffset = offset;
     }
-    
+
     /**
      * Detach this sprite from any attached object
      */
@@ -132,7 +132,7 @@ class ActionSprite3D extends RenderableObject {
         this.attachedTo = null;
         this.localOffset = new Vector3(0, 0, 0);
     }
-    
+
     /**
      * Get the world position of this sprite
      * @returns {Vector3} World position
@@ -153,7 +153,7 @@ class ActionSprite3D extends RenderableObject {
         }
         return this.position;
     }
-    
+
     /**
      * Update sprite (called by rendering system)
      * @param {number} deltaTime - Time since last update
@@ -161,7 +161,7 @@ class ActionSprite3D extends RenderableObject {
     update(deltaTime) {
         // Override in subclasses for animation, etc.
     }
-    
+
     /**
      * Set the color tint of the sprite
      * @param {Array} color - RGB color array [r, g, b] with values 0-1
@@ -169,7 +169,7 @@ class ActionSprite3D extends RenderableObject {
     setColor(color) {
         this.color = color;
     }
-    
+
     /**
      * Set the alpha transparency of the sprite
      * @param {number} alpha - Alpha value 0-1
@@ -177,7 +177,7 @@ class ActionSprite3D extends RenderableObject {
     setAlpha(alpha) {
         this.alpha = Math.max(0, Math.min(1, alpha));
     }
-    
+
     /**
      * Set the size of the sprite
      * @param {number} width - Width in world units
@@ -187,7 +187,7 @@ class ActionSprite3D extends RenderableObject {
         this.width = width;
         this.height = height;
     }
-    
+
     /**
      * Set the blend mode for rendering
      * @param {string} mode - 'normal', 'additive', or 'multiply'
@@ -205,7 +205,7 @@ class ActionSprite3D extends RenderableObject {
         this.forward = forward;
         this.up = up;
     }
-    
+
     /**
      * Cleanup WebGL resources
      * @param {WebGLRenderingContext} gl - WebGL context
@@ -216,7 +216,7 @@ class ActionSprite3D extends RenderableObject {
             this.texture = null;
         }
     }
-    
+
     /**
      * Get model matrix (required by RenderableObject)
      * For billboards, this is just the position
