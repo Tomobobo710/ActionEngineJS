@@ -8,12 +8,10 @@ class LightManager {
     /**
      * Constructor for the light manager
      * @param {WebGLRenderingContext} gl - The WebGL rendering context
-     * @param {boolean} isWebGL2 - Flag indicating if WebGL2 is available
      * @param {ProgramManager} programManager - Reference to the program manager for shader access
      */
-    constructor(gl, isWebGL2, programManager) {
+    constructor(gl, programManager) {
         this.gl = gl;
-        this.isWebGL2 = isWebGL2;
         this.programManager = programManager;
 
         // Reference to lighting constants
@@ -28,7 +26,7 @@ class LightManager {
         this.directionalLightDataTexture = null;
         this.pointLightDataTexture = null;
         this.spotLightDataTexture = null;
-        
+
         // Flag to track if light data textures need updating
         this.lightDataDirty = true;
 
@@ -41,7 +39,7 @@ class LightManager {
 
         // Frame counter for updates
         this.frameCount = 0;
-        
+
         // Initialize the light data textures
         this.initializeLightDataTextures();
     }
@@ -55,7 +53,7 @@ class LightManager {
         if (!this.mainDirectionalLightEnabled) {
             return null;
         }
-        const mainLight = new ActionDirectionalShadowLight(this.gl, this.isWebGL2, this.programManager);
+        const mainLight = new ActionDirectionalShadowLight(this.gl, this.programManager);
 
         // Set initial properties from constants
         mainLight.setPosition(
@@ -155,7 +153,7 @@ class LightManager {
      * @returns {ActionDirectionalShadowLight} - The created light
      */
     createDirectionalLight(position, direction, color, intensity, castsShadows = true) {
-        const light = new ActionDirectionalShadowLight(this.gl, this.isWebGL2, this.programManager);
+        const light = new ActionDirectionalShadowLight(this.gl, this.programManager);
 
         light.setPosition(position);
         light.setDirection(direction);
@@ -168,7 +166,7 @@ class LightManager {
         light.setShadowsEnabled(castsShadows);
 
         this.directionalLights.push(light);
-        this.lightDataDirty = true;  // Mark light data as needing update
+        this.lightDataDirty = true; // Mark light data as needing update
 
         return light;
     }
@@ -184,8 +182,8 @@ class LightManager {
      */
     createPointLight(position, color, intensity, radius = 100.0, castsShadows = false) {
         // Remove logging to reduce console spam
-        
-        const light = new ActionOmnidirectionalShadowLight(this.gl, this.isWebGL2, this.programManager);
+
+        const light = new ActionOmnidirectionalShadowLight(this.gl, this.programManager);
 
         light.setPosition(position);
 
@@ -198,7 +196,7 @@ class LightManager {
         light.setShadowsEnabled(castsShadows);
 
         this.pointLights.push(light);
-        this.lightDataDirty = true;  // Mark light data as needing update
+        this.lightDataDirty = true; // Mark light data as needing update
 
         return light;
     }
@@ -221,7 +219,7 @@ class LightManager {
                 if (!this.mainDirectionalLightEnabled) {
                     light.dispose();
                     this.directionalLights.splice(directionalIndex, 1);
-                    this.lightDataDirty = true;  // Mark light data as needing update
+                    this.lightDataDirty = true; // Mark light data as needing update
                     return true;
                 } else {
                     console.warn(
@@ -232,7 +230,7 @@ class LightManager {
             }
             light.dispose();
             this.directionalLights.splice(directionalIndex, 1);
-            this.lightDataDirty = true;  // Mark light data as needing update
+            this.lightDataDirty = true; // Mark light data as needing update
             return true;
         }
 
@@ -240,7 +238,7 @@ class LightManager {
         if (pointIndex !== -1) {
             light.dispose();
             this.pointLights.splice(pointIndex, 1);
-            this.lightDataDirty = true;  // Mark light data as needing update
+            this.lightDataDirty = true; // Mark light data as needing update
             return true;
         }
 
@@ -248,7 +246,7 @@ class LightManager {
         if (spotIndex !== -1) {
             light.dispose();
             this.spotLights.splice(spotIndex, 1);
-            this.lightDataDirty = true;  // Mark light data as needing update
+            this.lightDataDirty = true; // Mark light data as needing update
             return true;
         }
 
@@ -280,7 +278,7 @@ class LightManager {
             const lightChanged = light.update();
             changed = changed || lightChanged;
         }
-        
+
         // If any light has changed, mark light data as needing update
         if (changed) {
             this.lightDataDirty = true;
@@ -355,24 +353,24 @@ class LightManager {
         if (!objects || objects.length === 0) {
             return;
         }
-        
+
         // Filter objects that actually have triangles once
-        const validObjects = objects.filter(obj => obj && obj.triangles && obj.triangles.length > 0);
-        
+        const validObjects = objects.filter((obj) => obj && obj.triangles && obj.triangles.length > 0);
+
         if (validObjects.length === 0) {
             return;
         }
-        
+
         // Render directional light shadow maps
         for (const light of this.directionalLights) {
             if (light.getShadowsEnabled()) {
                 light.beginShadowPass();
-                
+
                 // Render objects to shadow map
                 for (const object of validObjects) {
                     light.renderObjectToShadowMap(object);
                 }
-                
+
                 light.endShadowPass();
             }
         }
@@ -384,12 +382,12 @@ class LightManager {
                 // For omnidirectional lights, we need to render the shadow map for each face (6 faces)
                 for (let faceIndex = 0; faceIndex < 6; faceIndex++) {
                     light.beginShadowPass(faceIndex, lightIndex);
-                    
+
                     // Render objects to shadow map for this face
                     for (const object of validObjects) {
                         light.renderObjectToShadowMap(object);
                     }
-                    
+
                     light.endShadowPass();
                 }
             }
@@ -398,7 +396,7 @@ class LightManager {
         // Reset state after shadow rendering
         this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
         this.gl.useProgram(null);
-        
+
         // Render spot light shadow maps (future)
         // ...
     }
@@ -409,29 +407,29 @@ class LightManager {
      */
     applyLightsToShader(program) {
         const gl = this.gl;
-        
+
         // Make sure light data textures are up-to-date
         this.updateLightDataTextures();
-        
+
         // -- Set Light Counts --
         // Set directional light count
         const dirLightCountLoc = gl.getUniformLocation(program, "uDirectionalLightCount");
         if (dirLightCountLoc !== null) {
             gl.uniform1i(dirLightCountLoc, this.directionalLights.length);
         }
-        
+
         // Set point light count
         const pointLightCountLoc = gl.getUniformLocation(program, "uPointLightCount");
         if (pointLightCountLoc !== null) {
             gl.uniform1i(pointLightCountLoc, this.pointLights.length);
         }
-        
+
         // Set spot light count
         const spotLightCountLoc = gl.getUniformLocation(program, "uSpotLightCount");
         if (spotLightCountLoc !== null) {
             gl.uniform1i(spotLightCountLoc, this.spotLights.length);
         }
-        
+
         // -- Set Texture Sizes --
         const dirLightTextureSizeLoc = gl.getUniformLocation(program, "uDirectionalLightTextureSize");
         if (dirLightTextureSizeLoc !== null) {
@@ -439,33 +437,32 @@ class LightManager {
             const textureWidth = Math.max(1, this.directionalLights.length * pixelsPerLight);
             gl.uniform2f(dirLightTextureSizeLoc, textureWidth, 1);
         }
-        
+
         const pointLightTextureSizeLoc = gl.getUniformLocation(program, "uPointLightTextureSize");
         if (pointLightTextureSizeLoc !== null) {
             const pixelsPerLight = 3; // Each light takes 3 pixels in the texture
             const textureWidth = Math.max(1, this.pointLights.length * pixelsPerLight);
             gl.uniform2f(pointLightTextureSizeLoc, textureWidth, 1);
         }
-        
+
         // -- Textures are bound by ObjectRenderer3D --
         // The actual texture binding happens in ObjectRenderer3D.drawObject
         // to avoid sampler conflicts and ensure proper WebGL texture units
-        
+
         // -- Apply Legacy Light Uniforms for Backward Compatibility --
         // Main directional light shadow
         const mainLight = this.getMainDirectionalLight();
         if (mainLight) {
             // Still call applyToShader for uniforms that aren't in textures yet
             mainLight.applyToShader(program, 0);
-        }
-        else {
+        } else {
             // Make sure shader knows there's no main directional light
             const shadowsEnabledLoc = gl.getUniformLocation(program, "uShadowsEnabled");
             if (shadowsEnabledLoc !== null) {
                 gl.uniform1i(shadowsEnabledLoc, 0); // 0 = false
             }
         }
-        
+
         // Apply shadow maps for point lights (up to 4 with shadow mapping)
         // This sets the light-specific uniforms in the shader
         for (let i = 0; i < Math.min(this.pointLights.length, 4); i++) {
@@ -476,7 +473,6 @@ class LightManager {
             }
         }
     }
-    
 
     /**
      * Apply shadow quality preset to all shadow-casting lights
@@ -524,7 +520,7 @@ class LightManager {
      */
     initializeLightDataTextures() {
         const gl = this.gl;
-        
+
         // Create a texture for directional light data
         this.directionalLightDataTexture = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, this.directionalLightDataTexture);
@@ -532,10 +528,10 @@ class LightManager {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        
+
         // Create initial empty texture data (will be updated later)
         this.createEmptyFloatTexture(this.directionalLightDataTexture, 1, 1);
-        
+
         // Create a texture for point light data
         this.pointLightDataTexture = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, this.pointLightDataTexture);
@@ -543,14 +539,14 @@ class LightManager {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        
+
         // Create initial empty texture data (will be updated later)
         this.createEmptyFloatTexture(this.pointLightDataTexture, 1, 1);
-        
+
         // Unbind texture
         gl.bindTexture(gl.TEXTURE_2D, null);
     }
-    
+
     /**
      * Helper method to create an empty float texture with fallbacks for various WebGL implementations
      * @param {WebGLTexture} texture - The texture object to initialize
@@ -561,58 +557,32 @@ class LightManager {
      */
     createEmptyFloatTexture(texture, width, height, data = null) {
         const gl = this.gl;
-        
+
         try {
-            // Try different approaches based on WebGL version and capabilities
-            if (this.isWebGL2) {
-                // Try high precision internal formats for WebGL2 first
+            // WebGL2 uses high precision internal formats
+            try {
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, width, height, 0, gl.RGBA, gl.FLOAT, data);
+                // No logging to reduce console spam
+                return true;
+            } catch (e) {
+                // If RGBA32F fails, try RGBA16F
                 try {
-                    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, width, height, 0, gl.RGBA, gl.FLOAT, data);
+                    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, width, height, 0, gl.RGBA, gl.FLOAT, data);
                     // No logging to reduce console spam
                     return true;
-                } catch (e) {
-                    // If RGBA32F fails, try RGBA16F
-                    try {
-                        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, width, height, 0, gl.RGBA, gl.FLOAT, data);
-                        // No logging to reduce console spam
-                        return true;
-                    } catch (e2) {
-                        // Last resort for WebGL2 - try standard RGBA format
-                        console.warn('[LightManager] High precision formats not supported, falling back to standard RGBA with gl.FLOAT');
-                        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.FLOAT, data);
-                        return true;
-                    }
-                }
-            } else {
-                // For WebGL1, we need OES_texture_float extension
-                const ext = gl.getExtension('OES_texture_float');
-                if (ext) {
+                } catch (e2) {
+                    // Last resort - try standard RGBA format
+                    console.warn(
+                        "[LightManager] High precision formats not supported, falling back to standard RGBA with gl.FLOAT"
+                    );
                     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.FLOAT, data);
-                    // No logging to reduce console spam
                     return true;
-                } else {
-                    // If float textures aren't supported, fall back to UNSIGNED_BYTE
-                    console.warn('[LightManager] Float textures not supported, falling back to UNSIGNED_BYTE');
-                    
-                    // If data was provided, convert it to UNSIGNED_BYTE
-                    if (data) {
-                        const byteData = new Uint8Array(data.length);
-                        for (let i = 0; i < data.length; i++) {
-                            // Scale float values (typically 0-1) to byte range (0-255)
-                            byteData[i] = Math.min(255, Math.max(0, Math.floor(data[i] * 255)));
-                        }
-                        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, byteData);
-                    } else {
-                        // Just create an empty texture
-                        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-                    }
-                    return false;
                 }
             }
         } catch (err) {
             // Final fallback if everything else fails
-            console.error('[LightManager] Error creating float texture:', err, 'Using UNSIGNED_BYTE fallback');
-            
+            console.error("[LightManager] Error creating float texture:", err, "Using UNSIGNED_BYTE fallback");
+
             // Convert to UNSIGNED_BYTE as last resort
             try {
                 if (data) {
@@ -626,53 +596,53 @@ class LightManager {
                 }
                 return false;
             } catch (e) {
-                console.error('[LightManager] Critical error creating texture:', e);
+                console.error("[LightManager] Critical error creating texture:", e);
                 return false;
             }
         }
     }
-    
+
     /**
      * Update the directional light data texture
      */
     updateDirectionalLightDataTexture() {
         const gl = this.gl;
-        
+
         // Skip if there are no directional lights
         if (this.directionalLights.length === 0) {
             return;
         }
-        
+
         // Each light needs multiple pixels for all its data
         // Position: RGBA (xyz, enabled)
         // Direction: RGBA (xyz, shadowEnabled)
         // Color+Intensity: RGBA (rgb, intensity)
         // We'll use 3 horizontal pixels per light
-        
+
         const pixelsPerLight = 3;
         const textureWidth = Math.max(1, this.directionalLights.length * pixelsPerLight);
         const textureHeight = 1; // Just one row needed
-        
+
         // Create a Float32Array to hold all light data
         const data = new Float32Array(textureWidth * textureHeight * 4); // 4 components per pixel (RGBA)
-        
+
         // Fill the data array with light properties
         for (let i = 0; i < this.directionalLights.length; i++) {
             const light = this.directionalLights[i];
             const baseIndex = i * pixelsPerLight * 4; // Each pixel has 4 components (RGBA)
-            
+
             // First pixel: Position (xyz) + enabled flag
             data[baseIndex] = light.position.x;
             data[baseIndex + 1] = light.position.y;
             data[baseIndex + 2] = light.position.z;
             data[baseIndex + 3] = 1.0; // Enabled
-            
+
             // Second pixel: Direction (xyz) + shadow enabled flag
             data[baseIndex + 4] = light.direction.x;
             data[baseIndex + 5] = light.direction.y;
             data[baseIndex + 6] = light.direction.z;
             data[baseIndex + 7] = light.getShadowsEnabled() ? 1.0 : 0.0;
-            
+
             // Third pixel: Color (rgb) + intensity
             const color = light.getColor();
             data[baseIndex + 8] = color.x;
@@ -680,68 +650,68 @@ class LightManager {
             data[baseIndex + 10] = color.z;
             data[baseIndex + 11] = light.intensity;
         }
-        
+
         // Upload data to the texture
         gl.bindTexture(gl.TEXTURE_2D, this.directionalLightDataTexture);
         this.createEmptyFloatTexture(this.directionalLightDataTexture, textureWidth, textureHeight, data);
         gl.bindTexture(gl.TEXTURE_2D, null);
     }
-    
+
     /**
      * Update the point light data texture
      */
     updatePointLightDataTexture() {
         const gl = this.gl;
-        
+
         // Skip if there are no point lights
         if (this.pointLights.length === 0) {
             return;
         }
-        
+
         // Each light needs multiple pixels for all its data
         // Position: RGBA (xyz, enabled)
         // Color+Intensity: RGBA (rgb, intensity)
         // Radius+Shadow: RGBA (radius, shadowEnabled, 0, 0)
         // We'll use 3 horizontal pixels per light
-        
+
         const pixelsPerLight = 3;
         const textureWidth = Math.max(1, this.pointLights.length * pixelsPerLight);
         const textureHeight = 1; // Just one row needed
-        
+
         // Create a Float32Array to hold all light data
         const data = new Float32Array(textureWidth * textureHeight * 4); // 4 components per pixel (RGBA)
-        
+
         // Fill the data array with light properties
         for (let i = 0; i < this.pointLights.length; i++) {
             const light = this.pointLights[i];
             const baseIndex = i * pixelsPerLight * 4; // Each pixel has 4 components (RGBA)
-            
+
             // First pixel: Position (xyz) + enabled flag
             data[baseIndex] = light.position.x;
             data[baseIndex + 1] = light.position.y;
             data[baseIndex + 2] = light.position.z;
             data[baseIndex + 3] = 1.0; // Enabled
-            
+
             // Second pixel: Color (rgb) + intensity
             const color = light.getColor();
             data[baseIndex + 4] = color.x;
             data[baseIndex + 5] = color.y;
             data[baseIndex + 6] = color.z;
             data[baseIndex + 7] = light.intensity;
-            
+
             // Third pixel: Radius + shadow enabled flag + padding
             data[baseIndex + 8] = light.radius;
             data[baseIndex + 9] = light.getShadowsEnabled() ? 1.0 : 0.0;
             data[baseIndex + 10] = 0.0; // Padding
             data[baseIndex + 11] = 0.0; // Padding
         }
-        
+
         // Upload data to the texture
         gl.bindTexture(gl.TEXTURE_2D, this.pointLightDataTexture);
         this.createEmptyFloatTexture(this.pointLightDataTexture, textureWidth, textureHeight, data);
         gl.bindTexture(gl.TEXTURE_2D, null);
     }
-    
+
     /**
      * Update all light data textures if needed
      */
@@ -752,7 +722,7 @@ class LightManager {
             this.lightDataDirty = false;
         }
     }
-    
+
     dispose() {
         // Clean up all lights
         for (const light of this.directionalLights) {
@@ -769,7 +739,7 @@ class LightManager {
             light.dispose();
         }
         this.spotLights = [];
-        
+
         // Clean up light data textures
         const gl = this.gl;
         if (this.directionalLightDataTexture) {

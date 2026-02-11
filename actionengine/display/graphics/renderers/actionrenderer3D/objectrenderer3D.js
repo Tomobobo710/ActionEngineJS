@@ -5,95 +5,88 @@ class ObjectRenderer3D {
         this.gl = gl;
         this.programManager = programManager;
         this.lightManager = lightManager;
-        
-        // Check if WebGL2 is available for 32-bit indices
-        this.isWebGL2 = this.gl instanceof WebGL2RenderingContext;
-        
+
         // Store the index element type for later use
-        this.indexType = this.isWebGL2 ? this.gl.UNSIGNED_INT : this.gl.UNSIGNED_SHORT;
+        this.indexType = this.gl.UNSIGNED_INT;
 
         // Create buffer for each renderable object - support textures for all objects
         this.buffers = {
             position: this.gl.createBuffer(),
             normal: this.gl.createBuffer(),
             color: this.gl.createBuffer(),
-            uv: this.gl.createBuffer(),              // Add texture coordinate buffer
-            textureIndex: this.gl.createBuffer(),    // Add texture index buffer
-            useTexture: this.gl.createBuffer(),      // Add use texture flag buffer
+            uv: this.gl.createBuffer(), // Add texture coordinate buffer
+            textureIndex: this.gl.createBuffer(), // Add texture index buffer
+            useTexture: this.gl.createBuffer(), // Add use texture flag buffer
             indices: this.gl.createBuffer()
         };
-        
+
         // Create view frustum for culling
         this.viewFrustum = new ViewFrustum();
-        
+
         // Frustum culling is enabled by default
         this.enableFrustumCulling = false;
-        
-        // Add state tracking to avoid redundant texture bindings
-        this._currentTextureUnit = -1;
-        this._currentBoundTexture = null;
-        this._currentBoundTextureType = null;
-        
+
         // Cache for pre-computed uniform values
         this._uniformCache = {
-            frame: -1,           // Current frame number for cache validation
+            frame: -1, // Current frame number for cache validation
             shaderProgram: null, // Current shader program
-            camera: null,        // Current camera reference
-            lightConfig: null,   // Cached light configuration
-            matrices: {          // Cached matrices
+            camera: null, // Current camera reference
+            lightConfig: null, // Cached light configuration
+            matrices: {
+                // Cached matrices
                 projection: Matrix4.create(),
                 view: Matrix4.create(),
                 model: Matrix4.create(),
                 lightSpace: null
             }
         };
-        
+
         // Simple statistics
         this.stats = {
             objectsTotal: 0,
             objectsCulled: 0,
-            uniformSetCount: 0   // Track how many uniform sets we perform
+            uniformSetCount: 0 // Track how many uniform sets we perform
         };
     }
 
     queue(object, camera, currentTime) {
         // Skip rendering if object is invalid
         if (!object) {
-            console.warn('Attempted to render null or undefined object');
+            console.warn("Attempted to render null or undefined object");
             return;
         }
-        
+
         // Initialize the object renderer for the current frame if needed
         if (!this._frameInitialized) {
             // Reset stats
             this.stats.objectsTotal = 0;
             this.stats.objectsCulled = 0;
             this.stats.uniformSetCount = 0;
-            
+
             // Track all objects in the current frame
             this._frameObjects = [];
             this._totalTriangles = 0;
             this._frameInitialized = true;
             this._currentFrameTime = performance.now();
-            
+
             // Store camera for batch rendering
             this._camera = camera;
-            
+
             // Create persistent texture cache
             if (!this._textureCache) {
                 this._textureCache = new Map();
             }
-            
+
             // Update the view frustum with the current camera
             this.viewFrustum.updateFromCamera(camera);
-            
+
             // Reset the frame counter for uniform cache
             this._frameCount = (this._frameCount || 0) + 1;
         }
-        
+
         // Update statistics
         this.stats.objectsTotal++;
-        
+
         // Perform frustum culling if enabled
         if (this.enableFrustumCulling) {
             if (!this.viewFrustum.isVisible(object)) {
@@ -101,19 +94,19 @@ class ObjectRenderer3D {
                 return; // Skip this object as it's outside the frustum
             }
         }
-        
+
         // Ensure object's visual geometry is up-to-date with its physics state
-        if (typeof object.updateVisual === 'function') {
+        if (typeof object.updateVisual === "function") {
             object.updateVisual();
         }
-        
+
         const triangles = object.triangles;
-        
+
         // Validate triangles exist
         if (!triangles || triangles.length === 0) {
             return; // Skip silently, this is a common case
         }
-        
+
         const triangleCount = triangles.length;
 
         // Add this object to our frame tracking
@@ -129,7 +122,7 @@ class ObjectRenderer3D {
             this._totalTriangles = 0;
         }
     }
-    
+
     drawObjects(camera) {
         // If we have no objects to render, just return
         if (!this._frameObjects || this._frameObjects.length === 0) {
@@ -144,18 +137,15 @@ class ObjectRenderer3D {
 
         // Check if we'd exceed the 16-bit index limit
         const exceeds16BitLimit = totalIndexCount > 65535;
-        
-        // WebGL1 can't handle more than 65535 indices (16-bit limit)
-        if (exceeds16BitLimit && !this.isWebGL2) {
-            console.warn(`This scene has ${this._totalTriangles} triangles which exceeds the WebGL1 index limit.`);
-            console.warn('Using WebGL2 with Uint32 indices would greatly improve performance.');
-        }
-        
+
+        // WebGL2 supports 32-bit indices, so this limit no longer applies
+        // Kept for reference: WebGL1 couldn't handle more than 65535 indices (16-bit limit)
+
         // Allocate or resize buffers if needed
         if (!this.cachedArrays || this.cachedArrays.positions.length < totalVertexCount) {
             // Choose correct index array type based on WebGL version
-            const IndexArrayType = this.isWebGL2 ? Uint32Array : Uint16Array;
-            
+            const IndexArrayType = Uint32Array;
+
             this.cachedArrays = {
                 positions: new Float32Array(totalVertexCount),
                 normals: new Float32Array(totalVertexCount),
@@ -163,7 +153,7 @@ class ObjectRenderer3D {
                 indices: new IndexArrayType(totalIndexCount)
             };
         }
-        
+
         // Initialize texture arrays if we need them
         if (!this.textureArrays || this.textureArrays.uvs.length < totalUvCount) {
             this.textureArrays = {
@@ -175,7 +165,7 @@ class ObjectRenderer3D {
         }
 
         const { positions, normals, colors, indices } = this.cachedArrays;
-        
+
         // Track offset for placing objects in buffer
         let triangleOffset = 0;
         let indexOffset = 0;
@@ -184,13 +174,13 @@ class ObjectRenderer3D {
         for (const object of this._frameObjects) {
             const triangles = object.triangles;
             const triangleCount = triangles.length;
-            
+
             // Process geometry data for this object
             // Use local variables for faster access
             const tri = triangles;
             const normal = new Float32Array(3);
             let r, g, b;
-            
+
             for (let i = 0; i < triangleCount; i++) {
                 const triangle = tri[i];
                 const baseIndex = (triangleOffset + i) * 9; // Offset by triangles of previous objects
@@ -203,7 +193,7 @@ class ObjectRenderer3D {
                     r = ((hexColor >> 16) & 255) / 255;
                     g = ((hexColor >> 8) & 255) / 255;
                     b = (hexColor & 255) / 255;
-                    
+
                     // Cache the parsed color
                     triangle.cachedColor = { r, g, b };
                     triangle.lastColor = color;
@@ -218,7 +208,7 @@ class ObjectRenderer3D {
                 normal[0] = triangle.normal.x;
                 normal[1] = triangle.normal.y;
                 normal[2] = triangle.normal.z;
-                
+
                 // Process all vertices of this triangle in one batch
                 // Unroll the loop for better performance
                 // Vertex 0
@@ -233,7 +223,7 @@ class ObjectRenderer3D {
                 colors[vo0] = r;
                 colors[vo0 + 1] = g;
                 colors[vo0 + 2] = b;
-                
+
                 // Vertex 1
                 const v1 = triangle.vertices[1];
                 const vo1 = baseIndex + 3;
@@ -246,7 +236,7 @@ class ObjectRenderer3D {
                 colors[vo1] = r;
                 colors[vo1 + 1] = g;
                 colors[vo1 + 2] = b;
-                
+
                 // Vertex 2
                 const v2 = triangle.vertices[2];
                 const vo2 = baseIndex + 6;
@@ -259,7 +249,7 @@ class ObjectRenderer3D {
                 colors[vo2] = r;
                 colors[vo2 + 1] = g;
                 colors[vo2 + 2] = b;
-                
+
                 // Set up indices with correct offsets for each object
                 const indexBaseOffset = (triangleOffset + i) * 3;
                 // Every vertex needs its own index in WebGL
@@ -271,16 +261,16 @@ class ObjectRenderer3D {
                 const baseUVIndex = (triangleOffset + i) * 6;
                 const baseFlagIndex = (triangleOffset + i) * 3;
                 const { uvs, textureIndices, useTextureFlags } = this.textureArrays;
-                
+
                 // Check if this triangle has texture (either from material or legacy texture property)
                 const shouldUseTexture = (triangle.material && triangle.material.useTexture) || triangle.texture;
-                
+
                 // Handle UVs
                 let uvsToUse = triangle.uvs;
                 if (triangle.material && triangle.material.texCoords && !uvsToUse) {
                     uvsToUse = triangle.material.texCoords;
                 }
-                
+
                 if (uvsToUse) {
                     for (let j = 0; j < 3; j++) {
                         const uv = uvsToUse[j];
@@ -296,15 +286,15 @@ class ObjectRenderer3D {
                     uvs[baseUVIndex + 4] = 0.5;
                     uvs[baseUVIndex + 5] = 1;
                 }
-                
+
                 // Determine texture index and useTexture flag
                 let textureIndex = 0;
                 let useTextureValue = 0;
-                
+
                 if (shouldUseTexture) {
                     this._hasTextures = true;
                     useTextureValue = 1;
-                    
+
                     if (triangle.material && triangle.material.useTexture && triangle.material.textureIndex >= 0) {
                         // Use embedded texture index from material
                         textureIndex = triangle.material.textureIndex;
@@ -318,19 +308,17 @@ class ObjectRenderer3D {
                         textureIndex = cachedIndex;
                     }
                 }
-                
+
                 // Set texture data for all three vertices of triangle
                 textureIndices[baseFlagIndex] = textureIndex;
                 textureIndices[baseFlagIndex + 1] = textureIndex;
                 textureIndices[baseFlagIndex + 2] = textureIndex;
-                
+
                 useTextureFlags[baseFlagIndex] = useTextureValue;
                 useTextureFlags[baseFlagIndex + 1] = useTextureValue;
                 useTextureFlags[baseFlagIndex + 2] = useTextureValue;
-                
-
             }
-            
+
             // Update triangle offset for next object
             triangleOffset += triangleCount;
         }
@@ -340,7 +328,7 @@ class ObjectRenderer3D {
         const ARRAY_BUFFER = gl.ARRAY_BUFFER;
         // Use DYNAMIC_DRAW for buffers that change every frame
         const DYNAMIC_DRAW = gl.DYNAMIC_DRAW;
-        
+
         // Update GL buffers with all object data
         const bufferUpdates = [
             { buffer: this.buffers.position, data: positions },
@@ -360,15 +348,14 @@ class ObjectRenderer3D {
             { buffer: this.buffers.textureIndex, data: textureIndices },
             { buffer: this.buffers.useTexture, data: useTextureFlags }
         ];
-            
+
         for (const { buffer, data } of textureBufferUpdates) {
             gl.bindBuffer(ARRAY_BUFFER, buffer);
             gl.bufferData(ARRAY_BUFFER, data, DYNAMIC_DRAW);
         }
-        
+
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.buffers.indices);
         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, DYNAMIC_DRAW);
-
 
         // PRE-COMPUTE ALL MATRICES AND UNIFORMS ONCE PER FRAME
         this.updateUniformCache(camera);
@@ -377,68 +364,60 @@ class ObjectRenderer3D {
         const program = this.programManager.getObjectProgram();
         const locations = this.programManager.getObjectLocations();
         gl.useProgram(program);
-        
-        // Enable alpha blending to render semi-transparent textures correctly
-        gl.enable(gl.BLEND);
-        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-        
+
+        // Blending is now managed by GLStateManager.setupState('object')
+        // No need for direct gl.enable/disable calls here
+
         this.setupObjectShader(locations, camera);
 
         // Draw all objects in one batch
         this.drawObject(locations, totalIndexCount);
-        
-        // Disable blending for next renderer
-        gl.disable(gl.BLEND);
-        
+
         // Reset frame tracking for next frame
         this._frameInitialized = false;
         this._frameObjects = [];
         this._totalTriangles = 0;
     }
-    
+
     // Pre-compute all uniform values once per frame
     updateUniformCache(camera) {
         // Get the current shader program from program manager
         const program = this.programManager.getObjectProgram();
-        
+
         // Check if we already computed values for this frame
-        if (this._uniformCache.frame === this._frameCount && 
+        if (
+            this._uniformCache.frame === this._frameCount &&
             this._uniformCache.shaderProgram === program &&
-            this._uniformCache.camera === camera) {
+            this._uniformCache.camera === camera
+        ) {
             return; // Cache is valid, no need to update
         }
-        
+
         // Update cache validation
         this._uniformCache.frame = this._frameCount;
         this._uniformCache.shaderProgram = program;
         this._uniformCache.camera = camera;
-        
+
         // Pre-compute projection matrix
-        Matrix4.perspective(
-            this._uniformCache.matrices.projection,
-            camera.fov,
-            Game.WIDTH / Game.HEIGHT,
-            0.1,
-            10000.0
-        );
+        Matrix4.perspective(this._uniformCache.matrices.projection, camera.fov, Game.WIDTH / Game.HEIGHT, 0.1, 10000.0);
 
         // Pre-compute view matrix
         Matrix4.lookAt(
             this._uniformCache.matrices.view,
-            camera.position.toArray(), 
-            camera.target.toArray(), 
+            camera.position.toArray(),
+            camera.target.toArray(),
             camera.up.toArray()
         );
 
         // Identity model matrix
         Matrix4.identity(this._uniformCache.matrices.model);
-        
+
         // Only cache light configuration if directional light is actually enabled
         if (this.lightManager.isMainDirectionalLightEnabled() && this.lightManager.getMainDirectionalLight()) {
             // Get real light data from the light manager - no sneaky default values
             this._uniformCache.lightConfig = this.lightManager.getLightConfig();
             this._uniformCache.lightDir = this.lightManager.getLightDir();
-            
+
             // Get the actual light space matrix from the light manager
             this._uniformCache.matrices.lightSpace = this.lightManager.getLightSpaceMatrix();
         } else {
@@ -448,20 +427,20 @@ class ObjectRenderer3D {
             this._uniformCache.lightDir = null;
             this._uniformCache.matrices.lightSpace = null;
         }
-        
+
         // Cache other commonly used values
         const materialConfig = this.lightManager.constants.MATERIAL;
         this._uniformCache.roughness = materialConfig.ROUGHNESS.value;
         this._uniformCache.metallic = materialConfig.METALLIC.value;
         this._uniformCache.baseReflectivity = materialConfig.BASE_REFLECTIVITY.value;
-        
+
         // Save that we've updated the cache
         this._cacheUpdated = true;
     }
 
     setupObjectShader(locations, camera) {
         const gl = this.gl;
-        
+
         // Use pre-computed values from the uniform cache
         gl.uniformMatrix4fv(locations.projectionMatrix, false, this._uniformCache.matrices.projection);
         gl.uniformMatrix4fv(locations.viewMatrix, false, this._uniformCache.matrices.view);
@@ -476,7 +455,7 @@ class ObjectRenderer3D {
         if (locations.farPlane !== -1 && locations.farPlane !== null) {
             gl.uniform1f(locations.farPlane, 10000.0);
         }
-        
+
         // Set far plane for point shadow depth comparison (500.0 matches shadow map rendering)
         if (locations.pointShadowFarPlane !== -1 && locations.pointShadowFarPlane !== null) {
             gl.uniform1f(locations.pointShadowFarPlane, 500.0);
@@ -485,33 +464,45 @@ class ObjectRenderer3D {
         // Only set light uniforms if we actually have a directional light
         // Otherwise the shader will skip directional light calculations entirely
         const config = this._uniformCache.lightConfig;
-        const mainLightEnabled = this.lightManager.isMainDirectionalLightEnabled() && this.lightManager.getMainDirectionalLight() !== null;
-        
+        const mainLightEnabled =
+            this.lightManager.isMainDirectionalLightEnabled() && this.lightManager.getMainDirectionalLight() !== null;
+
         // If directional light is enabled, make sure shadows are also enabled
         if (mainLightEnabled && locations.shadowsEnabled !== -1 && locations.shadowsEnabled !== null) {
             gl.uniform1i(locations.shadowsEnabled, 1); // 1 = true
         }
-        
+
         // Only set light position if light is enabled - no sneaky default values
         if (locations.lightPos !== -1 && locations.lightPos !== null && mainLightEnabled && config && config.POSITION) {
             gl.uniform3fv(locations.lightPos, [config.POSITION.x, config.POSITION.y, config.POSITION.z]);
         }
-        
-        // Only set light direction if light is enabled - no sneaky default values  
-        if (locations.lightDir !== -1 && locations.lightDir !== null && mainLightEnabled && this._uniformCache.lightDir) {
+
+        // Only set light direction if light is enabled - no sneaky default values
+        if (
+            locations.lightDir !== -1 &&
+            locations.lightDir !== null &&
+            mainLightEnabled &&
+            this._uniformCache.lightDir
+        ) {
             gl.uniform3fv(locations.lightDir, this._uniformCache.lightDir.toArray());
         }
-        
+
         // Only set intensity if light is enabled - no sneaky default values
-        if (locations.lightIntensity !== -1 && locations.lightIntensity !== null && mainLightEnabled && config && config.INTENSITY !== undefined) {
+        if (
+            locations.lightIntensity !== -1 &&
+            locations.lightIntensity !== null &&
+            mainLightEnabled &&
+            config &&
+            config.INTENSITY !== undefined
+        ) {
             gl.uniform1f(locations.lightIntensity, config.INTENSITY);
         }
-        
+
         // Set intensity factor for default shader
         if (locations.intensityFactor !== -1 && locations.intensityFactor !== null) {
             // Get the current shader name
             const currentVariant = this.programManager.getCurrentVariant();
-            
+
             // Only apply the factor to the default shader
             if (currentVariant === "default") {
                 const factor = this.lightManager.constants.OBJECT_SHADER_DEFAULT_VARIANT_INTENSITY_FACTOR.value;
@@ -532,59 +523,55 @@ class ObjectRenderer3D {
         if (locations.baseReflectivity !== -1 && locations.baseReflectivity !== null) {
             gl.uniform1f(locations.baseReflectivity, this._uniformCache.baseReflectivity);
         }
-        
+
         // Set per-texture material properties uniform
         if (locations.usePerTextureMaterials !== -1 && locations.usePerTextureMaterials !== null) {
             // Get material settings from texture manager
             const usePerTextureMaterials = this.renderer.textureManager?.usePerTextureMaterials || false;
             gl.uniform1i(locations.usePerTextureMaterials, usePerTextureMaterials ? 1 : 0);
         }
-        
+
         // Bind material properties texture if available
         if (locations.materialPropertiesTexture !== -1 && locations.materialPropertiesTexture !== null) {
             const materialPropertiesTexture = this.renderer.textureManager?.materialPropertiesTexture;
             if (materialPropertiesTexture) {
-                // Only change texture binding if needed (texture unit 2 for material properties)
-                // Always bind the material properties texture to ensure it's up to date
-                // This is needed to support real-time changes in the debug panel
-                {
-                    
-                    // Use texture unit 2 for material properties
-                    this.gl.activeTexture(this.gl.TEXTURE2);
-                    this.gl.bindTexture(this.gl.TEXTURE_2D, materialPropertiesTexture);
-                    this.gl.uniform1i(locations.materialPropertiesTexture, 2);
-                    
-                    // Update state tracking
-                    this._currentTextureUnit = 2;
-                    this._currentBoundTexture = materialPropertiesTexture;
-                    this._currentBoundTextureType = this.gl.TEXTURE_2D;
-                }
+                // Bind material properties texture via GLStateManager
+                // Always bind to ensure it's up to date (supports real-time debug panel changes)
+                this.renderer.glStateManager.bindTextureWithUniform(
+                    "materialProperties",
+                    materialPropertiesTexture,
+                    "TEXTURE_2D",
+                    this.gl.getParameter(this.gl.CURRENT_PROGRAM),
+                    "uMaterialPropertiesTexture"
+                );
             }
         }
-        
+
         // Set shadow map uniforms if they exist in the shader
         if (locations.shadowsEnabled !== -1 && locations.shadowsEnabled !== null) {
             // Set by renderer during shadow map binding
             const shadowsEnabled = this.renderer.shadowsEnabled ? 1 : 0;
             gl.uniform1i(locations.shadowsEnabled, shadowsEnabled);
         }
-        
+
         // Set shadow bias if available
         if (locations.shadowBias !== -1 && locations.shadowBias !== null) {
             const shadowBias = this._uniformCache.shadowBias || 0.05;
             gl.uniform1f(locations.shadowBias, shadowBias);
         }
-        
+
         // Only set light space matrix if directional light is actually enabled
         // We don't want to do sneaky calculations with default matrices
-        if (locations.lightSpaceMatrix !== -1 && locations.lightSpaceMatrix !== null && 
-            this._uniformCache.matrices.lightSpace && 
-            this.lightManager.isMainDirectionalLightEnabled()) {
-            
+        if (
+            locations.lightSpaceMatrix !== -1 &&
+            locations.lightSpaceMatrix !== null &&
+            this._uniformCache.matrices.lightSpace &&
+            this.lightManager.isMainDirectionalLightEnabled()
+        ) {
             // Apply the actual light space matrix from the light
             gl.uniformMatrix4fv(locations.lightSpaceMatrix, false, this._uniformCache.matrices.lightSpace);
         }
-        
+
         // Track how many uniform sets we've performed
         this.stats.uniformSetCount++;
     }
@@ -593,7 +580,7 @@ class ObjectRenderer3D {
         // Cache commonly used values
         const gl = this.gl;
         const ARRAY_BUFFER = gl.ARRAY_BUFFER;
-        
+
         // Position attribute
         gl.bindBuffer(ARRAY_BUFFER, this.buffers.position);
         gl.vertexAttribPointer(locations.position, 3, gl.FLOAT, false, 0, 0);
@@ -632,158 +619,131 @@ class ObjectRenderer3D {
             gl.vertexAttribPointer(locations.useTexture, 1, gl.FLOAT, false, 0, 0);
             gl.enableVertexAttribArray(locations.useTexture);
         }
-        
+
         // Performance optimization: Cache shader information and texture binding
         if (!this._currentShaderVariant) {
             this._currentShaderVariant = "unknown";
         }
-        
-        // TEXTURE BINDING STRATEGY:
-        // Group 1: 2D textures (0-7)
-        // Group 2: Cubemap textures (10-19)
-        // Group 3: 2D array textures (20-29)
-        
-        // --- GROUP 1: 2D TEXTURES ---
-        // Bind material properties (2D texture)
-        if (locations.materialPropertiesTexture !== -1 && locations.materialPropertiesTexture !== null) {
-            const materialPropertiesTexture = this.renderer?.textureManager?.materialPropertiesTexture;
-            if (materialPropertiesTexture) {
-                gl.activeTexture(gl.TEXTURE0);
-                gl.bindTexture(gl.TEXTURE_2D, materialPropertiesTexture);
-                gl.uniform1i(locations.materialPropertiesTexture, 0);
-            }
+
+        // Get the current program for texture binding
+        const currentProgram = this.programManager.getObjectProgram();
+        if (!currentProgram) {
+            return;
         }
-        
-        // Bind light data textures (2D textures)
-        if (locations.directionalLightData !== -1 && locations.directionalLightData !== null && 
-            this.lightManager.directionalLightDataTexture) {
-            gl.activeTexture(gl.TEXTURE1);
-            gl.bindTexture(gl.TEXTURE_2D, this.lightManager.directionalLightDataTexture);
-            gl.uniform1i(locations.directionalLightData, 1);
+
+        // Use GLStateManager to bind all textures
+        const materialPropertiesTexture = this.renderer.textureManager.materialPropertiesTexture;
+        if (
+            materialPropertiesTexture &&
+            locations.materialPropertiesTexture !== -1 &&
+            locations.materialPropertiesTexture !== null
+        ) {
+            this.renderer.glStateManager.bindTextureWithUniform(
+                "materialProperties",
+                materialPropertiesTexture,
+                "TEXTURE_2D",
+                currentProgram,
+                "uMaterialPropertiesTexture"
+            );
         }
-        
-        if (locations.pointLightData !== -1 && locations.pointLightData !== null &&
-            this.lightManager.pointLightDataTexture) {
-            gl.activeTexture(gl.TEXTURE2);
-            gl.bindTexture(gl.TEXTURE_2D, this.lightManager.pointLightDataTexture);
-            gl.uniform1i(locations.pointLightData, 2);
+
+        if (
+            this.lightManager.directionalLightDataTexture &&
+            locations.directionalLightData !== -1 &&
+            locations.directionalLightData !== null
+        ) {
+            this.renderer.glStateManager.bindTextureWithUniform(
+                "directionalLightData",
+                this.lightManager.directionalLightDataTexture,
+                "TEXTURE_2D",
+                currentProgram,
+                "uDirectionalLightData"
+            );
         }
-        
-        // Bind directional shadow map (2D texture)
-        if (locations.shadowMap !== -1 && locations.shadowMap !== null) {
-            const mainLight = this.lightManager.getMainDirectionalLight();
-            if (mainLight && mainLight.getShadowsEnabled()) {
-                const shadowMap = mainLight.shadowTexture;
-                if (shadowMap) {
-                    gl.activeTexture(gl.TEXTURE3);
-                    gl.bindTexture(gl.TEXTURE_2D, shadowMap);
-                    gl.uniform1i(locations.shadowMap, 3);
-                }
-            }
+
+        if (
+            this.lightManager.pointLightDataTexture &&
+            locations.pointLightData !== -1 &&
+            locations.pointLightData !== null
+        ) {
+            this.renderer.glStateManager.bindTextureWithUniform(
+                "pointLightData",
+                this.lightManager.pointLightDataTexture,
+                "TEXTURE_2D",
+                currentProgram,
+                "uPointLightData"
+            );
         }
-        
-        // --- GROUP 2: CUBEMAP TEXTURES (must be separate from 2D textures) ---
-        // Bind shadow maps for multiple point lights
-        // Each point light gets assigned a texture unit starting from 10
-        
-        // Define the mapping of point light index to shadow map properties
+
+        const mainLight = this.lightManager.getMainDirectionalLight();
+        if (mainLight && mainLight.shadowTexture && locations.shadowMap !== -1 && locations.shadowMap !== null) {
+            this.renderer.glStateManager.bindTextureWithUniform(
+                "directionalShadowMap",
+                mainLight.shadowTexture,
+                "TEXTURE_2D",
+                currentProgram,
+                "uShadowMap"
+            );
+        }
+
+        // Point light shadow maps
         const pointLightShadowMaps = [
-            { locationName: 'pointShadowMap', textureUnit: 10, enabledName: 'pointShadowsEnabled' },
-            { locationName: 'pointShadowMap1', textureUnit: 11, enabledName: 'pointShadowsEnabled1' },
-            { locationName: 'pointShadowMap2', textureUnit: 12, enabledName: 'pointShadowsEnabled2' },
-            { locationName: 'pointShadowMap3', textureUnit: 13, enabledName: 'pointShadowsEnabled3' }
+            { logicalName: "pointShadowMap0", uniformName: "uPointShadowMap", enabledName: "pointShadowsEnabled" },
+            { logicalName: "pointShadowMap1", uniformName: "uPointShadowMap1", enabledName: "pointShadowsEnabled1" },
+            { logicalName: "pointShadowMap2", uniformName: "uPointShadowMap2", enabledName: "pointShadowsEnabled2" },
+            { logicalName: "pointShadowMap3", uniformName: "uPointShadowMap3", enabledName: "pointShadowsEnabled3" }
         ];
-        
-        // Bind shadow maps for up to 4 point lights
+
         for (let i = 0; i < Math.min(this.lightManager.pointLights.length, pointLightShadowMaps.length); i++) {
             const pointLight = this.lightManager.pointLights[i];
             const shadowMapDef = pointLightShadowMaps[i];
-            
-            // Get uniform locations
-            const shadowMapLoc = locations[shadowMapDef.locationName];
             const shadowEnabledLoc = locations[shadowMapDef.enabledName];
-            
-            // Skip if any required uniform doesn't exist
-            if (shadowMapLoc === -1 || shadowMapLoc === null || shadowEnabledLoc === -1 || shadowEnabledLoc === null) {
-                continue;
-            }
-            
-            // Check if this light casts shadows
-            if (pointLight && pointLight.getShadowsEnabled()) {
-                const pointShadowMap = pointLight.shadowTexture;
-                if (pointShadowMap) {
-                    // Bind the shadow map
-                    gl.activeTexture(gl.TEXTURE0 + shadowMapDef.textureUnit);
-                    if (this.isWebGL2 && pointLight.isWebGL2) {
-                        gl.bindTexture(gl.TEXTURE_CUBE_MAP, pointShadowMap);
-                    } else {
-                        gl.bindTexture(gl.TEXTURE_2D, pointShadowMap);
-                    }
-                    gl.uniform1i(shadowMapLoc, shadowMapDef.textureUnit);
-                    
-                    // Set that this light's shadows are enabled
-                    gl.uniform1i(shadowEnabledLoc, 1); // 1 = true
-                } else {
-                    // No shadow map, disable shadows
-                    gl.uniform1i(shadowEnabledLoc, 0); // 0 = false
-                }
-            } else {
-                // Light doesn't cast shadows, disable them
-                gl.uniform1i(shadowEnabledLoc, 0); // 0 = false
+
+            if (pointLight && pointLight.shadowTexture && shadowEnabledLoc !== -1 && shadowEnabledLoc !== null) {
+                const textureType = "TEXTURE_CUBE_MAP";
+                this.renderer.glStateManager.bindTextureWithUniform(
+                    shadowMapDef.logicalName,
+                    pointLight.shadowTexture,
+                    textureType,
+                    currentProgram,
+                    shadowMapDef.uniformName
+                );
+                gl.uniform1i(shadowEnabledLoc, 1);
+            } else if (shadowEnabledLoc !== -1 && shadowEnabledLoc !== null) {
+                gl.uniform1i(shadowEnabledLoc, 0);
             }
         }
-        
-        // Disable shadows for any additional shadow map uniforms that exist
+
+        // Disable shadows for unused point light slots
         for (let i = this.lightManager.pointLights.length; i < pointLightShadowMaps.length; i++) {
             const shadowMapDef = pointLightShadowMaps[i];
             const shadowEnabledLoc = locations[shadowMapDef.enabledName];
-            
             if (shadowEnabledLoc !== -1 && shadowEnabledLoc !== null) {
-                gl.uniform1i(shadowEnabledLoc, 0); // 0 = false
+                gl.uniform1i(shadowEnabledLoc, 0);
             }
         }
-        
-        // --- GROUP 3: TEXTURE ARRAYS ---
-        // Determine which shader variant to use
-        if (!this._lastCheckedVariant || this._lastCheckedVariant !== this.programManager.getCurrentVariant()) {
-            this._lastCheckedVariant = this.programManager.getCurrentVariant();
-            this._currentShaderVariant = this._lastCheckedVariant === "pbr" ? "pbr" : "other";
+
+        // Texture array
+        const embeddedTextureArray = this.renderer.textureManager.embeddedTextureArray;
+        const proceduralTextureArray = this.renderer.textureArray;
+        const textureArrayToBind = embeddedTextureArray || proceduralTextureArray;
+
+        if (textureArrayToBind && locations.textureArray !== -1 && locations.textureArray !== null) {
+            // Check variant to determine which texture array uniform to use
+            const currentVariant = this.renderer.programManager.getCurrentVariant();
+            const isPBRVariant = currentVariant === "pbr";
+            const textureArrayUnit = isPBRVariant ? "textureArrayPBR" : "textureArray";
+            const uniformName = isPBRVariant ? "uPBRTextureArray" : "uTextureArray";
+            this.renderer.glStateManager.bindTextureWithUniform(
+                textureArrayUnit,
+                textureArrayToBind,
+                "TEXTURE_2D_ARRAY",
+                currentProgram,
+                uniformName
+            );
         }
-        
-        // Use unit 20 for standard shader, 21 for PBR shader
-        const targetUnit = this._currentShaderVariant === "pbr" ? 21 : 20;
-        
-        // Bind texture array (2D array texture)
-        // Prefer embedded texture array if available, otherwise use procedural texture array
-        if (locations.textureArray !== -1 && locations.textureArray !== null) {
-            const embeddedTextureArray = this.renderer?.textureManager?.embeddedTextureArray;
-            const embeddedReady = this.renderer?.textureManager?.embeddedTextureArrayReady;
-            const proceduralTextureArray = this.renderer?.textureArray;
-            const textureArrayToBind = embeddedTextureArray || proceduralTextureArray;
-            
-            
-            if (textureArrayToBind) {
-                // Only change binding if needed
-                if (this._currentTextureUnit !== targetUnit || 
-                    this._currentBoundTexture !== textureArrayToBind || 
-                    this._currentBoundTextureType !== gl.TEXTURE_2D_ARRAY) {
-                    
-                    gl.activeTexture(gl.TEXTURE0 + targetUnit);
-                    gl.bindTexture(gl.TEXTURE_2D_ARRAY, textureArrayToBind);
-                    gl.uniform1i(locations.textureArray, targetUnit);
-                    
-                    // Update state tracking
-                    this._currentTextureUnit = targetUnit;
-                    this._currentBoundTexture = textureArrayToBind;
-                    this._currentBoundTextureType = gl.TEXTURE_2D_ARRAY;
-                }
-                
-                // Always update material properties texture, no dirty flag check
-                if (this.renderer?.textureManager) {
-                    this.renderer.textureManager.updateMaterialPropertiesTexture();
-                }
-            }
-        }
+
+        this.renderer.textureManager.updateMaterialPropertiesTexture();
 
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.buffers.indices);
         gl.drawElements(gl.TRIANGLES, indexCount, this.indexType, 0);
@@ -792,15 +752,15 @@ class ObjectRenderer3D {
     // Helper method to get texture index - works for any object with textures
     getTextureIndexForProceduralTexture(proceduralTexture) {
         // If textureRegistry doesn't exist or isn't accessible, return 0
-        if (typeof textureRegistry === 'undefined') {
-            console.warn('textureRegistry is not defined - textures will not work correctly');
+        if (typeof textureRegistry === "undefined") {
+            console.warn("textureRegistry is not defined - textures will not work correctly");
             return 0;
         }
-        
+
         // Initialize the texture cache once if needed
         if (!this._textureIndexCache) {
             this._textureIndexCache = new WeakMap();
-            
+
             // Pre-populate cache with texture information - only need to do this once since textures don't change
             textureRegistry.textureList.forEach((name, index) => {
                 const texture = textureRegistry.get(name);
@@ -808,17 +768,17 @@ class ObjectRenderer3D {
                     this._textureIndexCache.set(texture, index);
                 }
             });
-            
+
             // Set lastCacheUpdate to infinity to prevent unnecessary refreshes
             this._lastCacheUpdate = Infinity;
         }
-        
+
         // Get from cache with O(1) lookup
         const indexFromCache = this._textureIndexCache.get(proceduralTexture);
         if (indexFromCache !== undefined) {
             return indexFromCache;
         }
-        
+
         // If texture wasn't in cache, this is a texture we haven't seen before
         // Instead of refreshing the whole cache, just add this one texture
         const textureName = proceduralTexture.name;
@@ -830,7 +790,7 @@ class ObjectRenderer3D {
                 return textureIndex;
             }
         }
-        
+
         return 0; // Default to first texture if not found
     }
 }

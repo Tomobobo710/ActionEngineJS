@@ -1,9 +1,10 @@
 // actionengine/display/graphics/renderers/actionrenderer3D/debugrenderer3D.js
 class DebugRenderer3D {
-    constructor(gl, programManager, lightManager) {
+    constructor(gl, programManager, lightManager, glStateManager) {
         this.gl = gl;
         this.programManager = programManager;
         this.lightManager = lightManager;
+        this.glStateManager = glStateManager;
 
         // Reference to lighting constants
         this.constants = lightingConstants;
@@ -16,9 +17,9 @@ class DebugRenderer3D {
 
         // Track shadow map visualization state
         this._wasVisualizingShadowMap = false;
-        
+
         this._lastLineShaderVariant = null;
-        
+
         // Debug flag
         this._debugFrustum = false;
     }
@@ -36,14 +37,24 @@ class DebugRenderer3D {
         // Get the line program and locations
         const lineProgram = this.programManager.getLineProgram();
         const lineLocations = this.programManager.getLineLocations();
-        
+
         // Draw character-related debug info if character exists
         if (character) {
             const currentTriangle = character.getCurrentTriangle();
             if (currentTriangle) {
-                this.drawTriangleNormal(currentTriangle, camera, { program: lineProgram, locations: lineLocations }, currentTime);
+                this.drawTriangleNormal(
+                    currentTriangle,
+                    camera,
+                    { program: lineProgram, locations: lineLocations },
+                    currentTime
+                );
             }
-            this.drawDirectionIndicator(character, camera, { program: lineProgram, locations: lineLocations }, currentTime);
+            this.drawDirectionIndicator(
+                character,
+                camera,
+                { program: lineProgram, locations: lineLocations },
+                currentTime
+            );
         }
 
         // Always try to draw light frustum - it will check for the DEBUG.VISUALIZE_FRUSTUM flag internally
@@ -81,7 +92,7 @@ class DebugRenderer3D {
 
         this.drawLine(center.toArray(), directionEnd.toArray(), camera, lineShader, currentTime);
     }
-    
+
     /**
      * Draw the light frustum for visualization
      */
@@ -95,7 +106,7 @@ class DebugRenderer3D {
         if (!this.constants.DEBUG.VISUALIZE_FRUSTUM) {
             return;
         }
-        
+
         //console.log("Drawing light frustum...");
         this._debugFrustum = true;
 
@@ -105,7 +116,7 @@ class DebugRenderer3D {
             console.log("No main directional light for frustum visualization");
             return;
         }
-        
+
         // Get light position and direction
         const lightPos = mainLight.getPosition();
         const lightDir = mainLight.getDirection();
@@ -157,12 +168,7 @@ class DebugRenderer3D {
             upVector = [0, 0, 1];
         }
 
-        Matrix4.lookAt(
-            lightViewMatrix,
-            lightPos.toArray(),
-            lightTarget.toArray(),
-            upVector
-        );
+        Matrix4.lookAt(lightViewMatrix, lightPos.toArray(), lightTarget.toArray(), upVector);
 
         // Invert the light view matrix to transform frustum from light space to world space
         const invLightViewMatrix = Matrix4.create();
@@ -196,11 +202,15 @@ class DebugRenderer3D {
 
         // Draw light position and direction
         const lightPosArray = [lightPos.x, lightPos.y, lightPos.z];
-        const lightDirEnd = [lightPos.x + lightDir.x * 500, lightPos.y + lightDir.y * 500, lightPos.z + lightDir.z * 500];
+        const lightDirEnd = [
+            lightPos.x + lightDir.x * 500,
+            lightPos.y + lightDir.y * 500,
+            lightPos.z + lightDir.z * 500
+        ];
 
         // Always draw the light direction line, even if frustum lines are disabled
         this.drawLine(lightPosArray, lightDirEnd, camera, lineShader, 0, [1.0, 0.8, 0.2]);
-        
+
         //console.log("Light frustum visualization complete");
     }
 
@@ -209,14 +219,20 @@ class DebugRenderer3D {
             console.error("Line shader not available");
             return;
         }
-        
+
         try {
             const lineVerts = new Float32Array([...start, ...end]);
 
             this.gl.useProgram(lineShader.program);
 
             // Set up matrices
-            const projection = Matrix4.perspective(Matrix4.create(), camera.fov, Game.WIDTH / Game.HEIGHT, 0.1, 10000.0);
+            const projection = Matrix4.perspective(
+                Matrix4.create(),
+                camera.fov,
+                Game.WIDTH / Game.HEIGHT,
+                0.1,
+                10000.0
+            );
             const view = Matrix4.create();
             Matrix4.lookAt(view, camera.position.toArray(), camera.target.toArray(), camera.up.toArray());
 
@@ -236,13 +252,15 @@ class DebugRenderer3D {
             this.gl.uniformMatrix4fv(lineShader.locations.viewMatrix, false, view);
 
             // Set the line color
-            const colorLocation = lineShader.locations.color || this.gl.getUniformLocation(lineShader.program, "uColor");
+            const colorLocation =
+                lineShader.locations.color || this.gl.getUniformLocation(lineShader.program, "uColor");
             if (colorLocation) {
                 this.gl.uniform3fv(colorLocation, color);
             }
-            
+
             // Set far plane for logarithmic depth
-            const farPlaneLocation = lineShader.locations.farPlane || this.gl.getUniformLocation(lineShader.program, "uFarPlane");
+            const farPlaneLocation =
+                lineShader.locations.farPlane || this.gl.getUniformLocation(lineShader.program, "uFarPlane");
             if (farPlaneLocation) {
                 this.gl.uniform1f(farPlaneLocation, 10000.0);
             }
@@ -277,7 +295,7 @@ class DebugRenderer3D {
 
         // Only render if we have a light manager and main directional light
         if (!this.lightManager) return;
-        
+
         const mainLight = this.lightManager.getMainDirectionalLight();
         if (!mainLight || !mainLight.shadowTexture) return;
 
@@ -395,13 +413,14 @@ class DebugRenderer3D {
         // Use the debug shader program
         gl.useProgram(this._shadowDebugProgram);
 
-        // Unbind any existing texture first to clear state
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, null);
-
-        // Now bind the shadow map texture
-        gl.bindTexture(gl.TEXTURE_2D, mainLight.shadowTexture);
-        gl.uniform1i(this._shadowDebugLocations.shadowMap, 0);
+        // Bind the shadow map texture via GLStateManager (use directionalShadowMap unit)
+        this.glStateManager.bindTextureWithUniform(
+            "directionalShadowMap",
+            mainLight.shadowTexture,
+            "TEXTURE_2D",
+            this._shadowDebugProgram,
+            "uShadowMap"
+        );
 
         // Set visualization mode
         if (this._shadowDebugLocations.visualizeMode !== null) {
@@ -428,19 +447,8 @@ class DebugRenderer3D {
         gl.vertexAttribPointer(this._shadowDebugLocations.texCoord, 2, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(this._shadowDebugLocations.texCoord);
 
-        // Disable depth testing so the quad is always visible
-        const depthTestEnabled = gl.isEnabled(gl.DEPTH_TEST);
-        if (depthTestEnabled) {
-            gl.disable(gl.DEPTH_TEST);
-        }
-
         // Draw the quad
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-
-        // Restore WebGL state
-        if (depthTestEnabled) {
-            gl.enable(gl.DEPTH_TEST);
-        }
 
         // Draw information text next to the shadow map visualization
         if (this._shadowDebugLabels) {

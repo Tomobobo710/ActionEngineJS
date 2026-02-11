@@ -39,15 +39,11 @@ class WeatherRenderer3D {
             sizes[i] = particle.size;
 
             // Assuming rain particles are bluish
-            colors[i * 4] = 0.7;     // R
+            colors[i * 4] = 0.7; // R
             colors[i * 4 + 1] = 0.7; // G
             colors[i * 4 + 2] = 1.0; // B
             colors[i * 4 + 3] = particle.alpha; // A
         });
-
-        // Set up WebGL state for particle rendering
-        this.gl.enable(this.gl.BLEND);
-        this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
 
         // Use particle shader
         this.gl.useProgram(this.particleProgram);
@@ -59,7 +55,7 @@ class WeatherRenderer3D {
 
         this.gl.uniformMatrix4fv(this.particleLocations.projectionMatrix, false, projection);
         this.gl.uniformMatrix4fv(this.particleLocations.viewMatrix, false, view);
-        
+
         // Set far plane for logarithmic depth
         if (this.particleLocations.farPlane) {
             this.gl.uniform1f(this.particleLocations.farPlane, 10000.0);
@@ -85,8 +81,5 @@ class WeatherRenderer3D {
 
         // Draw particles
         this.gl.drawArrays(this.gl.POINTS, 0, particles.length);
-
-        // Cleanup
-        this.gl.disable(this.gl.BLEND);
     }
 }

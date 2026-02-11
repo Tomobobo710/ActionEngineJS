@@ -7,29 +7,28 @@ class SpriteShader {
 
     /**
      * Get sprite vertex shader
-     * @param {boolean} isWebGL2 - Whether WebGL2 is being used
      * @returns {string} - Vertex shader source code
      */
-    getVertexShader(isWebGL2) {
-        return `${isWebGL2 ? "#version 300 es\n" : ""}
+    getVertexShader() {
+        return `#version 300 es
         precision mediump float;
-        
-        ${isWebGL2 ? "in" : "attribute"} vec3 aPosition;
-        ${isWebGL2 ? "in" : "attribute"} vec2 aTexCoord;
-        
-        uniform mat4 uProjectionMatrix;
-        uniform mat4 uViewMatrix;
-        uniform vec3 uSpritePosition;  // World position of the sprite
-        uniform vec2 uSpriteSize;      // Width and height of the sprite
-        uniform vec3 uCameraPosition;
-        uniform vec3 uCameraRight;
-        uniform vec3 uCameraUp;
-        uniform bool uIsBillboard;     // Whether to use billboard mode
-        uniform vec3 uSpriteForward;   // Sprite forward direction (for non-billboard)
-        uniform vec3 uSpriteUp;        // Sprite up direction (for non-billboard)
-        
-        ${isWebGL2 ? "out" : "varying"} vec2 vTexCoord;
-         ${isWebGL2 ? "out" : "varying"} float vFragDepth;  // For logarithmic depth
+         
+        in vec3 aPosition;
+        in vec2 aTexCoord;
+         
+         uniform mat4 uProjectionMatrix;
+         uniform mat4 uViewMatrix;
+         uniform vec3 uSpritePosition;  // World position of the sprite
+         uniform vec2 uSpriteSize;      // Width and height of the sprite
+         uniform vec3 uCameraPosition;
+         uniform vec3 uCameraRight;
+         uniform vec3 uCameraUp;
+         uniform bool uIsBillboard;     // Whether to use billboard mode
+         uniform vec3 uSpriteForward;   // Sprite forward direction (for non-billboard)
+         uniform vec3 uSpriteUp;        // Sprite up direction (for non-billboard)
+         
+         out vec2 vTexCoord;
+         out float vFragDepth;  // For logarithmic depth
          
          void main() {
              vec3 worldPos;
@@ -72,39 +71,38 @@ class SpriteShader {
 
     /**
      * Get billboard fragment shader
-     * @param {boolean} isWebGL2 - Whether WebGL2 is being used
      * @returns {string} - Fragment shader source code
      */
-    getFragmentShader(isWebGL2) {
-        return `${isWebGL2 ? "#version 300 es\n" : ""}
+    getFragmentShader() {
+        return `#version 300 es
         precision mediump float;
-        
-        ${isWebGL2 ? "in" : "varying"} vec2 vTexCoord;
-        ${isWebGL2 ? "in" : "varying"} float vFragDepth;  // For logarithmic depth
-        
-        uniform sampler2D uTexture;
-        uniform vec3 uColor;       // Color tint
-        uniform float uAlpha;      // Alpha value
-        uniform float uFarPlane;   // For logarithmic depth
-        
-        ${isWebGL2 ? "out vec4 fragColor;" : ""}
-        
-        void main() {
-            vec4 texColor = texture${isWebGL2 ? "" : "2D"}(uTexture, vTexCoord);
-            
-            // Apply color tint and alpha
-            vec4 finalColor = vec4(texColor.rgb * uColor, texColor.a * uAlpha);
-            
-            // Discard transparent pixels
-            if (finalColor.a < 0.01) {
-                discard;
-            }
-            
-            ${isWebGL2 ? "fragColor = finalColor;" : "gl_FragColor = finalColor;"}
-            
-            // Logarithmic depth buffer encoding (match object shader)
-            float logDepth = log2(vFragDepth) / log2(uFarPlane + 1.0);
-            ${isWebGL2 ? "gl_FragDepth" : "gl_FragDepth"} = logDepth;
-        }`;
+         
+        in vec2 vTexCoord;
+        in float vFragDepth;  // For logarithmic depth
+         
+         uniform sampler2D uTexture;
+         uniform vec3 uColor;       // Color tint
+         uniform float uAlpha;      // Alpha value
+         uniform float uFarPlane;   // For logarithmic depth
+         
+         out vec4 fragColor;
+         
+         void main() {
+             vec4 texColor = texture(uTexture, vTexCoord);
+             
+             // Apply color tint and alpha
+             vec4 finalColor = vec4(texColor.rgb * uColor, texColor.a * uAlpha);
+             
+             // Discard transparent pixels
+             if (finalColor.a < 0.01) {
+                 discard;
+             }
+             
+             fragColor = finalColor;
+             
+             // Logarithmic depth buffer encoding (match object shader)
+             float logDepth = log2(vFragDepth) / log2(uFarPlane + 1.0);
+             gl_FragDepth = logDepth;
+         }`;
     }
 }

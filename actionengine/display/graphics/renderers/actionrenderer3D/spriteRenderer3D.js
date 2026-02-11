@@ -1,103 +1,121 @@
 // actionengine/display/graphics/renderers/actionrenderer3D/spriteRenderer3D.js
 
 class SpriteRenderer3D {
-    constructor(gl, programManager, isWebGL2 = false) {
+    constructor(gl, programManager, glStateManager) {
         this.gl = gl;
         this.programManager = programManager;
-        this.isWebGL2 = isWebGL2;
-        
+        this.glStateManager = glStateManager;
+
         // Sprite shader and program
         this.spriteShader = new SpriteShader();
         this.program = null;
         this.locations = {};
-        
+
         // Quad geometry for billboards
         this.quadBuffer = null;
         this.indexBuffer = null;
-        
+
         // Initialize
         this._initializeShader();
         this._createQuadGeometry();
     }
-    
+
     /**
      * Initialize the billboard shader program
      * @private
      */
     _initializeShader() {
-        
         try {
             this.program = this.programManager.createShaderProgram(
-                this.spriteShader.getVertexShader(this.isWebGL2),
-                this.spriteShader.getFragmentShader(this.isWebGL2),
-                'sprite_shader'
+                this.spriteShader.getVertexShader(),
+                this.spriteShader.getFragmentShader(),
+                "sprite_shader"
             );
-            
+
             // Get attribute and uniform locations
             this.locations = {
                 // Attributes
-                position: this.gl.getAttribLocation(this.program, 'aPosition'),
-                texCoord: this.gl.getAttribLocation(this.program, 'aTexCoord'),
-                
+                position: this.gl.getAttribLocation(this.program, "aPosition"),
+                texCoord: this.gl.getAttribLocation(this.program, "aTexCoord"),
+
                 // Uniforms
-                projectionMatrix: this.gl.getUniformLocation(this.program, 'uProjectionMatrix'),
-                viewMatrix: this.gl.getUniformLocation(this.program, 'uViewMatrix'),
-                spritePosition: this.gl.getUniformLocation(this.program, 'uSpritePosition'),
-                spriteSize: this.gl.getUniformLocation(this.program, 'uSpriteSize'),
-                cameraPosition: this.gl.getUniformLocation(this.program, 'uCameraPosition'),
-                cameraRight: this.gl.getUniformLocation(this.program, 'uCameraRight'),
-                cameraUp: this.gl.getUniformLocation(this.program, 'uCameraUp'),
-                isBillboard: this.gl.getUniformLocation(this.program, 'uIsBillboard'),
-                spriteForward: this.gl.getUniformLocation(this.program, 'uSpriteForward'),
-                spriteUp: this.gl.getUniformLocation(this.program, 'uSpriteUp'),
-                texture: this.gl.getUniformLocation(this.program, 'uTexture'),
-                color: this.gl.getUniformLocation(this.program, 'uColor'),
-                alpha: this.gl.getUniformLocation(this.program, 'uAlpha')
+                projectionMatrix: this.gl.getUniformLocation(this.program, "uProjectionMatrix"),
+                viewMatrix: this.gl.getUniformLocation(this.program, "uViewMatrix"),
+                spritePosition: this.gl.getUniformLocation(this.program, "uSpritePosition"),
+                spriteSize: this.gl.getUniformLocation(this.program, "uSpriteSize"),
+                cameraPosition: this.gl.getUniformLocation(this.program, "uCameraPosition"),
+                cameraRight: this.gl.getUniformLocation(this.program, "uCameraRight"),
+                cameraUp: this.gl.getUniformLocation(this.program, "uCameraUp"),
+                isBillboard: this.gl.getUniformLocation(this.program, "uIsBillboard"),
+                spriteForward: this.gl.getUniformLocation(this.program, "uSpriteForward"),
+                spriteUp: this.gl.getUniformLocation(this.program, "uSpriteUp"),
+                texture: this.gl.getUniformLocation(this.program, "uTexture"),
+                color: this.gl.getUniformLocation(this.program, "uColor"),
+                alpha: this.gl.getUniformLocation(this.program, "uAlpha")
             };
-            
         } catch (error) {
-            console.error('[SpriteRenderer3D] Failed to initialize shader:', error);
+            console.error("[SpriteRenderer3D] Failed to initialize shader:", error);
         }
     }
-    
+
     /**
      * Create quad geometry for billboard rendering
      * @private
      */
     _createQuadGeometry() {
         const gl = this.gl;
-        
+
         // Quad vertices (position + texture coordinates)
         // Using a centered quad from -0.5 to 0.5
         const vertices = new Float32Array([
             // Position (x, y, z)    Texture (u, v)
-            -0.5, -0.5, 0.0,        0.0, 0.0,  // Bottom-left
-             0.5, -0.5, 0.0,        1.0, 0.0,  // Bottom-right
-             0.5,  0.5, 0.0,        1.0, 1.0,  // Top-right
-            -0.5,  0.5, 0.0,        0.0, 1.0   // Top-left
+            -0.5,
+            -0.5,
+            0.0,
+            0.0,
+            0.0, // Bottom-left
+            0.5,
+            -0.5,
+            0.0,
+            1.0,
+            0.0, // Bottom-right
+            0.5,
+            0.5,
+            0.0,
+            1.0,
+            1.0, // Top-right
+            -0.5,
+            0.5,
+            0.0,
+            0.0,
+            1.0 // Top-left
         ]);
-        
+
         // Quad indices
         const indices = new Uint16Array([
-            0, 1, 2,  // First triangle
-            0, 2, 3   // Second triangle
+            0,
+            1,
+            2, // First triangle
+            0,
+            2,
+            3 // Second triangle
         ]);
-        
+
         // Create vertex buffer
         this.quadBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
-        
+
         // Create index buffer
         this.indexBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer);
         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
-        
+
         // Unbind buffers
         gl.bindBuffer(gl.ARRAY_BUFFER, null);
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
     }
-    
+
     /**
      * Render billboard sprites
      * @param {Array} sprites - Array of ActionSprite3D objects
@@ -109,83 +127,67 @@ class SpriteRenderer3D {
         if (!sprites || sprites.length === 0 || !this.program) {
             return;
         }
-        
+
         const gl = this.gl;
-        
-        // Save GL state
-        const prevProgram = gl.getParameter(gl.CURRENT_PROGRAM);
-        const wasBlendEnabled = gl.isEnabled(gl.BLEND);
-        const wasDepthTestEnabled = gl.isEnabled(gl.DEPTH_TEST);
-        const prevDepthFunc = gl.getParameter(gl.DEPTH_FUNC);
-        const prevDepthMask = gl.getParameter(gl.DEPTH_WRITEMASK);
-        const prevBlendSrc = gl.getParameter(gl.BLEND_SRC_RGB);
-        const prevBlendDst = gl.getParameter(gl.BLEND_DST_RGB);
-        
+
         // Use billboard shader program
         gl.useProgram(this.program);
-        
+
         // Set up vertex attributes
         gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuffer);
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer);
-        
+
         // Position attribute (3 floats)
         gl.enableVertexAttribArray(this.locations.position);
         gl.vertexAttribPointer(this.locations.position, 3, gl.FLOAT, false, 5 * 4, 0);
-        
+
         // Texture coordinate attribute (2 floats)
         gl.enableVertexAttribArray(this.locations.texCoord);
         gl.vertexAttribPointer(this.locations.texCoord, 2, gl.FLOAT, false, 5 * 4, 3 * 4);
-        
+
         // Set common uniforms
         gl.uniformMatrix4fv(this.locations.projectionMatrix, false, projectionMatrix);
         gl.uniformMatrix4fv(this.locations.viewMatrix, false, viewMatrix);
-        
+
         // Set far plane for logarithmic depth (match object renderer)
-        const farPlaneLoc = gl.getUniformLocation(this.program, 'uFarPlane');
+        const farPlaneLoc = gl.getUniformLocation(this.program, "uFarPlane");
         if (farPlaneLoc !== -1 && farPlaneLoc !== null) {
             gl.uniform1f(farPlaneLoc, 10000.0);
         }
-        
+
         // Calculate camera vectors for billboarding
         const cameraVectors = this._calculateCameraVectors(camera);
         gl.uniform3fv(this.locations.cameraPosition, camera.position.toArray());
         gl.uniform3fv(this.locations.cameraRight, cameraVectors.right.toArray());
         gl.uniform3fv(this.locations.cameraUp, cameraVectors.up.toArray());
-        
-        // Enable blending for transparency
-        gl.enable(gl.BLEND);
-        gl.enable(gl.DEPTH_TEST);
-        
-        // Ensure depth function matches the main 3D renderer for consistent depth testing
-        gl.depthFunc(gl.LEQUAL);
-        
-        // Write logarithmic depth for proper depth testing with logarithmic depth buffer
-        gl.depthMask(true);
-        
+
         // Render each sprite
         for (const sprite of sprites) {
             if (!sprite.isTextureLoaded) {
                 continue;
             }
 
-            
             // Create WebGL texture if not already created
             if (!sprite.texture) {
                 sprite.createWebGLTexture(gl);
             }
-            
+
             if (!sprite.texture) {
                 continue;
             }
-            
-            // Set blend mode
+
+            // Set blend mode via GLStateManager
             this._setBlendMode(sprite.blendMode);
-            
-            // Bind texture
-            gl.activeTexture(gl.TEXTURE0);
-            gl.bindTexture(gl.TEXTURE_2D, sprite.texture);
-            gl.uniform1i(this.locations.texture, 0);
-            
+
+            // Bind sprite texture via GLStateManager
+            this.glStateManager.bindTextureWithUniform(
+                "spriteTexture",
+                sprite.texture,
+                "TEXTURE_2D",
+                this.program,
+                "uTexture"
+            );
+
             // Set sprite-specific uniforms
             const worldPos = sprite.getWorldPosition();
             gl.uniform3fv(this.locations.spritePosition, worldPos.toArray());
@@ -197,34 +199,18 @@ class SpriteRenderer3D {
             }
             gl.uniform3fv(this.locations.color, sprite.color);
             gl.uniform1f(this.locations.alpha, sprite.alpha);
-            
+
             // Draw the quad
             gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
         }
-        
-        // Restore GL state
-        gl.depthMask(prevDepthMask);
-        gl.depthFunc(prevDepthFunc);
-        gl.blendFunc(prevBlendSrc, prevBlendDst);
-        
-        if (!wasBlendEnabled) {
-            gl.disable(gl.BLEND);
-        }
-        if (!wasDepthTestEnabled) {
-            gl.disable(gl.DEPTH_TEST);
-        }
-        
-        // Restore previous shader program
-        gl.useProgram(prevProgram);
-        
+
         // Cleanup
         gl.disableVertexAttribArray(this.locations.position);
         gl.disableVertexAttribArray(this.locations.texCoord);
         gl.bindBuffer(gl.ARRAY_BUFFER, null);
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
-        gl.bindTexture(gl.TEXTURE_2D, null);
     }
-    
+
     /**
      * Calculate camera right and up vectors for billboarding
      * @param {Object} camera - Camera object
@@ -234,55 +220,61 @@ class SpriteRenderer3D {
     _calculateCameraVectors(camera) {
         // Calculate view direction
         const forward = camera.target.sub(camera.position).normalize();
-        
+
         // Calculate right vector (cross product of forward and world up)
         const worldUp = new Vector3(0, 1, 0);
         const right = forward.cross(worldUp).normalize();
-        
+
         // Calculate up vector (cross product of right and forward)
         const up = right.cross(forward).normalize();
-        
+
         return { right, up };
     }
-    
+
     /**
      * Set OpenGL blend mode based on sprite blend mode
      * @param {string} blendMode - Blend mode ('normal', 'additive', 'multiply')
      * @private
      */
     _setBlendMode(blendMode) {
-        const gl = this.gl;
-        
+        let src, dst;
+
         switch (blendMode) {
-            case 'additive':
-                gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+            case "additive":
+                src = "SRC_ALPHA";
+                dst = "ONE";
                 break;
-            case 'multiply':
-                gl.blendFunc(gl.DST_COLOR, gl.ZERO);
+            case "multiply":
+                src = "DST_COLOR";
+                dst = "ZERO";
                 break;
-            case 'normal':
+            case "normal":
             default:
-                gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+                src = "SRC_ALPHA";
+                dst = "ONE_MINUS_SRC_ALPHA";
                 break;
         }
+
+        // Delegate to GLStateManager for state tracking
+        this.glStateManager.setBlendFunc(src, dst);
     }
-    
+
     /**
      * Cleanup WebGL resources
      */
     dispose() {
         const gl = this.gl;
-        
+
         if (this.quadBuffer) {
             gl.deleteBuffer(this.quadBuffer);
             this.quadBuffer = null;
         }
-        
+
         if (this.indexBuffer) {
             gl.deleteBuffer(this.indexBuffer);
             this.indexBuffer = null;
         }
-        
+
         if (this.program) {
             gl.deleteProgram(this.program);
             this.program = null;

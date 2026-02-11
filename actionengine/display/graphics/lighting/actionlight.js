@@ -8,35 +8,33 @@ class ActionLight {
     /**
      * Constructor for the base light class
      * @param {WebGLRenderingContext} gl - The WebGL rendering context
-     * @param {boolean} isWebGL2 - Flag indicating if WebGL2 is available
      */
-    constructor(gl, isWebGL2) {
+    constructor(gl) {
         this.gl = gl;
-        this.isWebGL2 = isWebGL2;
-        
+
         // Reference to global lighting constants
         this.constants = lightingConstants;
-        
+
         // Basic light properties
         this.position = new Vector3(0, 0, 0);
-        this.color = new Vector3(1, 1, 1);  // White light by default
+        this.color = new Vector3(1, 1, 1); // White light by default
         this.intensity = 1.0;
-        
+
         // Shadow capability flag
         this.castsShadows = false;
-        
+
         // For tracking changes between frames
         this._lastPosition = undefined;
         this._lastIntensity = undefined;
     }
-    
+
     /**
      * Set the light position
      * @param {Vector3} position - The new position
      */
     setPosition(position) {
         // Use copy if it exists, otherwise fall back to direct assignment
-        if (typeof this.position.copy === 'function') {
+        if (typeof this.position.copy === "function") {
             this.position.copy(position);
         } else {
             this.position.x = position.x;
@@ -44,7 +42,7 @@ class ActionLight {
             this.position.z = position.z;
         }
     }
-    
+
     /**
      * Get the light position
      * @returns {Vector3} - The current position
@@ -52,7 +50,7 @@ class ActionLight {
     getPosition() {
         return this.position;
     }
-    
+
     /**
      * Get the shadow texture for this light (if it exists)
      * @returns {WebGLTexture|null} - The shadow texture or null if there isn't one
@@ -60,14 +58,14 @@ class ActionLight {
     getShadowsEnabled() {
         return this.castsShadows;
     }
-    
+
     /**
      * Set the light color
      * @param {Vector3} color - RGB color vector (values 0-1)
      */
     setColor(color) {
         // Use copy if it exists, otherwise fall back to direct assignment
-        if (typeof this.color.copy === 'function') {
+        if (typeof this.color.copy === "function") {
             this.color.copy(color);
         } else {
             this.color.x = color.x;
@@ -75,7 +73,7 @@ class ActionLight {
             this.color.z = color.z;
         }
     }
-    
+
     /**
      * Get the light color
      * @returns {Vector3} - The current color
@@ -83,7 +81,7 @@ class ActionLight {
     getColor() {
         return this.color;
     }
-    
+
     /**
      * Set the light intensity
      * @param {number} intensity - The new intensity value
@@ -91,7 +89,7 @@ class ActionLight {
     setIntensity(intensity) {
         this.intensity = intensity;
     }
-    
+
     /**
      * Get the light intensity
      * @returns {number} - The current intensity
@@ -99,7 +97,7 @@ class ActionLight {
     getIntensity() {
         return this.intensity;
     }
-    
+
     /**
      * Enable or disable shadow casting for this light
      * @param {boolean} enabled - Whether shadows should be cast
@@ -107,7 +105,7 @@ class ActionLight {
     setShadowsEnabled(enabled) {
         this.castsShadows = enabled;
     }
-    
+
     /**
      * Update the light's internal state
      * This should be called once per frame
@@ -115,34 +113,33 @@ class ActionLight {
      */
     update() {
         let changed = false;
-        
+
         // Check if light position has changed
-        if (this._lastPosition === undefined || 
+        if (
+            this._lastPosition === undefined ||
             this._lastPosition.x !== this.position.x ||
             this._lastPosition.y !== this.position.y ||
-            this._lastPosition.z !== this.position.z) {
-            
+            this._lastPosition.z !== this.position.z
+        ) {
             // Cache current position to detect changes
             this._lastPosition = {
                 x: this.position.x,
                 y: this.position.y,
                 z: this.position.z
             };
-            
+
             changed = true;
         }
-        
+
         // Track intensity changes
-        if (this._lastIntensity === undefined ||
-            Math.abs(this._lastIntensity - this.intensity) > 0.0001) {
-            
+        if (this._lastIntensity === undefined || Math.abs(this._lastIntensity - this.intensity) > 0.0001) {
             this._lastIntensity = this.intensity;
             changed = true;
         }
-        
+
         return changed;
     }
-    
+
     /**
      * Sync light properties with global constants
      * This should be implemented by subclasses
@@ -151,7 +148,7 @@ class ActionLight {
         // Base implementation does nothing
         // Subclasses should override this
     }
-    
+
     /**
      * Setup shadow mapping resources
      * This should be implemented by subclasses
@@ -160,7 +157,7 @@ class ActionLight {
         // Base implementation does nothing
         // Subclasses should override this
     }
-    
+
     /**
      * Begin shadow rendering pass for this light
      * This should be implemented by subclasses
@@ -169,7 +166,7 @@ class ActionLight {
         // Base implementation does nothing
         // Subclasses should override this
     }
-    
+
     /**
      * End shadow rendering pass for this light
      * This should be implemented by subclasses
@@ -178,7 +175,7 @@ class ActionLight {
         // Base implementation does nothing
         // Subclasses should override this
     }
-    
+
     /**
      * Render a single object to this light's shadow map
      * This should be implemented by subclasses
@@ -188,7 +185,7 @@ class ActionLight {
         // Base implementation does nothing
         // Subclasses should override this
     }
-    
+
     /**
      * Apply this light's uniforms to a shader program
      * This should be implemented by subclasses
@@ -199,7 +196,7 @@ class ActionLight {
         // Base implementation does nothing
         // Subclasses should override this
     }
-    
+
     /**
      * Cleanup resources used by this light
      * This should be called when the light is no longer needed

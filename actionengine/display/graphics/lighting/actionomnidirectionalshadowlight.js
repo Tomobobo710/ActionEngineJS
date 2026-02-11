@@ -9,24 +9,23 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
     /**
      * Constructor for an omnidirectional shadow light
      * @param {WebGLRenderingContext} gl - The WebGL rendering context
-     * @param {boolean} isWebGL2 - Flag indicating if WebGL2 is available
      * @param {ProgramManager} programManager - Reference to the program manager for shader access
      */
-    constructor(gl, isWebGL2, programManager) {
-        super(gl, isWebGL2);
-        
+    constructor(gl, programManager) {
+        super(gl);
+
         this.programManager = programManager;
-        
+
         // Point light specific properties
         this.radius = 100.0; // Light radius - affects attenuation
-        
+
         // Enable shadows by default for omnidirectional lights
         this.castsShadows = true;
-        
+
         // Shadow map settings from constants
         this.shadowMapSize = this.constants.POINT_LIGHT_SHADOW_MAP.SIZE.value;
         this.shadowBias = this.constants.POINT_LIGHT_SHADOW_MAP.BIAS.value;
-        
+
         // Create matrices for shadow calculations (one per cubemap face)
         this.lightProjectionMatrix = Matrix4.create();
         this.lightViewMatrices = [];
@@ -37,10 +36,10 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
         for (let i = 0; i < 6; i++) {
             this.lightSpaceMatrices.push(Matrix4.create());
         }
-        
+
         // For tracking position changes
         this._lastPosition = undefined;
-        
+
         // Initialize shadow map resources and shader program
         if (this.castsShadows) {
             this.setupShadowMap();
@@ -48,7 +47,7 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
             this.createReusableBuffers();
         }
     }
-    
+
     /**
      * Set the light radius (affects attenuation)
      * @param {number} radius - The new radius value
@@ -56,7 +55,7 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
     setRadius(radius) {
         this.radius = radius;
     }
-    
+
     /**
      * Get the light radius
      * @returns {number} - The current radius
@@ -64,23 +63,23 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
     getRadius() {
         return this.radius;
     }
-    
+
     /**
      * Override the update method to check for position changes
      * @returns {boolean} - Whether any properties changed this frame
      */
     update() {
         let changed = super.update();
-        
+
         // If any properties changed and shadows are enabled,
         // update the light space matrices
         if (changed && this.castsShadows) {
             this.updateLightSpaceMatrices();
         }
-        
+
         return changed;
     }
-    
+
     /**
      * Set up shadow map framebuffer and texture
      * Creates a cubemap texture for omnidirectional shadows
@@ -102,90 +101,37 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadowFramebuffer);
 
         // For WebGL2, use a depth cubemap
-        if (this.isWebGL2) {
-            // Create the shadow cubemap texture
-            this.shadowTexture = gl.createTexture();
-            gl.bindTexture(gl.TEXTURE_CUBE_MAP, this.shadowTexture);
-            
-            // Initialize each face of the cubemap
-            const faces = [
-                gl.TEXTURE_CUBE_MAP_POSITIVE_X, gl.TEXTURE_CUBE_MAP_NEGATIVE_X,
-                gl.TEXTURE_CUBE_MAP_POSITIVE_Y, gl.TEXTURE_CUBE_MAP_NEGATIVE_Y,
-                gl.TEXTURE_CUBE_MAP_POSITIVE_Z, gl.TEXTURE_CUBE_MAP_NEGATIVE_Z
-            ];
-            
-            for (const face of faces) {
-                // Use RGBA format for compatibility with both WebGL1 and WebGL2
-                gl.texImage2D(
-                    face,
-                    0,
-                    gl.RGBA,
-                    this.shadowMapSize,
-                    this.shadowMapSize,
-                    0,
-                    gl.RGBA,
-                    gl.UNSIGNED_BYTE,
-                    null
-                );
-            }
-            
-            // Set up texture parameters
-            gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-            gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-            gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-            gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-            gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
-            
-            // Create and attach a renderbuffer for depth (we're not reading this)
-            this.depthBuffer = gl.createRenderbuffer();
-            gl.bindRenderbuffer(gl.RENDERBUFFER, this.depthBuffer);
-            gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, this.shadowMapSize, this.shadowMapSize);
-            gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, this.depthBuffer);
-        } 
-        else {
-            // WebGL1 doesn't support cubemap rendering, so we'll use 6 separate textures
-            this.shadowTextures = [];
-            this.shadowFramebuffers = [];
-            this.depthBuffers = [];
-            
-            // Create 6 separate framebuffers and textures (one for each face)
-            for (let i = 0; i < 6; i++) {
-                const fbo = gl.createFramebuffer();
-                gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-                
-                const texture = gl.createTexture();
-                gl.bindTexture(gl.TEXTURE_2D, texture);
-                
-                gl.texImage2D(
-                    gl.TEXTURE_2D,
-                    0,
-                    gl.RGBA,
-                    this.shadowMapSize,
-                    this.shadowMapSize,
-                    0,
-                    gl.RGBA,
-                    gl.UNSIGNED_BYTE,
-                    null
-                );
-                
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-                
-                gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
-                
-                // Create and attach a renderbuffer for depth
-                const depthBuffer = gl.createRenderbuffer();
-                gl.bindRenderbuffer(gl.RENDERBUFFER, depthBuffer);
-                gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, this.shadowMapSize, this.shadowMapSize);
-                gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depthBuffer);
-                
-                this.shadowTextures.push(texture);
-                this.shadowFramebuffers.push(fbo);
-                this.depthBuffers.push(depthBuffer);
-            }
+        // Create the shadow cubemap texture
+        this.shadowTexture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_CUBE_MAP, this.shadowTexture);
+
+        // Initialize each face of the cubemap
+        const faces = [
+            gl.TEXTURE_CUBE_MAP_POSITIVE_X,
+            gl.TEXTURE_CUBE_MAP_NEGATIVE_X,
+            gl.TEXTURE_CUBE_MAP_POSITIVE_Y,
+            gl.TEXTURE_CUBE_MAP_NEGATIVE_Y,
+            gl.TEXTURE_CUBE_MAP_POSITIVE_Z,
+            gl.TEXTURE_CUBE_MAP_NEGATIVE_Z
+        ];
+
+        for (const face of faces) {
+            // Use RGBA format for compatibility with both WebGL1 and WebGL2
+            gl.texImage2D(face, 0, gl.RGBA, this.shadowMapSize, this.shadowMapSize, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
         }
+
+        // Set up texture parameters
+        gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
+
+        // Create and attach a renderbuffer for depth (we're not reading this)
+        this.depthBuffer = gl.createRenderbuffer();
+        gl.bindRenderbuffer(gl.RENDERBUFFER, this.depthBuffer);
+        gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, this.shadowMapSize, this.shadowMapSize);
+        gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, this.depthBuffer);
 
         // Store the light index for later use
         this.lightIndex = lightIndex;
@@ -193,7 +139,7 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
         // Unbind the framebuffer
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     }
-    
+
     /**
      * Create reusable buffers for shadow rendering
      */
@@ -201,7 +147,7 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
         // OPTIMIZED: Create shared shadow geometry buffer for static triangles
         this.maxShadowTriangles = 500000; // Increased to 500k triangles to handle large scenes
         this.maxShadowVertices = this.maxShadowTriangles * 3;
-        
+
         // Create shared static geometry buffer
         this.staticShadowGeometry = {
             positions: new Float32Array(this.maxShadowVertices * 3),
@@ -209,17 +155,19 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
             currentVertexOffset: 0,
             currentIndexOffset: 0
         };
-        
+
         // Create GL buffers for static geometry
         this.shadowBuffers = {
             position: this.gl.createBuffer(),
             index: this.gl.createBuffer()
         };
-        
+
         // Object geometry tracking (shared across all cubemap faces)
         this.objectGeometry = new Map(); // object -> {vertexOffset, indexOffset, indexCount, originalTriangles}
-        
-        console.log(`[ActionOmnidirectionalShadowLight] Initialized static shadow geometry system for ${this.maxShadowTriangles} triangles`);
+
+        console.log(
+            `[ActionOmnidirectionalShadowLight] Initialized static shadow geometry system for ${this.maxShadowTriangles} triangles`
+        );
     }
     /**
      * Initialize static shadow geometry for an object (called once per object)
@@ -231,7 +179,7 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
         if (this.objectGeometry.has(object) || !object.triangles || object.triangles.length === 0) {
             return;
         }
-        
+
         // Use original triangles if available (for transform via model matrix)
         // Otherwise fall back to current triangles
         let sourceTriangles;
@@ -242,22 +190,24 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
         } else {
             sourceTriangles = object.triangles; // Fallback to current triangles
         }
-        
+
         const triangleCount = sourceTriangles.length;
         const vertexCount = triangleCount * 3;
-        
+
         // Check if we have space in the static buffer
         if (this.staticShadowGeometry.currentVertexOffset + vertexCount > this.maxShadowVertices) {
-            console.warn(`[OmnidirectionalShadowLight] Not enough space in static shadow buffer for object with ${triangleCount} triangles. Using fallback rendering.`);
-            
+            console.warn(
+                `[OmnidirectionalShadowLight] Not enough space in static shadow buffer for object with ${triangleCount} triangles. Using fallback rendering.`
+            );
+
             // Mark this object to use fallback rendering (old method)
             this.objectGeometry.set(object, { useFallback: true });
             return;
         }
-        
+
         const gl = this.gl;
         const geometry = this.staticShadowGeometry;
-        
+
         // Store geometry info for this object
         const geometryInfo = {
             vertexOffset: geometry.currentVertexOffset,
@@ -266,38 +216,40 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
             triangleCount: triangleCount,
             needsModelMatrix: true // Flag indicating this object needs model matrix transforms
         };
-        
+
         // Fill geometry arrays with original triangle data
         for (let i = 0; i < triangleCount; i++) {
             const triangle = sourceTriangles[i];
-            
+
             for (let j = 0; j < 3; j++) {
                 const vertex = triangle.vertices[j];
                 const vertexIndex = (geometry.currentVertexOffset + i * 3 + j) * 3;
-                
+
                 // Store original vertex positions (before any transformations)
                 geometry.positions[vertexIndex] = vertex.x;
                 geometry.positions[vertexIndex + 1] = vertex.y;
                 geometry.positions[vertexIndex + 2] = vertex.z;
-                
+
                 // Set up indices
                 geometry.indices[geometry.currentIndexOffset + i * 3 + j] = geometry.currentVertexOffset + i * 3 + j;
             }
         }
-        
+
         // Update offsets for next object
         geometry.currentVertexOffset += vertexCount;
         geometry.currentIndexOffset += vertexCount;
-        
+
         // Store geometry info
         this.objectGeometry.set(object, geometryInfo);
-        
-        console.log(`[OmnidirectionalShadowLight] Initialized shadow geometry for object: ${triangleCount} triangles at offset ${geometryInfo.indexOffset}`);
-        
+
+        console.log(
+            `[OmnidirectionalShadowLight] Initialized shadow geometry for object: ${triangleCount} triangles at offset ${geometryInfo.indexOffset}`
+        );
+
         // Mark that we need to upload the updated geometry buffer
         this._geometryBufferDirty = true;
     }
-    
+
     /**
      * Upload the static geometry buffer to GPU (called when geometry changes)
      */
@@ -305,22 +257,32 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
         if (!this._geometryBufferDirty) {
             return;
         }
-        
+
         const gl = this.gl;
         const geometry = this.staticShadowGeometry;
-        
+
         // Upload position data
         gl.bindBuffer(gl.ARRAY_BUFFER, this.shadowBuffers.position);
-        gl.bufferData(gl.ARRAY_BUFFER, geometry.positions.subarray(0, geometry.currentVertexOffset * 3), gl.STATIC_DRAW);
-        
+        gl.bufferData(
+            gl.ARRAY_BUFFER,
+            geometry.positions.subarray(0, geometry.currentVertexOffset * 3),
+            gl.STATIC_DRAW
+        );
+
         // Upload index data
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.shadowBuffers.index);
-        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, geometry.indices.subarray(0, geometry.currentIndexOffset), gl.STATIC_DRAW);
-        
+        gl.bufferData(
+            gl.ELEMENT_ARRAY_BUFFER,
+            geometry.indices.subarray(0, geometry.currentIndexOffset),
+            gl.STATIC_DRAW
+        );
+
         this._geometryBufferDirty = false;
-        console.log(`[OmnidirectionalShadowLight] Uploaded static shadow geometry: ${geometry.currentVertexOffset} vertices, ${geometry.currentIndexOffset} indices`);
+        console.log(
+            `[OmnidirectionalShadowLight] Uploaded static shadow geometry: ${geometry.currentVertexOffset} vertices, ${geometry.currentIndexOffset} indices`
+        );
     }
-    
+
     /**
      * Set up shadow shader program and get all necessary locations
      */
@@ -330,8 +292,8 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
 
             // Create shadow map program with a distinct program name
             this.shadowProgram = this.programManager.createShaderProgram(
-                shadowShader.getOmniShadowVertexShader(this.isWebGL2),
-                shadowShader.getOmniShadowFragmentShader(this.isWebGL2),
+                shadowShader.getOmniShadowVertexShader(),
+                shadowShader.getOmniShadowFragmentShader(),
                 "omnidirectional_shadow_pass" // Distinct name from directional shadows
             );
 
@@ -350,7 +312,7 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
             console.error("Error setting up shadow shader program:", error);
         }
     }
-    
+
     /**
      * Updates light space matrices for all cubemap faces based on light position
      * This creates the view and projection matrices needed for shadow mapping
@@ -372,12 +334,12 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
 
         // Define the 6 view directions for cubemap faces
         const directions = [
-            { target: [ 1,  0,  0], up: [0, -1,  0] }, // +X
-            { target: [-1,  0,  0], up: [0, -1,  0] }, // -X
-            { target: [ 0,  1,  0], up: [0,  0,  1] }, // +Y
-            { target: [ 0, -1,  0], up: [0,  0, -1] }, // -Y
-            { target: [ 0,  0,  1], up: [0, -1,  0] }, // +Z
-            { target: [ 0,  0, -1], up: [0, -1,  0] }  // -Z
+            { target: [1, 0, 0], up: [0, -1, 0] }, // +X
+            { target: [-1, 0, 0], up: [0, -1, 0] }, // -X
+            { target: [0, 1, 0], up: [0, 0, 1] }, // +Y
+            { target: [0, -1, 0], up: [0, 0, -1] }, // -Y
+            { target: [0, 0, 1], up: [0, -1, 0] }, // +Z
+            { target: [0, 0, -1], up: [0, -1, 0] } // -Z
         ];
 
         // Create view matrices for each direction
@@ -388,22 +350,13 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
                 this.position.z + directions[i].target[2]
             ];
 
-            Matrix4.lookAt(
-                this.lightViewMatrices[i],
-                this.position.toArray(),
-                target,
-                directions[i].up
-            );
+            Matrix4.lookAt(this.lightViewMatrices[i], this.position.toArray(), target, directions[i].up);
 
             // Combine into light space matrix
-            Matrix4.multiply(
-                this.lightSpaceMatrices[i],
-                this.lightProjectionMatrix,
-                this.lightViewMatrices[i]
-            );
+            Matrix4.multiply(this.lightSpaceMatrices[i], this.lightProjectionMatrix, this.lightViewMatrices[i]);
         }
     }
-    
+
     /**
      * Begin shadow map rendering pass for a specific face
      * @param {number} faceIndex - Index of the cube face to render (0-5)
@@ -416,7 +369,7 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
         if (!this._savedViewport) {
             this._savedViewport = gl.getParameter(gl.VIEWPORT);
         }
-        
+
         // Reset static geometry binding flag for this shadow pass
         this._staticGeometryBound = false;
 
@@ -425,29 +378,21 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
             this.setupShadowMap(lightIndex);
         }
 
-        if (this.isWebGL2) {
-            // Bind shadow framebuffer
-            gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadowFramebuffer);
-            
-            // Set the appropriate cubemap face as the color attachment
-            const faces = [
-                gl.TEXTURE_CUBE_MAP_POSITIVE_X, gl.TEXTURE_CUBE_MAP_NEGATIVE_X,
-                gl.TEXTURE_CUBE_MAP_POSITIVE_Y, gl.TEXTURE_CUBE_MAP_NEGATIVE_Y,
-                gl.TEXTURE_CUBE_MAP_POSITIVE_Z, gl.TEXTURE_CUBE_MAP_NEGATIVE_Z
-            ];
-            
-            gl.framebufferTexture2D(
-                gl.FRAMEBUFFER,
-                gl.COLOR_ATTACHMENT0,
-                faces[faceIndex],
-                this.shadowTexture,
-                0
-            );
-        } else {
-            // In WebGL1, use the corresponding framebuffer for this face
-            gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadowFramebuffers[faceIndex]);
-        }
-        
+        // Bind shadow framebuffer
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadowFramebuffer);
+
+        // Set the appropriate cubemap face as the color attachment
+        const faces = [
+            gl.TEXTURE_CUBE_MAP_POSITIVE_X,
+            gl.TEXTURE_CUBE_MAP_NEGATIVE_X,
+            gl.TEXTURE_CUBE_MAP_POSITIVE_Y,
+            gl.TEXTURE_CUBE_MAP_NEGATIVE_Y,
+            gl.TEXTURE_CUBE_MAP_POSITIVE_Z,
+            gl.TEXTURE_CUBE_MAP_NEGATIVE_Z
+        ];
+
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, faces[faceIndex], this.shadowTexture, 0);
+
         gl.viewport(0, 0, this.shadowMapSize, this.shadowMapSize);
 
         // Clear the framebuffer
@@ -459,10 +404,10 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
 
         // Set light space matrix uniform for this face
         gl.uniformMatrix4fv(this.shadowLocations.lightSpaceMatrix, false, this.lightSpaceMatrices[faceIndex]);
-        
+
         // Set light position uniform
         gl.uniform3f(this.shadowLocations.lightPos, this.position.x, this.position.y, this.position.z);
-        
+
         // Set far plane uniform
         gl.uniform1f(this.shadowLocations.farPlane, 500.0);
 
@@ -483,7 +428,7 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
             gl.uniform1f(this.shadowLocations.shadowMapSize, this.shadowMapSize);
         }
     }
-    
+
     /**
      * End shadow map rendering pass and restore previous state
      */
@@ -498,36 +443,36 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
             gl.viewport(this._savedViewport[0], this._savedViewport[1], this._savedViewport[2], this._savedViewport[3]);
         }
     }
-        
+
     /**
      * Helper method to fill batched shadow data
      * @param {Array} validObjects - Array of valid objects with metadata
      */
     fillBatchedShadowData(validObjects) {
         let vertexOffset = 0;
-        
+
         for (const { object, triangleCount } of validObjects) {
             const triangles = object.triangles;
-            
+
             for (let i = 0; i < triangles.length; i++) {
                 const triangle = triangles[i];
-                
+
                 for (let j = 0; j < 3; j++) {
                     const vertex = triangle.vertices[j];
                     const baseIndex = (vertexOffset + i * 3 + j) * 3;
-                    
+
                     this.persistentShadowArrays.positions[baseIndex] = vertex.x;
                     this.persistentShadowArrays.positions[baseIndex + 1] = vertex.y;
                     this.persistentShadowArrays.positions[baseIndex + 2] = vertex.z;
-                    
+
                     this.persistentShadowArrays.indices[vertexOffset + i * 3 + j] = vertexOffset + i * 3 + j;
                 }
             }
-            
+
             vertexOffset += triangleCount * 3;
         }
     }
-    
+
     /**
      * Render a single object to the shadow map for a specific face
      * @param {Object} object - Single object to render
@@ -547,7 +492,7 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
 
         // Calculate total vertices and indices
         const totalVertices = triangles.length * 3;
-        
+
         // Only allocate new arrays if needed or if size has changed
         if (!this._positionsArray || this._positionsArray.length < totalVertices * 3) {
             this._positionsArray = new Float32Array(totalVertices * 3);
@@ -598,15 +543,15 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
      */
     getObjectModelMatrix(object) {
         const modelMatrix = Matrix4.create();
-        
+
         // For physics objects, use the body's current position and rotation
         if (object.body) {
             const pos = object.body.position;
             const rot = object.body.rotation;
-            
+
             // Apply translation
             Matrix4.translate(modelMatrix, modelMatrix, [pos.x, pos.y, pos.z]);
-            
+
             // Apply rotation from physics body quaternion
             const rotationMatrix = Matrix4.create();
             Matrix4.fromQuat(rotationMatrix, [rot.x, rot.y, rot.z, rot.w]);
@@ -615,12 +560,12 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
         // For objects with manual position/rotation
         else if (object.position) {
             Matrix4.translate(modelMatrix, modelMatrix, [object.position.x, object.position.y, object.position.z]);
-            
+
             if (object.rotation !== undefined) {
                 Matrix4.rotateY(modelMatrix, modelMatrix, object.rotation);
             }
         }
-        
+
         return modelMatrix;
     }
     /**
@@ -643,7 +588,7 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
 
         // Calculate total vertices and indices
         const totalVertices = triangles.length * 3;
-        
+
         // Only allocate new arrays if needed or if size has changed
         if (!this._fallbackPositionsArray || this._fallbackPositionsArray.length < totalVertices * 3) {
             this._fallbackPositionsArray = new Float32Array(totalVertices * 3);
@@ -692,12 +637,11 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
 
         // Draw object using fallback method
         gl.drawElements(gl.TRIANGLES, totalVertices, gl.UNSIGNED_SHORT, 0);
-        
+
         // Reset static geometry binding flag since we used different buffers
         this._staticGeometryBound = false;
     }
-    
-    
+
     /**
      * Get the light space matrix for a specific face
      * @param {number} faceIndex - Index of the face (0-5)
@@ -706,7 +650,7 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
     getLightSpaceMatrix(faceIndex = 0) {
         return this.lightSpaceMatrices[Math.min(faceIndex, 5)];
     }
-    
+
     /**
      * Apply this light's uniforms to a shader program
      * @param {WebGLProgram} program - The shader program
@@ -714,13 +658,13 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
      */
     applyToShader(program, index = 0) {
         const gl = this.gl;
-        
+
         // Use indexed uniform names for lights beyond the first one
-        const indexSuffix = index > 0 ? index.toString() : '';
-        
+        const indexSuffix = index > 0 ? index.toString() : "";
+
         // Select the right uniform names based on index
         let posUniform, intensityUniform, radiusUniform, shadowMapUniform, shadowsEnabledUniform;
-        
+
         if (index === 0) {
             // First light uses legacy names (no suffix)
             posUniform = "uPointLightPos";
@@ -736,7 +680,7 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
             shadowMapUniform = `uPointShadowMap${indexSuffix}`;
             shadowsEnabledUniform = `uPointShadowsEnabled${indexSuffix}`;
         }
-        
+
         // Get uniform locations
         const lightPosLoc = gl.getUniformLocation(program, posUniform);
         const lightIntensityLoc = gl.getUniformLocation(program, intensityUniform);
@@ -745,7 +689,7 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
         const shadowsEnabledLoc = gl.getUniformLocation(program, shadowsEnabledUniform);
         const shadowBiasLoc = gl.getUniformLocation(program, "uShadowBias");
         const farPlaneLoc = gl.getUniformLocation(program, "uFarPlane");
-        
+
         // Detailed logs commented out to reduce console noise
         /*
         // Keep minimal logs for light setup
@@ -760,37 +704,36 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
         console.log(`Light intensity: ${this.intensity.toFixed(2)}, Light radius: ${this.radius.toFixed(2)}, Shadows: ${this.castsShadows}`);
         */
 
-        
         // Set light position
         if (lightPosLoc !== null) {
             gl.uniform3f(lightPosLoc, this.position.x, this.position.y, this.position.z);
         }
-        
+
         // Set light intensity
         if (lightIntensityLoc !== null) {
             gl.uniform1f(lightIntensityLoc, this.intensity);
         }
-        
+
         // Set light radius
         if (lightRadiusLoc !== null) {
             gl.uniform1f(lightRadiusLoc, this.radius);
         }
-        
+
         // Apply shadow mapping uniforms if shadows are enabled
         if (this.castsShadows) {
             //console.log(`[PointLight:${index}] Shadows enabled, shadowsEnabledLoc: ${shadowsEnabledLoc}, shadowMapLoc: ${shadowMapLoc}`);
-            
+
             // Set shadows enabled flag
             if (shadowsEnabledLoc !== null) {
                 gl.uniform1i(shadowsEnabledLoc, 1); // 1 = true
                 //console.log(`[PointLight:${index}] Set ${shadowsEnabledUniform} to true`);
             }
-            
+
             // Set shadow bias
             if (shadowBiasLoc !== null) {
                 gl.uniform1f(shadowBiasLoc, this.shadowBias);
             }
-            
+
             // Set far plane
             if (farPlaneLoc !== null) {
                 gl.uniform1f(farPlaneLoc, 500.0);
@@ -801,53 +744,29 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
             //console.log(`[PointLight:${index}] Shadows disabled, set ${shadowsEnabledUniform} to false`);
         }
     }
-    
+
     /**
      * Cleanup resources used by this light
      */
     dispose() {
         const gl = this.gl;
-        
+
         // Clean up shadow map resources
         if (this.shadowFramebuffer) {
             gl.deleteFramebuffer(this.shadowFramebuffer);
             this.shadowFramebuffer = null;
         }
-        
+
         if (this.shadowTexture) {
             gl.deleteTexture(this.shadowTexture);
             this.shadowTexture = null;
         }
-        
-        if (this.isWebGL2) {
-            if (this.depthBuffer) {
-                gl.deleteRenderbuffer(this.depthBuffer);
-                this.depthBuffer = null;
-            }
-        } else {
-            // Clean up WebGL1 resources (multiple framebuffers and textures)
-            if (this.shadowFramebuffers) {
-                for (const fbo of this.shadowFramebuffers) {
-                    gl.deleteFramebuffer(fbo);
-                }
-                this.shadowFramebuffers = null;
-            }
-            
-            if (this.shadowTextures) {
-                for (const texture of this.shadowTextures) {
-                    gl.deleteTexture(texture);
-                }
-                this.shadowTextures = null;
-            }
-            
-            if (this.depthBuffers) {
-                for (const depthBuffer of this.depthBuffers) {
-                    gl.deleteRenderbuffer(depthBuffer);
-                }
-                this.depthBuffers = null;
-            }
+
+        if (this.depthBuffer) {
+            gl.deleteRenderbuffer(this.depthBuffer);
+            this.depthBuffer = null;
         }
-        
+
         // Clean up buffers
         if (this.shadowBuffers) {
             if (this.shadowBuffers.position) {

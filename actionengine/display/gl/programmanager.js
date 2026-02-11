@@ -1,12 +1,11 @@
 // actionengine/display/gl/programmanager.js
 class ProgramManager {
-    constructor(gl, isWebGL2) {
+    constructor(gl) {
         this.gl = gl;
-        this.isWebGL2 = isWebGL2;
-        
+
         // Current active variant
         this.currentVariant = "default";
-        
+
         // Store shader programs
         this.objectProgram = null;
         this.objectLocations = {};
@@ -26,106 +25,106 @@ class ProgramManager {
         // Debug visualization buffers
         this.debugQuadBuffer = null;
         this.debugBackgroundBuffer = null;
-        
+
         // Attribute and uniform name mappings
         this.attributeNames = {
-            position: 'aPosition',
-            normal: 'aNormal',
-            color: 'aColor',
-            texCoord: 'aTexCoord',
-            textureIndex: 'aTextureIndex',
-            useTexture: 'aUseTexture'
+            position: "aPosition",
+            normal: "aNormal",
+            color: "aColor",
+            texCoord: "aTexCoord",
+            textureIndex: "aTextureIndex",
+            useTexture: "aUseTexture"
         };
-        
+
         this.uniformNames = {
-             projectionMatrix: 'uProjectionMatrix',
-             viewMatrix: 'uViewMatrix',
-             modelMatrix: 'uModelMatrix',
-             lightPos: 'uLightPos',
-             lightDir: 'uLightDir',
-             lightIntensity: 'uLightIntensity',
-             pointLightIntensity: 'uPointLightIntensity',
-             roughness: 'uRoughness',
-             metallic: 'uMetallic',
-             baseReflectivity: 'uBaseReflectivity',
-             cameraPos: 'uCameraPos',
-             time: 'uTime',
-             lightSpaceMatrix: 'uLightSpaceMatrix',
-             shadowMap: 'uShadowMap',
-             shadowsEnabled: 'uShadowsEnabled',
-             intensityFactor: 'uIntensityFactor',
-             farPlane: 'uFarPlane'
-         };
-        
-        this.textureUniforms = {
-            standard: this.isWebGL2 ? 'uTextureArray' : 'uTexture',
-            pbr: 'uPBRTextureArray',
-            shadowMap: 'uShadowMap',
-            materialProps: 'uMaterialPropertiesTexture'
+            projectionMatrix: "uProjectionMatrix",
+            viewMatrix: "uViewMatrix",
+            modelMatrix: "uModelMatrix",
+            lightPos: "uLightPos",
+            lightDir: "uLightDir",
+            lightIntensity: "uLightIntensity",
+            pointLightIntensity: "uPointLightIntensity",
+            roughness: "uRoughness",
+            metallic: "uMetallic",
+            baseReflectivity: "uBaseReflectivity",
+            cameraPos: "uCameraPos",
+            time: "uTime",
+            lightSpaceMatrix: "uLightSpaceMatrix",
+            shadowMap: "uShadowMap",
+            shadowsEnabled: "uShadowsEnabled",
+            intensityFactor: "uIntensityFactor",
+            farPlane: "uFarPlane"
         };
-        
+
+        this.textureUniforms = {
+            standard: "uTextureArray",
+            pbr: "uPBRTextureArray",
+            shadowMap: "uShadowMap",
+            materialProps: "uMaterialPropertiesTexture"
+        };
+
         // Initialize all shaders
         this.initializeSpecialShaders();
         this.initializeObjectShader();
     }
-    
+
     /**
-     * Create a shader program 
+     * Create a shader program
      */
-    createShaderProgram(vsSource, fsSource, shaderName = 'unknown') {
+    createShaderProgram(vsSource, fsSource, shaderName = "unknown") {
         try {
             // Try to compile the vertex shader
             const vertexShader = this.compileShader(this.gl.VERTEX_SHADER, vsSource, `${shaderName} vertex`);
-            
+
             // Try to compile the fragment shader
             const fragmentShader = this.compileShader(this.gl.FRAGMENT_SHADER, fsSource, `${shaderName} fragment`);
-    
+
             const program = this.gl.createProgram();
             this.gl.attachShader(program, vertexShader);
             this.gl.attachShader(program, fragmentShader);
             this.gl.linkProgram(program);
-            
+
             // After successful linking:
             if (program) {
                 // Set explicit texture sampler bindings to prevent location conflicts
                 this.assignExplicitSamplerBindings(program);
             }
-            
+
             if (!this.gl.getProgramParameter(program, this.gl.LINK_STATUS)) {
                 const info = this.gl.getProgramInfoLog(program);
                 console.error(`==== SHADER LINK ERROR FOR '${shaderName}' ====`);
                 console.error(info);
-                console.error('==== VERTEX SHADER SOURCE ====');
+                console.error("==== VERTEX SHADER SOURCE ====");
                 console.error(vsSource);
-                console.error('==== FRAGMENT SHADER SOURCE ====');
+                console.error("==== FRAGMENT SHADER SOURCE ====");
                 console.error(fsSource);
                 throw new Error(`Shader program '${shaderName}' failed to link: ${info}`);
             }
-    
+
             // Clean up shaders after linking
             this.gl.deleteShader(vertexShader);
             this.gl.deleteShader(fragmentShader);
-    
+
             return program;
         } catch (error) {
             console.error(`Error creating shader program '${shaderName}': ${error.message}`);
             throw error;
         }
     }
-    
+
     /**
      * Assigns explicit texture units to sampler uniforms to prevent WebGL sampler location conflicts.
-     * 
-     * BACKGROUND: WebGL has a critical requirement where different sampler types 
+     *
+     * BACKGROUND: WebGL has a critical requirement where different sampler types
      * (sampler2D, samplerCube, sampler2DArray) cannot share the same texture unit
      * if they're used in the same shader program during a draw call. If not handled
      * properly, it causes the error:
      * "GL_INVALID_OPERATION: Two textures of different types use the same sampler location"
-     * 
+     *
      * WHY THIS HAPPENS: When WebGL compiles a shader program, it assigns internal memory
      * locations to samplers. Sometimes the compiler optimizes by sharing locations, which
      * can cause conflicts between DIFFERENT sampler TYPES.......
-     * 
+     *
      * KEY POINTS:
      * - This only becomes an issue when mixing different sampler types
      * - You MUST call this after program linking - calling earlier has no effect
@@ -134,7 +133,7 @@ class ProgramManager {
      *   for different sampler types, but it's advised to use the same units, and unit 0
      *   will be selected when webgl handles automatic texture unit assignment
      * - This hurt brain a lot
-     * 
+     *
      * @param {WebGLProgram} program - The linked shader program
      */
     assignExplicitSamplerBindings(program) {
@@ -144,43 +143,43 @@ class ProgramManager {
         // 1. Group samplers by type (2D, Cube, Array)
         // 2. Assign consecutive units within each type group
         // 3. Ensure large gaps between different sampler types
-        
+
         // Define dedicated texture units for each sampler type
         const samplerUniforms = [
             // GROUP 1: 2D TEXTURES (units 0-7)
             // Regular 2D textures - TEXTURE_2D type
-            {name: "uMaterialPropertiesTexture", unit: 0},  // Material properties
-            {name: "uDirectionalLightData", unit: 1},      // Directional light data
-            {name: "uPointLightData", unit: 2},            // Point light data
-            {name: "uShadowMap", unit: 3},                // Directional shadow map
+            { name: "uMaterialPropertiesTexture", unit: 0 }, // Material properties
+            { name: "uDirectionalLightData", unit: 1 }, // Directional light data
+            { name: "uPointLightData", unit: 2 }, // Point light data
+            { name: "uShadowMap", unit: 3 }, // Directional shadow map
 
             // GROUP 2: CUBEMAP TEXTURES (units 10-19) - Large gap to prevent conflicts
-            // Cubemap texture samplers - TEXTURE_CUBE_MAP type  
-            {name: "uPointShadowMap", unit: 10},          // First point shadow map
-            {name: "uPointShadowMap1", unit: 11},         // Second point shadow map
-            {name: "uPointShadowMap2", unit: 12},         // Third point shadow map
-            {name: "uPointShadowMap3", unit: 13},         // Fourth point shadow map
-            
+            // Cubemap texture samplers - TEXTURE_CUBE_MAP type
+            { name: "uPointShadowMap", unit: 10 }, // First point shadow map
+            { name: "uPointShadowMap1", unit: 11 }, // Second point shadow map
+            { name: "uPointShadowMap2", unit: 12 }, // Third point shadow map
+            { name: "uPointShadowMap3", unit: 13 }, // Fourth point shadow map
+
             // GROUP 3: TEXTURE ARRAYS (units 20-29) - Large gap to prevent conflicts
             // Texture array samplers - TEXTURE_2D_ARRAY type
-            {name: "uTextureArray", unit: 20},            // Standard texture array
-            {name: "uPBRTextureArray", unit: 21},         // PBR texture array
+            { name: "uTextureArray", unit: 20 }, // Standard texture array
+            { name: "uPBRTextureArray", unit: 21 } // PBR texture array
         ];
 
         // Assign each sampler to its dedicated texture unit
         // This forces WebGL to use separate internal locations for different sampler types
-        for (const {name, unit} of samplerUniforms) {
+        for (const { name, unit } of samplerUniforms) {
             const loc = this.gl.getUniformLocation(program, name);
             if (loc !== null) {
                 this.gl.uniform1i(loc, unit);
             }
         }
     }
-    
+
     /**
      * Compile a shader
      */
-    compileShader(type, source, shaderLabel = 'unknown') {
+    compileShader(type, source, shaderLabel = "unknown") {
         const shader = this.gl.createShader(type);
         this.gl.shaderSource(shader, source);
         this.gl.compileShader(shader);
@@ -188,63 +187,63 @@ class ProgramManager {
         if (!this.gl.getShaderParameter(shader, this.gl.COMPILE_STATUS)) {
             const info = this.gl.getShaderInfoLog(shader);
             this.gl.deleteShader(shader);
-            
+
             // Print detailed error information
             console.error(`==== SHADER COMPILE ERROR FOR '${shaderLabel}' ====`);
             console.error(info);
-            
+
             // Print the source code with line numbers
-            const sourceLines = source.split('\n');
-            console.error('==== SHADER SOURCE ====');
+            const sourceLines = source.split("\n");
+            console.error("==== SHADER SOURCE ====");
             sourceLines.forEach((line, index) => {
                 console.error(`${index + 1}: ${line}`);
             });
-            
+
             // Analyze error message for line numbers
             let lineNumber = -1;
             const lineMatch = info.match(/\d+:(\d+)/);
             if (lineMatch && lineMatch[1]) {
                 lineNumber = parseInt(lineMatch[1]);
                 if (lineNumber > 0 && lineNumber <= sourceLines.length) {
-                    console.error('==== PROBLEMATIC LINE ====');
+                    console.error("==== PROBLEMATIC LINE ====");
                     console.error(`${lineNumber}: ${sourceLines[lineNumber - 1]}`);
-                    
+
                     // Show context (lines before and after)
-                    console.error('==== CONTEXT ====');
+                    console.error("==== CONTEXT ====");
                     const startLine = Math.max(0, lineNumber - 3);
                     const endLine = Math.min(sourceLines.length, lineNumber + 2);
                     for (let i = startLine; i < endLine; i++) {
-                        const prefix = i === lineNumber - 1 ? '> ' : '  ';
+                        const prefix = i === lineNumber - 1 ? "> " : "  ";
                         console.error(`${prefix}${i + 1}: ${sourceLines[i]}`);
                     }
                 }
             }
-            
+
             throw new Error(`Shader compile error in '${shaderLabel}': ${info}`);
         }
 
         return shader;
     }
-    
+
     /**
      * Initialize the object shader
      */
     initializeObjectShader() {
         console.log("[ProgramManager] Initializing object shader");
-        
+
         try {
             // Create a new ObjectShader instance
             this.objectShader = new ObjectShader();
-            
+
             // Set initial variant
             this.setObjectShaderVariant("default");
-            
+
             console.log("[ProgramManager] Object shader initialized successfully");
         } catch (e) {
             console.error(`[ProgramManager] Error initializing object shader: ${e.message}`);
         }
     }
-    
+
     /**
      * Set the current object shader variant and recompile
      * @param {string} variant - The variant to use ('default', 'pbr', 'virtualboy')
@@ -254,41 +253,41 @@ class ProgramManager {
             console.warn("[ProgramManager] Object shader not initialized");
             return;
         }
-        
+
         try {
             // Remember current variant
             this.currentVariant = variant;
-            
+
             // Update the object shader variant
             this.objectShader.setVariant(variant);
-            
+
             // Compile shader program with the current variant
             const program = this.createShaderProgram(
-                this.objectShader.getVertexShader(this.isWebGL2),
-                this.objectShader.getFragmentShader(this.isWebGL2),
+                this.objectShader.getVertexShader(),
+                this.objectShader.getFragmentShader(),
                 `object_shader_${variant}`
             );
-            
+
             // Get locations for uniforms and attributes
-            const isPBR = variant === 'pbr';
+            const isPBR = variant === "pbr";
             const locations = this.getStandardShaderLocations(program, isPBR);
-            
+
             // Update stored program and locations
             this.objectProgram = program;
             this.objectLocations = locations;
-            
+
             console.log(`[ProgramManager] Object shader variant changed to: ${variant}`);
-            
+
             // Update line shader to match
             this.handleVariantChange(variant);
-            
+
             return variant;
         } catch (e) {
             console.error(`[ProgramManager] Error setting object shader variant: ${e.message}`);
             return this.currentVariant; // Return previous variant on error
         }
     }
-    
+
     /**
      * Cycle to the next shader variant
      * @param {function} callback - Optional callback for when variant changes
@@ -299,18 +298,18 @@ class ProgramManager {
         const currentIndex = variants.indexOf(this.currentVariant);
         const nextIndex = (currentIndex + 1) % variants.length;
         const newVariant = variants[nextIndex];
-        
+
         // Set the new variant
         this.setObjectShaderVariant(newVariant);
-        
+
         // Call the callback if provided
-        if (callback && typeof callback === 'function') {
+        if (callback && typeof callback === "function") {
             callback(newVariant);
         }
-        
+
         return newVariant;
     }
-    
+
     /**
      * Get the current shader variant
      * @returns {string} - Current variant name
@@ -318,7 +317,7 @@ class ProgramManager {
     getCurrentVariant() {
         return this.currentVariant;
     }
-    
+
     /**
      * Get the current object shader program
      * @returns {WebGLProgram} - WebGL program for the current object shader
@@ -326,7 +325,7 @@ class ProgramManager {
     getObjectProgram() {
         return this.objectProgram;
     }
-    
+
     /**
      * Get locations for the current object shader
      * @returns {Object} - Locations for attributes and uniforms
@@ -334,7 +333,7 @@ class ProgramManager {
     getObjectLocations() {
         return this.objectLocations;
     }
-    
+
     /**
      * Initialize special-case shaders (particles, water, line)
      */
@@ -347,9 +346,9 @@ class ProgramManager {
     initializeParticleShader() {
         const particleShader = new ParticleShader();
         this.particleProgram = this.createShaderProgram(
-            particleShader.getParticleVertexShader(this.isWebGL2),
-            particleShader.getParticleFragmentShader(this.isWebGL2),
-            'particle_shader'
+            particleShader.getParticleVertexShader(),
+            particleShader.getParticleFragmentShader(),
+            "particle_shader"
         );
 
         this.particleLocations = {
@@ -365,9 +364,9 @@ class ProgramManager {
     initializeWaterShader() {
         const waterShader = new WaterShader();
         this.waterProgram = this.createShaderProgram(
-            waterShader.getWaterVertexShader(this.isWebGL2),
-            waterShader.getWaterFragmentShader(this.isWebGL2),
-            'water_shader'
+            waterShader.getWaterVertexShader(),
+            waterShader.getWaterFragmentShader(),
+            "water_shader"
         );
 
         // Add null checks
@@ -388,18 +387,18 @@ class ProgramManager {
             lightDir: this.gl.getUniformLocation(this.waterProgram, "uLightDir")
         };
     }
-    
+
     initializeLineShader() {
         // Create a new LineShader instance
         this.lineShader = new LineShader();
-        
+
         // Create shader program for the default line shader
         const lineProgram = this.createShaderProgram(
-            this.lineShader.getVertexShader(this.isWebGL2),
-            this.lineShader.getFragmentShader(this.isWebGL2),
-            'line_shader'
+            this.lineShader.getVertexShader(),
+            this.lineShader.getFragmentShader(),
+            "line_shader"
         );
-        
+
         // Get and store shader locations
         this.lineLocations = {
             position: this.gl.getAttribLocation(lineProgram, "aPosition"),
@@ -408,13 +407,13 @@ class ProgramManager {
             color: this.gl.getUniformLocation(lineProgram, "uColor"),
             time: this.gl.getUniformLocation(lineProgram, "uTime")
         };
-        
+
         // Store the program for later use
         this.lineProgram = lineProgram;
-        
+
         console.log("[ProgramManager] Line shader initialized");
     }
-    
+
     /**
      * Get locations for a standard shader
      * @param {WebGLProgram} program - The WebGL program
@@ -426,7 +425,7 @@ class ProgramManager {
         const attr = this.attributeNames;
         const unif = this.uniformNames;
         const tex = this.textureUniforms;
-        
+
         // Get all attribute and uniform locations
         return {
             // Attributes
@@ -436,7 +435,7 @@ class ProgramManager {
             texCoord: gl.getAttribLocation(program, attr.texCoord),
             textureIndex: gl.getAttribLocation(program, attr.textureIndex),
             useTexture: gl.getAttribLocation(program, attr.useTexture),
-            
+
             // Uniforms
             projectionMatrix: gl.getUniformLocation(program, unif.projectionMatrix),
             viewMatrix: gl.getUniformLocation(program, unif.viewMatrix),
@@ -448,38 +447,38 @@ class ProgramManager {
             roughness: gl.getUniformLocation(program, unif.roughness),
             metallic: gl.getUniformLocation(program, unif.metallic),
             baseReflectivity: gl.getUniformLocation(program, unif.baseReflectivity),
-            usePerTextureMaterials: gl.getUniformLocation(program, 'uUsePerTextureMaterials'),
+            usePerTextureMaterials: gl.getUniformLocation(program, "uUsePerTextureMaterials"),
             materialPropertiesTexture: gl.getUniformLocation(program, tex.materialProps),
             cameraPos: gl.getUniformLocation(program, unif.cameraPos),
             time: gl.getUniformLocation(program, unif.time),
             intensityFactor: gl.getUniformLocation(program, unif.intensityFactor),
-            
+
             // Shadow mapping uniforms
             lightSpaceMatrix: gl.getUniformLocation(program, unif.lightSpaceMatrix),
             shadowMap: gl.getUniformLocation(program, unif.shadowMap),
             shadowsEnabled: gl.getUniformLocation(program, unif.shadowsEnabled),
-            
+
             // Light counts
             directionalLightCount: gl.getUniformLocation(program, "uDirectionalLightCount"),
             pointLightCount: gl.getUniformLocation(program, "uPointLightCount"),
             spotLightCount: gl.getUniformLocation(program, "uSpotLightCount"),
-            
+
             // Light data textures
             directionalLightData: gl.getUniformLocation(program, "uDirectionalLightData"),
             directionalLightTextureSize: gl.getUniformLocation(program, "uDirectionalLightTextureSize"),
             pointLightData: gl.getUniformLocation(program, "uPointLightData"),
             pointLightTextureSize: gl.getUniformLocation(program, "uPointLightTextureSize"),
-            
+
             farPlane: gl.getUniformLocation(program, "uFarPlane"),
             pointShadowFarPlane: gl.getUniformLocation(program, "uPointShadowFarPlane"),
-            
+
             // Legacy light uniforms
             pointLightPos: gl.getUniformLocation(program, "uPointLightPos"),
             pointLightColor: gl.getUniformLocation(program, "uPointLightColor"),
             pointLightRadius: gl.getUniformLocation(program, "uLightRadius"),
             pointShadowsEnabled: gl.getUniformLocation(program, "uPointShadowsEnabled"),
             pointShadowMap: gl.getUniformLocation(program, "uPointShadowMap"),
-            
+
             // Additional point light uniforms (2-4)
             pointLightPos1: gl.getUniformLocation(program, "uPointLightPos1"),
             pointLightColor1: gl.getUniformLocation(program, "uPointLightColor1"),
@@ -487,20 +486,20 @@ class ProgramManager {
             pointShadowsEnabled1: gl.getUniformLocation(program, "uPointShadowsEnabled1"),
             pointShadowMap1: gl.getUniformLocation(program, "uPointShadowMap1"),
             pointLightIntensity1: gl.getUniformLocation(program, "uPointLightIntensity1"),
-            
+
             // Third point light uniforms
             pointShadowsEnabled2: gl.getUniformLocation(program, "uPointShadowsEnabled2"),
             pointShadowMap2: gl.getUniformLocation(program, "uPointShadowMap2"),
-            
+
             // Fourth point light uniforms
             pointShadowsEnabled3: gl.getUniformLocation(program, "uPointShadowsEnabled3"),
             pointShadowMap3: gl.getUniformLocation(program, "uPointShadowMap3"),
-            
+
             // Texture uniform
             textureArray: gl.getUniformLocation(program, isPBR ? tex.pbr : tex.standard)
         };
     }
-    
+
     /**
      * Set the current line shader variant
      * @param {string} variant - The shader variant to use ('default', 'virtualboy', etc.)
@@ -510,17 +509,17 @@ class ProgramManager {
             console.warn("[ProgramManager] Line shader not initialized");
             return;
         }
-        
+
         // Update the line shader variant
         this.lineShader.setVariant(variant);
-        
+
         // Reinitialize the line shader program
         const newLineProgram = this.createShaderProgram(
-            this.lineShader.getVertexShader(this.isWebGL2),
-            this.lineShader.getFragmentShader(this.isWebGL2),
+            this.lineShader.getVertexShader(),
+            this.lineShader.getFragmentShader(),
             `line_shader_${variant}`
         );
-        
+
         // Update the program and locations
         this.lineProgram = newLineProgram;
         this.lineLocations = {
@@ -530,10 +529,10 @@ class ProgramManager {
             color: this.gl.getUniformLocation(newLineProgram, "uColor"),
             time: this.gl.getUniformLocation(newLineProgram, "uTime")
         };
-        
+
         console.log(`[ProgramManager] Line shader variant changed to: ${variant}`);
     }
-    
+
     /**
      * Update shaders when variant changes
      * @param {string} variant - The name of the new variant
@@ -545,7 +544,7 @@ class ProgramManager {
             this.setLineShaderVariant("default");
         }
     }
-    
+
     // Accessor methods
     getParticleProgram() {
         return this.particleProgram;
