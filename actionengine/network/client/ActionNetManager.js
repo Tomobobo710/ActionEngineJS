@@ -1,9 +1,9 @@
 /**
  * ActionNetManager - Core networking API for ActionEngine
- * 
+ *
  * A headless, event-driven WebSocket client for multiplayer games and apps.
  * Provides room/lobby pattern out of the box, but flexible enough for custom protocols.
- * 
+ *
  * FEATURES:
  * - Event-driven API (on/off pattern)
  * - Room/Lobby management
@@ -11,18 +11,18 @@
  * - Message queue handling
  * - Reconnection support with exponential backoff
  * - Ping/RTT tracking
- * 
+ *
  * USAGE:
  * ```javascript
  * const net = new ActionNetManager({
  *     url: 'ws://yourserver.com:3000',
  *     autoConnect: false
  * });
- * 
+ *
  * net.on('connected', () => console.log('Connected!'));
  * net.on('roomList', (rooms) => console.log('Available rooms:', rooms));
  * net.on('message', (msg) => console.log('Received:', msg));
- * 
+ *
  * net.connectToServer({ username: 'Player1' });
  * net.joinRoom('lobby-1');
  * net.send({ type: 'chat', text: 'Hello!' });
@@ -32,14 +32,14 @@ class ActionNetManager {
     constructor(config = {}) {
         // Configuration
         this.config = {
-            url: config.url || 'ws://localhost:3000',
+            url: config.url || "ws://localhost:3000",
             autoConnect: config.autoConnect !== undefined ? config.autoConnect : false,
             reconnect: config.reconnect !== undefined ? config.reconnect : false,
             reconnectDelay: config.reconnectDelay || 1000,
             maxReconnectDelay: config.maxReconnectDelay || 30000,
-            reconnectAttempts: config.reconnectAttempts || -1,  // -1 = infinite
-            pingInterval: config.pingInterval || 30000,          // Ping every 30 seconds
-            pongTimeout: config.pongTimeout || 5000,             // Expect pong within 5 seconds
+            reconnectAttempts: config.reconnectAttempts || -1, // -1 = infinite
+            pingInterval: config.pingInterval || 30000, // Ping every 30 seconds
+            pongTimeout: config.pongTimeout || 5000, // Expect pong within 5 seconds
             debug: config.debug || false
         };
 
@@ -50,14 +50,14 @@ class ActionNetManager {
         this.connectionFailedFlag = false;
 
         // Client info
-        this.clientId = null;           // Unique identifier (auto-generated or custom)
-        this.username = null;           // User-facing name
-        this.clientData = {};            // Custom metadata developers can set
+        this.clientId = null; // Unique identifier (auto-generated or custom)
+        this.username = null; // User-facing name
+        this.clientData = {}; // Custom metadata developers can set
         this.currentRoomName = null;
 
         // Room/Lobby data
         this.availableRooms = [];
-        this.connectedClients = [];      // Clients in current room
+        this.connectedClients = []; // Clients in current room
 
         // Event handlers
         this.handlers = new Map();
@@ -88,7 +88,7 @@ class ActionNetManager {
 
     /**
      * Register an event handler
-     * 
+     *
      * Available events:
      * - 'connected': () => {} - Connected to server
      * - 'disconnected': () => {} - Disconnected from server
@@ -125,12 +125,12 @@ class ActionNetManager {
     emit(event, ...args) {
         if (!this.handlers.has(event)) return;
         const handlers = this.handlers.get(event);
-        handlers.forEach(handler => {
+        handlers.forEach((handler) => {
             try {
                 handler(...args);
             } catch (error) {
                 if (this.config.debug) {
-                    console.error('[ActionNetManager] Error in event handler:', error);
+                    console.error("[ActionNetManager] Error in event handler:", error);
                 }
             }
         });
@@ -138,7 +138,7 @@ class ActionNetManager {
 
     /**
      * Connect to server
-     * 
+     *
      * @param {Object} data - Client data (e.g., {username: 'Player1'})
      * @returns {Promise} - Resolves when connected
      */
@@ -155,13 +155,13 @@ class ActionNetManager {
 
                 // Check if already aborted
                 if (signal.aborted) {
-                    reject(new Error('Connection cancelled'));
+                    reject(new Error("Connection cancelled"));
                     return;
                 }
 
                 // Listen for abort signal
-                signal.addEventListener('abort', () => {
-                    reject(new Error('Connection cancelled'));
+                signal.addEventListener("abort", () => {
+                    reject(new Error("Connection cancelled"));
                 });
 
                 // Store client data
@@ -179,7 +179,7 @@ class ActionNetManager {
                 // Connection timeout
                 const timeout = setTimeout(() => {
                     this.socket.close();
-                    reject(new Error('Connection timeout'));
+                    reject(new Error("Connection timeout"));
                 }, 5000);
 
                 // Connection opened
@@ -190,19 +190,19 @@ class ActionNetManager {
 
                     // Send connect message with clientId and username
                     this.send({
-                        type: 'connect',
-                        clientId: this.clientId,       // Unique identifier
-                        username: this.username,       // User-facing name
-                        ...this.clientData             // Any additional metadata
+                        type: "connect",
+                        clientId: this.clientId, // Unique identifier
+                        username: this.username, // User-facing name
+                        ...this.clientData // Any additional metadata
                     });
 
                     // Wait for server confirmation
                     const messageHandler = (msg) => {
-                        if (msg.type === 'connectSuccess') {
+                        if (msg.type === "connectSuccess") {
                             clearTimeout(timeout);
                             this.isConnectedFlag = true;
                             this.connectionFailedFlag = false;
-                            this.reconnectAttempt = 0;  // Reset reconnect attempts on success
+                            this.reconnectAttempt = 0; // Reset reconnect attempts on success
 
                             if (this.config.debug) {
                                 // console.log('[ActionNetManager] Server connection confirmed');
@@ -211,19 +211,19 @@ class ActionNetManager {
                             // Start ping/pong if enabled
                             this.startPing();
 
-                            this.emit('connected');
-                            this.off('message', messageHandler);
+                            this.emit("connected");
+                            this.off("message", messageHandler);
                             this.connectionAbortController = null; // Clear abort controller
                             resolve();
-                        } else if (msg.type === 'error') {
+                        } else if (msg.type === "error") {
                             clearTimeout(timeout);
-                            this.off('message', messageHandler);
+                            this.off("message", messageHandler);
                             this.connectionAbortController = null; // Clear abort controller
                             reject(new Error(msg.text));
                         }
                     };
 
-                    this.on('message', messageHandler);
+                    this.on("message", messageHandler);
                 };
 
                 // Message received
@@ -233,7 +233,7 @@ class ActionNetManager {
                         this.handleMessage(message);
                     } catch (error) {
                         if (this.config.debug) {
-                            console.error('[ActionNetManager] Failed to parse message:', error);
+                            console.error("[ActionNetManager] Failed to parse message:", error);
                         }
                     }
                 };
@@ -243,12 +243,12 @@ class ActionNetManager {
                     if (this.config.debug) {
                         // console.log('[ActionNetManager] Disconnected from server');
                     }
-                    
+
                     this.isConnectedFlag = false;
                     this.connectedClients = [];
-                    this.rtt = 0;  // Reset RTT
+                    this.rtt = 0; // Reset RTT
                     this.stopPing();
-                    this.emit('disconnected');
+                    this.emit("disconnected");
 
                     // Auto-reconnect if enabled and not manually disconnected
                     if (this.config.reconnect && !this.manualDisconnect) {
@@ -260,14 +260,13 @@ class ActionNetManager {
                 this.socket.onerror = (error) => {
                     clearTimeout(timeout);
                     if (this.config.debug) {
-                        console.error('[ActionNetManager] Connection error:', error);
+                        console.error("[ActionNetManager] Connection error:", error);
                     }
                     this.connectionFailedFlag = true;
-                    this.emit('error', error);
+                    this.emit("error", error);
                     this.connectionAbortController = null; // Clear abort controller
                     reject(error);
                 };
-
             } catch (error) {
                 reject(error);
             }
@@ -276,55 +275,55 @@ class ActionNetManager {
 
     /**
      * Join a room
-     * 
+     *
      * @param {String} roomName - Name of room to join
      * @returns {Promise} - Resolves when joined
      */
     joinRoom(roomName) {
         if (!this.isConnectedFlag) {
-            return Promise.reject(new Error('Not connected to server'));
+            return Promise.reject(new Error("Not connected to server"));
         }
 
         return new Promise((resolve, reject) => {
             // Send join request with clientId and username
             this.send({
-                type: 'joinRoom',
+                type: "joinRoom",
                 roomName: roomName,
-                clientId: this.clientId,       // Unique identifier
-                username: this.username        // User-facing name
+                clientId: this.clientId, // Unique identifier
+                username: this.username // User-facing name
             });
 
             // Wait for confirmation
             const timeout = setTimeout(() => {
-                this.off('message', successHandler);
-                this.off('message', errorHandler);
-                reject(new Error('Join room timeout'));
+                this.off("message", successHandler);
+                this.off("message", errorHandler);
+                reject(new Error("Join room timeout"));
             }, 5000);
 
             // Listen for success
             const successHandler = (msg) => {
-                if (msg.type === 'joinSuccess') {
+                if (msg.type === "joinSuccess") {
                     clearTimeout(timeout);
                     this.currentRoomName = roomName;
                     this.isInRoomFlag = true;
-                    this.emit('joinedRoom', roomName);
-                    this.off('message', successHandler);
-                    this.off('message', errorHandler);
+                    this.emit("joinedRoom", roomName);
+                    this.off("message", successHandler);
+                    this.off("message", errorHandler);
                     resolve(roomName);
                 }
             };
 
             const errorHandler = (msg) => {
-                if (msg.type === 'error') {
+                if (msg.type === "error") {
                     clearTimeout(timeout);
-                    this.off('message', successHandler);
-                    this.off('message', errorHandler);
-                    reject(new Error(msg.text || 'Failed to join room'));
+                    this.off("message", successHandler);
+                    this.off("message", errorHandler);
+                    reject(new Error(msg.text || "Failed to join room"));
                 }
             };
 
-            this.on('message', successHandler);
-            this.on('message', errorHandler);
+            this.on("message", successHandler);
+            this.on("message", errorHandler);
         });
     }
 
@@ -340,7 +339,7 @@ class ActionNetManager {
         }
 
         this.send({
-            type: 'leaveRoom',
+            type: "leaveRoom",
             clientId: this.clientId,
             username: this.username
         });
@@ -349,18 +348,18 @@ class ActionNetManager {
         this.currentRoomName = null;
         this.isInRoomFlag = false;
         this.connectedClients = [];
-        this.emit('leftRoom', oldRoom);
+        this.emit("leftRoom", oldRoom);
     }
 
     /**
      * Send a message to the server
-     * 
+     *
      * @param {Object} message - Message object to send
      */
     send(message) {
         if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
             if (this.config.debug) {
-                console.error('[ActionNetManager] Cannot send: not connected');
+                console.error("[ActionNetManager] Cannot send: not connected");
             }
             return false;
         }
@@ -370,7 +369,7 @@ class ActionNetManager {
             return true;
         } catch (error) {
             if (this.config.debug) {
-                console.error('[ActionNetManager] Send error:', error);
+                console.error("[ActionNetManager] Send error:", error);
             }
             return false;
         }
@@ -382,7 +381,7 @@ class ActionNetManager {
     startPing() {
         if (this.config.pingInterval <= 0) return;
 
-        this.stopPing();  // Clear any existing timers
+        this.stopPing(); // Clear any existing timers
 
         this.pingTimer = setInterval(() => {
             if (!this.isConnectedFlag) {
@@ -393,9 +392,9 @@ class ActionNetManager {
             // Send ping
             this.pingSequence++;
             this.lastPingTime = Date.now();
-            
+
             this.send({
-                type: 'ping',
+                type: "ping",
                 sequence: this.pingSequence,
                 timestamp: this.lastPingTime
             });
@@ -403,16 +402,15 @@ class ActionNetManager {
             // Set pong timeout
             this.pongTimer = setTimeout(() => {
                 if (this.config.debug) {
-                    console.warn('[ActionNetManager] Pong timeout - connection may be dead');
+                    console.warn("[ActionNetManager] Pong timeout - connection may be dead");
                 }
-                this.emit('timeout');
-                
+                this.emit("timeout");
+
                 // Reconnect if timeout occurs
                 if (this.config.reconnect) {
                     this.socket.close();
                 }
             }, this.config.pongTimeout);
-
         }, this.config.pingInterval);
     }
 
@@ -435,12 +433,11 @@ class ActionNetManager {
      */
     scheduleReconnect() {
         // Check if we've exceeded max attempts
-        if (this.config.reconnectAttempts !== -1 && 
-            this.reconnectAttempt >= this.config.reconnectAttempts) {
+        if (this.config.reconnectAttempts !== -1 && this.reconnectAttempt >= this.config.reconnectAttempts) {
             if (this.config.debug) {
                 // console.log('[ActionNetManager] Max reconnect attempts reached');
             }
-            this.emit('reconnectFailed');
+            this.emit("reconnectFailed");
             return;
         }
 
@@ -456,12 +453,12 @@ class ActionNetManager {
             // console.log(`[ActionNetManager] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempt})`);
         }
 
-        this.emit('reconnecting', { attempt: this.reconnectAttempt, delay });
+        this.emit("reconnecting", { attempt: this.reconnectAttempt, delay });
 
         this.reconnectTimer = setTimeout(() => {
-            this.connectToServer(this.clientData).catch(error => {
+            this.connectToServer(this.clientData).catch((error) => {
                 if (this.config.debug) {
-                    console.error('[ActionNetManager] Reconnect failed:', error);
+                    console.error("[ActionNetManager] Reconnect failed:", error);
                 }
             });
         }, delay);
@@ -475,71 +472,69 @@ class ActionNetManager {
         this.messageQueue.push(message);
 
         // Emit generic message event
-        this.emit('message', message);
+        this.emit("message", message);
 
         // Handle specific message types
         switch (message.type) {
-            case 'pong':
+            case "pong":
                 // Handle pong response
                 if (this.pongTimer) {
                     clearTimeout(this.pongTimer);
                     this.pongTimer = null;
                 }
-                
+
                 // Calculate RTT
                 if (message.sequence === this.pingSequence) {
                     this.rtt = Date.now() - this.lastPingTime;
-                    this.emit('rtt', this.rtt);
+                    this.emit("rtt", this.rtt);
                 }
                 break;
 
-            case 'ping':
+            case "ping":
                 // Auto-respond to server pings
                 this.send({
-                    type: 'pong',
+                    type: "pong",
                     sequence: message.sequence,
                     timestamp: message.timestamp
                 });
                 break;
 
-            case 'roomList':
+            case "roomList":
                 this.availableRooms = message.rooms || [];
-                this.emit('roomList', this.availableRooms);
+                this.emit("roomList", this.availableRooms);
                 break;
 
-            case 'userList':
+            case "userList":
                 this.connectedClients = message.users || [];
-                this.emit('userList', this.connectedClients);
+                this.emit("userList", this.connectedClients);
                 break;
 
-            case 'userJoined':
-                if (!this.connectedClients.some(c => c.id === message.id)) {
+            case "userJoined":
+                if (!this.connectedClients.some((c) => c.id === message.id)) {
                     this.connectedClients.push(message);
                 }
-                this.emit('userJoined', message);
+                this.emit("userJoined", message);
                 break;
 
-            case 'userLeft':
-                this.connectedClients = this.connectedClients.filter(
-                    c => c.id !== message.id
-                );
-                this.emit('userLeft', message);
+            case "userLeft":
+                this.connectedClients = this.connectedClients.filter((c) => c.id !== message.id);
+                this.emit("userLeft", message);
                 break;
 
-            case 'hostLeft':
-                this.emit('hostLeft', message);
+            case "hostLeft":
+                this.emit("hostLeft", message);
                 break;
 
-            case 'chat':
-                this.emit('chat', message);
+            case "chat":
+                this.emit("chat", message);
                 break;
 
-            case 'system':
-                this.emit('system', message);
+            case "system":
+                this.emit("system", message);
                 break;
 
-            case 'error':
-                this.emit('error', new Error(message.text || 'Server error'));
+            case "error":
+                this.emit("error", new Error(message.text || "Server error"));
                 break;
 
             default:
@@ -563,14 +558,14 @@ class ActionNetManager {
      * Disconnect from server
      */
     disconnect() {
-        this.manualDisconnect = true;  // Flag to prevent auto-reconnect
-        
+        this.manualDisconnect = true; // Flag to prevent auto-reconnect
+
         // Abort pending connection attempt
         if (this.connectionAbortController) {
             this.connectionAbortController.abort();
             this.connectionAbortController = null;
         }
-        
+
         // Clear reconnect timer
         if (this.reconnectTimer) {
             clearTimeout(this.reconnectTimer);
@@ -592,7 +587,7 @@ class ActionNetManager {
         this.connectedClients = [];
         this.availableRooms = [];
         this.messageQueue = [];
-        this.rtt = 0;  // Reset RTT
+        this.rtt = 0; // Reset RTT
         this.reconnectAttempt = 0;
     }
 
@@ -660,45 +655,45 @@ class ActionNetManager {
      */
     setUsername(name) {
         if (!this.isConnectedFlag) {
-            return Promise.reject(new Error('Not connected to server'));
+            return Promise.reject(new Error("Not connected to server"));
         }
 
         // Validate new username locally
-        if (!name || name.trim() === '' || name.length < 2) {
-            return Promise.reject(new Error('Username must be at least 2 characters long'));
+        if (!name || name.trim() === "" || name.length < 2) {
+            return Promise.reject(new Error("Username must be at least 2 characters long"));
         }
 
         if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
-            return Promise.reject(new Error('Username can only contain letters, numbers, underscores, and hyphens'));
+            return Promise.reject(new Error("Username can only contain letters, numbers, underscores, and hyphens"));
         }
 
         return new Promise((resolve, reject) => {
             // Send username change request
             this.send({
-                type: 'changeUsername',
+                type: "changeUsername",
                 username: name
             });
 
             // Wait for confirmation
             const timeout = setTimeout(() => {
-                this.off('message', successHandler);
-                this.off('message', errorHandler);
-                reject(new Error('Username change timeout'));
+                this.off("message", successHandler);
+                this.off("message", errorHandler);
+                reject(new Error("Username change timeout"));
             }, 5000);
 
             // Listen for success
             const successHandler = (msg) => {
-                if (msg.type === 'usernameChangeSuccess') {
+                if (msg.type === "usernameChangeSuccess") {
                     clearTimeout(timeout);
                     // Update local username
                     this.username = msg.newUsername;
-                    this.emit('usernameChanged', {
+                    this.emit("usernameChanged", {
                         oldUsername: msg.oldUsername,
                         newUsername: msg.newUsername,
                         displayName: msg.displayName
                     });
-                    this.off('message', successHandler);
-                    this.off('message', errorHandler);
+                    this.off("message", successHandler);
+                    this.off("message", errorHandler);
                     resolve({
                         oldUsername: msg.oldUsername,
                         newUsername: msg.newUsername,
@@ -708,19 +703,18 @@ class ActionNetManager {
             };
 
             const errorHandler = (msg) => {
-                if (msg.type === 'error') {
+                if (msg.type === "error") {
                     clearTimeout(timeout);
-                    this.off('message', successHandler);
-                    this.off('message', errorHandler);
-                    reject(new Error(msg.text || 'Username change failed'));
+                    this.off("message", successHandler);
+                    this.off("message", errorHandler);
+                    reject(new Error(msg.text || "Username change failed"));
                 }
             };
 
-            this.on('message', successHandler);
-            this.on('message', errorHandler);
+            this.on("message", successHandler);
+            this.on("message", errorHandler);
         });
     }
-
 
     /**
      * Get current RTT in milliseconds
@@ -744,8 +738,8 @@ class ActionNetManager {
         if (!this.isInRoomFlag) {
             return null;
         }
-        
-        const host = this.connectedClients.find(client => client.isHost === true);
+
+        const host = this.connectedClients.find((client) => client.isHost === true);
         return host || null;
     }
 
@@ -757,7 +751,7 @@ class ActionNetManager {
         if (!this.isInRoomFlag) {
             return false;
         }
-        
+
         const host = this.getHost();
         return host && host.id === this.clientId;
     }
@@ -772,7 +766,7 @@ class ActionNetManager {
 
             const timeout = setTimeout(() => {
                 testSocket.close();
-                resolve({ available: false, error: 'Connection timeout' });
+                resolve({ available: false, error: "Connection timeout" });
             }, 1000); // 1 second timeout
 
             testSocket.onopen = () => {
@@ -784,7 +778,7 @@ class ActionNetManager {
             testSocket.onerror = (error) => {
                 clearTimeout(timeout);
                 testSocket.close();
-                resolve({ available: false, error: 'Connection failed' });
+                resolve({ available: false, error: "Connection failed" });
             };
         });
     }

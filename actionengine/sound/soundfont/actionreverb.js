@@ -12,7 +12,7 @@ class ActionReverb {
       delay: 0,
       filterFreq: 2200,
       filterQ: 1,
-      filterType: 'lowpass',
+      filterType: "lowpass",
       mix: 0.5,
       reverse: false,
       time: 3
@@ -57,7 +57,7 @@ class ActionReverb {
    */
   connect(sourceNode) {
     this.isConnected = true;
-    
+
     // Connect convolver to filter
     this.convolverNode.connect(this.filterNode);
     // Connect filter to wet gain
@@ -100,7 +100,7 @@ class ActionReverb {
    */
   mix(mix) {
     if (!this.inRange(mix, 0, 1)) {
-      console.warn('[ActionReverb] Dry/Wet level must be between 0 to 1.');
+      console.warn("[ActionReverb] Dry/Wet level must be between 0 to 1.");
       return;
     }
     this._mix = mix;
@@ -114,7 +114,7 @@ class ActionReverb {
    */
   time(value) {
     if (!this.inRange(value, 1, 50)) {
-      console.warn('[ActionReverb] Time length of impulse response must be less than 50sec.');
+      console.warn("[ActionReverb] Time length of impulse response must be less than 50sec.");
       return;
     }
     this._time = value;
@@ -127,7 +127,7 @@ class ActionReverb {
    */
   decay(value) {
     if (!this.inRange(value, 0, 100)) {
-      console.warn('[ActionReverb] Impulse Response decay level must be less than 100.');
+      console.warn("[ActionReverb] Impulse Response decay level must be less than 100.");
       return;
     }
     this._decay = value;
@@ -140,7 +140,7 @@ class ActionReverb {
    */
   delay(value) {
     if (!this.inRange(value, 0, 100)) {
-      console.warn('[ActionReverb] Impulse Response delay time must be less than 100.');
+      console.warn("[ActionReverb] Impulse Response delay time must be less than 100.");
       return;
     }
     this._delay = value;
@@ -171,7 +171,7 @@ class ActionReverb {
    */
   filterFreq(freq) {
     if (!this.inRange(freq, 20, 5000)) {
-      console.warn('[ActionReverb] Filter frequency must be between 20 and 5000.');
+      console.warn("[ActionReverb] Filter frequency must be between 20 and 5000.");
       return;
     }
     this._freq = freq;
@@ -184,7 +184,7 @@ class ActionReverb {
    */
   filterQ(q) {
     if (!this.inRange(q, 0, 10)) {
-      console.warn('[ActionReverb] Filter quality value must be between 0 and 10.');
+      console.warn("[ActionReverb] Filter quality value must be between 0 and 10.");
       return;
     }
     this._q = q;
@@ -200,7 +200,7 @@ class ActionReverb {
    * @return {boolean}
    */
   inRange(x, min, max) {
-    return ((x - min) * (x - max) <= 0);
+    return (x - min) * (x - max) <= 0;
   }
 
   /**

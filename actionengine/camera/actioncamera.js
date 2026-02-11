@@ -64,7 +64,7 @@ class ActionCamera {
             const currentPitch = Math.asin(targetToCamera.y / distance);
             const pitchDelta = this.pitchSpeed * deltaTime * (input.isKeyPressed("Numpad1") ? 1 : -1);
             const newPitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, currentPitch + pitchDelta));
-            
+
             const horizontalDistance = distance * Math.cos(newPitch);
             const verticalDistance = distance * Math.sin(newPitch);
             const horizontalDir = targetToCamera.horizontalNormalize();

@@ -6,7 +6,7 @@ class ActionInputHandler {
         this.isPaused = false;
 
         // Track which context we're in (update or fixed_update)
-        this.currentContext = 'update';
+        this.currentContext = "update";
 
         // Create containers
         this.virtualControlsContainer = this.createVirtualControlsContainer();
@@ -15,13 +15,13 @@ class ActionInputHandler {
         // Setup action mappings
         this.setupActionMap();
         this.setupGamepadActionMap();
-        
+
         // Gamepad state
         this.gamepads = new Map(); // Store gamepad states by index
         this.gamepadDeadzone = 0.15; // Default deadzone for analog sticks
         this.gamepadConnected = false;
         this.gamepadKeyboardMirroring = true; // Default: gamepad inputs map to keyboard actions
-        
+
         // Raw state - continuously updated by events
         this.rawState = {
             keys: new Map(),
@@ -51,7 +51,7 @@ class ActionInputHandler {
             ]),
             virtualControlsVisible: false
         };
-        
+
         // Frame snapshots - updated at frame boundaries
         this.currentSnapshot = {
             keys: new Map(),
@@ -75,7 +75,7 @@ class ActionInputHandler {
             },
             uiButtons: new Map()
         };
-        
+
         this.previousSnapshot = {
             keys: new Map(),
             mouseButtons: {
@@ -98,7 +98,7 @@ class ActionInputHandler {
             },
             uiButtons: new Map()
         };
-        
+
         // Fixed snapshots - updated at fixed timesteps
         this.currentFixedSnapshot = {
             keys: new Map(),
@@ -122,7 +122,7 @@ class ActionInputHandler {
             },
             uiButtons: new Map()
         };
-        
+
         this.previousFixedSnapshot = {
             keys: new Map(),
             mouseButtons: {
@@ -148,11 +148,11 @@ class ActionInputHandler {
 
         // Setup keyboard event listeners
         this.setupEventListeners();
-        
+
         // Setup UI elements
         this.createUIControls();
         this.createVirtualControls();
-        
+
         // Setup input listeners
         this.setupPointerListeners();
         this.setupVirtualButtons();
@@ -176,32 +176,32 @@ class ActionInputHandler {
         // Button indices follow the W3C Gamepad API standard mapping
         this.gamepadActionMap = new Map([
             // Face buttons (Xbox layout: A=0, B=1, X=2, Y=3)
-            [0, ["Action1"]],  // A / Cross - Primary action
-            [1, ["Action2"]],  // B / Circle - Secondary action
-            [2, ["Action3"]],  // X / Square
-            [3, ["Action4"]],  // Y / Triangle
-            
+            [0, ["Action1"]], // A / Cross - Primary action
+            [1, ["Action2"]], // B / Circle - Secondary action
+            [2, ["Action3"]], // X / Square
+            [3, ["Action4"]], // Y / Triangle
+
             // Shoulder buttons
-            [4, ["Action5"]],  // Left Bumper (LB)
-            [5, ["Action6"]],  // Right Bumper (RB)
-            [6, ["Action7"]],  // Left Trigger (LT) when pressed as button
-            [7, ["Action8"]],  // Right Trigger (RT) when pressed as button
-            
+            [4, ["Action5"]], // Left Bumper (LB)
+            [5, ["Action6"]], // Right Bumper (RB)
+            [6, ["Action7"]], // Left Trigger (LT) when pressed as button
+            [7, ["Action8"]], // Right Trigger (RT) when pressed as button
+
             // Menu buttons
-            [8, ["Action7"]],  // Back/Select
-            [9, ["Action8"]],  // Start
-            
+            [8, ["Action7"]], // Back/Select
+            [9, ["Action8"]], // Start
+
             // Stick clicks
-            [10, ["Action9"]],  // Left stick click (L3)
+            [10, ["Action9"]], // Left stick click (L3)
             [11, ["Action10"]], // Right stick click (R3)
-            
+
             // D-pad
             [12, ["DirUp"]],
             [13, ["DirDown"]],
             [14, ["DirLeft"]],
             [15, ["DirRight"]]
         ]);
-        
+
         // Axis mapping for analog sticks
         // Standard gamepad axes: 0-1 = left stick (x, y), 2-3 = right stick (x, y)
         this.gamepadAxisMap = new Map([
@@ -270,8 +270,8 @@ class ActionInputHandler {
         }
 
         // Add additional browser keys we want to block
-        const additionalBlockedKeys = ['F5'];
-        additionalBlockedKeys.forEach(key => this.gameKeyCodes.add(key));
+        const additionalBlockedKeys = ["F5"];
+        additionalBlockedKeys.forEach((key) => this.gameKeyCodes.add(key));
     }
 
     setupGamepadListeners() {
@@ -281,7 +281,7 @@ class ActionInputHandler {
             this.gamepadConnected = true;
             this.initializeGamepad(e.gamepad.index);
         });
-        
+
         window.addEventListener("gamepaddisconnected", (e) => {
             console.log(`[ActionInputHandler] Gamepad disconnected: ${e.gamepad.id} (index: ${e.gamepad.index})`);
             this.gamepads.delete(e.gamepad.index);
@@ -290,7 +290,7 @@ class ActionInputHandler {
             }
         });
     }
-    
+
     initializeGamepad(index) {
         this.gamepads.set(index, {
             buttons: new Map(),
@@ -299,36 +299,36 @@ class ActionInputHandler {
             previousAxes: new Map()
         });
     }
-    
+
     pollGamepads() {
         // Get current gamepad states from browser
         const gamepads = navigator.getGamepads();
-        
+
         for (let i = 0; i < gamepads.length; i++) {
             const gamepad = gamepads[i];
             if (!gamepad) continue;
-            
+
             // Initialize if this is a new gamepad
             if (!this.gamepads.has(i)) {
                 this.initializeGamepad(i);
             }
-            
+
             const state = this.gamepads.get(i);
-            
+
             // Store previous state
             state.previousButtons = new Map(state.buttons);
             state.previousAxes = new Map(state.axes);
-            
+
             // Update button states AND inject into rawState.keys
             gamepad.buttons.forEach((button, index) => {
                 state.buttons.set(index, {
                     pressed: button.pressed,
                     value: button.value
                 });
-                
+
                 // Create a unique key for this gamepad button
                 const gamepadKey = `Gamepad${i}_Button${index}`;
-                
+
                 // Update rawState.keys so it goes through snapshot system
                 if (button.pressed) {
                     this.rawState.keys.set(gamepadKey, true);
@@ -336,44 +336,44 @@ class ActionInputHandler {
                     this.rawState.keys.delete(gamepadKey);
                 }
             });
-            
+
             // Update axis states with deadzone
             gamepad.axes.forEach((value, index) => {
                 const processedValue = Math.abs(value) < this.gamepadDeadzone ? 0 : value;
                 state.axes.set(index, processedValue);
             });
-            
+
             // Map analog sticks to directional keys in rawState
             const leftStick = {
                 x: state.axes.get(0) || 0,
                 y: state.axes.get(1) || 0
             };
-            
+
             const threshold = 0.5;
             const stickUpKey = `Gamepad${i}_StickUp`;
             const stickDownKey = `Gamepad${i}_StickDown`;
             const stickLeftKey = `Gamepad${i}_StickLeft`;
             const stickRightKey = `Gamepad${i}_StickRight`;
-            
+
             // Update rawState based on stick position
             if (leftStick.y < -threshold) {
                 this.rawState.keys.set(stickUpKey, true);
             } else {
                 this.rawState.keys.delete(stickUpKey);
             }
-            
+
             if (leftStick.y > threshold) {
                 this.rawState.keys.set(stickDownKey, true);
             } else {
                 this.rawState.keys.delete(stickDownKey);
             }
-            
+
             if (leftStick.x < -threshold) {
                 this.rawState.keys.set(stickLeftKey, true);
             } else {
                 this.rawState.keys.delete(stickLeftKey);
             }
-            
+
             if (leftStick.x > threshold) {
                 this.rawState.keys.set(stickRightKey, true);
             } else {
@@ -384,28 +384,36 @@ class ActionInputHandler {
 
     setupEventListeners() {
         // Keyboard event listeners
-        window.addEventListener("keydown", (e) => {
-            // Update raw state immediately
-            this.rawState.keys.set(e.code, true);
-            
-            // Conditionally prevent default based on context
-            if (this.shouldPreventDefault(e)) {
-                e.preventDefault();
-            }
-        }, false);
+        window.addEventListener(
+            "keydown",
+            (e) => {
+                // Update raw state immediately
+                this.rawState.keys.set(e.code, true);
 
-        window.addEventListener("keyup", (e) => {
-            // Update raw state immediately
-            this.rawState.keys.set(e.code, false);
-            
-            // Conditionally prevent default based on context
-            if (this.shouldPreventDefault(e)) {
-                e.preventDefault();
-            }
-        }, false);
-        
+                // Conditionally prevent default based on context
+                if (this.shouldPreventDefault(e)) {
+                    e.preventDefault();
+                }
+            },
+            false
+        );
+
+        window.addEventListener(
+            "keyup",
+            (e) => {
+                // Update raw state immediately
+                this.rawState.keys.set(e.code, false);
+
+                // Conditionally prevent default based on context
+                if (this.shouldPreventDefault(e)) {
+                    e.preventDefault();
+                }
+            },
+            false
+        );
+
         // Block context menu when we want to use right click
-        document.addEventListener('contextmenu', (e) => e.preventDefault());
+        document.addEventListener("contextmenu", (e) => e.preventDefault());
     }
 
     shouldPreventDefault(event) {
@@ -413,16 +421,18 @@ class ActionInputHandler {
         const textInputFocused = document.activeElement?.matches(
             'input[type="text"], input[type="password"], input[type="search"], input[type="email"], input[type="url"], textarea, [contenteditable="true"]'
         );
-        
+
         if (textInputFocused) {
             return false; // Let ALL keys through to text input
         }
-        
+
         // Otherwise, prevent default for game keys and special browser keys
-        return this.actionMap.has(event.code) ||
-               event.code === 'F5' ||
-               (event.ctrlKey && (event.code === 'KeyS' || event.code === 'KeyP' || event.code === 'KeyR')) ||
-               (event.altKey && event.code === 'ArrowLeft');
+        return (
+            this.actionMap.has(event.code) ||
+            event.code === "F5" ||
+            (event.ctrlKey && (event.code === "KeyS" || event.code === "KeyP" || event.code === "KeyR")) ||
+            (event.altKey && event.code === "ArrowLeft")
+        );
     }
 
     // Called by the engine at the start of each frame
@@ -431,27 +441,27 @@ class ActionInputHandler {
         this.pollGamepads();
         // Save current as previous - properly preserving Map objects
         // Create deep copies of each component
-        
+
         // Copy key maps
         this.previousSnapshot.keys = new Map(this.currentSnapshot.keys);
-        
+
         // Copy mouse button state
         this.previousSnapshot.mouseButtons.left = this.currentSnapshot.mouseButtons.left;
         this.previousSnapshot.mouseButtons.right = this.currentSnapshot.mouseButtons.right;
         this.previousSnapshot.mouseButtons.middle = this.currentSnapshot.mouseButtons.middle;
-        
+
         // Copy pointer state
         this.previousSnapshot.pointer.isDown = this.currentSnapshot.pointer.isDown;
-        
+
         // Copy element maps
         for (const layer of Object.keys(this.currentSnapshot.elements)) {
             this.previousSnapshot.elements[layer] = new Map(this.currentSnapshot.elements[layer]);
             this.previousSnapshot.elementsHovered[layer] = new Map(this.currentSnapshot.elementsHovered[layer]);
         }
-        
+
         // Copy UI button map
         this.previousSnapshot.uiButtons = new Map(this.currentSnapshot.uiButtons);
-        
+
         // Capture current raw key state
         this.currentSnapshot.keys = new Map();
         for (const [key, isPressed] of this.rawState.keys.entries()) {
@@ -459,13 +469,13 @@ class ActionInputHandler {
                 this.currentSnapshot.keys.set(key, true);
             }
         }
-        
+
         // Capture current mouse state
         this.currentSnapshot.pointer.isDown = this.rawState.pointer.isDown;
         this.currentSnapshot.mouseButtons.left = this.rawState.pointer.buttons.left;
         this.currentSnapshot.mouseButtons.right = this.rawState.pointer.buttons.right;
         this.currentSnapshot.mouseButtons.middle = this.rawState.pointer.buttons.middle;
-        
+
         // Capture elements state
         for (const layer of Object.keys(this.rawState.elements)) {
             // Pressed state
@@ -475,7 +485,7 @@ class ActionInputHandler {
                     this.currentSnapshot.elements[layer].set(id, true);
                 }
             });
-            
+
             // Hover state
             this.currentSnapshot.elementsHovered[layer] = new Map();
             this.rawState.elements[layer].forEach((element, id) => {
@@ -484,7 +494,7 @@ class ActionInputHandler {
                 }
             });
         }
-        
+
         // Capture UI button state
         this.currentSnapshot.uiButtons = new Map();
         for (const [id, buttonState] of this.rawState.uiButtons.entries()) {
@@ -499,27 +509,29 @@ class ActionInputHandler {
         // Poll gamepads for fixed update as well
         this.pollGamepads();
         // Save current fixed state as previous fixed state - properly preserving Map objects
-        
+
         // Copy key maps
         this.previousFixedSnapshot.keys = new Map(this.currentFixedSnapshot.keys);
-        
+
         // Copy mouse button state
         this.previousFixedSnapshot.mouseButtons.left = this.currentFixedSnapshot.mouseButtons.left;
         this.previousFixedSnapshot.mouseButtons.right = this.currentFixedSnapshot.mouseButtons.right;
         this.previousFixedSnapshot.mouseButtons.middle = this.currentFixedSnapshot.mouseButtons.middle;
-        
+
         // Copy pointer state
         this.previousFixedSnapshot.pointer.isDown = this.currentFixedSnapshot.pointer.isDown;
-        
+
         // Copy element maps
         for (const layer of Object.keys(this.currentFixedSnapshot.elements)) {
             this.previousFixedSnapshot.elements[layer] = new Map(this.currentFixedSnapshot.elements[layer]);
-            this.previousFixedSnapshot.elementsHovered[layer] = new Map(this.currentFixedSnapshot.elementsHovered[layer]);
+            this.previousFixedSnapshot.elementsHovered[layer] = new Map(
+                this.currentFixedSnapshot.elementsHovered[layer]
+            );
         }
-        
+
         // Copy UI button map
         this.previousFixedSnapshot.uiButtons = new Map(this.currentFixedSnapshot.uiButtons);
-        
+
         // Capture current raw key state at this fixed frame
         this.currentFixedSnapshot.keys = new Map();
         for (const [key, isPressed] of this.rawState.keys.entries()) {
@@ -527,13 +539,13 @@ class ActionInputHandler {
                 this.currentFixedSnapshot.keys.set(key, true);
             }
         }
-        
+
         // Capture current mouse state at this fixed frame
         this.currentFixedSnapshot.pointer.isDown = this.rawState.pointer.isDown;
         this.currentFixedSnapshot.mouseButtons.left = this.rawState.pointer.buttons.left;
         this.currentFixedSnapshot.mouseButtons.right = this.rawState.pointer.buttons.right;
         this.currentFixedSnapshot.mouseButtons.middle = this.rawState.pointer.buttons.middle;
-        
+
         // Capture elements state at this fixed frame
         for (const layer of Object.keys(this.rawState.elements)) {
             // Pressed state
@@ -543,7 +555,7 @@ class ActionInputHandler {
                     this.currentFixedSnapshot.elements[layer].set(id, true);
                 }
             });
-            
+
             // Hover state
             this.currentFixedSnapshot.elementsHovered[layer] = new Map();
             this.rawState.elements[layer].forEach((element, id) => {
@@ -552,7 +564,7 @@ class ActionInputHandler {
                 }
             });
         }
-        
+
         // Capture UI button state at this fixed frame
         this.currentFixedSnapshot.uiButtons = new Map();
         for (const [id, buttonState] of this.rawState.uiButtons.entries()) {
@@ -564,7 +576,7 @@ class ActionInputHandler {
 
     // Helper method to get the right snapshots based on context
     getSnapshots() {
-        if (this.currentContext === 'fixed_update') {
+        if (this.currentContext === "fixed_update") {
             return {
                 current: this.currentFixedSnapshot,
                 previous: this.previousFixedSnapshot
@@ -740,10 +752,10 @@ class ActionInputHandler {
             const pos = this.getCanvasPosition(e);
             this.rawState.pointer.x = pos.x;
             this.rawState.pointer.y = pos.y;
-            
+
             // Track the specific button pressed
             const button = e.button; // 0: left, 1: middle, 2: right
-            
+
             // Update button-specific state
             if (button === 0) {
                 this.rawState.pointer.buttons.left = true;
@@ -772,10 +784,10 @@ class ActionInputHandler {
             const pos = this.getCanvasPosition(e);
             this.rawState.pointer.x = pos.x;
             this.rawState.pointer.y = pos.y;
-            
+
             // Track the specific button released
             const button = e.button; // 0: left, 1: middle, 2: right
-            
+
             // Update button-specific state
             if (button === 0) {
                 this.rawState.pointer.buttons.left = false;
@@ -807,7 +819,7 @@ class ActionInputHandler {
                 const pos = this.getCanvasPosition(e.touches[0]);
                 this.rawState.pointer.x = pos.x;
                 this.rawState.pointer.y = pos.y;
-                
+
                 // For touch, always treat as left button
                 this.rawState.pointer.buttons.left = true;
                 this.rawState.pointer.isDown = true;
@@ -833,7 +845,7 @@ class ActionInputHandler {
             "touchend",
             (e) => {
                 e.preventDefault();
-                
+
                 // For touch, always treat as left button
                 this.rawState.pointer.buttons.left = false;
                 this.rawState.pointer.isDown = false;
@@ -911,10 +923,10 @@ class ActionInputHandler {
             const pos = this.getCanvasPosition(e);
             this.rawState.pointer.x = pos.x;
             this.rawState.pointer.y = pos.y;
-            
+
             // Track the specific button pressed
             const button = e.button; // 0: left, 1: middle, 2: right
-            
+
             // Update button-specific state
             if (button === 0) {
                 this.rawState.pointer.buttons.left = true;
@@ -943,10 +955,10 @@ class ActionInputHandler {
             const pos = this.getCanvasPosition(e);
             this.rawState.pointer.x = pos.x;
             this.rawState.pointer.y = pos.y;
-            
+
             // Track the specific button released
             const button = e.button; // 0: left, 1: middle, 2: right
-            
+
             // Update button-specific state
             if (button === 0) {
                 this.rawState.pointer.buttons.left = false;
@@ -978,7 +990,7 @@ class ActionInputHandler {
                 const pos = this.getCanvasPosition(e.touches[0]);
                 this.rawState.pointer.x = pos.x;
                 this.rawState.pointer.y = pos.y;
-                
+
                 // For touch, always treat as left button
                 this.rawState.pointer.buttons.left = true;
                 this.rawState.pointer.isDown = true;
@@ -1004,7 +1016,7 @@ class ActionInputHandler {
             "touchend",
             (e) => {
                 e.preventDefault();
-                
+
                 // For touch, always treat as left button
                 this.rawState.pointer.buttons.left = false;
                 this.rawState.pointer.isDown = false;
@@ -1075,10 +1087,10 @@ class ActionInputHandler {
             const pos = this.getCanvasPosition(e);
             this.rawState.pointer.x = pos.x;
             this.rawState.pointer.y = pos.y;
-            
+
             // Track the specific button pressed
             const button = e.button; // 0: left, 1: middle, 2: right
-            
+
             // Update button-specific state
             if (button === 0) {
                 this.rawState.pointer.buttons.left = true;
@@ -1100,10 +1112,10 @@ class ActionInputHandler {
             const pos = this.getCanvasPosition(e);
             this.rawState.pointer.x = pos.x;
             this.rawState.pointer.y = pos.y;
-            
+
             // Track the specific button released
             const button = e.button; // 0: left, 1: middle, 2: right
-            
+
             // Update button-specific state
             if (button === 0) {
                 this.rawState.pointer.buttons.left = false;
@@ -1128,7 +1140,7 @@ class ActionInputHandler {
                 const pos = this.getCanvasPosition(e.touches[0]);
                 this.rawState.pointer.x = pos.x;
                 this.rawState.pointer.y = pos.y;
-                
+
                 // For touch, always treat as left button
                 this.rawState.pointer.buttons.left = true;
                 this.rawState.pointer.isDown = true;
@@ -1147,7 +1159,7 @@ class ActionInputHandler {
             "touchend",
             (e) => {
                 e.preventDefault();
-                
+
                 // For touch, always treat as left button
                 this.rawState.pointer.buttons.left = false;
                 this.rawState.pointer.isDown = false;
@@ -1181,7 +1193,7 @@ class ActionInputHandler {
             },
             { passive: false }
         );
-        
+
         document.addEventListener("mousemove", (e) => {
             if (document.pointerLockElement) {
                 this.rawState.pointer.movementX = e.movementX;
@@ -1259,20 +1271,20 @@ class ActionInputHandler {
     }
 
     // CONTEXT-AWARE API METHODS FOR GAME CODE
-    
+
     setElementActive(id, layer, isActive) {
         const element = this.rawState.elements[layer]?.get(id);
         if (element) {
             element.isActive = isActive;
         }
     }
-    
+
     isElementJustPressed(id, layer = "gui") {
         const { current, previous } = this.getSnapshots();
-        
+
         const isCurrentlyPressed = current.elements[layer]?.has(id);
         const wasPreviouslyPressed = previous.elements[layer]?.has(id);
-        
+
         // Element is pressed now but wasn't in the previous frame/fixed frame step
         return isCurrentlyPressed && !wasPreviouslyPressed;
     }
@@ -1284,10 +1296,10 @@ class ActionInputHandler {
 
     isElementJustHovered(id, layer = "gui") {
         const { current, previous } = this.getSnapshots();
-        
+
         const isCurrentlyHovered = current.elementsHovered[layer]?.has(id);
         const wasPreviouslyHovered = previous.elementsHovered[layer]?.has(id);
-        
+
         // Element is hovered now but wasn't in the previous frame/fixed frame step
         return isCurrentlyHovered && !wasPreviouslyHovered;
     }
@@ -1372,10 +1384,10 @@ class ActionInputHandler {
 
     isUIButtonJustPressed(buttonId) {
         const { current, previous } = this.getSnapshots();
-        
+
         const isCurrentlyPressed = current.uiButtons.has(buttonId);
         const wasPreviouslyPressed = previous.uiButtons.has(buttonId);
-        
+
         // Button is pressed now but wasn't in the previous frame/fixed frame step
         return isCurrentlyPressed && !wasPreviouslyPressed;
     }
@@ -1393,73 +1405,73 @@ class ActionInputHandler {
     }
 
     // Gamepad Methods - Direct per-gamepad access
-    
+
     isGamepadButtonPressed(buttonIndex, gamepadIndex = 0) {
         const { current } = this.getSnapshots();
-        
+
         // Check if this gamepad exists
         if (!this.gamepads.has(gamepadIndex)) return false;
-        
+
         // Check snapshot for this specific gamepad button
         const gamepadKey = `Gamepad${gamepadIndex}_Button${buttonIndex}`;
         return current.keys.has(gamepadKey);
     }
-    
+
     isGamepadButtonJustPressed(buttonIndex, gamepadIndex = 0) {
         const { current, previous } = this.getSnapshots();
-        
+
         // Check if this gamepad exists
         if (!this.gamepads.has(gamepadIndex)) return false;
-        
+
         // Check snapshot for just pressed on this specific gamepad
         const gamepadKey = `Gamepad${gamepadIndex}_Button${buttonIndex}`;
         const isCurrentlyPressed = current.keys.has(gamepadKey);
         const wasPreviouslyPressed = previous.keys.has(gamepadKey);
-        
+
         return isCurrentlyPressed && !wasPreviouslyPressed;
     }
-    
+
     getGamepadAxis(axisIndex, gamepadIndex = 0) {
         const gamepad = this.gamepads.get(gamepadIndex);
         if (!gamepad) return 0;
-        
+
         return gamepad.axes.get(axisIndex) || 0;
     }
-    
+
     getGamepadLeftStick(gamepadIndex = 0) {
         return {
             x: this.getGamepadAxis(0, gamepadIndex),
             y: this.getGamepadAxis(1, gamepadIndex)
         };
     }
-    
+
     getGamepadRightStick(gamepadIndex = 0) {
         return {
             x: this.getGamepadAxis(2, gamepadIndex),
             y: this.getGamepadAxis(3, gamepadIndex)
         };
     }
-    
+
     isGamepadConnected(gamepadIndex = 0) {
         return this.gamepads.has(gamepadIndex);
     }
-    
+
     getConnectedGamepads() {
         return Array.from(this.gamepads.keys());
     }
-    
+
     setGamepadDeadzone(deadzone) {
         this.gamepadDeadzone = Math.max(0, Math.min(1, deadzone));
     }
-    
+
     setGamepadKeyboardMirroring(enabled) {
         this.gamepadKeyboardMirroring = enabled;
     }
-    
+
     isGamepadKeyboardMirroringEnabled() {
         return this.gamepadKeyboardMirroring;
     }
-    
+
     // Map gamepad button to custom action
     mapGamepadButton(buttonIndex, action) {
         if (!this.gamepadActionMap.has(buttonIndex)) {
@@ -1470,11 +1482,11 @@ class ActionInputHandler {
             actions.push(action);
         }
     }
-    
+
     // Remove gamepad button mapping
     unmapGamepadButton(buttonIndex, action) {
         if (!this.gamepadActionMap.has(buttonIndex)) return;
-        
+
         const actions = this.gamepadActionMap.get(buttonIndex);
         const index = actions.indexOf(action);
         if (index !== -1) {
@@ -1488,19 +1500,19 @@ class ActionInputHandler {
     // Key check methods (now includes gamepad support)
     isKeyPressed(action) {
         const { current } = this.getSnapshots();
-        
+
         // Check keyboard
         for (const [key, actions] of this.actionMap) {
             if (actions.includes(action)) {
                 if (current.keys.has(key)) return true;
             }
         }
-        
+
         // Only check gamepad if mirroring is enabled
         if (!this.gamepadKeyboardMirroring) {
             return false;
         }
-        
+
         // Check gamepad buttons via the snapshot system
         for (const [buttonIndex, actions] of this.gamepadActionMap) {
             if (actions.includes(action)) {
@@ -1513,7 +1525,7 @@ class ActionInputHandler {
                 }
             }
         }
-        
+
         // Check analog stick as directional input via snapshot system
         if (action === "DirUp" || action === "DirDown" || action === "DirLeft" || action === "DirRight") {
             for (const gamepadIndex of this.gamepads.keys()) {
@@ -1522,36 +1534,36 @@ class ActionInputHandler {
                 if (action === "DirDown") stickKey = `Gamepad${gamepadIndex}_StickDown`;
                 if (action === "DirLeft") stickKey = `Gamepad${gamepadIndex}_StickLeft`;
                 if (action === "DirRight") stickKey = `Gamepad${gamepadIndex}_StickRight`;
-                
+
                 if (current.keys.has(stickKey)) {
                     return true;
                 }
             }
         }
-        
+
         return false;
     }
 
     isKeyJustPressed(action) {
         const { current, previous } = this.getSnapshots();
-        
+
         // Check keyboard
         for (const [key, actions] of this.actionMap) {
             if (actions.includes(action)) {
                 const isCurrentlyPressed = current.keys.has(key);
                 const wasPreviouslyPressed = previous.keys.has(key);
-                
+
                 if (isCurrentlyPressed && !wasPreviouslyPressed) {
                     return true;
                 }
             }
         }
-        
+
         // Only check gamepad if mirroring is enabled
         if (!this.gamepadKeyboardMirroring) {
             return false;
         }
-        
+
         // Check gamepad buttons via snapshot system
         for (const [buttonIndex, actions] of this.gamepadActionMap) {
             if (actions.includes(action)) {
@@ -1559,14 +1571,14 @@ class ActionInputHandler {
                     const gamepadKey = `Gamepad${gamepadIndex}_Button${buttonIndex}`;
                     const isCurrentlyPressed = current.keys.has(gamepadKey);
                     const wasPreviouslyPressed = previous.keys.has(gamepadKey);
-                    
+
                     if (isCurrentlyPressed && !wasPreviouslyPressed) {
                         return true;
                     }
                 }
             }
         }
-        
+
         return false;
     }
 
@@ -1606,7 +1618,7 @@ class ActionInputHandler {
     getRegisteredActions() {
         const actions = new Set();
         for (const [_, actionsList] of this.actionMap) {
-            actionsList.forEach(action => actions.add(action));
+            actionsList.forEach((action) => actions.add(action));
         }
         return Array.from(actions);
     }
@@ -1619,10 +1631,10 @@ class ActionInputHandler {
 
     isRawKeyJustPressed(keyCode) {
         const { current, previous } = this.getSnapshots();
-        
+
         const isCurrentlyPressed = current.keys.has(keyCode);
         const wasPreviouslyPressed = previous.keys.has(keyCode);
-        
+
         // Key is pressed now but wasn't in the previous frame/fixed frame step
         return isCurrentlyPressed && !wasPreviouslyPressed;
     }
@@ -1630,8 +1642,8 @@ class ActionInputHandler {
     // Dynamic action registration
     registerAction(actionName, keyCodes) {
         // Allow developers to register new actions dynamically
-        if (typeof keyCodes === 'string') keyCodes = [keyCodes];
-        
+        if (typeof keyCodes === "string") keyCodes = [keyCodes];
+
         for (const keyCode of keyCodes) {
             if (!this.actionMap.has(keyCode)) {
                 this.actionMap.set(keyCode, []);
@@ -1654,6 +1666,4 @@ class ActionInputHandler {
             }
         }
     }
-
-
 }

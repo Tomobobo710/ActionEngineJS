@@ -1,9 +1,9 @@
 /**
  * ActionPhysicsBox3D - 3D Box Physics Object with Single Color System
- * 
+ *
  * BREAKING CHANGE: Previously used rainbow faces by default.
  * Now uses single green color system for consistency with other shapes.
- * 
+ *
  * @param {ActionPhysicsWorld3D} physicsWorld - The physics world
  * @param {number} width - Box width (default: 10)
  * @param {number} height - Box height (default: 10)
@@ -13,15 +13,23 @@
  * @param {string|Array} color - Single hex color "#228B22" or array of 6 colors for faces (default: "#228B22" green)
  */
 class ActionPhysicsBox3D extends ActionPhysicsObject3D {
-    constructor(physicsWorld, width = 10, height = 10, depth = 10, mass = 1, 
-                initialPosition = new Vector3(0, 500, 0), color = "#228B22", options = {}) {
+    constructor(
+        physicsWorld,
+        width = 10,
+        height = 10,
+        depth = 10,
+        mass = 1,
+        initialPosition = new Vector3(0, 500, 0),
+        color = "#228B22",
+        options = {}
+    ) {
         // Create visual mesh with triangles
         const triangles = [];
-        
+
         // Determine what colors to use
         let faceColors;
-        
-        if (typeof color === 'string') {
+
+        if (typeof color === "string") {
             // Single color for all faces (including default green)
             faceColors = Array(6).fill(color);
         } else if (Array.isArray(color)) {
@@ -36,7 +44,7 @@ class ActionPhysicsBox3D extends ActionPhysicsObject3D {
             // Fallback to green for any other case
             faceColors = Array(6).fill("#228B22");
         }
-        
+
         // Helper to create face vertices
         const createFace = (v1, v2, v3, v4, faceIndex) => {
             triangles.push(new Triangle(v1, v2, v3, faceColors[faceIndex]));
@@ -50,14 +58,14 @@ class ActionPhysicsBox3D extends ActionPhysicsObject3D {
 
         // Create vertices for each face
         const vertices = {
-            frontTopLeft:     new Vector3(-hw,  hh,  hd),
-            frontTopRight:    new Vector3( hw,  hh,  hd),
-            frontBottomRight: new Vector3( hw, -hh,  hd),
-            frontBottomLeft:  new Vector3(-hw, -hh,  hd),
-            backTopLeft:      new Vector3(-hw,  hh, -hd),
-            backTopRight:     new Vector3( hw,  hh, -hd),
-            backBottomRight:  new Vector3( hw, -hh, -hd),
-            backBottomLeft:   new Vector3(-hw, -hh, -hd)
+            frontTopLeft: new Vector3(-hw, hh, hd),
+            frontTopRight: new Vector3(hw, hh, hd),
+            frontBottomRight: new Vector3(hw, -hh, hd),
+            frontBottomLeft: new Vector3(-hw, -hh, hd),
+            backTopLeft: new Vector3(-hw, hh, -hd),
+            backTopRight: new Vector3(hw, hh, -hd),
+            backBottomRight: new Vector3(hw, -hh, -hd),
+            backBottomLeft: new Vector3(-hw, -hh, -hd)
         };
 
         // Create all six faces with their respective colors
@@ -118,19 +126,15 @@ class ActionPhysicsBox3D extends ActionPhysicsObject3D {
         super(physicsWorld, triangles, options);
 
         // Create physics shape and body
-        const shape = new Goblin.BoxShape(width/2, height/2, depth/2);
+        const shape = new Goblin.BoxShape(width / 2, height / 2, depth / 2);
         this.body = new Goblin.RigidBody(shape, mass);
-        this.body.position.set(
-            initialPosition.x,
-            initialPosition.y,
-            initialPosition.z
-        );
+        this.body.position.set(initialPosition.x, initialPosition.y, initialPosition.z);
 
         this.body.linear_damping = 0.01;
         this.body.angular_damping = 0.01;
 
         this.storeOriginalData();
-        
+
         // Set visibility flag
         this.isVisible = options.isVisible !== undefined ? options.isVisible : true;
     }
@@ -138,20 +142,12 @@ class ActionPhysicsBox3D extends ActionPhysicsObject3D {
     storeOriginalData() {
         this.originalNormals = [];
         this.originalVerts = [];
-        
+
         this.triangles.forEach((triangle) => {
-            this.originalNormals.push(new Vector3(
-                triangle.normal.x,
-                triangle.normal.y,
-                triangle.normal.z
-            ));
-            
+            this.originalNormals.push(new Vector3(triangle.normal.x, triangle.normal.y, triangle.normal.z));
+
             triangle.vertices.forEach((vertex) => {
-                this.originalVerts.push(new Vector3(
-                    vertex.x,
-                    vertex.y,
-                    vertex.z
-                ));
+                this.originalVerts.push(new Vector3(vertex.x, vertex.y, vertex.z));
             });
         });
     }

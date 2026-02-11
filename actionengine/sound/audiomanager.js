@@ -17,7 +17,7 @@ class ActionAudioManager {
         this.activeSounds = new Map();
         // Enhanced sound tracking for new features
         this.soundInstances = new Map(); // Track individual sound instances
-        this.soundVolumes = new Map();   // Individual sound volumes
+        this.soundVolumes = new Map(); // Individual sound volumes
         this.repeatTimeouts = new Map(); // Track repeat timeouts for cleanup
         this.midiChannels = new Array(16).fill(null).map(() => ({
             volume: 127,
@@ -27,7 +27,7 @@ class ActionAudioManager {
             bank: 0,
             pitchBend: 0,
             pitchBendSensitivity: 2,
-            duration: 0.5  // Add default duration
+            duration: 0.5 // Add default duration
         }));
 
         this.midiProgramMap = {
@@ -303,27 +303,27 @@ class ActionAudioManager {
                 break;
 
             case "simple":
-                default:
-                    // Extract the envelope values with defaults
-                    const envelope = options.envelope || {
-                        attack: 0.1,
-                        decay: 0.2,
-                        sustain: 0.7,
-                        release: 0.3
-                    };
+            default:
+                // Extract the envelope values with defaults
+                const envelope = options.envelope || {
+                    attack: 0.1,
+                    decay: 0.2,
+                    sustain: 0.7,
+                    release: 0.3
+                };
 
-                    // Create the sound definition with all parameters
-                    this.sounds.set(name, {
-                        type: "simple", 
-                        oscillatorType: options.type || "sine", // This handles the waveform
-                        frequency: options.frequency || 440,
-                        amp: options.amp || 0.5,
-                        duration: options.duration || 1,
-                        envelope: envelope
-                    });
-                    break;
-                    }
-                }
+                // Create the sound definition with all parameters
+                this.sounds.set(name, {
+                    type: "simple",
+                    oscillatorType: options.type || "sine", // This handles the waveform
+                    frequency: options.frequency || 440,
+                    amp: options.amp || 0.5,
+                    duration: options.duration || 1,
+                    envelope: envelope
+                });
+                break;
+        }
+    }
 
     initializeAudioContext() {
         const enableAudio = () => {
@@ -555,10 +555,10 @@ class ActionAudioManager {
     setSoundVolume(name, volume) {
         volume = Math.max(0, Math.min(1, volume)); // Clamp between 0 and 1
         this.soundVolumes.set(name, volume);
-        
+
         // Update any currently playing instances
         const instances = this.soundInstances.get(name) || [];
-        instances.forEach(instance => {
+        instances.forEach((instance) => {
             if (instance.gainNode && instance.gainNode.gain) {
                 const currentTime = this.context.currentTime;
                 const masterVol = this.masterGain ? this.masterGain.gain.value / this.baseVolume : 1.0;
@@ -588,7 +588,7 @@ class ActionAudioManager {
         const instances = this.soundInstances.get(name) || [];
         if (instances.length > 0) {
             // Stop existing instances
-            instances.forEach(instance => this.stopSoundInstance(instance));
+            instances.forEach((instance) => this.stopSoundInstance(instance));
             this.soundInstances.set(name, []);
         }
 
@@ -601,7 +601,7 @@ class ActionAudioManager {
 
         // Play the first instance
         const controlObject = this.playInstance(name, sound, options, repeatInfo);
-        
+
         return controlObject;
     }
 
@@ -650,10 +650,10 @@ class ActionAudioManager {
             };
             instances.push(instanceData);
             this.soundInstances.set(name, instances);
-            
+
             // Set up sound end detection for callbacks and repeats
             this.setupSoundEndDetection(name, sound, instanceData);
-            
+
             this.activeSounds.set(name, controlObject);
         }
         return controlObject;
@@ -694,8 +694,8 @@ class ActionAudioManager {
         repeatInfo.current++;
 
         // Check if we should repeat
-        const shouldRepeat = (repeatInfo.count === -1) || (repeatInfo.current < repeatInfo.count);
-        
+        const shouldRepeat = repeatInfo.count === -1 || repeatInfo.current < repeatInfo.count;
+
         if (shouldRepeat) {
             // Schedule next repeat
             const repeatTimeout = setTimeout(() => {
@@ -729,7 +729,7 @@ class ActionAudioManager {
      */
     stopSoundInstance(instanceData) {
         const now = this.context.currentTime;
-        
+
         // Clear end timeout
         if (instanceData.endTimeout) {
             clearTimeout(instanceData.endTimeout);
@@ -765,14 +765,14 @@ class ActionAudioManager {
     stopSound(name) {
         // Stop all instances of this sound
         const instances = this.soundInstances.get(name) || [];
-        instances.forEach(instance => {
+        instances.forEach((instance) => {
             this.stopSoundInstance(instance);
         });
         this.soundInstances.set(name, []);
 
         // Clear any pending repeat timeouts
         const repeatTimeouts = this.repeatTimeouts.get(name) || [];
-        repeatTimeouts.forEach(timeout => clearTimeout(timeout));
+        repeatTimeouts.forEach((timeout) => clearTimeout(timeout));
         this.repeatTimeouts.set(name, []);
 
         // Original stopSound logic for backward compatibility
@@ -815,7 +815,7 @@ class ActionAudioManager {
     stopAllSounds() {
         // Stop all sound instances
         this.soundInstances.forEach((instances, name) => {
-            instances.forEach(instance => {
+            instances.forEach((instance) => {
                 this.stopSoundInstance(instance);
             });
         });
@@ -823,7 +823,7 @@ class ActionAudioManager {
 
         // Clear all repeat timeouts
         this.repeatTimeouts.forEach((timeouts) => {
-            timeouts.forEach(timeout => clearTimeout(timeout));
+            timeouts.forEach((timeout) => clearTimeout(timeout));
         });
         this.repeatTimeouts.clear();
 

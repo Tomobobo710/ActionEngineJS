@@ -3,7 +3,7 @@ class ActionPhysics {
     static initialize(ammo, world) {
         this.ammo = ammo;
         this.world = world;
-        
+
         // Cache common physics objects
         this._rayStart = new ammo.btVector3(0, 0, 0);
         this._rayEnd = new ammo.btVector3(0, 0, 0);
@@ -33,46 +33,32 @@ class ActionPhysics {
         this.world.rayTest(this._rayStart, this._rayEnd, this._rayCallback);
         return this._rayCallback.hasHit();
     }
-    
+
     static boxSweepTest(position, size, direction, distance) {
         // Set up start transform at current position
         this._sweepStart.setIdentity();
-        this._sweepStart.setOrigin(new this.ammo.btVector3(
-            position.x,
-            position.y,
-            position.z
-        ));
+        this._sweepStart.setOrigin(new this.ammo.btVector3(position.x, position.y, position.z));
 
         // Set up end transform
         this._sweepEnd.setIdentity();
         this._tmpVec.setValue(
             position.x + direction.x * distance,
-            position.y + direction.y * distance, 
+            position.y + direction.y * distance,
             position.z + direction.z * distance
         );
         this._sweepEnd.setOrigin(this._tmpVec);
 
         // Use cached halfExtents vector
-        this._halfExtents.setValue(
-            size.x * 0.5,
-            size.y * 0.5,
-            size.z * 0.5
-        );
+        this._halfExtents.setValue(size.x * 0.5, size.y * 0.5, size.z * 0.5);
         const boxShape = new this.ammo.btBoxShape(this._halfExtents);
 
         // Reset and reuse callback
         this._sweepCallback.set_m_closestHitFraction(1);
 
-        this.world.convexSweepTest(
-            boxShape,
-            this._sweepStart,
-            this._sweepEnd,
-            this._sweepCallback,
-            0.0
-        );
+        this.world.convexSweepTest(boxShape, this._sweepStart, this._sweepEnd, this._sweepCallback, 0.0);
 
         const hasHit = this._sweepCallback.hasHit();
-        
+
         // Only the shape needs cleanup now
         Ammo.destroy(boxShape);
 

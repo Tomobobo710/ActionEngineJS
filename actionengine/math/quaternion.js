@@ -10,27 +10,16 @@ class Quaternion {
     static fromAxisAngle(axis, angle) {
         const halfAngle = angle * 0.5;
         const s = Math.sin(halfAngle);
-        return new Quaternion(
-            axis.x * s,
-            axis.y * s,
-            axis.z * s,
-            Math.cos(halfAngle)
-        );
+        return new Quaternion(axis.x * s, axis.y * s, axis.z * s, Math.cos(halfAngle));
     }
 
     static fromEulerY(yAngle) {
         const halfAngle = yAngle * 0.5;
-        return new Quaternion(
-            0,
-            Math.sin(halfAngle),
-            0,
-            Math.cos(halfAngle)
-        );
+        return new Quaternion(0, Math.sin(halfAngle), 0, Math.cos(halfAngle));
     }
 
     slerp(other, t) {
-        let cosHalfTheta = this.x * other.x + this.y * other.y + 
-                          this.z * other.z + this.w * other.w;
+        let cosHalfTheta = this.x * other.x + this.y * other.y + this.z * other.z + this.w * other.w;
 
         if (Math.abs(cosHalfTheta) >= 1.0) {
             return this;

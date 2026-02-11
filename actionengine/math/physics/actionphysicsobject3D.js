@@ -1,44 +1,36 @@
 class ActionPhysicsObject3D extends RenderableObject {
-     constructor(physicsWorld, triangles, options = {}) {
+    constructor(physicsWorld, triangles, options = {}) {
         super();
         if (!physicsWorld) {
             console.error("[ActionPhysicsObject3D] Physics world is required. Stack trace:", new Error().stack);
             throw new Error("[ActionPhysicsObject3D] Physics world is required - check console for stack trace");
         }
         this.physicsWorld = physicsWorld;
-        
+
         // Store the original triangles for later toggling
         this._originalTriangles = triangles.slice();
-        
+
         // Set visibility property
         this.isVisible = options && options.isVisible !== undefined ? options.isVisible : true;
-        
+
         // Initialize triangles based on visibility
         this.triangles = this.isVisible ? this._originalTriangles : [];
-        
+
         this.originalNormals = [];
         this.originalVerts = [];
         this.position = new Vector3(0, 0, 0);
-        
+
         // Calculate bounding sphere for frustum culling
         this.calculateBoundingSphere();
-        
+
         // We need to store normals and verts even for invisible objects
         // so when they become visible again we can update them correctly
         // Use _originalTriangles to ensure we always have the data
         this._originalTriangles.forEach((triangle) => {
-            this.originalNormals.push(new Vector3(
-                triangle.normal.x,
-                triangle.normal.y,
-                triangle.normal.z
-            ));
-            
+            this.originalNormals.push(new Vector3(triangle.normal.x, triangle.normal.y, triangle.normal.z));
+
             triangle.vertices.forEach((vertex) => {
-                this.originalVerts.push(new Vector3(
-                    vertex.x,
-                    vertex.y,
-                    vertex.z
-                ));
+                this.originalVerts.push(new Vector3(vertex.x, vertex.y, vertex.z));
             });
         });
     }
@@ -46,9 +38,9 @@ class ActionPhysicsObject3D extends RenderableObject {
     // Add a method to toggle visibility
     setVisibility(visible) {
         if (this.isVisible === visible) return; // No change needed
-        
+
         this.isVisible = visible;
-        
+
         // Update triangles based on visibility - this is the key part
         // When invisible, we set triangles to an empty array
         // When visible, we restore the original triangles
@@ -62,41 +54,42 @@ class ActionPhysicsObject3D extends RenderableObject {
         const pos = this.body.position;
         const rot = this.body.rotation;
         const { x: posX, y: posY, z: posZ } = pos;
-        
+
         // Check if object has moved since last update
         if (!this._visualDirty && this._lastPosition && this._lastRotation) {
             // Check position
-            if (Math.abs(this._lastPosition.x - posX) < 0.001 &&
+            if (
+                Math.abs(this._lastPosition.x - posX) < 0.001 &&
                 Math.abs(this._lastPosition.y - posY) < 0.001 &&
-                Math.abs(this._lastPosition.z - posZ) < 0.001) {
-                
+                Math.abs(this._lastPosition.z - posZ) < 0.001
+            ) {
                 // Check rotation - using dot product as a quick comparison
                 // If dot product is very close to 1, rotation hasn't changed significantly
                 const lastQuat = this._lastRotation;
                 const curQuat = rot;
-                const dot = lastQuat.x * curQuat.x + lastQuat.y * curQuat.y + 
-                           lastQuat.z * curQuat.z + lastQuat.w * curQuat.w;
-                
+                const dot =
+                    lastQuat.x * curQuat.x + lastQuat.y * curQuat.y + lastQuat.z * curQuat.z + lastQuat.w * curQuat.w;
+
                 if (Math.abs(dot) > 0.9999) {
                     // Position and rotation haven't changed, skip update
                     return;
                 }
             }
         }
-        
+
         // Update position once
         this.position.set(posX, posY, posZ);
-        
+
         // Cache current position and rotation for next comparison
         if (!this._lastPosition) this._lastPosition = new Vector3();
         this._lastPosition.set(posX, posY, posZ);
-        
+
         if (!this._lastRotation) this._lastRotation = new Goblin.Quaternion();
         this._lastRotation.x = rot.x;
         this._lastRotation.y = rot.y;
         this._lastRotation.z = rot.z;
         this._lastRotation.w = rot.w;
-        
+
         // Mark as clean since we're updating now
         this._visualDirty = false;
 
@@ -136,7 +129,7 @@ class ActionPhysicsObject3D extends RenderableObject {
         // Return as our Vector3
         return new Vector3(v.x, v.y, v.z);
     }
-    
+
     // Calculate the bounding sphere radius for frustum culling
     calculateBoundingSphere() {
         if (!this.triangles || this.triangles.length === 0) {
@@ -144,10 +137,10 @@ class ActionPhysicsObject3D extends RenderableObject {
             this.boundingSphereRadius = 20;
             return;
         }
-        
+
         // Find the maximum distance from center to any vertex
         let maxDistanceSquared = 0;
-        
+
         for (const triangle of this.triangles) {
             for (const vertex of triangle.vertices) {
                 // Simple distance from origin - assuming most objects are centered
@@ -157,7 +150,7 @@ class ActionPhysicsObject3D extends RenderableObject {
                 }
             }
         }
-        
+
         // Set radius with a small buffer for safety
         this.boundingSphereRadius = Math.sqrt(maxDistanceSquared) * 1.1;
     }

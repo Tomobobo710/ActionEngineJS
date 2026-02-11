@@ -1,5 +1,4 @@
 class TextureRegistry {
-
 	constructor() {
 		this.textures = new Map();
 		this.textureList = []; // Array to maintain texture order
@@ -11,9 +10,9 @@ class TextureRegistry {
 		// Note: Roughness is from 0.0 (mirror-like) to 1.0 (completely rough/diffuse)
 		// The shader inverts roughness internally so 0 = reflective, 1 = diffuse
 		this.defaultMaterialProperties = {
-			roughness: 0.0,  // Lower values = more reflective
-			metallic: 0.0,  // Higher values = more metallic
-			baseReflectivity: 0.0  // Higher values = more reflective at glancing angles
+			roughness: 0.0, // Lower values = more reflective
+			metallic: 0.0, // Higher values = more metallic
+			baseReflectivity: 0.0 // Higher values = more reflective at glancing angles
 		};
 
 		this.generateTextures();
@@ -120,15 +119,13 @@ class TextureRegistry {
 
 		// Get existing properties or default ones
 		const existing = this.materialProperties.get(textureName) || { ...this.defaultMaterialProperties };
-		
-
 
 		// Update with new properties
 		this.materialProperties.set(textureName, {
 			...existing,
 			...properties
 		});
-		
+
 		// Material properties have been updated
 	}
 
@@ -136,22 +133,22 @@ class TextureRegistry {
 	setDefaultMaterialProperties(properties) {
 		// Check if any property is actually changing
 		let hasChanges = false;
-		Object.keys(properties).forEach(key => {
+		Object.keys(properties).forEach((key) => {
 			if (properties[key] !== this.defaultMaterialProperties[key]) {
 				hasChanges = true;
 			}
 		});
-		
+
 		// If nothing is changing, don't update
 		if (!hasChanges) {
 			return;
 		}
-		
+
 		this.defaultMaterialProperties = {
 			...this.defaultMaterialProperties,
 			...properties
 		};
-		
+
 		// Material properties have been updated
 	}
 
@@ -174,4 +171,5 @@ class TextureRegistry {
 		return data;
 	}
 }
+
 const textureRegistry = new TextureRegistry(); // global

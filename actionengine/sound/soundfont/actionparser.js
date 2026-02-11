@@ -29,7 +29,7 @@ class ActionRiff {
   parse() {
     const end = this.length + this.offset;
     this.chunkList = [];
-    
+
     while (this.ip < end) {
       this.parseChunk();
     }
@@ -40,14 +40,12 @@ class ActionRiff {
     let ip = this.ip;
 
     // Read chunk type (4 chars)
-    const type = String.fromCharCode(
-      data[ip++], data[ip++], data[ip++], data[ip++]
-    );
+    const type = String.fromCharCode(data[ip++], data[ip++], data[ip++], data[ip++]);
 
     // Read chunk size (4 bytes)
-    const size = this.bigEndian ?
-      ((data[ip++] << 24) | (data[ip++] << 16) | (data[ip++] << 8) | data[ip++]) >>> 0 :
-      ((data[ip++]) | (data[ip++] << 8) | (data[ip++] << 16) | (data[ip++] << 24)) >>> 0;
+    const size = this.bigEndian
+      ? ((data[ip++] << 24) | (data[ip++] << 16) | (data[ip++] << 8) | data[ip++]) >>> 0
+      : (data[ip++] | (data[ip++] << 8) | (data[ip++] << 16) | (data[ip++] << 24)) >>> 0;
 
     this.chunkList.push(new ActionRiffChunk(type, size, ip));
 
@@ -95,78 +93,80 @@ class ActionParser {
 
     // Generator enumerator table
     this.GeneratorEnumeratorTable = [
-      'startAddrsOffset',
-      'endAddrsOffset',
-      'startloopAddrsOffset',
-      'endloopAddrsOffset',
-      'startAddrsCoarseOffset',
-      'modLfoToPitch',
-      'vibLfoToPitch',
-      'modEnvToPitch',
-      'initialFilterFc',
-      'initialFilterQ',
-      'modLfoToFilterFc',
-      'modEnvToFilterFc',
-      'endAddrsCoarseOffset',
-      'modLfoToVolume',
+      "startAddrsOffset",
+      "endAddrsOffset",
+      "startloopAddrsOffset",
+      "endloopAddrsOffset",
+      "startAddrsCoarseOffset",
+      "modLfoToPitch",
+      "vibLfoToPitch",
+      "modEnvToPitch",
+      "initialFilterFc",
+      "initialFilterQ",
+      "modLfoToFilterFc",
+      "modEnvToFilterFc",
+      "endAddrsCoarseOffset",
+      "modLfoToVolume",
       undefined, // 14
-      'chorusEffectsSend',
-      'reverbEffectsSend',
-      'pan',
-      undefined, undefined, undefined, // 18, 19, 20
-      'delayModLFO',
-      'freqModLFO',
-      'delayVibLFO',
-      'freqVibLFO',
-      'delayModEnv',
-      'attackModEnv',
-      'holdModEnv',
-      'decayModEnv',
-      'sustainModEnv',
-      'releaseModEnv',
-      'keynumToModEnvHold',
-      'keynumToModEnvDecay',
-      'delayVolEnv',
-      'attackVolEnv',
-      'holdVolEnv',
-      'decayVolEnv',
-      'sustainVolEnv',
-      'releaseVolEnv',
-      'keynumToVolEnvHold',
-      'keynumToVolEnvDecay',
-      'instrument',
+      "chorusEffectsSend",
+      "reverbEffectsSend",
+      "pan",
+      undefined,
+      undefined,
+      undefined, // 18, 19, 20
+      "delayModLFO",
+      "freqModLFO",
+      "delayVibLFO",
+      "freqVibLFO",
+      "delayModEnv",
+      "attackModEnv",
+      "holdModEnv",
+      "decayModEnv",
+      "sustainModEnv",
+      "releaseModEnv",
+      "keynumToModEnvHold",
+      "keynumToModEnvDecay",
+      "delayVolEnv",
+      "attackVolEnv",
+      "holdVolEnv",
+      "decayVolEnv",
+      "sustainVolEnv",
+      "releaseVolEnv",
+      "keynumToVolEnvHold",
+      "keynumToVolEnvDecay",
+      "instrument",
       undefined, // 42
-      'keyRange',
-      'velRange',
-      'startloopAddrsCoarseOffset',
-      'keynum',
-      'velocity',
-      'initialAttenuation',
+      "keyRange",
+      "velRange",
+      "startloopAddrsCoarseOffset",
+      "keynum",
+      "velocity",
+      "initialAttenuation",
       undefined, // 49
-      'endloopAddrsCoarseOffset',
-      'coarseTune',
-      'fineTune',
-      'sampleID',
-      'sampleModes',
+      "endloopAddrsCoarseOffset",
+      "coarseTune",
+      "fineTune",
+      "sampleID",
+      "sampleModes",
       undefined, // 55
-      'scaleTuning',
-      'exclusiveClass',
-      'overridingRootKey',
-      'endOper'
+      "scaleTuning",
+      "exclusiveClass",
+      "overridingRootKey",
+      "endOper"
     ];
   }
 
   parse() {
     const parser = new ActionRiff(this.input, this.parserOption);
     parser.parse();
-    
+
     if (parser.chunkList.length !== 1) {
-      throw new Error('Wrong chunk length');
+      throw new Error("Wrong chunk length");
     }
 
     const chunk = parser.getChunk(0);
     if (!chunk) {
-      throw new Error('Chunk not found');
+      throw new Error("Chunk not found");
     }
 
     this.parseRiffChunk(chunk);
@@ -177,21 +177,21 @@ class ActionParser {
     const data = this.input;
     let ip = chunk.offset;
 
-    if (chunk.type !== 'RIFF') {
-      throw new Error('Invalid chunk type: ' + chunk.type);
+    if (chunk.type !== "RIFF") {
+      throw new Error("Invalid chunk type: " + chunk.type);
     }
 
     // Check signature
     const signature = String.fromCharCode(data[ip++], data[ip++], data[ip++], data[ip++]);
-    if (signature !== 'sfbk') {
-      throw new Error('Invalid signature: ' + signature);
+    if (signature !== "sfbk") {
+      throw new Error("Invalid signature: " + signature);
     }
 
     const parser = new ActionRiff(data, { index: ip, length: chunk.size - 4 });
     parser.parse();
 
     if (parser.getNumberOfChunks() !== 3) {
-      throw new Error('Invalid sfbk structure');
+      throw new Error("Invalid sfbk structure");
     }
 
     // Parse the three main lists
@@ -204,13 +204,13 @@ class ActionParser {
     const data = this.input;
     let ip = chunk.offset;
 
-    if (chunk.type !== 'LIST') {
-      throw new Error('Invalid chunk type: ' + chunk.type);
+    if (chunk.type !== "LIST") {
+      throw new Error("Invalid chunk type: " + chunk.type);
     }
 
     const signature = String.fromCharCode(data[ip++], data[ip++], data[ip++], data[ip++]);
-    if (signature !== 'INFO') {
-      throw new Error('Invalid signature: ' + signature);
+    if (signature !== "INFO") {
+      throw new Error("Invalid signature: " + signature);
     }
 
     // INFO list parsed (contains metadata we don't currently need)
@@ -222,22 +222,22 @@ class ActionParser {
     const data = this.input;
     let ip = chunk.offset;
 
-    if (chunk.type !== 'LIST') {
-      throw new Error('Invalid chunk type: ' + chunk.type);
+    if (chunk.type !== "LIST") {
+      throw new Error("Invalid chunk type: " + chunk.type);
     }
 
     const signature = String.fromCharCode(data[ip++], data[ip++], data[ip++], data[ip++]);
-    if (signature !== 'sdta') {
-      throw new Error('Invalid signature: ' + signature);
+    if (signature !== "sdta") {
+      throw new Error("Invalid signature: " + signature);
     }
 
     const parser = new ActionRiff(data, { index: ip, length: chunk.size - 4 });
     parser.parse();
-    
+
     if (parser.chunkList.length !== 1) {
-      throw new Error('Invalid sdta structure');
+      throw new Error("Invalid sdta structure");
     }
-    
+
     this.samplingData = parser.getChunk(0);
   }
 
@@ -245,20 +245,20 @@ class ActionParser {
     const data = this.input;
     let ip = chunk.offset;
 
-    if (chunk.type !== 'LIST') {
-      throw new Error('Invalid chunk type: ' + chunk.type);
+    if (chunk.type !== "LIST") {
+      throw new Error("Invalid chunk type: " + chunk.type);
     }
 
     const signature = String.fromCharCode(data[ip++], data[ip++], data[ip++], data[ip++]);
-    if (signature !== 'pdta') {
-      throw new Error('Invalid signature: ' + signature);
+    if (signature !== "pdta") {
+      throw new Error("Invalid signature: " + signature);
     }
 
     const parser = new ActionRiff(data, { index: ip, length: chunk.size - 4 });
     parser.parse();
 
     if (parser.getNumberOfChunks() !== 9) {
-      throw new Error('Invalid pdta chunk');
+      throw new Error("Invalid pdta chunk");
     }
 
     // Parse all preset data chunks
@@ -278,15 +278,15 @@ class ActionParser {
     let ip = chunk.offset;
     const size = chunk.offset + chunk.size;
 
-    if (chunk.type !== 'phdr') {
-      throw new Error('Invalid chunk type: ' + chunk.type);
+    if (chunk.type !== "phdr") {
+      throw new Error("Invalid chunk type: " + chunk.type);
     }
 
     this.presetHeader = [];
 
     while (ip < size) {
       this.presetHeader.push({
-        presetName: String.fromCharCode.apply(null, data.subarray(ip, ip += 20)),
+        presetName: String.fromCharCode.apply(null, data.subarray(ip, (ip += 20))),
         preset: data[ip++] | (data[ip++] << 8),
         bank: data[ip++] | (data[ip++] << 8),
         presetBagIndex: data[ip++] | (data[ip++] << 8),
@@ -302,8 +302,8 @@ class ActionParser {
     let ip = chunk.offset;
     const size = chunk.offset + chunk.size;
 
-    if (chunk.type !== 'pbag') {
-      throw new Error('Invalid chunk type: ' + chunk.type);
+    if (chunk.type !== "pbag") {
+      throw new Error("Invalid chunk type: " + chunk.type);
     }
 
     this.presetZone = [];
@@ -317,15 +317,15 @@ class ActionParser {
   }
 
   parsePmod(chunk) {
-    if (chunk.type !== 'pmod') {
-      throw new Error('Invalid chunk type: ' + chunk.type);
+    if (chunk.type !== "pmod") {
+      throw new Error("Invalid chunk type: " + chunk.type);
     }
     this.presetZoneModulator = this.parseModulator(chunk);
   }
 
   parsePgen(chunk) {
-    if (chunk.type !== 'pgen') {
-      throw new Error('Invalid chunk type: ' + chunk.type);
+    if (chunk.type !== "pgen") {
+      throw new Error("Invalid chunk type: " + chunk.type);
     }
     this.presetZoneGenerator = this.parseGenerator(chunk);
   }
@@ -335,15 +335,15 @@ class ActionParser {
     let ip = chunk.offset;
     const size = chunk.offset + chunk.size;
 
-    if (chunk.type !== 'inst') {
-      throw new Error('Invalid chunk type: ' + chunk.type);
+    if (chunk.type !== "inst") {
+      throw new Error("Invalid chunk type: " + chunk.type);
     }
 
     this.instrument = [];
 
     while (ip < size) {
       this.instrument.push({
-        instrumentName: String.fromCharCode.apply(null, data.subarray(ip, ip += 20)),
+        instrumentName: String.fromCharCode.apply(null, data.subarray(ip, (ip += 20))),
         instrumentBagIndex: data[ip++] | (data[ip++] << 8)
       });
     }
@@ -354,8 +354,8 @@ class ActionParser {
     let ip = chunk.offset;
     const size = chunk.offset + chunk.size;
 
-    if (chunk.type !== 'ibag') {
-      throw new Error('Invalid chunk type: ' + chunk.type);
+    if (chunk.type !== "ibag") {
+      throw new Error("Invalid chunk type: " + chunk.type);
     }
 
     this.instrumentZone = [];
@@ -369,15 +369,15 @@ class ActionParser {
   }
 
   parseImod(chunk) {
-    if (chunk.type !== 'imod') {
-      throw new Error('Invalid chunk type: ' + chunk.type);
+    if (chunk.type !== "imod") {
+      throw new Error("Invalid chunk type: " + chunk.type);
     }
     this.instrumentZoneModulator = this.parseModulator(chunk);
   }
 
   parseIgen(chunk) {
-    if (chunk.type !== 'igen') {
-      throw new Error('Invalid chunk type: ' + chunk.type);
+    if (chunk.type !== "igen") {
+      throw new Error("Invalid chunk type: " + chunk.type);
     }
     this.instrumentZoneGenerator = this.parseGenerator(chunk);
   }
@@ -387,15 +387,15 @@ class ActionParser {
     let ip = chunk.offset;
     const size = chunk.offset + chunk.size;
 
-    if (chunk.type !== 'shdr') {
-      throw new Error('Invalid chunk type: ' + chunk.type);
+    if (chunk.type !== "shdr") {
+      throw new Error("Invalid chunk type: " + chunk.type);
     }
 
     this.sample = [];
     this.sampleHeader = [];
 
     while (ip < size) {
-      const sampleName = String.fromCharCode.apply(null, data.subarray(ip, ip += 20));
+      const sampleName = String.fromCharCode.apply(null, data.subarray(ip, (ip += 20)));
       let start = ((data[ip++] << 0) | (data[ip++] << 8) | (data[ip++] << 16) | (data[ip++] << 24)) >>> 0;
       let end = ((data[ip++] << 0) | (data[ip++] << 8) | (data[ip++] << 16) | (data[ip++] << 24)) >>> 0;
       let startLoop = ((data[ip++] << 0) | (data[ip++] << 8) | (data[ip++] << 16) | (data[ip++] << 24)) >>> 0;
@@ -407,10 +407,9 @@ class ActionParser {
       const sampleType = data[ip++] | (data[ip++] << 8);
 
       // Extract sample data
-      let sample = new Int16Array(new Uint8Array(data.subarray(
-        this.samplingData.offset + start * 2,
-        this.samplingData.offset + end * 2
-      )).buffer);
+      let sample = new Int16Array(
+        new Uint8Array(data.subarray(this.samplingData.offset + start * 2, this.samplingData.offset + end * 2)).buffer
+      );
 
       startLoop -= start;
       endLoop -= start;
@@ -468,26 +467,26 @@ class ActionParser {
 
     while (ip < size) {
       ip += 2; // Src Oper
-      
+
       const code = data[ip++] | (data[ip++] << 8);
       const key = this.GeneratorEnumeratorTable[code];
-      
+
       if (key === undefined) {
         output.push({
           type: key,
           value: {
             code,
-            amount: (data[ip] | (data[ip + 1] << 8)) << 16 >> 16,
+            amount: ((data[ip] | (data[ip + 1] << 8)) << 16) >> 16,
             lo: data[ip++],
             hi: data[ip++]
           }
         });
       } else {
         switch (key) {
-          case 'keyRange':
-          case 'velRange':
-          case 'keynum':
-          case 'velocity':
+          case "keyRange":
+          case "velRange":
+          case "keynum":
+          case "velocity":
             output.push({
               type: key,
               value: {
@@ -500,13 +499,13 @@ class ActionParser {
             output.push({
               type: key,
               value: {
-                amount: (data[ip++] | (data[ip++] << 8)) << 16 >> 16
+                amount: ((data[ip++] | (data[ip++] << 8)) << 16) >> 16
               }
             });
             break;
         }
       }
-      
+
       ip += 2; // AmtSrcOper
       ip += 2; // Trans Oper
     }
@@ -523,13 +522,13 @@ class ActionParser {
     while (ip < size) {
       const code = data[ip++] | (data[ip++] << 8);
       const key = this.GeneratorEnumeratorTable[code];
-      
+
       if (key === undefined) {
         output.push({
           type: key,
           value: {
             code,
-            amount: (data[ip] | (data[ip + 1] << 8)) << 16 >> 16,
+            amount: ((data[ip] | (data[ip + 1] << 8)) << 16) >> 16,
             lo: data[ip++],
             hi: data[ip++]
           }
@@ -538,10 +537,10 @@ class ActionParser {
       }
 
       switch (key) {
-        case 'keynum':
-        case 'keyRange':
-        case 'velRange':
-        case 'velocity':
+        case "keynum":
+        case "keyRange":
+        case "velRange":
+        case "velocity":
           output.push({
             type: key,
             value: {
@@ -554,7 +553,7 @@ class ActionParser {
           output.push({
             type: key,
             value: {
-              amount: (data[ip++] | (data[ip++] << 8)) << 16 >> 16
+              amount: ((data[ip++] | (data[ip++] << 8)) << 16) >> 16
             }
           });
           break;
@@ -569,7 +568,9 @@ class ActionParser {
 
     for (let i = 0; i < this.instrument.length; i++) {
       const bagIndex = this.instrument[i].instrumentBagIndex;
-      const bagIndexEnd = this.instrument[i + 1] ? this.instrument[i + 1].instrumentBagIndex : this.instrumentZone.length;
+      const bagIndexEnd = this.instrument[i + 1]
+        ? this.instrument[i + 1].instrumentBagIndex
+        : this.instrumentZone.length;
       const zoneInfo = [];
 
       for (let j = bagIndex; j < bagIndexEnd; j++) {
@@ -613,11 +614,12 @@ class ActionParser {
           modulatorSequence: presetModulator.modulatorInfo
         });
 
-        instrument = presetGenerator.generator.instrument !== undefined ?
-          presetGenerator.generator.instrument.amount :
-          presetModulator.modulator.instrument !== undefined ?
-            presetModulator.modulator.instrument.amount :
-            null;
+        instrument =
+          presetGenerator.generator.instrument !== undefined
+            ? presetGenerator.generator.instrument.amount
+            : presetModulator.modulator.instrument !== undefined
+              ? presetModulator.modulator.instrument.amount
+              : null;
       }
 
       output.push({
@@ -701,7 +703,7 @@ class ActionParser {
       const info = zoneModGen[i];
       modgenInfo.push(info);
 
-      if (info.type === 'unknown') {
+      if (info.type === "unknown") {
         modgen.unknown.push(info.value);
       } else {
         modgen[info.type] = info.value;

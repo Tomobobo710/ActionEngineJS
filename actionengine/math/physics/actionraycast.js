@@ -18,46 +18,45 @@ class ActionRaycast {
     static cast(start, end, physicsWorld, options = {}) {
         const ignoreList = options.ignoreObjects || [];
         const minDistance = options.minDistance || 0;
-        
+
         // Ensure start and end are correctly formatted
         const rayStart = {
             x: start.x,
             y: start.y,
             z: start.z
         };
-        
+
         const rayEnd = {
             x: end.x,
             y: end.y,
             z: end.z
         };
-        
+
         // Perform the raycast using Goblin physics
         const intersections = physicsWorld.getWorld().rayIntersect(rayStart, rayEnd);
-        
+
         if (!intersections || intersections.length === 0) {
             return null;
         }
-        
+
         // Filter and find the first valid intersection
         for (let i = 0; i < intersections.length; i++) {
             const hit = intersections[i];
-            
+
             // Skip if hit is too close
             if (hit.t < minDistance) {
                 continue;
             }
-            
+
             // Skip if object is in ignore list
-            if (hit.object && hit.object.debugName && 
-                ignoreList.some(name => 
-                    hit.object.debugName === name || 
-                    hit.object.debugName.includes(name)
-                )
+            if (
+                hit.object &&
+                hit.object.debugName &&
+                ignoreList.some((name) => hit.object.debugName === name || hit.object.debugName.includes(name))
             ) {
                 continue;
             }
-            
+
             // Return formatted hit result
             return {
                 object: hit.object,
@@ -67,10 +66,10 @@ class ActionRaycast {
                 rayDirection: this._calculateDirection(rayStart, rayEnd)
             };
         }
-        
+
         return null;
     }
-    
+
     /**
      * Cast multiple rays from a single origin in different directions
      * @param {Vector3|{x,y,z}} origin - Origin point for all rays
@@ -81,7 +80,7 @@ class ActionRaycast {
      * @returns {Array} Array of hit results (null for each ray with no hit)
      */
     static multicast(origin, directions, length, physicsWorld, options = {}) {
-        return directions.map(dir => {
+        return directions.map((dir) => {
             const end = {
                 x: origin.x + dir.x * length,
                 y: origin.y + dir.y * length,
@@ -90,7 +89,7 @@ class ActionRaycast {
             return this.cast(origin, end, physicsWorld, options);
         });
     }
-    
+
     /**
      * Calculate normalized direction vector from start to end
      * @private
@@ -99,19 +98,19 @@ class ActionRaycast {
         const dx = end.x - start.x;
         const dy = end.y - start.y;
         const dz = end.z - start.z;
-        const length = Math.sqrt(dx*dx + dy*dy + dz*dz);
-        
+        const length = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
         if (length < 0.0001) {
             return { x: 0, y: 0, z: 0 };
         }
-        
+
         return {
             x: dx / length,
             y: dy / length,
             z: dz / length
         };
     }
-    
+
     /**
      * Calculate a point along the ray at a specific distance
      * @param {Vector3|{x,y,z}} start - Starting point of the ray

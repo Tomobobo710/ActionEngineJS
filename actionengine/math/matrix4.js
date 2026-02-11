@@ -35,15 +35,15 @@ class Matrix4 {
         const y = vec[1];
         const z = vec[2];
         const w = vec[3] || 1.0;
-        
+
         out[0] = matrix[0] * x + matrix[4] * y + matrix[8] * z + matrix[12] * w;
         out[1] = matrix[1] * x + matrix[5] * y + matrix[9] * z + matrix[13] * w;
         out[2] = matrix[2] * x + matrix[6] * y + matrix[10] * z + matrix[14] * w;
         out[3] = matrix[3] * x + matrix[7] * y + matrix[11] * z + matrix[15] * w;
-        
+
         return out;
     }
-    
+
     static transformVector(vector, viewMatrix, projectionMatrix) {
         // First multiply by view matrix
         const viewResult = [0, 0, 0, 0];
@@ -568,7 +568,7 @@ class Matrix4 {
         x1 = upz * z0 - upx * z2;
         x2 = upx * z1 - upy * z0;
         len = Math.hypot(x0, x1, x2);
-        
+
         // Handle the case where up and z are colinear (or nearly so)
         if (len < 0.000001) {
             // Find a perpendicular vector to z

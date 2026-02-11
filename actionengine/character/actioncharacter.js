@@ -6,40 +6,40 @@ class ActionCharacter extends RenderableObject {
 
         this.game = game;
         this.camera = camera;
-        
+
         this.height = 6;
         this.scale = 1;
-        
+
         this.isFirstPerson = false;
         this.firstPersonHeight = this.height * 0.5;
-        
+
         this.basePosition = new Vector3(0, 0, 0); // Ground position
         this.position = new Vector3(0, 40, 0); // Center position
-        
+
         this.facingDirection = new Vector3(0, 0, 1);
         this.rotation = 0;
 
         this.debugInfo = null;
-        
+
         // Camera properties
         this.cameraDistance = 40;
         this.cameraHeight = 10;
         this.cameraPitch = 0;
         this.cameraYaw = 0;
-        
+
         // Store pointer position for camera movment
         this.lastPointerX = null;
         this.lastPointerY = null;
         this.swipeStartX = null;
         this.swipeStartY = null;
-        
+
         // Create controller
         this.controller = new Goblin.CharacterController(this.game.physicsWorld.getWorld());
         // Get the character body from the controller
         this.body = this.controller.body;
-        
-        if(position){
-            this.body.position.set(position.x, position.y, position.z);   
+
+        if (position) {
+            this.body.position.set(position.x, position.y, position.z);
         } else {
             this.body.position.set(0, 500, 0);
         }
@@ -50,7 +50,7 @@ class ActionCharacter extends RenderableObject {
 
         // Get the character body from the controller
         this.body = this.controller.body;
-        
+
         // Fine tune physics properties if needed
         this.body.linear_damping = 0.01;
         this.body.angular_damping = 0;
@@ -194,7 +194,7 @@ class ActionCharacter extends RenderableObject {
     update(deltaTime) {
         // Physics is now handled in fixed_update, only do non-physics updates here
     }
-    
+
     fixed_update(fixedDeltaTime) {
         // Physics and character controller updates should be handled in fixed timestep
         this.controller.update(fixedDeltaTime);
@@ -214,7 +214,7 @@ class ActionCharacter extends RenderableObject {
                 if (!this.cameraCollisionHandler && this.game && this.game.physicsWorld) {
                     this.cameraCollisionHandler = new CameraCollisionHandler(this.game.physicsWorld);
                 }
-                
+
                 if (this.isFirstPerson) {
                     this.camera.position = this.position.add(new Vector3(0, this.firstPersonHeight, 0));
 
@@ -233,12 +233,12 @@ class ActionCharacter extends RenderableObject {
 
                     // Calculate desired camera position without collision
                     const desiredCameraPosition = this.position.add(cameraOffset);
-                    
+
                     // Apply camera collision if handler exists
                     if (this.cameraCollisionHandler) {
                         // Adjust camera position for collisions - no smoothing
                         this.camera.position = this.cameraCollisionHandler.adjustCameraPosition(
-                            this.position, 
+                            this.position,
                             desiredCameraPosition,
                             1.6 // Camera collision radius
                         );
@@ -246,7 +246,7 @@ class ActionCharacter extends RenderableObject {
                         // Fall back to original behavior if no collision handler
                         this.camera.position = desiredCameraPosition;
                     }
-                    
+
                     this.camera.target = this.position.add(new Vector3(0, this.height / 2, 0));
                 }
             }
@@ -257,13 +257,13 @@ class ActionCharacter extends RenderableObject {
             this.debugInfo = this.controller.getDebugInfo();
         }
     }
-    
+
     // Standard method for renderable objects
     updateVisual() {
         this.triangles = this.getCharacterModelTriangles();
         this.updateModelMatrix();
     }
-    
+
     updateModelMatrix() {
         // Calculate the model matrix based on position and facing direction
         const angle = Math.atan2(this.facingDirection.x, this.facingDirection.z);
@@ -276,7 +276,6 @@ class ActionCharacter extends RenderableObject {
         Matrix4.translate(this.modelMatrix, this.modelMatrix, [this.position.x, this.position.y, this.position.z]);
     }
 
-    
     // Original method - mainly used by 2d renderer
     getCharacterModelTriangles() {
         function transformVertexWithSkin(vertex, vertexIndex, triangle, skin) {
@@ -319,10 +318,14 @@ class ActionCharacter extends RenderableObject {
         // Calculate model orientation transform based on facing direction
         const angle = Math.atan2(this.facingDirection.x, this.facingDirection.z);
         const modelTransform = Matrix4.create();
-        
+
         // Position the character at the correct world position
-        Matrix4.translate(modelTransform, modelTransform, [this.position.x, this.position.y + this.characterVisualYOffset, this.position.z]);
-        
+        Matrix4.translate(modelTransform, modelTransform, [
+            this.position.x,
+            this.position.y + this.characterVisualYOffset,
+            this.position.z
+        ]);
+
         Matrix4.rotateY(modelTransform, modelTransform, angle);
         const transformedTriangles = [];
         const skin = this.characterModel.skins[0];

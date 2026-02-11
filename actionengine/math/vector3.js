@@ -295,7 +295,7 @@ class Vector3 {
     clone() {
         return new Vector3(this.x, this.y, this.z);
     }
-    
+
     /**
      * Copy the values from another Vector3 into this one
      * @param {Vector3} v - Vector to copy from

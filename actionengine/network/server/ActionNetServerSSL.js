@@ -55,7 +55,7 @@ const utils = new ActionNetServerUtils(wss);
 const gameRooms = new Map(); // roomName -> game state
 
 console.log(`Starting Secure Multiplayer Game server on port ${port}...`);
-console.log(`Max players per room: ${maxPlayersPerRoom === -1 ? 'No limit' : maxPlayersPerRoom}`);
+console.log(`Max players per room: ${maxPlayersPerRoom === -1 ? "No limit" : maxPlayersPerRoom}`);
 
 wss.on("connection", (ws, req) => {
     console.log("New player connected from:", req.socket.remoteAddress);
@@ -272,7 +272,7 @@ function handleLeaveRoom(ws, message) {
         // If host left, close the room entirely
         if (wasHost && utils.roomExists(oldRoom)) {
             console.log(`Host left room ${oldRoom} - closing room and removing all players`);
-            
+
             // Notify remaining players that host left
             utils.broadcastToRoom(oldRoom, {
                 type: "hostLeft",
@@ -281,30 +281,30 @@ function handleLeaveRoom(ws, message) {
                 roomName: oldRoom,
                 timestamp: Date.now()
             });
-            
+
             // Get all clients still in the room
             const remainingClients = Array.from(utils.rooms.get(oldRoom) || []);
-            
+
             // Remove all clients from the room and put them back in lobby
-            remainingClients.forEach(clientWs => {
+            remainingClients.forEach((clientWs) => {
                 utils.removeFromRoom(clientWs, true); // true = return to lobby
-                
+
                 // Notify each client they were removed
                 utils.sendToClient(clientWs, {
                     type: "system",
                     text: `Room "${oldRoom}" closed because host left.`
                 });
-                
+
                 // Send updated room list
                 utils.sendToClient(clientWs, {
                     type: "roomList",
                     rooms: utils.getRoomList()
                 });
             });
-            
+
             // Delete the room
             gameRooms.delete(oldRoom);
-            
+
             // Broadcast updated room list to everyone
             utils.broadcastToAll({
                 type: "roomList",
@@ -361,8 +361,10 @@ function handleDisconnect(ws) {
 
             // If host disconnected, close the room entirely
             if (wasHost && utils.roomExists(disconnectRoomName)) {
-                console.log(`Host disconnected from room ${disconnectRoomName} - closing room and removing all players`);
-                
+                console.log(
+                    `Host disconnected from room ${disconnectRoomName} - closing room and removing all players`
+                );
+
                 // Notify remaining players that host left
                 utils.broadcastToRoom(disconnectRoomName, {
                     type: "hostLeft",
@@ -371,30 +373,30 @@ function handleDisconnect(ws) {
                     roomName: disconnectRoomName,
                     timestamp: Date.now()
                 });
-                
+
                 // Get all clients still in the room
                 const remainingClients = Array.from(utils.rooms.get(disconnectRoomName) || []);
-                
+
                 // Remove all clients from the room and put them back in lobby
-                remainingClients.forEach(clientWs => {
+                remainingClients.forEach((clientWs) => {
                     utils.removeFromRoom(clientWs, true); // true = return to lobby
-                    
+
                     // Notify each client they were removed
                     utils.sendToClient(clientWs, {
                         type: "system",
                         text: `Room "${disconnectRoomName}" closed because host disconnected.`
                     });
-                    
+
                     // Send updated room list
                     utils.sendToClient(clientWs, {
                         type: "roomList",
                         rooms: utils.getRoomList()
                     });
                 });
-                
+
                 // Delete the room
                 gameRooms.delete(disconnectRoomName);
-                
+
                 // Broadcast updated room list to everyone
                 utils.broadcastToAll({
                     type: "roomList",

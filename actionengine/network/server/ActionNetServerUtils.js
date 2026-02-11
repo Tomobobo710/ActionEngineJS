@@ -1,15 +1,15 @@
 /**
  * ActionNetServerUtils - Server-side utilities for ActionNet
- * 
+ *
  * Provides common patterns for multiplayer servers:
  * - Client tracking
  * - Room/Lobby management
  * - Broadcasting utilities
  * - Connection lifecycle helpers
- * 
+ *
  * This is NOT a framework - just utilities to make common patterns easier.
  * Developers can use all, some, or none of these helpers.
- * 
+ *
  * USAGE:
  * ```javascript
  * const WebSocket = require('ws');
@@ -36,14 +36,14 @@
 class ActionNetServerUtils {
     constructor(wss) {
         this.wss = wss;
-        
+
         // Client tracking
-        this.clients = new Map();           // ws -> client info
-        
+        this.clients = new Map(); // ws -> client info
+
         // Room management
-        this.rooms = new Map();              // roomName -> Set of ws clients
-        this.roomHosts = new Map();          // roomName -> ws (host client)
-        this.lobby = new Set();              // Clients not in any room
+        this.rooms = new Map(); // roomName -> Set of ws clients
+        this.roomHosts = new Map(); // roomName -> ws (host client)
+        this.lobby = new Set(); // Clients not in any room
     }
 
     /**
@@ -56,28 +56,28 @@ class ActionNetServerUtils {
      */
     generateUniqueDisplayName(username, excludeId = null) {
         const allDisplayNames = Array.from(this.clients.values())
-            .filter(client => client.id !== excludeId)
-            .map(client => client.displayName);
+            .filter((client) => client.id !== excludeId)
+            .map((client) => client.displayName);
         const countMap = {};
-        
+
         // Count existing instances of this username (for display name generation)
         const allUsernames = Array.from(this.clients.values())
-            .filter(client => client.id !== excludeId)
-            .map(client => client.username);
-        allUsernames.forEach(name => {
+            .filter((client) => client.id !== excludeId)
+            .map((client) => client.username);
+        allUsernames.forEach((name) => {
             countMap[name] = (countMap[name] || 0) + 1;
         });
-        
+
         const existingCount = countMap[username] || 0;
         let displayName = existingCount === 0 ? username : `${username} (${existingCount})`;
-        
+
         // Ensure the generated display name is unique
         let counter = existingCount;
         while (allDisplayNames.includes(displayName)) {
             counter++;
             displayName = `${username} (${counter})`;
         }
-        
+
         return displayName;
     }
 
@@ -91,15 +91,15 @@ class ActionNetServerUtils {
         // Extract client identity
         const clientId = data.clientId || data.id || `client_${Date.now()}`;
         const username = data.username || data.name || clientId;
-        
+
         // Generate unique display name
         const displayName = this.generateUniqueDisplayName(username);
-        
+
         // Store client info including display name
         this.clients.set(ws, {
             id: clientId,
-            username: username,        // Original username
-            displayName: displayName,  // Unique display name
+            username: username, // Original username
+            displayName: displayName, // Unique display name
             roomName: null,
             joinTime: Date.now(),
             metadata: data
@@ -113,7 +113,7 @@ class ActionNetServerUtils {
 
     /**
      * Add client to a room
-     * 
+     *
      * @param {WebSocket} ws - WebSocket connection
      * @param {String} roomName - Room to join
      * @returns {Boolean} - Success
@@ -121,7 +121,7 @@ class ActionNetServerUtils {
     addToRoom(ws, roomName) {
         const client = this.clients.get(ws);
         if (!client) {
-            console.warn('Attempted to add unregistered client to room');
+            console.warn("Attempted to add unregistered client to room");
             return false;
         }
 
@@ -149,7 +149,7 @@ class ActionNetServerUtils {
 
     /**
      * Remove client from their current room
-     * 
+     *
      * @param {WebSocket} ws - WebSocket connection
      * @param {Boolean} returnToLobby - Whether to put client back in lobby
      * @returns {String|null} - Room they were removed from
@@ -165,7 +165,7 @@ class ActionNetServerUtils {
 
         if (room) {
             room.delete(ws);
-            
+
             // Delete empty rooms
             if (room.size === 0) {
                 this.rooms.delete(roomName);
@@ -185,7 +185,7 @@ class ActionNetServerUtils {
 
     /**
      * Handle client disconnect
-     * 
+     *
      * @param {WebSocket} ws - WebSocket connection
      * @returns {Object|null} - Client info that was removed
      */
@@ -209,7 +209,7 @@ class ActionNetServerUtils {
 
     /**
      * Send message to a specific client
-     * 
+     *
      * @param {WebSocket} ws - WebSocket connection
      * @param {Object} message - Message to send
      */
@@ -221,7 +221,7 @@ class ActionNetServerUtils {
 
     /**
      * Broadcast message to all clients in a room
-     * 
+     *
      * @param {String} roomName - Room to broadcast to
      * @param {Object} message - Message to send
      * @param {WebSocket} excludeWs - Client to exclude (optional)
@@ -233,7 +233,7 @@ class ActionNetServerUtils {
         }
 
         const messageStr = JSON.stringify(message);
-        room.forEach(client => {
+        room.forEach((client) => {
             if (client !== excludeWs && client.readyState === client.constructor.OPEN) {
                 client.send(messageStr);
             }
@@ -242,13 +242,13 @@ class ActionNetServerUtils {
 
     /**
      * Broadcast message to all connected clients
-     * 
+     *
      * @param {Object} message - Message to send
      * @param {WebSocket} excludeWs - Client to exclude (optional)
      */
     broadcastToAll(message, excludeWs = null) {
         const messageStr = JSON.stringify(message);
-        this.wss.clients.forEach(client => {
+        this.wss.clients.forEach((client) => {
             if (client !== excludeWs && client.readyState === client.constructor.OPEN) {
                 client.send(messageStr);
             }
@@ -257,13 +257,13 @@ class ActionNetServerUtils {
 
     /**
      * Broadcast message to all clients in lobby
-     * 
+     *
      * @param {Object} message - Message to send
      * @param {WebSocket} excludeWs - Client to exclude (optional)
      */
     broadcastToLobby(message, excludeWs = null) {
         const messageStr = JSON.stringify(message);
-        this.lobby.forEach(client => {
+        this.lobby.forEach((client) => {
             if (client !== excludeWs && client.readyState === client.constructor.OPEN) {
                 client.send(messageStr);
             }
@@ -286,7 +286,7 @@ class ActionNetServerUtils {
      * @returns {Array<Object>} - Array of room objects with {name, playerCount, maxPlayers}
      */
     getRoomListWithCounts(maxPlayersPerRoom = -1) {
-        return Array.from(this.rooms.keys()).map(roomName => {
+        return Array.from(this.rooms.keys()).map((roomName) => {
             const playerCount = this.getRoomSize(roomName);
             return {
                 name: roomName,
@@ -310,16 +310,20 @@ class ActionNetServerUtils {
 
         const hostWs = this.roomHosts.get(roomName);
 
-        return Array.from(room).map(ws => {
-            const client = this.clients.get(ws);
-            return client ? {
-                id: client.id,
-                username: client.username,
-                displayName: client.displayName,
-                joinTime: client.joinTime,
-                isHost: ws === hostWs
-            } : null;
-        }).filter(client => client !== null);
+        return Array.from(room)
+            .map((ws) => {
+                const client = this.clients.get(ws);
+                return client
+                    ? {
+                          id: client.id,
+                          username: client.username,
+                          displayName: client.displayName,
+                          joinTime: client.joinTime,
+                          isHost: ws === hostWs
+                      }
+                    : null;
+            })
+            .filter((client) => client !== null);
     }
 
     /**
@@ -334,19 +338,23 @@ class ActionNetServerUtils {
             return [];
         }
 
-        return Array.from(room).map(ws => {
-            const client = this.clients.get(ws);
-            return client ? {
-                id: client.id,
-                username: client.username,
-                joinTime: client.joinTime
-            } : null;
-        }).filter(client => client !== null);
+        return Array.from(room)
+            .map((ws) => {
+                const client = this.clients.get(ws);
+                return client
+                    ? {
+                          id: client.id,
+                          username: client.username,
+                          joinTime: client.joinTime
+                      }
+                    : null;
+            })
+            .filter((client) => client !== null);
     }
 
     /**
      * Get client info for a WebSocket connection
-     * 
+     *
      * @param {WebSocket} ws - WebSocket connection
      * @returns {Object|null}
      */
@@ -356,7 +364,7 @@ class ActionNetServerUtils {
 
     /**
      * Get room info (name, client count, client IDs)
-     * 
+     *
      * @param {String} roomName - Room name
      * @returns {Object|null}
      */
@@ -375,7 +383,7 @@ class ActionNetServerUtils {
 
     /**
      * Check if room exists
-     * 
+     *
      * @param {String} roomName - Room name
      * @returns {Boolean}
      */
@@ -385,7 +393,7 @@ class ActionNetServerUtils {
 
     /**
      * Get number of clients in a room
-     * 
+     *
      * @param {String} roomName - Room name
      * @returns {Number}
      */
@@ -396,7 +404,7 @@ class ActionNetServerUtils {
 
     /**
      * Get total number of connected clients
-     * 
+     *
      * @returns {Number}
      */
     getTotalClients() {
@@ -405,7 +413,7 @@ class ActionNetServerUtils {
 
     /**
      * Get number of clients in lobby
-     * 
+     *
      * @returns {Number}
      */
     getLobbySize() {
@@ -414,7 +422,7 @@ class ActionNetServerUtils {
 
     /**
      * Get the host (creator) of a room
-     * 
+     *
      * @param {String} roomName - Room name
      * @returns {Object|null} - Host client info or null if room doesn't exist
      */
@@ -423,12 +431,12 @@ class ActionNetServerUtils {
         if (!hostWs) {
             return null;
         }
-        
+
         const client = this.clients.get(hostWs);
         if (!client) {
             return null;
         }
-        
+
         return {
             id: client.id,
             username: client.username,
@@ -439,7 +447,7 @@ class ActionNetServerUtils {
 
     /**
      * Check if a client is the host of their room
-     * 
+     *
      * @param {WebSocket} ws - WebSocket connection
      * @returns {Boolean}
      */
@@ -448,7 +456,7 @@ class ActionNetServerUtils {
         if (!client || !client.roomName) {
             return false;
         }
-        
+
         const hostWs = this.roomHosts.get(client.roomName);
         return hostWs === ws;
     }

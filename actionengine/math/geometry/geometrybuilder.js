@@ -3,7 +3,7 @@
 // using configurable reference points
 
 class GeometryBuilder {
-    constructor(referencePoint = {x: 0, y: 0, z: 0}) {
+    constructor(referencePoint = { x: 0, y: 0, z: 0 }) {
         this.referencePoint = referencePoint;
     }
 
@@ -48,7 +48,7 @@ class GeometryBuilder {
         const centroidY = (ay + by + cy) / 3;
         const centroidZ = (az + bz + cz) / 3;
 
-        // Vector from reference point to centroid 
+        // Vector from reference point to centroid
         const toCentroidX = centroidX - this.referencePoint.x;
         const toCentroidY = centroidY - this.referencePoint.y;
         const toCentroidZ = centroidZ - this.referencePoint.z;
@@ -108,7 +108,7 @@ class GeometryBuilder {
      * @param {Object} physicsWorld - ActionEngine physics world to add object to
      * @param {Array} vertices - Flat vertex array [x,y,z, x,y,z, ...]
      * @param {Array} normals - Vertex normals (currently unused but kept for future)
-     * @param {Array} colors - Vertex colors [r,g,b, r,g,b, ...] 
+     * @param {Array} colors - Vertex colors [r,g,b, r,g,b, ...]
      * @param {Array} indices - Triangle indices [i1,i2,i3, ...]
      * @param {number} mass - Physics mass (0 = static)
      * @param {Vector3} position - World position
@@ -118,9 +118,9 @@ class GeometryBuilder {
         // Convert flat vertex array to Vector3 array
         const vector3Vertices = [];
         for (let i = 0; i < vertices.length; i += 3) {
-            vector3Vertices.push(new Vector3(vertices[i], vertices[i+1], vertices[i+2]));
+            vector3Vertices.push(new Vector3(vertices[i], vertices[i + 1], vertices[i + 2]));
         }
-        
+
         // Convert colors to hex strings for triangles
         const triangleColors = [];
         for (let i = 0; i < indices.length; i += 3) {
@@ -129,10 +129,10 @@ class GeometryBuilder {
             const r = Math.round(colors[vertexIndex * 3] * 255);
             const g = Math.round(colors[vertexIndex * 3 + 1] * 255);
             const b = Math.round(colors[vertexIndex * 3 + 2] * 255);
-            const color = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+            const color = `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
             triangleColors.push(color);
         }
-        
+
         // Use ActionEngine's proper mesh physics class
         const physicsObject = new ActionPhysicsMesh3D(
             physicsWorld,
@@ -142,7 +142,7 @@ class GeometryBuilder {
             position,
             triangleColors
         );
-        
+
         // Add to physics world
         physicsWorld.addObject(physicsObject);
         return physicsObject;

@@ -8,7 +8,7 @@ class ViewFrustum {
             new Float32Array(4), // Bottom
             new Float32Array(4), // Top
             new Float32Array(4), // Near
-            new Float32Array(4)  // Far
+            new Float32Array(4) // Far
         ];
     }
 
@@ -71,21 +71,10 @@ class ViewFrustum {
     // Update the frustum using camera parameters
     updateFromCamera(camera) {
         const projMatrix = Matrix4.create();
-        Matrix4.perspective(
-            projMatrix,
-            camera.fov,
-            Game.WIDTH / Game.HEIGHT,
-            0.1,
-            camera.far || 10000.0
-        );
+        Matrix4.perspective(projMatrix, camera.fov, Game.WIDTH / Game.HEIGHT, 0.1, camera.far || 10000.0);
 
         const viewMatrix = Matrix4.create();
-        Matrix4.lookAt(
-            viewMatrix,
-            camera.position.toArray(),
-            camera.target.toArray(),
-            camera.up.toArray()
-        );
+        Matrix4.lookAt(viewMatrix, camera.position.toArray(), camera.target.toArray(), camera.up.toArray());
 
         const projViewMatrix = Matrix4.create();
         Matrix4.multiply(projViewMatrix, projMatrix, viewMatrix);
@@ -125,7 +114,7 @@ class ViewFrustum {
         // If the object is terrain-like (large grid), use a larger radius
         if (object.gridResolution && object.baseWorldScale) {
             // For terrain, use a size proportional to its scale
-            const terrainSize = object.baseWorldScale * object.gridResolution / 2;
+            const terrainSize = (object.baseWorldScale * object.gridResolution) / 2;
             return this.containsSphere(object.position, terrainSize);
         }
 

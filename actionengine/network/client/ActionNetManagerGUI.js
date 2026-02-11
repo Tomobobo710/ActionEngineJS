@@ -8,13 +8,17 @@
  */
 class ActionNetManagerGUI {
     // Dynamic getters that reference Game's resolution
-    static get WIDTH() { return Game.WIDTH || 800; }
-    static get HEIGHT() { return Game.HEIGHT || 600; }
+    static get WIDTH() {
+        return Game.WIDTH || 800;
+    }
+    static get HEIGHT() {
+        return Game.HEIGHT || 600;
+    }
 
     // Network configuration - matches Game.NETWORK_CONFIG
     static NETWORK_CONFIG = {
         hostname: window.location.hostname, // Auto-detect from current page
-        protocol: window.location.protocol === 'https:' ? 'wss:' : 'ws:', // Auto-detect protocol
+        protocol: window.location.protocol === "https:" ? "wss:" : "ws:", // Auto-detect protocol
         autoConnect: false,
         reconnect: true,
         reconnectDelay: 1000,
@@ -26,7 +30,7 @@ class ActionNetManagerGUI {
 
     // P2P Network configuration
     static P2P_NETWORK_CONFIG = {
-        gameId: 'game-id-00000',
+        gameId: "game-id-00000",
         debug: true
     };
 
@@ -46,16 +50,16 @@ class ActionNetManagerGUI {
         this.debugCtx = canvases.debugCtx;
 
         // Detect if configOrPort is a config object or a port number
-        let mode = 'websocket';
+        let mode = "websocket";
         let port = 8000;
         let p2pConfig = null;
 
-        if (typeof configOrPort === 'object' && configOrPort !== null) {
+        if (typeof configOrPort === "object" && configOrPort !== null) {
             // It's a config object
-            mode = configOrPort.mode || 'websocket';
+            mode = configOrPort.mode || "websocket";
             port = configOrPort.port || 8000;
             p2pConfig = configOrPort.p2pConfig || null;
-        } else if (typeof configOrPort === 'number') {
+        } else if (typeof configOrPort === "number") {
             // It's the old style (port number)
             port = configOrPort;
         }
@@ -64,7 +68,7 @@ class ActionNetManagerGUI {
         this.networkMode = mode;
 
         // Initialize networking based on mode
-        if (mode === 'p2p') {
+        if (mode === "p2p") {
             const config = p2pConfig || { ...ActionNetManagerGUI.P2P_NETWORK_CONFIG };
             this.networkManager = new ActionNetManagerP2P(config);
         } else {
@@ -72,8 +76,8 @@ class ActionNetManagerGUI {
             const config = networkConfig || { ...ActionNetManagerGUI.NETWORK_CONFIG };
 
             // Build URL from hostname, port, and protocol
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const hostname = window.location.hostname || 'localhost'; // Fallback to localhost for file:// protocol
+            const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+            const hostname = window.location.hostname || "localhost"; // Fallback to localhost for file:// protocol
             config.url = `${protocol}//${hostname}:${port}`;
 
             this.networkManager = new ActionNetManager(config);
@@ -90,8 +94,8 @@ class ActionNetManagerGUI {
                     this.networkManager.send(msg);
                 }
             },
-            broadcastInterval: 16,    // ~60fps
-            staleThreshold: 200       // ~12 frames
+            broadcastInterval: 16, // ~60fps
+            staleThreshold: 200 // ~12 frames
         };
 
         this.syncSystem = new SyncSystem({
@@ -131,56 +135,60 @@ class ActionNetManagerGUI {
         this.connectionInProgress = false;
 
         // Create scrollable room list
-        this.roomScroller = new ActionScrollableArea({
-            listAreaX: 250,
-            listAreaY: 380,
-            listAreaWidth: 300,
-            listAreaHeight: 200,
-            itemHeight: 30,
-            scrollBarX: 552,
-            scrollBarY: 400,
-            scrollBarTrackHeight: 160,
-            scrollBarThumbStartY: 400,
+        this.roomScroller = new ActionScrollableArea(
+            {
+                listAreaX: 250,
+                listAreaY: 380,
+                listAreaWidth: 300,
+                listAreaHeight: 200,
+                itemHeight: 30,
+                scrollBarX: 552,
+                scrollBarY: 400,
+                scrollBarTrackHeight: 160,
+                scrollBarThumbStartY: 400,
 
-            // Enable clipping for precise bounds control
-            enableClipping: true,
-            clipBounds: {
-                x: 250,
-                y: 380,
-                width: 300,
-                height: 200
-            },
-
-            // Let ActionScrollableArea handle input registration automatically with clipping
-            generateItemId: (item, index) => `room_item_${index}`,
-
-            // Custom styling for monochrome theme
-            colors: {
-                track: { normal: "rgba(0, 0, 0, 0.2)", hover: "rgba(0, 0, 0, 0.3)" },
-                thumb: {
-                    normal: "rgba(136, 136, 136, 0.3)",
-                    hover: "rgba(136, 136, 136, 0.6)",
-                    drag: "rgba(136, 136, 136, 0.8)"
+                // Enable clipping for precise bounds control
+                enableClipping: true,
+                clipBounds: {
+                    x: 250,
+                    y: 380,
+                    width: 300,
+                    height: 200
                 },
-                thumbBorder: { normal: "rgba(136, 136, 136, 0.5)", drag: "#ffffff" },
-                button: {
-                    normal: "rgba(136, 136, 136, 0.1)",
-                    hover: "rgba(136, 136, 136, 0.3)"
-                },
-                buttonText: {
-                    normal: "rgba(136, 136, 136, 0.8)",
-                    hover: "#ffffff"
-                }
-            },
 
-            // Enable background drawing with monochrome styling
-            drawBackground: true,
-            backgroundColor: "rgba(26, 26, 26, 0.9)",
-            borderColor: "rgba(136, 136, 136, 0.6)",
-            borderWidth: 2,
-            cornerRadius: 0,
-            padding: 5
-        }, this.input, this.guiCtx);
+                // Let ActionScrollableArea handle input registration automatically with clipping
+                generateItemId: (item, index) => `room_item_${index}`,
+
+                // Custom styling for monochrome theme
+                colors: {
+                    track: { normal: "rgba(0, 0, 0, 0.2)", hover: "rgba(0, 0, 0, 0.3)" },
+                    thumb: {
+                        normal: "rgba(136, 136, 136, 0.3)",
+                        hover: "rgba(136, 136, 136, 0.6)",
+                        drag: "rgba(136, 136, 136, 0.8)"
+                    },
+                    thumbBorder: { normal: "rgba(136, 136, 136, 0.5)", drag: "#ffffff" },
+                    button: {
+                        normal: "rgba(136, 136, 136, 0.1)",
+                        hover: "rgba(136, 136, 136, 0.3)"
+                    },
+                    buttonText: {
+                        normal: "rgba(136, 136, 136, 0.8)",
+                        hover: "#ffffff"
+                    }
+                },
+
+                // Enable background drawing with monochrome styling
+                drawBackground: true,
+                backgroundColor: "rgba(26, 26, 26, 0.9)",
+                borderColor: "rgba(136, 136, 136, 0.6)",
+                borderWidth: 2,
+                cornerRadius: 0,
+                padding: 5
+            },
+            this.input,
+            this.guiCtx
+        );
 
         // UI state for text input
         this.inputFocus = null; // 'username' or null
@@ -188,18 +196,18 @@ class ActionNetManagerGUI {
         this.textInputBlinkTime = 0;
 
         // Server status tracking
-        this.serverStatus = 'UNKNOWN';
-        this.serverStatusColor = '#ffff00';
+        this.serverStatus = "UNKNOWN";
+        this.serverStatusColor = "#ffff00";
         this.serverCheckInterval = null;
 
         // Error modal state
         this.errorModalVisible = false;
-        this.errorModalTitle = '';
-        this.errorModalMessage = '';
+        this.errorModalTitle = "";
+        this.errorModalMessage = "";
 
         // Join modal state
         this.joinModalVisible = false;
-        this.joinModalStatus = '';  // 'contactingHost', 'offerSent', 'acceptedByHost', 'establishingConnection', 'connected'
+        this.joinModalStatus = ""; // 'contactingHost', 'offerSent', 'acceptedByHost', 'establishingConnection', 'connected'
         this.joinModalHostPeerId = null;
 
         // Spinner animation state
@@ -242,11 +250,11 @@ class ActionNetManagerGUI {
     emit(event, ...args) {
         if (!this.handlers.has(event)) return;
         const handlers = this.handlers.get(event);
-        handlers.forEach(handler => {
+        handlers.forEach((handler) => {
             try {
                 handler(...args);
             } catch (error) {
-                console.error('[ActionNetManagerGUI] Error in event handler:', error);
+                console.error("[ActionNetManagerGUI] Error in event handler:", error);
             }
         });
     }
@@ -256,9 +264,9 @@ class ActionNetManagerGUI {
      */
     setupMessageRouting() {
         // Route ALL messages through our system
-        this.networkManager.on('message', (message) => {
+        this.networkManager.on("message", (message) => {
             // Automatic routing: syncUpdate → SyncSystem
-            if (message.type === 'syncUpdate') {
+            if (message.type === "syncUpdate") {
                 if (this.syncSystem) {
                     this.syncSystem.handleSyncUpdate(message);
                 }
@@ -288,13 +296,13 @@ class ActionNetManagerGUI {
         // Connection events
         this.networkManager.on("connected", () => {
             // console.log("[ActionNetManagerGUI] Connected to server");
-            this.serverStatus = 'ONLINE';
-            this.serverStatusColor = '#00ff00';
+            this.serverStatus = "ONLINE";
+            this.serverStatusColor = "#00ff00";
         });
 
         this.networkManager.on("disconnected", () => {
             // console.log("[ActionNetManagerGUI] Disconnected from server");
-            this.emit('disconnected');
+            this.emit("disconnected");
         });
 
         this.networkManager.on("reconnecting", ({ attempt, delay }) => {
@@ -315,7 +323,7 @@ class ActionNetManagerGUI {
                 // Modal will emit this after it closes
                 return;
             }
-            this.emit('joinedRoom', roomName);
+            this.emit("joinedRoom", roomName);
         });
 
         this.networkManager.on("leftRoom", (roomName) => {
@@ -327,7 +335,7 @@ class ActionNetManagerGUI {
                 this.syncSystem.clearRemoteData();
             }
 
-            this.emit('leftRoom', roomName);
+            this.emit("leftRoom", roomName);
         });
 
         this.networkManager.on("userList", (users) => {
@@ -451,7 +459,7 @@ class ActionNetManagerGUI {
 
         // Update spinner rotation
         this.spinnerRotation = (this.spinnerRotation + 1) % 360; // Rotate 6 degrees per frame
-        
+
         // Update spinner frame for P2P connection
         if (this.isConnecting) {
             this.spinnerFrame++;
@@ -469,10 +477,10 @@ class ActionNetManagerGUI {
      */
     action_draw() {
         switch (this.currentState) {
-            case 'LOGIN':
+            case "LOGIN":
                 this.renderLoginScreen();
                 break;
-            case 'LOBBY':
+            case "LOBBY":
                 this.renderLobbyScreen();
                 break;
         }
@@ -492,22 +500,28 @@ class ActionNetManagerGUI {
      * Render login screen
      */
     renderLoginScreen() {
-        this.renderLabel('ActionNet Login', ActionNetManagerGUI.WIDTH / 2, 150, '36px Arial', '#808080');
+        this.renderLabel("ActionNet Login", ActionNetManagerGUI.WIDTH / 2, 150, "36px Arial", "#808080");
 
         // Draw connect button
-        this.renderButton(this.connectButton, 'Connect', this.selectedIndex === 0);
+        this.renderButton(this.connectButton, "Connect", this.selectedIndex === 0);
 
         // Draw back button
-        this.renderButton(this.backButton, 'Back', this.selectedIndex === 1);
+        this.renderButton(this.backButton, "Back", this.selectedIndex === 1);
 
         // Draw network status only for WebSocket mode (P2P uses DHT, not centralized server)
-        if (this.networkMode !== 'p2p') {
-            this.renderLabel(`Network connection: ${this.serverStatus}`, ActionNetManagerGUI.WIDTH / 2, 430, '14px Arial', this.serverStatusColor);
+        if (this.networkMode !== "p2p") {
+            this.renderLabel(
+                `Network connection: ${this.serverStatus}`,
+                ActionNetManagerGUI.WIDTH / 2,
+                430,
+                "14px Arial",
+                this.serverStatusColor
+            );
         }
 
         // Show spinner and "Connecting..." message for P2P mode
-        if (this.networkMode === 'p2p' && this.isConnecting) {
-            this.renderLabel('Connecting...', ActionNetManagerGUI.WIDTH / 2, 410);
+        if (this.networkMode === "p2p" && this.isConnecting) {
+            this.renderLabel("Connecting...", ActionNetManagerGUI.WIDTH / 2, 410);
             this.renderSpinner(ActionNetManagerGUI.WIDTH / 2, 450, 20, 3);
         }
     }
@@ -517,18 +531,31 @@ class ActionNetManagerGUI {
      */
     renderLobbyScreen() {
         // Render peer count in bottom right
-        if (this.networkMode === 'p2p') {
+        if (this.networkMode === "p2p") {
             const connectedCount = this.networkManager.getConnectedPeerCount();
             const discoveredCount = this.networkManager.getDiscoveredPeerCount();
             const peerLabel = `Connected: ${connectedCount} | Online: ${discoveredCount}`;
-            this.renderLabel(peerLabel, ActionNetManagerGUI.WIDTH - 10, ActionNetManagerGUI.HEIGHT - 10, '12px Arial', '#888888', 'right');
+            this.renderLabel(
+                peerLabel,
+                ActionNetManagerGUI.WIDTH - 10,
+                ActionNetManagerGUI.HEIGHT - 10,
+                "12px Arial",
+                "#888888",
+                "right"
+            );
         }
-        this.renderLabel('ActionNet Lobby', ActionNetManagerGUI.WIDTH / 2, 40, '36px Arial', '#808080');
+        this.renderLabel("ActionNet Lobby", ActionNetManagerGUI.WIDTH / 2, 40, "36px Arial", "#808080");
 
-        this.renderLabel(`Welcome, ${this.username}!`, ActionNetManagerGUI.WIDTH / 2, 85, '24px Arial', '#ffffff');
+        this.renderLabel(`Welcome, ${this.username}!`, ActionNetManagerGUI.WIDTH / 2, 85, "24px Arial", "#ffffff");
 
         // Draw status
-        this.renderLabel('Select a room or create a new one', ActionNetManagerGUI.WIDTH / 2, 120, '14px Arial', '#cccccc');
+        this.renderLabel(
+            "Select a room or create a new one",
+            ActionNetManagerGUI.WIDTH / 2,
+            120,
+            "14px Arial",
+            "#cccccc"
+        );
 
         // Draw connection status
         // const isConnected = this.networkManager.isConnected();
@@ -537,13 +564,13 @@ class ActionNetManagerGUI {
         // this.guiCtx.fillText(`Server: ${connectionStatus}`, ActionNetManagerGUI.WIDTH / 2, 80);
 
         // Draw change name button (index 0)
-        this.renderButton(this.changeNameButton, 'Change Name', this.selectedIndex === 0);
+        this.renderButton(this.changeNameButton, "Change Name", this.selectedIndex === 0);
 
         // Draw create room button (index 1)
-        this.renderButton(this.createRoomButton, 'Create Room', this.selectedIndex === 1);
+        this.renderButton(this.createRoomButton, "Create Room", this.selectedIndex === 1);
 
         // Draw back to login button (index 2)
-        this.renderButton(this.backToLoginButton, 'Back', this.selectedIndex === 2);
+        this.renderButton(this.backToLoginButton, "Back", this.selectedIndex === 2);
 
         // Draw available rooms
         this.renderRoomList();
@@ -553,26 +580,32 @@ class ActionNetManagerGUI {
      * Render button
      */
     renderButton(button, text, isSelected = false) {
-        const isHovered = this.input.isElementHovered(button === this.connectButton ? 'connectButton' :
-            button === this.backButton ? 'backButton' :
-                button === this.createRoomButton ? 'createRoomButton' :
-                    button === this.changeNameButton ? 'changeNameButton' :
-                        'backToLoginButton');
-        
+        const isHovered = this.input.isElementHovered(
+            button === this.connectButton
+                ? "connectButton"
+                : button === this.backButton
+                  ? "backButton"
+                  : button === this.createRoomButton
+                    ? "createRoomButton"
+                    : button === this.changeNameButton
+                      ? "changeNameButton"
+                      : "backToLoginButton"
+        );
+
         // Check if connect button is disabled (connection in progress)
         const isDisabled = button === this.connectButton && this.connectionInProgress;
-        
+
         // Highlight if selected via keyboard/gamepad or hovered via mouse
         const isHighlighted = (isSelected || isHovered) && !isDisabled;
-        this.guiCtx.fillStyle = isDisabled ? '#222222' : (isHighlighted ? '#555555' : '#333333');
+        this.guiCtx.fillStyle = isDisabled ? "#222222" : isHighlighted ? "#555555" : "#333333";
         this.guiCtx.fillRect(button.x, button.y, button.width, button.height);
-        this.guiCtx.strokeStyle = isDisabled ? '#444444' : (isSelected ? '#ffffff' : '#888888');
+        this.guiCtx.strokeStyle = isDisabled ? "#444444" : isSelected ? "#ffffff" : "#888888";
         this.guiCtx.lineWidth = isSelected ? 3 : 2;
         this.guiCtx.strokeRect(button.x, button.y, button.width, button.height);
-        this.guiCtx.fillStyle = isDisabled ? '#666666' : '#ffffff';
-        this.guiCtx.font = 'bold 24px Arial';
-        this.guiCtx.textAlign = 'center';
-        this.guiCtx.textBaseline = 'middle';
+        this.guiCtx.fillStyle = isDisabled ? "#666666" : "#ffffff";
+        this.guiCtx.font = "bold 24px Arial";
+        this.guiCtx.textAlign = "center";
+        this.guiCtx.textBaseline = "middle";
         this.guiCtx.fillText(text.toUpperCase(), button.x + button.width / 2, button.y + button.height / 2);
     }
 
@@ -581,16 +614,16 @@ class ActionNetManagerGUI {
      */
     renderSpinner(x, y, size = 30) {
         const radius = size / 2;
-        const rotation = (this.spinnerFrame % 60) * (Math.PI * 2 / 60); // Full rotation every 60 frames
+        const rotation = (this.spinnerFrame % 60) * ((Math.PI * 2) / 60); // Full rotation every 60 frames
 
         this.guiCtx.save();
         this.guiCtx.translate(x, y);
         this.guiCtx.rotate(rotation);
 
         // Draw spinner arc
-        this.guiCtx.strokeStyle = '#ffffff';
+        this.guiCtx.strokeStyle = "#ffffff";
         this.guiCtx.lineWidth = 3;
-        this.guiCtx.lineCap = 'round';
+        this.guiCtx.lineCap = "round";
         this.guiCtx.beginPath();
         this.guiCtx.arc(0, 0, radius, 0, Math.PI * 1.5); // 3/4 circle
         this.guiCtx.stroke();
@@ -601,7 +634,17 @@ class ActionNetManagerGUI {
     /**
      * Render label with optional semi-transparent background
      */
-    renderLabel(text, x, y, font = '16px Arial', textColor = '#ffffff', textAlign = 'center', textBaseline = 'middle', padding = 8, drawBackground = true) {
+    renderLabel(
+        text,
+        x,
+        y,
+        font = "16px Arial",
+        textColor = "#ffffff",
+        textAlign = "center",
+        textBaseline = "middle",
+        padding = 8,
+        drawBackground = true
+    ) {
         // Save context state
         this.guiCtx.save();
 
@@ -622,11 +665,11 @@ class ActionNetManagerGUI {
             const cornerRadius = 4; // Rounded corners
 
             let bgX, bgY;
-            if (textAlign === 'center') {
+            if (textAlign === "center") {
                 bgX = x - bgWidth / 2;
-            } else if (textAlign === 'left') {
+            } else if (textAlign === "left") {
                 bgX = x - padding;
-            } else if (textAlign === 'right') {
+            } else if (textAlign === "right") {
                 bgX = x - bgWidth + padding;
             }
 
@@ -635,12 +678,12 @@ class ActionNetManagerGUI {
             bgY = y - bgHeight / 2 - 1;
 
             // Semi-transparent dark background with rounded corners
-            this.guiCtx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            this.guiCtx.fillStyle = "rgba(0, 0, 0, 0.7)";
             this.roundedRect(bgX, bgY, bgWidth, bgHeight, cornerRadius);
             this.guiCtx.fill();
 
             // Subtle grey border with rounded corners
-            this.guiCtx.strokeStyle = 'rgba(136, 136, 136, 0.3)';
+            this.guiCtx.strokeStyle = "rgba(136, 136, 136, 0.3)";
             this.guiCtx.lineWidth = 1;
             this.roundedRect(bgX, bgY, bgWidth, bgHeight, cornerRadius);
             this.guiCtx.stroke();
@@ -657,16 +700,16 @@ class ActionNetManagerGUI {
     /**
      * Render text with dynamic font sizing to fit within maxWidth
      */
-    renderWrappedText(text, x, y, maxWidth, font = '16px Arial', textColor = '#ffffff') {
+    renderWrappedText(text, x, y, maxWidth, font = "16px Arial", textColor = "#ffffff") {
         this.guiCtx.save();
 
-        this.guiCtx.textAlign = 'center';
-        this.guiCtx.textBaseline = 'middle';
+        this.guiCtx.textAlign = "center";
+        this.guiCtx.textBaseline = "middle";
         this.guiCtx.fillStyle = textColor;
 
         // Extract font size from font string (e.g., "20px Arial" -> 20)
         let fontSize = parseInt(font, 10) || 16;
-        const fontFamily = font.split(' ').slice(1).join(' ') || 'Arial';
+        const fontFamily = font.split(" ").slice(1).join(" ") || "Arial";
 
         // Reduce font size until text fits
         let textWidth = Infinity;
@@ -712,52 +755,59 @@ class ActionNetManagerGUI {
 
         if (rooms.length === 0) {
             // Draw header and spinner animation
-            this.renderLabel('Searching for rooms...', ActionNetManagerGUI.WIDTH / 2, 410);
+            this.renderLabel("Searching for rooms...", ActionNetManagerGUI.WIDTH / 2, 410);
             this.renderSpinner(ActionNetManagerGUI.WIDTH / 2, 450, 20, 3);
         } else if (this.roomScroller) {
             // Use the scroller for room list
-            this.roomScroller.draw(rooms, (room, index, y) => {
-                // Check if this specific room item is hovered or selected via keyboard/gamepad
-                const isHovered = this.input.isElementHovered(`room_item_${index}`) || this.roomScroller.scrollThumb.hovered;
-                const isSelected = this.selectedIndex === (this.lobbyButtonCount + index);
-                const isHighlighted = isHovered || isSelected;
+            this.roomScroller.draw(
+                rooms,
+                (room, index, y) => {
+                    // Check if this specific room item is hovered or selected via keyboard/gamepad
+                    const isHovered =
+                        this.input.isElementHovered(`room_item_${index}`) || this.roomScroller.scrollThumb.hovered;
+                    const isSelected = this.selectedIndex === this.lobbyButtonCount + index;
+                    const isHighlighted = isHovered || isSelected;
 
-                // Draw room button background (matching GUI button style)
-                this.guiCtx.fillStyle = isHighlighted ? '#555555' : '#333333';
-                this.guiCtx.fillRect(260, y, 280, 30);
+                    // Draw room button background (matching GUI button style)
+                    this.guiCtx.fillStyle = isHighlighted ? "#555555" : "#333333";
+                    this.guiCtx.fillRect(260, y, 280, 30);
 
-                // Draw room button border (matching GUI button style)
-                this.guiCtx.strokeStyle = isSelected ? '#ffffff' : '#888888';
-                this.guiCtx.lineWidth = isSelected ? 3 : 2;
-                this.guiCtx.strokeRect(260, y, 280, 30);
+                    // Draw room button border (matching GUI button style)
+                    this.guiCtx.strokeStyle = isSelected ? "#ffffff" : "#888888";
+                    this.guiCtx.lineWidth = isSelected ? 3 : 2;
+                    this.guiCtx.strokeRect(260, y, 280, 30);
 
-                // Draw room name and player count
-                this.guiCtx.fillStyle = '#ffffff';
-                this.guiCtx.font = '16px Arial';
-                this.guiCtx.textAlign = 'center';
+                    // Draw room name and player count
+                    this.guiCtx.fillStyle = "#ffffff";
+                    this.guiCtx.font = "16px Arial";
+                    this.guiCtx.textAlign = "center";
 
-                // New format with player counts
-                const maxDisplay = room.maxPlayers === -1 ? '∞' : room.maxPlayers;
-                // Support both WebSocket (room.name, room.playerCount) and P2P (room.username, room.currentPlayers) formats
-                const roomName = room.name || room.username || 'Unknown Room';
-                const playerCount = room.playerCount !== undefined ? room.playerCount : room.currentPlayers || 0;
-                const displayText = `${roomName} (${playerCount}/${maxDisplay})`;
+                    // New format with player counts
+                    const maxDisplay = room.maxPlayers === -1 ? "∞" : room.maxPlayers;
+                    // Support both WebSocket (room.name, room.playerCount) and P2P (room.username, room.currentPlayers) formats
+                    const roomName = room.name || room.username || "Unknown Room";
+                    const playerCount = room.playerCount !== undefined ? room.playerCount : room.currentPlayers || 0;
+                    const displayText = `${roomName} (${playerCount}/${maxDisplay})`;
 
-                this.guiCtx.fillText(displayText, ActionNetManagerGUI.WIDTH / 2, y + 15);
-            }, {
-                renderHeader: () => {
-                    this.renderLabel('Available Rooms:', ActionNetManagerGUI.WIDTH / 2, 330);
+                    this.guiCtx.fillText(displayText, ActionNetManagerGUI.WIDTH / 2, y + 15);
+                },
+                {
+                    renderHeader: () => {
+                        this.renderLabel("Available Rooms:", ActionNetManagerGUI.WIDTH / 2, 330);
+                    }
                 }
-            });
+            );
         } else {
-            this.guiCtx.fillStyle = '#ff0000';
-            this.guiCtx.font = '20px Arial';
-            this.guiCtx.textAlign = 'center';
-            this.guiCtx.fillText('ERROR: roomScroller is null!', ActionNetManagerGUI.WIDTH / 2, ActionNetManagerGUI.HEIGHT / 2);
+            this.guiCtx.fillStyle = "#ff0000";
+            this.guiCtx.font = "20px Arial";
+            this.guiCtx.textAlign = "center";
+            this.guiCtx.fillText(
+                "ERROR: roomScroller is null!",
+                ActionNetManagerGUI.WIDTH / 2,
+                ActionNetManagerGUI.HEIGHT / 2
+            );
         }
     }
-
-
 
     /**
      * Update login
@@ -768,11 +818,11 @@ class ActionNetManagerGUI {
             (async () => {
                 try {
                     const result = await this.networkManager.testServerConnection();
-                    this.serverStatus = result.available ? 'ONLINE' : 'UNAVAILABLE';
-                    this.serverStatusColor = result.available ? '#00ff00' : '#ff0000';
+                    this.serverStatus = result.available ? "ONLINE" : "UNAVAILABLE";
+                    this.serverStatusColor = result.available ? "#00ff00" : "#ff0000";
                 } catch (error) {
-                    this.serverStatus = 'UNAVAILABLE';
-                    this.serverStatusColor = '#ff0000';
+                    this.serverStatus = "UNAVAILABLE";
+                    this.serverStatusColor = "#ff0000";
                 }
             })();
 
@@ -794,13 +844,14 @@ class ActionNetManagerGUI {
             const currentScroll = this.roomScroller.scrollOffset;
 
             // Only refresh items when needed: initial, scroll change, or content change
-            const needsRefresh = currentCount !== this.lastRoomCount ||
+            const needsRefresh =
+                currentCount !== this.lastRoomCount ||
                 currentScroll !== this.lastScrollOffset ||
                 this.lastRoomCount === -1;
 
             if (needsRefresh) {
                 // Use the library's refreshItems method to handle registration properly
-                this.roomScroller.refreshItems(this.availableRooms, 'gui');
+                this.roomScroller.refreshItems(this.availableRooms, "gui");
 
                 // Update tracking
                 this.lastRoomCount = currentCount;
@@ -830,62 +881,76 @@ class ActionNetManagerGUI {
         switch (this.currentState) {
             case "LOGIN":
                 // Handle keyboard/gamepad navigation for LOGIN screen
-                if (this.input.isKeyJustPressed('DirUp') ||
-                    this.input.isGamepadButtonJustPressed(12, 0) || this.input.isGamepadButtonJustPressed(12, 1) ||
-                    this.input.isGamepadButtonJustPressed(12, 2) || this.input.isGamepadButtonJustPressed(12, 3)) {
+                if (
+                    this.input.isKeyJustPressed("DirUp") ||
+                    this.input.isGamepadButtonJustPressed(12, 0) ||
+                    this.input.isGamepadButtonJustPressed(12, 1) ||
+                    this.input.isGamepadButtonJustPressed(12, 2) ||
+                    this.input.isGamepadButtonJustPressed(12, 3)
+                ) {
                     const old = this.selectedIndex;
                     const next = Math.max(0, old - 1);
                     if (next !== old) {
                         this.selectedIndex = next;
-                        this.emit('selectionChanged', { oldIndex: old, newIndex: next });
+                        this.emit("selectionChanged", { oldIndex: old, newIndex: next });
                     }
                 }
-                if (this.input.isKeyJustPressed('DirDown') ||
-                    this.input.isGamepadButtonJustPressed(13, 0) || this.input.isGamepadButtonJustPressed(13, 1) ||
-                    this.input.isGamepadButtonJustPressed(13, 2) || this.input.isGamepadButtonJustPressed(13, 3)) {
+                if (
+                    this.input.isKeyJustPressed("DirDown") ||
+                    this.input.isGamepadButtonJustPressed(13, 0) ||
+                    this.input.isGamepadButtonJustPressed(13, 1) ||
+                    this.input.isGamepadButtonJustPressed(13, 2) ||
+                    this.input.isGamepadButtonJustPressed(13, 3)
+                ) {
                     const old = this.selectedIndex;
                     const next = Math.min(this.loginButtonCount - 1, old + 1);
                     if (next !== old) {
                         this.selectedIndex = next;
-                        this.emit('selectionChanged', { oldIndex: old, newIndex: next });
+                        this.emit("selectionChanged", { oldIndex: old, newIndex: next });
                     }
                 }
                 // Confirm with Action1 (Enter/A button)
-                if (this.input.isKeyJustPressed('Action1') ||
-                    this.input.isGamepadButtonJustPressed(0, 0) || this.input.isGamepadButtonJustPressed(0, 1) ||
-                    this.input.isGamepadButtonJustPressed(0, 2) || this.input.isGamepadButtonJustPressed(0, 3)) {
-
+                if (
+                    this.input.isKeyJustPressed("Action1") ||
+                    this.input.isGamepadButtonJustPressed(0, 0) ||
+                    this.input.isGamepadButtonJustPressed(0, 1) ||
+                    this.input.isGamepadButtonJustPressed(0, 2) ||
+                    this.input.isGamepadButtonJustPressed(0, 3)
+                ) {
                     // Explicit handling:
                     // - Index 0: positive/forward action → emit buttonPressed (menu_confirm).
                     // - Index 1: back/cancel action → emit back only (menu_back handled by game), no confirm.
                     if (this.selectedIndex === 0) {
                         if (!this.connectionInProgress) {
-                            this.emit('buttonPressed');
+                            this.emit("buttonPressed");
                             this.startConnection();
                         }
                     } else if (this.selectedIndex === 1) {
-                        this.emit('back');
+                        this.emit("back");
                     }
                 }
 
                 // Back with Action2 (Escape/B button)
-                if (this.input.isKeyJustPressed('Action2') ||
-                    this.input.isGamepadButtonJustPressed(1, 0) || this.input.isGamepadButtonJustPressed(1, 1) ||
-                    this.input.isGamepadButtonJustPressed(1, 2) || this.input.isGamepadButtonJustPressed(1, 3)) {
-
+                if (
+                    this.input.isKeyJustPressed("Action2") ||
+                    this.input.isGamepadButtonJustPressed(1, 0) ||
+                    this.input.isGamepadButtonJustPressed(1, 1) ||
+                    this.input.isGamepadButtonJustPressed(1, 2) ||
+                    this.input.isGamepadButtonJustPressed(1, 3)
+                ) {
                     // This is a pure back/cancel: no confirm sound.
                     // Disconnect if connected before going back
                     if (this.networkManager.isConnected()) {
                         this.networkManager.disconnect();
                     }
-                    this.emit('back');
+                    this.emit("back");
                 }
 
                 // Mouse input
                 if (this.input.isElementJustPressed("connectButton")) {
                     if (!this.connectionInProgress) {
                         // Positive/forward: confirm sound via buttonPressed.
-                        this.emit('buttonPressed');
+                        this.emit("buttonPressed");
                         this.startConnection();
                     }
                 } else if (this.input.isElementJustPressed("backButton")) {
@@ -894,20 +959,20 @@ class ActionNetManagerGUI {
                         this.networkManager.disconnect();
                     }
                     // Emit back event so game can return to title screen
-                    this.emit('back');
+                    this.emit("back");
                 }
                 // Update selection based on hover
                 if (this.input.isElementHovered("connectButton")) {
                     if (this.selectedIndex !== 0) {
                         const old = this.selectedIndex;
                         this.selectedIndex = 0;
-                        this.emit('selectionChanged', { oldIndex: old, newIndex: 0 });
+                        this.emit("selectionChanged", { oldIndex: old, newIndex: 0 });
                     }
                 } else if (this.input.isElementHovered("backButton")) {
                     if (this.selectedIndex !== 1) {
                         const old = this.selectedIndex;
                         this.selectedIndex = 1;
-                        this.emit('selectionChanged', { oldIndex: old, newIndex: 1 });
+                        this.emit("selectionChanged", { oldIndex: old, newIndex: 1 });
                     }
                 }
                 break;
@@ -916,41 +981,53 @@ class ActionNetManagerGUI {
                 const totalSelectableItems = this.lobbyButtonCount + availableRooms.length;
 
                 // Handle keyboard/gamepad navigation for LOBBY screen
-                if (this.input.isKeyJustPressed('DirUp') ||
-                    this.input.isGamepadButtonJustPressed(12, 0) || this.input.isGamepadButtonJustPressed(12, 1) ||
-                    this.input.isGamepadButtonJustPressed(12, 2) || this.input.isGamepadButtonJustPressed(12, 3)) {
+                if (
+                    this.input.isKeyJustPressed("DirUp") ||
+                    this.input.isGamepadButtonJustPressed(12, 0) ||
+                    this.input.isGamepadButtonJustPressed(12, 1) ||
+                    this.input.isGamepadButtonJustPressed(12, 2) ||
+                    this.input.isGamepadButtonJustPressed(12, 3)
+                ) {
                     const old = this.selectedIndex;
                     const next = Math.max(0, old - 1);
                     if (next !== old) {
                         this.selectedIndex = next;
-                        this.emit('selectionChanged', { oldIndex: old, newIndex: next });
+                        this.emit("selectionChanged", { oldIndex: old, newIndex: next });
                         this.scrollToSelectedItem();
                     }
                 }
-                if (this.input.isKeyJustPressed('DirDown') ||
-                    this.input.isGamepadButtonJustPressed(13, 0) || this.input.isGamepadButtonJustPressed(13, 1) ||
-                    this.input.isGamepadButtonJustPressed(13, 2) || this.input.isGamepadButtonJustPressed(13, 3)) {
+                if (
+                    this.input.isKeyJustPressed("DirDown") ||
+                    this.input.isGamepadButtonJustPressed(13, 0) ||
+                    this.input.isGamepadButtonJustPressed(13, 1) ||
+                    this.input.isGamepadButtonJustPressed(13, 2) ||
+                    this.input.isGamepadButtonJustPressed(13, 3)
+                ) {
                     const old = this.selectedIndex;
                     const next = Math.min(totalSelectableItems - 1, old + 1);
                     if (next !== old) {
                         this.selectedIndex = next;
-                        this.emit('selectionChanged', { oldIndex: old, newIndex: next });
+                        this.emit("selectionChanged", { oldIndex: old, newIndex: next });
                         this.scrollToSelectedItem();
                     }
                 }
 
                 // Confirm with Action1 (Enter/A button)
-                if (this.input.isKeyJustPressed('Action1') ||
-                    this.input.isGamepadButtonJustPressed(0, 0) || this.input.isGamepadButtonJustPressed(0, 1) ||
-                    this.input.isGamepadButtonJustPressed(0, 2) || this.input.isGamepadButtonJustPressed(0, 3)) {
+                if (
+                    this.input.isKeyJustPressed("Action1") ||
+                    this.input.isGamepadButtonJustPressed(0, 0) ||
+                    this.input.isGamepadButtonJustPressed(0, 1) ||
+                    this.input.isGamepadButtonJustPressed(0, 2) ||
+                    this.input.isGamepadButtonJustPressed(0, 3)
+                ) {
                     if (this.selectedIndex === 0) {
-                        this.emit('buttonPressed');
+                        this.emit("buttonPressed");
                         this.changeUsername();
                     } else if (this.selectedIndex === 1) {
-                        this.emit('buttonPressed');
+                        this.emit("buttonPressed");
                         this.createAndJoinRoom();
                     } else if (this.selectedIndex === 2) {
-                        this.emit('backToLogin');
+                        this.emit("backToLogin");
                         this.currentState = "LOGIN";
                         this.selectedIndex = 0; // Reset selection
                     } else {
@@ -958,7 +1035,7 @@ class ActionNetManagerGUI {
                         const roomIndex = this.selectedIndex - this.lobbyButtonCount;
                         if (roomIndex >= 0 && roomIndex < availableRooms.length) {
                             console.log("✅ Room selected via keyboard/gamepad:", availableRooms[roomIndex]);
-                            this.emit('buttonPressed');
+                            this.emit("buttonPressed");
                             // Support both WebSocket (name) and P2P (peerId) formats
                             this.selectedRoom = availableRooms[roomIndex].peerId || availableRooms[roomIndex].name;
                             this.joinSelectedRoom();
@@ -967,25 +1044,29 @@ class ActionNetManagerGUI {
                 }
 
                 // Back with Action2 (Escape/B button)
-                if (this.input.isKeyJustPressed('Action2') ||
-                    this.input.isGamepadButtonJustPressed(1, 0) || this.input.isGamepadButtonJustPressed(1, 1) ||
-                    this.input.isGamepadButtonJustPressed(1, 2) || this.input.isGamepadButtonJustPressed(1, 3)) {
+                if (
+                    this.input.isKeyJustPressed("Action2") ||
+                    this.input.isGamepadButtonJustPressed(1, 0) ||
+                    this.input.isGamepadButtonJustPressed(1, 1) ||
+                    this.input.isGamepadButtonJustPressed(1, 2) ||
+                    this.input.isGamepadButtonJustPressed(1, 3)
+                ) {
                     // Disconnect when going back from lobby
                     if (this.networkManager.isConnected()) {
                         this.networkManager.disconnect();
                     }
                     this.connectionInProgress = false; // Reset button state
-                    this.emit('backToLogin');
+                    this.emit("backToLogin");
                     this.currentState = "LOGIN";
                     this.selectedIndex = 0; // Reset selection
                 }
 
                 // Mouse input
                 if (this.input.isElementJustPressed("createRoomButton")) {
-                    this.emit('buttonPressed');
+                    this.emit("buttonPressed");
                     this.createAndJoinRoom();
                 } else if (this.input.isElementJustPressed("changeNameButton")) {
-                    this.emit('buttonPressed');
+                    this.emit("buttonPressed");
                     this.changeUsername();
                 } else if (this.input.isElementJustPressed("backToLoginButton")) {
                     // Disconnect when going back from lobby
@@ -993,7 +1074,7 @@ class ActionNetManagerGUI {
                         this.networkManager.disconnect();
                     }
                     this.connectionInProgress = false; // Reset button state
-                    this.emit('backToLogin');
+                    this.emit("backToLogin");
                     this.currentState = "LOGIN";
                     this.selectedIndex = 0; // Reset selection
                 } else {
@@ -1004,7 +1085,7 @@ class ActionNetManagerGUI {
                         const isPressed = this.input.isElementJustPressed(elementId);
 
                         if (isPressed && availableRooms[i]) {
-                            this.emit('buttonPressed');
+                            this.emit("buttonPressed");
                             console.log("✅ Room clicked:", availableRooms[i]);
                             // Support both WebSocket (name) and P2P (peerId) formats
                             this.selectedRoom = availableRooms[i].peerId || availableRooms[i].name;
@@ -1019,19 +1100,19 @@ class ActionNetManagerGUI {
                     if (this.selectedIndex !== 0) {
                         const old = this.selectedIndex;
                         this.selectedIndex = 0;
-                        this.emit('selectionChanged', { oldIndex: old, newIndex: 0 });
+                        this.emit("selectionChanged", { oldIndex: old, newIndex: 0 });
                     }
                 } else if (this.input.isElementHovered("createRoomButton")) {
                     if (this.selectedIndex !== 1) {
                         const old = this.selectedIndex;
                         this.selectedIndex = 1;
-                        this.emit('selectionChanged', { oldIndex: old, newIndex: 1 });
+                        this.emit("selectionChanged", { oldIndex: old, newIndex: 1 });
                     }
                 } else if (this.input.isElementHovered("backToLoginButton")) {
                     if (this.selectedIndex !== 2) {
                         const old = this.selectedIndex;
                         this.selectedIndex = 2;
-                        this.emit('selectionChanged', { oldIndex: old, newIndex: 2 });
+                        this.emit("selectionChanged", { oldIndex: old, newIndex: 2 });
                     }
                 } else {
                     // Check room hover
@@ -1041,7 +1122,7 @@ class ActionNetManagerGUI {
                             if (this.selectedIndex !== next) {
                                 const old = this.selectedIndex;
                                 this.selectedIndex = next;
-                                this.emit('selectionChanged', { oldIndex: old, newIndex: next });
+                                this.emit("selectionChanged", { oldIndex: old, newIndex: next });
                             }
                             break;
                         }
@@ -1057,17 +1138,17 @@ class ActionNetManagerGUI {
     async startConnection() {
         this.username = this.generateRandomUsername();
         this.currentState = "LOGIN";
-        this.serverStatus = 'CONNECTING';
-        this.serverStatusColor = '#ffff00';
+        this.serverStatus = "CONNECTING";
+        this.serverStatusColor = "#ffff00";
         this.connectionInProgress = true; // Prevent multiple clicks
 
         // Show spinner for P2P mode
-        if (this.networkMode === 'p2p') {
+        if (this.networkMode === "p2p") {
             this.isConnecting = true;
         }
 
         try {
-            if (this.networkMode === 'p2p') {
+            if (this.networkMode === "p2p") {
                 // P2P mode: join the game via DHT
                 await this.networkManager.joinGame(this.networkManager.config.gameId, this.username);
             } else {
@@ -1076,8 +1157,8 @@ class ActionNetManagerGUI {
             }
 
             // Update status immediately on success
-            this.serverStatus = 'ONLINE';
-            this.serverStatusColor = '#00ff00';
+            this.serverStatus = "ONLINE";
+            this.serverStatusColor = "#00ff00";
             this.isConnecting = false; // Stop spinner
             this.connectionInProgress = false; // Connection complete, button is no longer greyed out
             // Clear server check interval since we're now connected
@@ -1090,8 +1171,8 @@ class ActionNetManagerGUI {
         } catch (error) {
             console.error("Failed to connect:", error);
             // Update status immediately on failure
-            this.serverStatus = 'UNAVAILABLE';
-            this.serverStatusColor = '#ff0000';
+            this.serverStatus = "UNAVAILABLE";
+            this.serverStatusColor = "#ff0000";
             this.isConnecting = false; // Stop spinner
             this.connectionInProgress = false; // Allow retry on failure
         }
@@ -1101,38 +1182,42 @@ class ActionNetManagerGUI {
      * Join selected room
      */
     joinSelectedRoom() {
-         if (!this.selectedRoom) return;
+        if (!this.selectedRoom) return;
 
-         // Check if room is full before attempting to join
-         const availableRooms = this.networkManager.getAvailableRooms();
-         const selectedRoomData = availableRooms.find(r => (r.peerId || r.name) === this.selectedRoom);
-         
-         if (selectedRoomData) {
-             const maxDisplay = selectedRoomData.maxPlayers === -1 ? '∞' : selectedRoomData.maxPlayers;
-             const currentPlayers = selectedRoomData.playerCount !== undefined ? selectedRoomData.playerCount : selectedRoomData.currentPlayers || 0;
-             const isFull = selectedRoomData.maxPlayers > 0 && currentPlayers >= selectedRoomData.maxPlayers;
-             
-             if (isFull) {
-                 this.showErrorModal("Room Full", `This room is full (${currentPlayers}/${maxDisplay}).`);
-                 return;
-             }
-         }
+        // Check if room is full before attempting to join
+        const availableRooms = this.networkManager.getAvailableRooms();
+        const selectedRoomData = availableRooms.find((r) => (r.peerId || r.name) === this.selectedRoom);
 
-         // P2P mode: do granular join with step-by-step messages
-         if (this.networkMode === 'p2p') {
-             this.performP2PJoin(this.selectedRoom);
-         } else {
-             // WebSocket mode: simple one-shot join
-             this.networkManager.joinRoom(this.selectedRoom)
-                 .then(() => {
-                     // Event will be emitted by setupNetworkEvents
-                 })
-                 .catch((error) => {
-                     console.error("Failed to join room:", error);
-                     this.showErrorModal("Cannot Join Room", error.message || "Failed to join the selected room");
-                 });
-         }
-     }
+        if (selectedRoomData) {
+            const maxDisplay = selectedRoomData.maxPlayers === -1 ? "∞" : selectedRoomData.maxPlayers;
+            const currentPlayers =
+                selectedRoomData.playerCount !== undefined
+                    ? selectedRoomData.playerCount
+                    : selectedRoomData.currentPlayers || 0;
+            const isFull = selectedRoomData.maxPlayers > 0 && currentPlayers >= selectedRoomData.maxPlayers;
+
+            if (isFull) {
+                this.showErrorModal("Room Full", `This room is full (${currentPlayers}/${maxDisplay}).`);
+                return;
+            }
+        }
+
+        // P2P mode: do granular join with step-by-step messages
+        if (this.networkMode === "p2p") {
+            this.performP2PJoin(this.selectedRoom);
+        } else {
+            // WebSocket mode: simple one-shot join
+            this.networkManager
+                .joinRoom(this.selectedRoom)
+                .then(() => {
+                    // Event will be emitted by setupNetworkEvents
+                })
+                .catch((error) => {
+                    console.error("Failed to join room:", error);
+                    this.showErrorModal("Cannot Join Room", error.message || "Failed to join the selected room");
+                });
+        }
+    }
 
     /**
      * Perform P2P join with granular steps and modal progress
@@ -1141,46 +1226,46 @@ class ActionNetManagerGUI {
         try {
             this.joinModalVisible = true;
             this.joinModalHostPeerId = hostPeerId;
-            
+
             // Step 1: Contacting host
-            this.joinModalStatus = 'contactingHost';
+            this.joinModalStatus = "contactingHost";
             this.joinModalStatusSetTime = Date.now();
             await this.delay(500);
             await this.networkManager.initiateConnection(hostPeerId);
-            
+
             // Step 2: Offer sent (start listening for acceptance immediately)
-            this.joinModalStatus = 'offerSent';
+            this.joinModalStatus = "offerSent";
             this.joinModalStatusSetTime = Date.now();
-            
+
             await this.networkManager.sendOffer(hostPeerId);
-            
+
             // Start waiting for acceptance, but ensure 500ms minimum display
             const acceptancePromise = this.networkManager.waitForAcceptance(hostPeerId);
             await this.delay(500);
             await acceptancePromise;
-            
+
             // Step 3: Accepted by host (now that it actually accepted)
-            this.joinModalStatus = 'acceptedByHost';
+            this.joinModalStatus = "acceptedByHost";
             this.joinModalStatusSetTime = Date.now();
             await this.delay(500);
-            
+
             // Step 4: Establishing connection
-            this.joinModalStatus = 'establishingConnection';
+            this.joinModalStatus = "establishingConnection";
             this.joinModalStatusSetTime = Date.now();
             await this.delay(500);
             await this.networkManager.openGameChannel(hostPeerId);
-            
+
             // Step 5: Connected
-            this.joinModalStatus = 'connected';
+            this.joinModalStatus = "connected";
             await this.delay(500);
-            
+
             // Done - close modal and emit event
             this.joinModalVisible = false;
-            this.emit('joinedRoom', hostPeerId);
+            this.emit("joinedRoom", hostPeerId);
         } catch (error) {
             this.joinModalVisible = false;
             console.error("P2P join failed:", error);
-            
+
             // Clean up the connection attempt
             const peerData = this.networkManager.peerConnections.get(hostPeerId);
             if (peerData) {
@@ -1193,7 +1278,7 @@ class ActionNetManagerGUI {
                     peerData.channel = null;
                 }
             }
-            
+
             this.showErrorModal("Cannot Join Room", error.message || "Failed to join the selected room");
         }
     }
@@ -1202,7 +1287,7 @@ class ActionNetManagerGUI {
      * Simple delay helper
      */
     delay(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
+        return new Promise((resolve) => setTimeout(resolve, ms));
     }
 
     /**
@@ -1210,17 +1295,18 @@ class ActionNetManagerGUI {
      */
     createAndJoinRoom() {
         // For P2P mode, create a room (become host)
-        if (this.networkMode === 'p2p') {
+        if (this.networkMode === "p2p") {
             // P2P needs to call joinGame first to set up currentGameId
             // Use the default gameId from P2P config
-            const gameId = this.networkManager.config.gameId || 'game-id-00000';
+            const gameId = this.networkManager.config.gameId || "game-id-00000";
             this.networkManager.currentGameId = gameId;
             this.networkManager.createRoom();
             // console.log("[ActionNetManagerGUI] Created P2P room, waiting for players...");
         } else {
             // For WebSocket mode, join a room with a generated name
             const roomName = `${this.username}'s room`;
-            this.networkManager.joinRoom(roomName)
+            this.networkManager
+                .joinRoom(roomName)
                 .then(() => {
                     // Event will be emitted
                 })
@@ -1250,27 +1336,71 @@ class ActionNetManagerGUI {
      */
     generateRandomUsername() {
         const adjectives = [
-            'Big', 'Floppy', 'Little', 'Goofy', 'Wiggly',
-            'Stinky', 'Chunky', 'Bouncy', 'Silly', 'Noisy',
-            'Tiny', 'Cracked', 'Lit', 'Steamy', 'Epic',
-            'Super', 'Mega', 'Giant', 'Double', 'Salty',
-            'Farty', 'Smelly', 'Sneaky', 'Gassy', 'Crusty',
-            'Soggy', 'Tooty', 'Ratchet', 'Nasty', 'Squeaky',
-            'Skibidi', 'Rizzy', 'Saucy', 'Mid', 'Sussy', "Lil' "
+            "Big",
+            "Floppy",
+            "Little",
+            "Goofy",
+            "Wiggly",
+            "Stinky",
+            "Chunky",
+            "Bouncy",
+            "Silly",
+            "Noisy",
+            "Tiny",
+            "Cracked",
+            "Lit",
+            "Steamy",
+            "Epic",
+            "Super",
+            "Mega",
+            "Giant",
+            "Double",
+            "Salty",
+            "Farty",
+            "Smelly",
+            "Sneaky",
+            "Gassy",
+            "Crusty",
+            "Soggy",
+            "Tooty",
+            "Ratchet",
+            "Nasty",
+            "Squeaky",
+            "Skibidi",
+            "Rizzy",
+            "Saucy",
+            "Mid",
+            "Sussy",
+            "Lil' "
         ];
 
         const nouns = [
-            'Farter', 'Butt', 'PooPoo', 'Nugget', 'Tooter', 'Turd',
-            'Poop', 'Squeaker', 'DooDoo', 'Pooter', 'Dumper', 'Keister',
-            'Fart', 'Hiney', 'Pooper', 'Booty', 'Stinker', 'Skidmark',
-            'Ahh', 'Buns', 'Cheeks', 'Tushy', 'Doody'
+            "Farter",
+            "Butt",
+            "PooPoo",
+            "Nugget",
+            "Tooter",
+            "Turd",
+            "Poop",
+            "Squeaker",
+            "DooDoo",
+            "Pooter",
+            "Dumper",
+            "Keister",
+            "Fart",
+            "Hiney",
+            "Pooper",
+            "Booty",
+            "Stinker",
+            "Skidmark",
+            "Ahh",
+            "Buns",
+            "Cheeks",
+            "Tushy",
+            "Doody"
         ];
 
-        const funNumbers = [
-            '69', '420', '666', '1337', '123',
-            '007', '101', '999', '321', '777',
-            '67', '911', ''
-        ];
+        const funNumbers = ["69", "420", "666", "1337", "123", "007", "101", "999", "321", "777", "67", "911", ""];
 
         const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
         const noun = nouns[Math.floor(Math.random() * nouns.length)];
@@ -1283,7 +1413,7 @@ class ActionNetManagerGUI {
      */
     startServerCheck() {
         // Skip server check for P2P mode (DHT connectivity is implicit)
-        if (this.networkMode === 'p2p') {
+        if (this.networkMode === "p2p") {
             return;
         }
 
@@ -1292,11 +1422,11 @@ class ActionNetManagerGUI {
             if (!this.networkManager.isConnected()) {
                 try {
                     const result = await this.networkManager.testServerConnection();
-                    this.serverStatus = result.available ? 'ONLINE' : 'UNAVAILABLE';
-                    this.serverStatusColor = result.available ? '#00ff00' : '#ff0000';
+                    this.serverStatus = result.available ? "ONLINE" : "UNAVAILABLE";
+                    this.serverStatusColor = result.available ? "#00ff00" : "#ff0000";
                 } catch (error) {
-                    this.serverStatus = 'UNAVAILABLE';
-                    this.serverStatusColor = '#ff0000';
+                    this.serverStatus = "UNAVAILABLE";
+                    this.serverStatusColor = "#ff0000";
                 }
             }
         }, 3000);
@@ -1325,30 +1455,30 @@ class ActionNetManagerGUI {
 
     /**
      * Register a custom message handler for one-shot actions
-     * 
+     *
      * Use this for non-periodic game events like:
      * - garbageSent (Tetris attack)
      * - itemUsed (power-up activation)
      * - chatMessage (player communication)
-     * 
+     *
      * For periodic state sync (position, score, etc), use syncSystem.register() instead.
-     * 
+     *
      * @param {String} messageType - Message type to handle (e.g., 'garbageSent')
      * @param {Function} handler - Handler function (message) => {}
-     * 
+     *
      * Example:
      * gui.registerMessageHandler('garbageSent', (msg) => {
      *     gameManager.addGarbage(msg.targetPlayer, msg.lines);
      * });
      */
     registerMessageHandler(messageType, handler) {
-        if (!messageType || typeof messageType !== 'string') {
-            console.error('[ActionNetManagerGUI] Invalid message type:', messageType);
+        if (!messageType || typeof messageType !== "string") {
+            console.error("[ActionNetManagerGUI] Invalid message type:", messageType);
             return false;
         }
 
-        if (typeof handler !== 'function') {
-            console.error('[ActionNetManagerGUI] Handler must be a function');
+        if (typeof handler !== "function") {
+            console.error("[ActionNetManagerGUI] Handler must be a function");
             return false;
         }
 
@@ -1359,7 +1489,7 @@ class ActionNetManagerGUI {
 
     /**
      * Remove a custom message handler
-     * 
+     *
      * @param {String} messageType - Message type to unregister
      */
     unregisterMessageHandler(messageType) {
@@ -1453,7 +1583,10 @@ class ActionNetManagerGUI {
         }
 
         // Clamp scroll offset to valid range
-        this.roomScroller.scrollOffset = Math.max(0, Math.min(this.roomScroller.maxScrollOffset, this.roomScroller.scrollOffset));
+        this.roomScroller.scrollOffset = Math.max(
+            0,
+            Math.min(this.roomScroller.maxScrollOffset, this.roomScroller.scrollOffset)
+        );
     }
 
     /**
@@ -1470,8 +1603,8 @@ class ActionNetManagerGUI {
      */
     hideErrorModal() {
         this.errorModalVisible = false;
-        this.errorModalTitle = '';
-        this.errorModalMessage = '';
+        this.errorModalTitle = "";
+        this.errorModalMessage = "";
     }
 
     /**
@@ -1479,7 +1612,7 @@ class ActionNetManagerGUI {
      */
     renderErrorModal() {
         // Semi-transparent overlay
-        this.guiCtx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        this.guiCtx.fillStyle = "rgba(0, 0, 0, 0.7)";
         this.guiCtx.fillRect(0, 0, ActionNetManagerGUI.WIDTH, ActionNetManagerGUI.HEIGHT);
 
         // Modal dimensions
@@ -1489,17 +1622,34 @@ class ActionNetManagerGUI {
         const modalY = (ActionNetManagerGUI.HEIGHT - modalHeight) / 2;
 
         // Modal background (matching GUI button style)
-        this.guiCtx.fillStyle = '#333333';
+        this.guiCtx.fillStyle = "#333333";
         this.guiCtx.fillRect(modalX, modalY, modalWidth, modalHeight);
-        this.guiCtx.strokeStyle = '#888888';
+        this.guiCtx.strokeStyle = "#888888";
         this.guiCtx.lineWidth = 2;
         this.guiCtx.strokeRect(modalX, modalY, modalWidth, modalHeight);
 
         // Title
-        this.renderLabel(this.errorModalTitle, ActionNetManagerGUI.WIDTH / 2, modalY + 40, 'bold 32px Arial', '#ffffff', 'center', 'middle', 8, false);
+        this.renderLabel(
+            this.errorModalTitle,
+            ActionNetManagerGUI.WIDTH / 2,
+            modalY + 40,
+            "bold 32px Arial",
+            "#ffffff",
+            "center",
+            "middle",
+            8,
+            false
+        );
 
         // Message (with text wrapping)
-        this.renderWrappedText(this.errorModalMessage, ActionNetManagerGUI.WIDTH / 2, modalY + 90, 370, '20px Arial', '#cccccc');
+        this.renderWrappedText(
+            this.errorModalMessage,
+            ActionNetManagerGUI.WIDTH / 2,
+            modalY + 90,
+            370,
+            "20px Arial",
+            "#cccccc"
+        );
 
         // Back button (centered)
         const buttonWidth = 120;
@@ -1508,21 +1658,21 @@ class ActionNetManagerGUI {
         const buttonY = modalY + modalHeight - 70;
 
         // Check if back button is hovered or selected (for keyboard/gamepad navigation)
-        const isHovered = this.input.isElementHovered('error_modal_back_button');
+        const isHovered = this.input.isElementHovered("error_modal_back_button");
         const isSelected = true; // Always selected since it's the only button
 
-        this.guiCtx.fillStyle = isHovered ? '#555555' : '#333333';
+        this.guiCtx.fillStyle = isHovered ? "#555555" : "#333333";
         this.guiCtx.fillRect(buttonX, buttonY, buttonWidth, buttonHeight);
-        this.guiCtx.strokeStyle = isSelected ? '#ffffff' : '#888888'; // White border for selection
+        this.guiCtx.strokeStyle = isSelected ? "#ffffff" : "#888888"; // White border for selection
         this.guiCtx.lineWidth = isSelected ? 3 : 2; // Thicker border for selection
         this.guiCtx.strokeRect(buttonX, buttonY, buttonWidth, buttonHeight);
 
         // Button text
-        this.guiCtx.fillStyle = '#ffffff';
-        this.guiCtx.font = 'bold 20px Arial';
-        this.guiCtx.textAlign = 'center';
-        this.guiCtx.textBaseline = 'middle';
-        this.guiCtx.fillText('BACK', buttonX + buttonWidth / 2, buttonY + buttonHeight / 2);
+        this.guiCtx.fillStyle = "#ffffff";
+        this.guiCtx.font = "bold 20px Arial";
+        this.guiCtx.textAlign = "center";
+        this.guiCtx.textBaseline = "middle";
+        this.guiCtx.fillText("BACK", buttonX + buttonWidth / 2, buttonY + buttonHeight / 2);
     }
 
     /**
@@ -1530,7 +1680,7 @@ class ActionNetManagerGUI {
      */
     handleErrorModalInput() {
         // Register back button if not already registered
-        if (!this.input.rawState.elements.gui.has('error_modal_back_button')) {
+        if (!this.input.rawState.elements.gui.has("error_modal_back_button")) {
             const modalWidth = 400;
             const modalHeight = 200;
             const modalX = (ActionNetManagerGUI.WIDTH - modalWidth) / 2;
@@ -1540,7 +1690,7 @@ class ActionNetManagerGUI {
             const buttonX = (ActionNetManagerGUI.WIDTH - buttonWidth) / 2;
             const buttonY = modalY + modalHeight - 70;
 
-            this.input.registerElement('error_modal_back_button', {
+            this.input.registerElement("error_modal_back_button", {
                 bounds: () => ({
                     x: buttonX,
                     y: buttonY,
@@ -1551,33 +1701,41 @@ class ActionNetManagerGUI {
         }
 
         // Handle button press
-        if (this.input.isElementJustPressed('error_modal_back_button')) {
+        if (this.input.isElementJustPressed("error_modal_back_button")) {
             this.hideErrorModal();
             // Unregister the button
-            this.input.removeElement('error_modal_back_button');
+            this.input.removeElement("error_modal_back_button");
         }
 
         // Handle keyboard/gamepad input
-        if (this.input.isKeyJustPressed('Action1') ||
-            this.input.isGamepadButtonJustPressed(0, 0) || this.input.isGamepadButtonJustPressed(0, 1) ||
-            this.input.isGamepadButtonJustPressed(0, 2) || this.input.isGamepadButtonJustPressed(0, 3)) {
+        if (
+            this.input.isKeyJustPressed("Action1") ||
+            this.input.isGamepadButtonJustPressed(0, 0) ||
+            this.input.isGamepadButtonJustPressed(0, 1) ||
+            this.input.isGamepadButtonJustPressed(0, 2) ||
+            this.input.isGamepadButtonJustPressed(0, 3)
+        ) {
             this.hideErrorModal();
-            this.input.removeElement('error_modal_back_button');
+            this.input.removeElement("error_modal_back_button");
         }
 
         // Handle escape/back button
-        if (this.input.isKeyJustPressed('Action2') ||
-            this.input.isKeyJustPressed('Escape') ||
-            this.input.isGamepadButtonJustPressed(1, 0) || this.input.isGamepadButtonJustPressed(1, 1) ||
-            this.input.isGamepadButtonJustPressed(1, 2) || this.input.isGamepadButtonJustPressed(1, 3)) {
+        if (
+            this.input.isKeyJustPressed("Action2") ||
+            this.input.isKeyJustPressed("Escape") ||
+            this.input.isGamepadButtonJustPressed(1, 0) ||
+            this.input.isGamepadButtonJustPressed(1, 1) ||
+            this.input.isGamepadButtonJustPressed(1, 2) ||
+            this.input.isGamepadButtonJustPressed(1, 3)
+        ) {
             this.hideErrorModal();
-            this.input.removeElement('error_modal_back_button');
+            this.input.removeElement("error_modal_back_button");
         }
     }
 
     /**
-    * Render a rotating spinner wheel
-    */
+     * Render a rotating spinner wheel
+     */
     renderSpinner(x, y, radius = 20, lineWidth = 3) {
         this.guiCtx.save();
 
@@ -1600,7 +1758,7 @@ class ActionNetManagerGUI {
 
             this.guiCtx.strokeStyle = `rgba(136, 136, 136, ${opacity * 0.8})`;
             this.guiCtx.lineWidth = lineWidth;
-            this.guiCtx.lineCap = 'round';
+            this.guiCtx.lineCap = "round";
 
             const x1 = 0;
             const y1 = -(radius / 3);
@@ -1616,7 +1774,7 @@ class ActionNetManagerGUI {
         }
 
         // Draw outer circle
-        this.guiCtx.strokeStyle = '#666666';
+        this.guiCtx.strokeStyle = "#666666";
         this.guiCtx.beginPath();
         this.guiCtx.arc(0, 0, radius, 0, Math.PI * 2);
         this.guiCtx.stroke();
@@ -1629,7 +1787,7 @@ class ActionNetManagerGUI {
      */
     renderJoinModal() {
         // Semi-transparent overlay
-        this.guiCtx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        this.guiCtx.fillStyle = "rgba(0, 0, 0, 0.7)";
         this.guiCtx.fillRect(0, 0, ActionNetManagerGUI.WIDTH, ActionNetManagerGUI.HEIGHT);
 
         // Modal dimensions
@@ -1639,28 +1797,48 @@ class ActionNetManagerGUI {
         const modalY = (ActionNetManagerGUI.HEIGHT - modalHeight) / 2;
 
         // Modal background
-        this.guiCtx.fillStyle = '#333333';
+        this.guiCtx.fillStyle = "#333333";
         this.guiCtx.fillRect(modalX, modalY, modalWidth, modalHeight);
-        this.guiCtx.strokeStyle = '#888888';
+        this.guiCtx.strokeStyle = "#888888";
         this.guiCtx.lineWidth = 2;
         this.guiCtx.strokeRect(modalX, modalY, modalWidth, modalHeight);
 
         // Title
-        this.renderLabel('Joining Game', ActionNetManagerGUI.WIDTH / 2, modalY + 40, 'bold 32px Arial', '#ffffff', 'center', 'middle', 8, false);
+        this.renderLabel(
+            "Joining Game",
+            ActionNetManagerGUI.WIDTH / 2,
+            modalY + 40,
+            "bold 32px Arial",
+            "#ffffff",
+            "center",
+            "middle",
+            8,
+            false
+        );
 
         // Status messages
         const statuses = {
-            'contactingHost': 'Contacting host...',
-            'offerSent': 'Waiting for host...',
-            'acceptedByHost': 'Host accepted',
-            'establishingConnection': 'Establishing connection...',
-            'connected': 'Connected!'
+            contactingHost: "Contacting host...",
+            offerSent: "Waiting for host...",
+            acceptedByHost: "Host accepted",
+            establishingConnection: "Establishing connection...",
+            connected: "Connected!"
         };
 
-        const statusMessage = statuses[this.joinModalStatus] || 'Connecting...';
-        
+        const statusMessage = statuses[this.joinModalStatus] || "Connecting...";
+
         // Centered message with spinner below
-        this.renderLabel(statusMessage, ActionNetManagerGUI.WIDTH / 2, modalY + 100, '22px Arial', '#ffffff', 'center', 'middle', 8, false);
+        this.renderLabel(
+            statusMessage,
+            ActionNetManagerGUI.WIDTH / 2,
+            modalY + 100,
+            "22px Arial",
+            "#ffffff",
+            "center",
+            "middle",
+            8,
+            false
+        );
         this.renderSpinner(ActionNetManagerGUI.WIDTH / 2, modalY + 145, 15, 2);
 
         // Cancel button
@@ -1669,23 +1847,23 @@ class ActionNetManagerGUI {
         const buttonX = (ActionNetManagerGUI.WIDTH - buttonWidth) / 2;
         const buttonY = modalY + modalHeight - 60;
 
-        const isHovered = this.input.isElementHovered('join_modal_cancel_button');
+        const isHovered = this.input.isElementHovered("join_modal_cancel_button");
 
-        this.guiCtx.fillStyle = isHovered ? '#555555' : '#333333';
+        this.guiCtx.fillStyle = isHovered ? "#555555" : "#333333";
         this.guiCtx.fillRect(buttonX, buttonY, buttonWidth, buttonHeight);
-        this.guiCtx.strokeStyle = '#888888';
+        this.guiCtx.strokeStyle = "#888888";
         this.guiCtx.lineWidth = 2;
         this.guiCtx.strokeRect(buttonX, buttonY, buttonWidth, buttonHeight);
 
-        this.guiCtx.fillStyle = '#ffffff';
-        this.guiCtx.font = 'bold 16px Arial';
-        this.guiCtx.textAlign = 'center';
-        this.guiCtx.textBaseline = 'middle';
-        this.guiCtx.fillText('CANCEL', buttonX + buttonWidth / 2, buttonY + buttonHeight / 2);
+        this.guiCtx.fillStyle = "#ffffff";
+        this.guiCtx.font = "bold 16px Arial";
+        this.guiCtx.textAlign = "center";
+        this.guiCtx.textBaseline = "middle";
+        this.guiCtx.fillText("CANCEL", buttonX + buttonWidth / 2, buttonY + buttonHeight / 2);
 
         // Register cancel button
-        if (!this.input.rawState.elements.gui.has('join_modal_cancel_button')) {
-            this.input.registerElement('join_modal_cancel_button', {
+        if (!this.input.rawState.elements.gui.has("join_modal_cancel_button")) {
+            this.input.registerElement("join_modal_cancel_button", {
                 bounds: () => ({
                     x: buttonX,
                     y: buttonY,
@@ -1700,10 +1878,9 @@ class ActionNetManagerGUI {
      * Handle join modal input
      */
     handleJoinModalInput() {
-        if (this.input.isElementJustPressed('join_modal_cancel_button') ||
-            this.input.isKeyJustPressed('Escape')) {
+        if (this.input.isElementJustPressed("join_modal_cancel_button") || this.input.isKeyJustPressed("Escape")) {
             this.joinModalVisible = false;
-            this.input.removeElement('join_modal_cancel_button');
+            this.input.removeElement("join_modal_cancel_button");
             // TODO: abort the join attempt
         }
     }
