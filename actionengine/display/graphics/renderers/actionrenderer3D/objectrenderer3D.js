@@ -14,6 +14,7 @@ class ObjectRenderer3D {
             position: this.gl.createBuffer(),
             normal: this.gl.createBuffer(),
             color: this.gl.createBuffer(),
+            alpha: this.gl.createBuffer(), // Add alpha buffer for transparency
             uv: this.gl.createBuffer(), // Add texture coordinate buffer
             textureIndex: this.gl.createBuffer(), // Add texture index buffer
             useTexture: this.gl.createBuffer(), // Add use texture flag buffer
@@ -150,6 +151,7 @@ class ObjectRenderer3D {
                 positions: new Float32Array(totalVertexCount),
                 normals: new Float32Array(totalVertexCount),
                 colors: new Float32Array(totalVertexCount),
+                alphas: new Float32Array(totalVertexCount / 3), // One alpha per vertex
                 indices: new IndexArrayType(totalIndexCount)
             };
         }
@@ -164,7 +166,7 @@ class ObjectRenderer3D {
             this.textureArrays.useTextureFlags.fill(0);
         }
 
-        const { positions, normals, colors, indices } = this.cachedArrays;
+        const { positions, normals, colors, alphas, indices } = this.cachedArrays;
 
         // Track offset for placing objects in buffer
         let triangleOffset = 0;
@@ -187,6 +189,7 @@ class ObjectRenderer3D {
 
                 // Cache color conversion (only once per triangle)
                 const color = triangle.color;
+                let alpha = triangle.alpha !== undefined ? triangle.alpha : 1.0;
                 if (color !== triangle.lastColor) {
                     // Use integer operations instead of substring for better performance
                     const hexColor = parseInt(color.slice(1), 16);
@@ -214,6 +217,7 @@ class ObjectRenderer3D {
                 // Vertex 0
                 const v0 = triangle.vertices[0];
                 const vo0 = baseIndex;
+                const alphaIndex0 = (triangleOffset + i) * 3;
                 positions[vo0] = v0.x;
                 positions[vo0 + 1] = v0.y;
                 positions[vo0 + 2] = v0.z;
@@ -223,10 +227,12 @@ class ObjectRenderer3D {
                 colors[vo0] = r;
                 colors[vo0 + 1] = g;
                 colors[vo0 + 2] = b;
+                alphas[alphaIndex0] = alpha;
 
                 // Vertex 1
                 const v1 = triangle.vertices[1];
                 const vo1 = baseIndex + 3;
+                const alphaIndex1 = alphaIndex0 + 1;
                 positions[vo1] = v1.x;
                 positions[vo1 + 1] = v1.y;
                 positions[vo1 + 2] = v1.z;
@@ -236,10 +242,12 @@ class ObjectRenderer3D {
                 colors[vo1] = r;
                 colors[vo1 + 1] = g;
                 colors[vo1 + 2] = b;
+                alphas[alphaIndex1] = alpha;
 
                 // Vertex 2
                 const v2 = triangle.vertices[2];
                 const vo2 = baseIndex + 6;
+                const alphaIndex2 = alphaIndex0 + 2;
                 positions[vo2] = v2.x;
                 positions[vo2 + 1] = v2.y;
                 positions[vo2 + 2] = v2.z;
@@ -249,6 +257,7 @@ class ObjectRenderer3D {
                 colors[vo2] = r;
                 colors[vo2 + 1] = g;
                 colors[vo2 + 2] = b;
+                alphas[alphaIndex2] = alpha;
 
                 // Set up indices with correct offsets for each object
                 const indexBaseOffset = (triangleOffset + i) * 3;
@@ -333,7 +342,8 @@ class ObjectRenderer3D {
         const bufferUpdates = [
             { buffer: this.buffers.position, data: positions },
             { buffer: this.buffers.normal, data: normals },
-            { buffer: this.buffers.color, data: colors }
+            { buffer: this.buffers.color, data: colors },
+            { buffer: this.buffers.alpha, data: alphas }
         ];
 
         for (const { buffer, data } of bufferUpdates) {
@@ -547,31 +557,6 @@ class ObjectRenderer3D {
             }
         }
 
-        // Set shadow map uniforms if they exist in the shader
-        if (locations.shadowsEnabled !== -1 && locations.shadowsEnabled !== null) {
-            // Set by renderer during shadow map binding
-            const shadowsEnabled = this.renderer.shadowsEnabled ? 1 : 0;
-            gl.uniform1i(locations.shadowsEnabled, shadowsEnabled);
-        }
-
-        // Set shadow bias if available
-        if (locations.shadowBias !== -1 && locations.shadowBias !== null) {
-            const shadowBias = this._uniformCache.shadowBias || 0.05;
-            gl.uniform1f(locations.shadowBias, shadowBias);
-        }
-
-        // Only set light space matrix if directional light is actually enabled
-        // We don't want to do sneaky calculations with default matrices
-        if (
-            locations.lightSpaceMatrix !== -1 &&
-            locations.lightSpaceMatrix !== null &&
-            this._uniformCache.matrices.lightSpace &&
-            this.lightManager.isMainDirectionalLightEnabled()
-        ) {
-            // Apply the actual light space matrix from the light
-            gl.uniformMatrix4fv(locations.lightSpaceMatrix, false, this._uniformCache.matrices.lightSpace);
-        }
-
         // Track how many uniform sets we've performed
         this.stats.uniformSetCount++;
     }
@@ -596,6 +581,13 @@ class ObjectRenderer3D {
             gl.bindBuffer(ARRAY_BUFFER, this.buffers.color);
             gl.vertexAttribPointer(locations.color, 3, gl.FLOAT, false, 0, 0);
             gl.enableVertexAttribArray(locations.color);
+        }
+
+        // Alpha attribute
+        if (locations.alpha !== -1) {
+            gl.bindBuffer(ARRAY_BUFFER, this.buffers.alpha);
+            gl.vertexAttribPointer(locations.alpha, 1, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(locations.alpha);
         }
 
         // Always set up texture attributes for consistent behavior
@@ -673,54 +665,6 @@ class ObjectRenderer3D {
                 currentProgram,
                 "uPointLightData"
             );
-        }
-
-        const mainLight = this.lightManager.getMainDirectionalLight();
-        if (mainLight && mainLight.shadowTexture && locations.shadowMap !== -1 && locations.shadowMap !== null) {
-            this.renderer.glStateManager.bindTextureWithUniform(
-                "directionalShadowMap",
-                mainLight.shadowTexture,
-                "TEXTURE_2D",
-                currentProgram,
-                "uShadowMap"
-            );
-        }
-
-        // Point light shadow maps
-        const pointLightShadowMaps = [
-            { logicalName: "pointShadowMap0", uniformName: "uPointShadowMap", enabledName: "pointShadowsEnabled" },
-            { logicalName: "pointShadowMap1", uniformName: "uPointShadowMap1", enabledName: "pointShadowsEnabled1" },
-            { logicalName: "pointShadowMap2", uniformName: "uPointShadowMap2", enabledName: "pointShadowsEnabled2" },
-            { logicalName: "pointShadowMap3", uniformName: "uPointShadowMap3", enabledName: "pointShadowsEnabled3" }
-        ];
-
-        for (let i = 0; i < Math.min(this.lightManager.pointLights.length, pointLightShadowMaps.length); i++) {
-            const pointLight = this.lightManager.pointLights[i];
-            const shadowMapDef = pointLightShadowMaps[i];
-            const shadowEnabledLoc = locations[shadowMapDef.enabledName];
-
-            if (pointLight && pointLight.shadowTexture && shadowEnabledLoc !== -1 && shadowEnabledLoc !== null) {
-                const textureType = "TEXTURE_CUBE_MAP";
-                this.renderer.glStateManager.bindTextureWithUniform(
-                    shadowMapDef.logicalName,
-                    pointLight.shadowTexture,
-                    textureType,
-                    currentProgram,
-                    shadowMapDef.uniformName
-                );
-                gl.uniform1i(shadowEnabledLoc, 1);
-            } else if (shadowEnabledLoc !== -1 && shadowEnabledLoc !== null) {
-                gl.uniform1i(shadowEnabledLoc, 0);
-            }
-        }
-
-        // Disable shadows for unused point light slots
-        for (let i = this.lightManager.pointLights.length; i < pointLightShadowMaps.length; i++) {
-            const shadowMapDef = pointLightShadowMaps[i];
-            const shadowEnabledLoc = locations[shadowMapDef.enabledName];
-            if (shadowEnabledLoc !== -1 && shadowEnabledLoc !== null) {
-                gl.uniform1i(shadowEnabledLoc, 0);
-            }
         }
 
         // Texture array

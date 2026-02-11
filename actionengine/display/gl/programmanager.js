@@ -31,6 +31,7 @@ class ProgramManager {
             position: "aPosition",
             normal: "aNormal",
             color: "aColor",
+            alpha: "aAlpha",
             texCoord: "aTexCoord",
             textureIndex: "aTextureIndex",
             useTexture: "aUseTexture"
@@ -432,6 +433,7 @@ class ProgramManager {
             position: gl.getAttribLocation(program, attr.position),
             normal: gl.getAttribLocation(program, attr.normal),
             color: gl.getAttribLocation(program, attr.color),
+            alpha: gl.getAttribLocation(program, attr.alpha),
             texCoord: gl.getAttribLocation(program, attr.texCoord),
             textureIndex: gl.getAttribLocation(program, attr.textureIndex),
             useTexture: gl.getAttribLocation(program, attr.useTexture),

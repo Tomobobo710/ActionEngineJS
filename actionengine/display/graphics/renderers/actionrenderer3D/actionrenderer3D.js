@@ -10,15 +10,18 @@ class ActionRenderer3D {
         // Initialize all managers and renderers
         this.programManager = new ProgramManager(this.gl);
 
-        // Use the new LightManager instead of separate lighting and shadow managers
+        // Initialize LightManager
         this.lightManager = new LightManager(this.gl, this.programManager);
 
-        // Create texture manager and texture array before other renderers
+        // Initialize texture manager
         this.textureManager = new TextureManager(this.gl);
         this.textureArray = this.textureManager.textureArray;
 
         // Initialize GL state manager
         this.glStateManager = new GLStateManager(this.gl, this.lightManager, this.textureManager);
+
+        // Initialize shadow renderer
+        this.shadowRenderer = new ShadowRenderer3D(this.gl, this.lightManager, this.glStateManager);
 
         this.debugRenderer = new DebugRenderer3D(this.gl, this.programManager, this.lightManager, this.glStateManager);
         this.weatherRenderer = new WeatherRenderer3D(this.gl, this.programManager);
@@ -134,11 +137,9 @@ class ActionRenderer3D {
         // Now that objects have been queued and their triangles updated,
         // we can render accurate shadows
         if (this.shadowsEnabled && nonWaterObjects.length > 0) {
-            // Set up GL state for shadow rendering (blending disabled, proper depth testing)
-            this.glStateManager.setupState("shadow");
-
             // Render all objects to shadow maps for all lights
-            this.lightManager.renderShadowMaps(nonWaterObjects);
+            // ShadowRenderer3D handles GL state setup internally
+            this.shadowRenderer.render(nonWaterObjects);
 
             // Ensure we're back to the default framebuffer after shadow rendering
             this.canvasManager.resetToDefaultFramebuffer();
@@ -177,8 +178,8 @@ class ActionRenderer3D {
                 // Get main directional light
                 const mainLight = this.lightManager.getMainDirectionalLight();
 
-                // Now apply all lights' uniforms to the shader
-                this.lightManager.applyLightsToShader(program);
+                // Now apply all lights' uniforms and shadow textures to the shader
+                this.lightManager.applyLightsToShader(program, this.glStateManager);
 
                 // Get shadow-specific uniform locations
                 const uniformShadowSoftness = this.gl.getUniformLocation(program, "uShadowSoftness");
@@ -385,95 +386,6 @@ class ActionRenderer3D {
         if (pointLight) {
             if (!pointLight.shadowTexture) {
                 pointLight.setupShadowMap();
-            }
-        }
-
-        const currentProgram = this.programManager.getObjectProgram();
-
-        if (currentProgram) {
-            this.gl.useProgram(currentProgram);
-
-            if (mainLight) {
-                const shadowMapLoc = this.gl.getUniformLocation(currentProgram, "uShadowMap");
-                const shadowEnabledLoc = this.gl.getUniformLocation(currentProgram, "uShadowsEnabled");
-                const lightSpaceMatrixLoc = this.gl.getUniformLocation(currentProgram, "uLightSpaceMatrix");
-
-                if (shadowMapLoc !== null) {
-                    this.gl.uniform1i(shadowMapLoc, this.glStateManager.getTextureUnit("directionalShadowMap"));
-                }
-
-                if (shadowEnabledLoc !== null) {
-                    this.gl.uniform1i(shadowEnabledLoc, 1);
-                }
-
-                if (lightSpaceMatrixLoc !== null) {
-                    const lightSpaceMatrix = this.lightManager.getLightSpaceMatrix();
-                    if (lightSpaceMatrix) {
-                        this.gl.uniformMatrix4fv(lightSpaceMatrixLoc, false, lightSpaceMatrix);
-                    }
-                }
-            } else {
-                const shadowEnabledLoc = this.gl.getUniformLocation(currentProgram, "uShadowsEnabled");
-                if (shadowEnabledLoc !== null) {
-                    this.gl.uniform1i(shadowEnabledLoc, 0);
-                }
-            }
-
-            if (pointLight) {
-                const pointShadowMapLoc = this.gl.getUniformLocation(currentProgram, "uPointShadowMap");
-                const pointShadowsEnabledLoc = this.gl.getUniformLocation(currentProgram, "uPointShadowsEnabled");
-                const pointLightCountLoc = this.gl.getUniformLocation(currentProgram, "uPointLightCount");
-                const farPlaneLoc = this.gl.getUniformLocation(currentProgram, "uFarPlane");
-
-                if (pointLightCountLoc !== null) {
-                    this.gl.uniform1i(pointLightCountLoc, 1);
-                }
-
-                if (pointShadowMapLoc !== null) {
-                    this.gl.uniform1i(pointShadowMapLoc, this.glStateManager.getTextureUnit("pointShadowMap0"));
-                }
-
-                if (pointShadowsEnabledLoc !== null) {
-                    this.gl.uniform1i(pointShadowsEnabledLoc, 1);
-                }
-
-                if (farPlaneLoc !== null) {
-                    this.gl.uniform1f(farPlaneLoc, 500.0);
-                }
-            } else {
-                const pointLightCountLoc = this.gl.getUniformLocation(currentProgram, "uPointLightCount");
-                if (pointLightCountLoc !== null) {
-                    this.gl.uniform1i(pointLightCountLoc, 0);
-                }
-            }
-
-            const shadowBiasLoc = this.gl.getUniformLocation(currentProgram, "uShadowBias");
-            const shadowMapSizeLoc = this.gl.getUniformLocation(currentProgram, "uShadowMapSize");
-            const shadowSoftnessLoc = this.gl.getUniformLocation(currentProgram, "uShadowSoftness");
-            const pcfSizeLoc = this.gl.getUniformLocation(currentProgram, "uPCFSize");
-            const pcfEnabledLoc = this.gl.getUniformLocation(currentProgram, "uPCFEnabled");
-
-            if (shadowBiasLoc !== null) {
-                this.gl.uniform1f(shadowBiasLoc, this.lightManager.getShadowBias());
-            }
-
-            if (shadowMapSizeLoc !== null) {
-                this.gl.uniform1f(shadowMapSizeLoc, this.lightManager.getShadowMapSize());
-            }
-
-            if (shadowSoftnessLoc !== null) {
-                const softness = this.lightManager.constants.SHADOW_FILTERING.SOFTNESS.value;
-                this.gl.uniform1f(shadowSoftnessLoc, softness);
-            }
-
-            if (pcfSizeLoc !== null) {
-                const pcfSize = this.lightManager.constants.SHADOW_FILTERING.PCF.SIZE.value;
-                this.gl.uniform1i(pcfSizeLoc, pcfSize);
-            }
-
-            if (pcfEnabledLoc !== null) {
-                const pcfEnabled = this.lightManager.constants.SHADOW_FILTERING.PCF.ENABLED ? 1 : 0;
-                this.gl.uniform1i(pcfEnabledLoc, pcfEnabled);
             }
         }
     }

@@ -345,67 +345,11 @@ class LightManager {
     }
 
     /**
-     * Render shadow maps for all shadow-casting lights
-     * @param {Array} objects - Array of objects to render to shadow maps
-     */
-    renderShadowMaps(objects) {
-        // Early exit if no objects
-        if (!objects || objects.length === 0) {
-            return;
-        }
-
-        // Filter objects that actually have triangles once
-        const validObjects = objects.filter((obj) => obj && obj.triangles && obj.triangles.length > 0);
-
-        if (validObjects.length === 0) {
-            return;
-        }
-
-        // Render directional light shadow maps
-        for (const light of this.directionalLights) {
-            if (light.getShadowsEnabled()) {
-                light.beginShadowPass();
-
-                // Render objects to shadow map
-                for (const object of validObjects) {
-                    light.renderObjectToShadowMap(object);
-                }
-
-                light.endShadowPass();
-            }
-        }
-
-        // Render point light shadow maps
-        for (let lightIndex = 0; lightIndex < this.pointLights.length; lightIndex++) {
-            const light = this.pointLights[lightIndex];
-            if (light.getShadowsEnabled()) {
-                // For omnidirectional lights, we need to render the shadow map for each face (6 faces)
-                for (let faceIndex = 0; faceIndex < 6; faceIndex++) {
-                    light.beginShadowPass(faceIndex, lightIndex);
-
-                    // Render objects to shadow map for this face
-                    for (const object of validObjects) {
-                        light.renderObjectToShadowMap(object);
-                    }
-
-                    light.endShadowPass();
-                }
-            }
-        }
-
-        // Reset state after shadow rendering
-        this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
-        this.gl.useProgram(null);
-
-        // Render spot light shadow maps (future)
-        // ...
-    }
-
-    /**
      * Apply all lights to the given shader program
      * @param {WebGLProgram} program - The shader program to apply lights to
+     * @param {GLStateManager} glStateManager - State manager for texture binding
      */
-    applyLightsToShader(program) {
+    applyLightsToShader(program, glStateManager) {
         const gl = this.gl;
 
         // Make sure light data textures are up-to-date
@@ -445,10 +389,6 @@ class LightManager {
             gl.uniform2f(pointLightTextureSizeLoc, textureWidth, 1);
         }
 
-        // -- Textures are bound by ObjectRenderer3D --
-        // The actual texture binding happens in ObjectRenderer3D.drawObject
-        // to avoid sampler conflicts and ensure proper WebGL texture units
-
         // -- Apply Legacy Light Uniforms for Backward Compatibility --
         // Main directional light shadow
         const mainLight = this.getMainDirectionalLight();
@@ -470,6 +410,77 @@ class LightManager {
             if (light) {
                 // Remove logging to reduce console spam
                 light.applyToShader(program, i);
+            }
+        }
+
+        // Bind shadow textures
+        if (glStateManager) {
+            this._bindShadowTextures(program, glStateManager);
+        }
+    }
+
+    /**
+     * Bind shadow textures to shader program
+     * @private
+     */
+    _bindShadowTextures(program, glStateManager) {
+        const gl = this.gl;
+
+        // Bind directional light shadow map
+        const mainLight = this.getMainDirectionalLight();
+        const shadowMapLoc = gl.getUniformLocation(program, "uShadowMap");
+        if (mainLight && mainLight.shadowTexture && shadowMapLoc !== null) {
+            glStateManager.bindTextureWithUniform(
+                "directionalShadowMap",
+                mainLight.shadowTexture,
+                "TEXTURE_2D",
+                program,
+                "uShadowMap"
+            );
+
+            // Also bind the light space matrix for directional light shadow sampling
+            const lightSpaceMatrixLoc = gl.getUniformLocation(program, "uLightSpaceMatrix");
+            if (lightSpaceMatrixLoc !== null) {
+                const lightSpaceMatrix = mainLight.getLightSpaceMatrix();
+                if (lightSpaceMatrix) {
+                    gl.uniformMatrix4fv(lightSpaceMatrixLoc, false, lightSpaceMatrix);
+                }
+            }
+        }
+
+        // Bind point light shadow maps
+        const pointLightShadowMaps = [
+            { logicalName: "pointShadowMap0", uniformName: "uPointShadowMap", enabledName: "pointShadowsEnabled" },
+            { logicalName: "pointShadowMap1", uniformName: "uPointShadowMap1", enabledName: "pointShadowsEnabled1" },
+            { logicalName: "pointShadowMap2", uniformName: "uPointShadowMap2", enabledName: "pointShadowsEnabled2" },
+            { logicalName: "pointShadowMap3", uniformName: "uPointShadowMap3", enabledName: "pointShadowsEnabled3" }
+        ];
+
+        for (let i = 0; i < Math.min(this.pointLights.length, pointLightShadowMaps.length); i++) {
+            const pointLight = this.pointLights[i];
+            const shadowMapDef = pointLightShadowMaps[i];
+            const shadowEnabledLoc = gl.getUniformLocation(program, shadowMapDef.enabledName);
+
+            if (pointLight && pointLight.shadowTexture && shadowEnabledLoc !== null) {
+                glStateManager.bindTextureWithUniform(
+                    shadowMapDef.logicalName,
+                    pointLight.shadowTexture,
+                    "TEXTURE_CUBE_MAP",
+                    program,
+                    shadowMapDef.uniformName
+                );
+                gl.uniform1i(shadowEnabledLoc, 1);
+            } else if (shadowEnabledLoc !== null) {
+                gl.uniform1i(shadowEnabledLoc, 0);
+            }
+        }
+
+        // Disable shadows for unused point light slots
+        for (let i = this.pointLights.length; i < pointLightShadowMaps.length; i++) {
+            const shadowMapDef = pointLightShadowMaps[i];
+            const shadowEnabledLoc = gl.getUniformLocation(program, shadowMapDef.enabledName);
+            if (shadowEnabledLoc !== null) {
+                gl.uniform1i(shadowEnabledLoc, 0);
             }
         }
     }

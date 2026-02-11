@@ -77,6 +77,7 @@ class ObjectShader {
     in vec3 aPosition;
     in vec3 aNormal;
     in vec3 aColor;
+    in float aAlpha;
     in vec2 aTexCoord;
     in float aTextureIndex;
     in float aUseTexture;
@@ -88,6 +89,7 @@ class ObjectShader {
     uniform vec3 uLightDir;
     
     out vec3 vColor;
+    out float vAlpha;
     out vec2 vTexCoord;
     out float vLighting;
     flat out float vTextureIndex;
@@ -119,6 +121,7 @@ class ObjectShader {
         
         // Pass other variables to fragment shader
         vColor = aColor;
+        vAlpha = aAlpha;
         vTexCoord = aTexCoord;
         vTextureIndex = aTextureIndex;
         vUseTexture = aUseTexture;
@@ -226,6 +229,7 @@ class ObjectShader {
     precision mediump sampler2DArray;
     
     in vec3 vColor;
+    in float vAlpha;
     in vec2 vTexCoord;
     in float vLighting;
     flat in float vTextureIndex;
@@ -481,7 +485,7 @@ class ObjectShader {
         if (vUseTexture > 0.5) {  // Check if this fragment uses texture
             baseColor = texture(uTextureArray, vec3(vTexCoord, vTextureIndex));
         } else {
-            baseColor = vec4(vColor, 1.0);
+            baseColor = vec4(vColor, vAlpha);
         }
         
         // Apply ambient and diffuse lighting
@@ -674,6 +678,7 @@ class ObjectShader {
     in vec3 aPosition;
     in vec3 aNormal;
     in vec3 aColor;
+    in float aAlpha;
     in vec2 aTexCoord;
     in float aTextureIndex;
     in float aUseTexture;
@@ -693,6 +698,7 @@ class ObjectShader {
     out vec4 vFragPosLightSpace;  // Added for shadow mapping
     out vec3 vFragPos;
     out vec3 vColor;
+    out float vAlpha;
     out vec3 vViewDir;       // Direction to camera
     flat out float vTextureIndex;
     out vec2 vTexCoord;
@@ -715,6 +721,7 @@ class ObjectShader {
         
         // Pass color and texture info to fragment shader
         vColor = aColor;
+        vAlpha = aAlpha;
         vTexCoord = aTexCoord;
         vTextureIndex = aTextureIndex;
         vUseTexture = aUseTexture;
@@ -931,6 +938,7 @@ in vec4 vFragPosLightSpace;  // Added for shadow mapping
 in vec3 vFragPos;  // THIS IS IMPORTANT - now we include vFragPos from the vertex shader
 
 in vec3 vColor;
+in float vAlpha;
 in vec3 vViewDir;
 flat in float vTextureIndex;
 in vec2 vTexCoord;
@@ -1322,7 +1330,7 @@ void main() {
     // Add ambient light (pre-computed constant)
     color += vec3(0.3) * albedo;
 
-    fragColor = vec4(color, 1.0);
+    fragColor = vec4(color, vAlpha);
     
     // Logarithmic depth buffer encoding
     // Provides exponentially more precision at distance
@@ -1345,6 +1353,7 @@ void main() {
         in vec3 aPosition;
         in vec3 aNormal;
         in vec3 aColor;
+        in float aAlpha;
         
         uniform mat4 uProjectionMatrix;
         uniform mat4 uViewMatrix;
@@ -1353,6 +1362,7 @@ void main() {
         
         flat out float vLighting;
         out vec3 vBarycentricCoord;
+        out float vAlpha;
         out float vFragDepth;  // For logarithmic depth buffer
         
         void main() {
@@ -1361,6 +1371,7 @@ void main() {
             // Negate light direction to be consistent with other shaders
             vLighting = max(0.3, min(1.0, dot(worldNormal, normalize(-uLightDir))));
             
+            vAlpha = aAlpha;
             float id = float(gl_VertexID % 3);
             vBarycentricCoord = vec3(id == 0.0, id == 1.0, id == 2.0);
             
@@ -1378,6 +1389,7 @@ void main() {
         precision mediump float;
         flat in float vLighting;
         in vec3 vBarycentricCoord;
+        in float vAlpha;
         in float vFragDepth;  // For logarithmic depth buffer
         out vec4 fragColor;
         
@@ -1390,9 +1402,9 @@ void main() {
             float edge = min(min(a3.x, a3.y), a3.z);
             
             if (edge < 0.9) {
-                fragColor = vec4(1.0, 0.0, 0.0, 1.0) * vLighting;
+                fragColor = vec4(1.0, 0.0, 0.0, vAlpha) * vLighting;
             } else {
-                fragColor = vec4(0.0, 0.0, 0.0, 1.0);
+                fragColor = vec4(0.0, 0.0, 0.0, vAlpha);
             }
             
             // Logarithmic depth buffer encoding
