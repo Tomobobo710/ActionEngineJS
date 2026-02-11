@@ -385,8 +385,8 @@ class GLBLoader {
         for (let i = 0; i < positions.length / 3; i++) {
             let position = new Vector3(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]);
 
-            // Apply node transform if available
-            if (nodeMatrix) {
+            // Apply node transform if available (but NOT for skeletal meshes - joints handle transforms)
+            if (nodeMatrix && !joints) {
                 // Transform position by node matrix: p' = M * p
                 const x = position.x,
                     y = position.y,
