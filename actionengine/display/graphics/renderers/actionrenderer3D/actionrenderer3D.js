@@ -28,6 +28,7 @@ class ActionRenderer3D {
         this.sunRenderer = new SunRenderer3D(this.gl, this.programManager);
 
         this.objectRenderer = new ObjectRenderer3D(this, this.gl, this.programManager, this.lightManager);
+        this.transparentRenderer = new TransparentObjectRenderer3D(this.objectRenderer);
         this.waterRenderer = new WaterRenderer3D(this.gl, this.programManager);
         this.spriteRenderer = new SpriteRenderer3D(this.gl, this.programManager, this.glStateManager);
 
@@ -212,6 +213,20 @@ class ActionRenderer3D {
         this.glStateManager.setupState("object");
         this.objectRenderer.render();
 
+        // Debug visualization if enabled (render before transparent pass)
+        if (showDebugPanel && camera) {
+            this.glStateManager.setupState("debug");
+            const character = renderableObjects?.find(
+                (obj) =>
+                    obj.constructor.name === "ThirdPersonActionCharacter" || obj.constructor.name === "ActionCharacter"
+            );
+            this.debugRenderer.drawDebugLines(camera, character, this.currentTime);
+        }
+
+        // Render transparent objects (after debug lines)
+        this.glStateManager.setupState("transparent");
+        this.transparentRenderer.render(camera);
+
         // Render water objects
         if (waterObjects.length > 0) {
             this.glStateManager.setupState("water");
@@ -259,23 +274,9 @@ class ActionRenderer3D {
             this.spriteRenderer.render(spriteObjects, camera, projectionMatrix, viewMatrix);
         }
 
-        // Debug visualization if enabled
-        if (showDebugPanel && camera) {
-            // Set up debug state before rendering
-            this.glStateManager.setupState("debug");
-
-            // Find character in renderableObjects for debug visualization
-            const character = renderableObjects?.find(
-                (obj) =>
-                    obj.constructor.name === "ThirdPersonActionCharacter" || obj.constructor.name === "ActionCharacter"
-            );
-            this.debugRenderer.drawDebugLines(camera, character, this.currentTime);
-        }
-
-        // Shadow map visualization can show independently of panel
+        // Shadow map visualization (render last so it's always on top)
         if (lightingConstants.DEBUG.VISUALIZE_SHADOW_MAP && camera) {
-            // Set up debug state before rendering
-            this.glStateManager.setupState("debug");
+            this.glStateManager.setupState("shadowMapDebug");
             this.debugRenderer.drawShadowMapDebug(camera);
         }
     }
