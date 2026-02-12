@@ -56,16 +56,19 @@ class GLBExporter {
             colorGroups.get(color).triangles.push(triangle);
         });
 
+        // Determine if we need 32-bit indices
+        const useUint32 = allVertices.length > 65535;
+
         console.log(
-            `GLB Export: ${triangles.length} triangles, ${colorGroups.size} colors:`,
-            Array.from(colorGroups.keys())
+            `GLB Export: ${triangles.length} triangles, ${allVertices.length} vertices, ${colorGroups.size} colors`,
+            useUint32 ? "(using 32-bit indices)" : "(using 16-bit indices)"
         );
 
         // Create GLTF structure
-        const gltf = this.createGLTFWithMaterials(allVertices, colorGroups, modelName);
+        const gltf = this.createGLTFWithMaterials(allVertices, colorGroups, modelName, useUint32);
 
         // Create binary data
-        const binaryData = this.createBinaryData(allVertices, colorGroups);
+        const binaryData = this.createBinaryData(allVertices, colorGroups, useUint32);
 
         return this.assembleGLB(gltf, binaryData);
     }
@@ -73,7 +76,7 @@ class GLBExporter {
     /**
      * Create GLTF structure with separate materials and primitives
      */
-    createGLTFWithMaterials(allVertices, colorGroups, modelName) {
+    createGLTFWithMaterials(allVertices, colorGroups, modelName, useUint32) {
         const vertexCount = allVertices.length;
 
         // Calculate buffer sizes
@@ -81,9 +84,10 @@ class GLBExporter {
         const normalsSize = vertexCount * 3 * 4; // Float32
 
         // Calculate index buffer sizes for each color group
+        const indexSize = useUint32 ? 4 : 2; // Uint32 or Uint16
         let totalIndicesSize = 0;
         for (const group of colorGroups.values()) {
-            totalIndicesSize += group.indices.length * 2; // Uint16
+            totalIndicesSize += group.indices.length * indexSize;
         }
 
         const totalBufferSize = positionsSize + normalsSize + totalIndicesSize;
@@ -166,7 +170,7 @@ class GLBExporter {
             });
 
             // Create indices buffer view for this color group
-            const indicesSize = group.indices.length * 2;
+            const indicesSize = group.indices.length * indexSize;
             gltf.bufferViews.push({
                 buffer: 0,
                 byteOffset: bufferOffset,
@@ -178,7 +182,7 @@ class GLBExporter {
             // Create indices accessor
             gltf.accessors.push({
                 bufferView: bufferViewIndex++,
-                componentType: 5123, // UNSIGNED_SHORT
+                componentType: useUint32 ? 5125 : 5123, // UNSIGNED_INT : UNSIGNED_SHORT
                 count: group.indices.length,
                 type: "SCALAR"
             });
@@ -201,7 +205,7 @@ class GLBExporter {
     /**
      * Create binary data with shared vertices and separate indices
      */
-    createBinaryData(allVertices, colorGroups) {
+    createBinaryData(allVertices, colorGroups, useUint32) {
         // Create position data
         const positions = new Float32Array(allVertices.length * 3);
         const normals = new Float32Array(allVertices.length * 3);
@@ -253,10 +257,11 @@ class GLBExporter {
             normals[i * 3 + 2] = vertexNormals[i].z;
         }
 
-        // Create index buffers for each color group
+        // Create index buffers for each color group using appropriate type
+        const IndexArrayType = useUint32 ? Uint32Array : Uint16Array;
         const indexBuffers = [];
         for (const [color, group] of colorGroups) {
-            const indices = new Uint16Array(group.indices);
+            const indices = new IndexArrayType(group.indices);
             indexBuffers.push(indices);
         }
 
@@ -354,18 +359,36 @@ class GLBExporter {
     }
 
     calculateMinVertices(vertices) {
-        return [
-            Math.min(...vertices.map((v) => v.x)),
-            Math.min(...vertices.map((v) => v.y)),
-            Math.min(...vertices.map((v) => v.z))
-        ];
+        if (vertices.length === 0) return [0, 0, 0];
+
+        let minX = vertices[0].x;
+        let minY = vertices[0].y;
+        let minZ = vertices[0].z;
+
+        for (let i = 1; i < vertices.length; i++) {
+            const v = vertices[i];
+            if (v.x < minX) minX = v.x;
+            if (v.y < minY) minY = v.y;
+            if (v.z < minZ) minZ = v.z;
+        }
+
+        return [minX, minY, minZ];
     }
 
     calculateMaxVertices(vertices) {
-        return [
-            Math.max(...vertices.map((v) => v.x)),
-            Math.max(...vertices.map((v) => v.y)),
-            Math.max(...vertices.map((v) => v.z))
-        ];
+        if (vertices.length === 0) return [0, 0, 0];
+
+        let maxX = vertices[0].x;
+        let maxY = vertices[0].y;
+        let maxZ = vertices[0].z;
+
+        for (let i = 1; i < vertices.length; i++) {
+            const v = vertices[i];
+            if (v.x > maxX) maxX = v.x;
+            if (v.y > maxY) maxY = v.y;
+            if (v.z > maxZ) maxZ = v.z;
+        }
+
+        return [maxX, maxY, maxZ];
     }
 }
