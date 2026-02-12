@@ -48,6 +48,10 @@ class ObjectRenderer3D {
             objectsCulled: 0,
             uniformSetCount: 0 // Track how many uniform sets we perform
         };
+
+        // Transparency support - track opaque vs transparent triangles
+        this.opaqueIndices = [];
+        this.transparentTriangles = []; // Store { triangleIndex, alpha, centerX, centerY, centerZ, distance }
     }
 
     queue(object, camera, currentTime) {
@@ -186,6 +190,7 @@ class ObjectRenderer3D {
             for (let i = 0; i < triangleCount; i++) {
                 const triangle = tri[i];
                 const baseIndex = (triangleOffset + i) * 9; // Offset by triangles of previous objects
+                const triangleGlobalIndex = triangleOffset + i;
 
                 // Cache color conversion (only once per triangle)
                 const color = triangle.color;
@@ -326,6 +331,21 @@ class ObjectRenderer3D {
                 useTextureFlags[baseFlagIndex] = useTextureValue;
                 useTextureFlags[baseFlagIndex + 1] = useTextureValue;
                 useTextureFlags[baseFlagIndex + 2] = useTextureValue;
+
+                // Track opaque vs transparent triangles for two-pass rendering
+                if (alpha < 1.0) {
+                    this.transparentTriangles.push({
+                        triangleIndex: triangleGlobalIndex
+                    });
+                } else {
+                    // Track indices for opaque triangles (draw in original order)
+                    const indexBaseOffset = (triangleOffset + i) * 3;
+                    this.opaqueIndices.push(indexBaseOffset, indexBaseOffset + 1, indexBaseOffset + 2);
+                }
+
+                if (i === 0 && triangleOffset === 0) {
+                    // First triangle of first object
+                }
             }
 
             // Update triangle offset for next object
@@ -364,29 +384,60 @@ class ObjectRenderer3D {
             gl.bufferData(ARRAY_BUFFER, data, DYNAMIC_DRAW);
         }
 
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.buffers.indices);
-        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, DYNAMIC_DRAW);
-
         // PRE-COMPUTE ALL MATRICES AND UNIFORMS ONCE PER FRAME
         this.updateUniformCache(camera);
+
+        // Store total counts for rendering
+        this._opaqueIndexCount = this.opaqueIndices.length;
+        this._transparentIndexCount = this.transparentTriangles.length * 3;
+
+        // Rebuild index buffer: opaque indices first, then transparent indices in sorted order
+        const totalIndices = this._opaqueIndexCount + this._transparentIndexCount;
+        const reorderedIndices = new Uint32Array(totalIndices);
+
+        // Copy opaque indices first
+        let indexPos = 0;
+        for (let i = 0; i < this.opaqueIndices.length; i++) {
+            reorderedIndices[indexPos++] = this.opaqueIndices[i];
+        }
+
+        // Copy transparent indices in sorted order
+        for (let i = 0; i < this.transparentTriangles.length; i++) {
+            const tri = this.transparentTriangles[i];
+            const triangleIdx = tri.triangleIndex;
+            const baseIndexOffset = triangleIdx * 3;
+
+            reorderedIndices[indexPos++] = baseIndexOffset;
+            reorderedIndices[indexPos++] = baseIndexOffset + 1;
+            reorderedIndices[indexPos++] = baseIndexOffset + 2;
+        }
+
+        // Upload reordered index buffer
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.buffers.indices);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, reorderedIndices, DYNAMIC_DRAW);
 
         // Setup shader and draw - use the object shader from program manager
         const program = this.programManager.getObjectProgram();
         const locations = this.programManager.getObjectLocations();
         gl.useProgram(program);
 
-        // Blending is now managed by GLStateManager.setupState('object')
-        // No need for direct gl.enable/disable calls here
-
         this.setupObjectShader(locations, camera);
 
-        // Draw all objects in one batch
-        this.drawObject(locations, totalIndexCount);
+        // Draw opaque objects first (with normal depth writes)
+        if (this._opaqueIndexCount > 0) {
+            this.drawObject(locations, this._opaqueIndexCount);
+        }
+    }
 
-        // Reset frame tracking for next frame
+    /**
+     * Finalize the frame after both opaque and transparent passes complete
+     * @private
+     */
+    _finalizeFrame() {
         this._frameInitialized = false;
         this._frameObjects = [];
         this._totalTriangles = 0;
+        this._resetTransparencyTracking();
     }
 
     // Pre-compute all uniform values once per frame
@@ -561,7 +612,7 @@ class ObjectRenderer3D {
         this.stats.uniformSetCount++;
     }
 
-    drawObject(locations, indexCount) {
+    drawObject(locations, indexCount, offset = 0) {
         // Cache commonly used values
         const gl = this.gl;
         const ARRAY_BUFFER = gl.ARRAY_BUFFER;
@@ -690,7 +741,7 @@ class ObjectRenderer3D {
         this.renderer.textureManager.updateMaterialPropertiesTexture();
 
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.buffers.indices);
-        gl.drawElements(gl.TRIANGLES, indexCount, this.indexType, 0);
+        gl.drawElements(gl.TRIANGLES, indexCount, this.indexType, offset);
     }
 
     // Helper method to get texture index - works for any object with textures
@@ -736,5 +787,41 @@ class ObjectRenderer3D {
         }
 
         return 0; // Default to first texture if not found
+    }
+
+    /**
+     * Render transparent objects in back-to-front sorted order
+     * Called from TransparentObjectRenderer3D after opaque pass
+     * Index buffer is already built with transparent indices starting at offset opaqueIndexCount
+     * @private
+     */
+    drawTransparent(camera) {
+        if (this.transparentTriangles.length === 0) {
+            return;
+        }
+
+        const gl = this.gl;
+        const program = this.programManager.getObjectProgram();
+        const locations = this.programManager.getObjectLocations();
+
+        gl.useProgram(program);
+        this.setupObjectShader(locations, camera);
+
+        // Set up vertex attributes and draw
+        this.drawObject(locations, this._transparentIndexCount, this._opaqueIndexCount * 4);
+
+        // Finalize frame after both opaque and transparent passes
+        this._finalizeFrame();
+    }
+
+    /**
+     * Reset transparency tracking for next frame
+     * @private
+     */
+    _resetTransparencyTracking() {
+        this.opaqueIndices = [];
+        this.transparentTriangles = [];
+        this._opaqueIndexCount = 0;
+        this._transparentIndexCount = 0;
     }
 }
