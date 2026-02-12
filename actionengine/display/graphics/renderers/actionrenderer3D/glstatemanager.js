@@ -87,11 +87,27 @@ class GLStateManager {
                 blend: false,
                 depthTest: true,
                 depthFunc: "LEQUAL",
-                depthMask: true,
+                depthMask: false,
+                cullFace: false
+            },
+            shadowMapDebug: {
+                blend: false,
+                depthTest: false,
+                depthMask: false,
                 cullFace: false
             },
             shadow: {
                 blend: false,
+                depthTest: true,
+                depthFunc: "LEQUAL",
+                depthMask: true,
+                cullFace: true,
+                frontFace: "CCW",
+                cullMode: "BACK"
+            },
+            transparent: {
+                blend: true,
+                blendFunc: { src: "SRC_ALPHA", dst: "ONE_MINUS_SRC_ALPHA" },
                 depthTest: true,
                 depthFunc: "LEQUAL",
                 depthMask: true,
