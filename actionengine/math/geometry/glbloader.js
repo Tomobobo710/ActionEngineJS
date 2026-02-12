@@ -285,7 +285,7 @@ class GLBLoader {
                 .padStart(2, "0")}${Math.floor(b * 255)
                 .toString(16)
                 .padStart(2, "0")}`;
-            
+
             // Extract alpha if present
             if (a !== undefined) {
                 materialData.alpha = a;
