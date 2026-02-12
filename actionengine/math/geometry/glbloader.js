@@ -255,7 +255,8 @@ class GLBLoader {
         const materialData = {
             useTexture: false,
             textureIndex: -1,
-            color: null
+            color: null,
+            alpha: 1.0
         };
 
         if (!material) return materialData;
@@ -276,7 +277,7 @@ class GLBLoader {
 
         // Always extract color factor as fallback
         if (material.pbrMetallicRoughness?.baseColorFactor) {
-            const [r, g, b] = material.pbrMetallicRoughness.baseColorFactor;
+            const [r, g, b, a] = material.pbrMetallicRoughness.baseColorFactor;
             materialData.color = `#${Math.floor(r * 255)
                 .toString(16)
                 .padStart(2, "0")}${Math.floor(g * 255)
@@ -284,6 +285,11 @@ class GLBLoader {
                 .padStart(2, "0")}${Math.floor(b * 255)
                 .toString(16)
                 .padStart(2, "0")}`;
+            
+            // Extract alpha if present
+            if (a !== undefined) {
+                materialData.alpha = a;
+            }
         }
 
         return materialData;
@@ -418,6 +424,11 @@ class GLBLoader {
             }
 
             const triangle = new Triangle(vertices[0].position, vertices[1].position, vertices[2].position, color);
+
+            // Apply alpha from material if present
+            if (material && material.alpha !== undefined) {
+                triangle.alpha = material.alpha;
+            }
 
             // Store full material data on triangle for texture sampling in shader
             if (material) {
