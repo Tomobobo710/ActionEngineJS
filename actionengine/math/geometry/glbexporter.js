@@ -160,14 +160,28 @@ class GLBExporter {
         for (const [color, group] of colorGroups) {
             // Create material
             const rgb = this.hexToRgb(color);
-            gltf.materials.push({
+
+            // Extract alpha from triangles in this group (use first triangle's alpha, or default to 1.0)
+            let alpha = 1.0;
+            if (group.triangles.length > 0 && group.triangles[0].alpha !== undefined) {
+                alpha = group.triangles[0].alpha;
+            }
+
+            const material = {
                 name: `Material_${color.slice(1)}`,
                 pbrMetallicRoughness: {
-                    baseColorFactor: [rgb.r / 255, rgb.g / 255, rgb.b / 255, 1.0],
+                    baseColorFactor: [rgb.r / 255, rgb.g / 255, rgb.b / 255, alpha],
                     metallicFactor: 0.0,
                     roughnessFactor: 1.0
                 }
-            });
+            };
+
+            // Enable transparency if alpha < 1.0
+            if (alpha < 1.0) {
+                material.alphaMode = "BLEND";
+            }
+
+            gltf.materials.push(material);
 
             // Create indices buffer view for this color group
             const indicesSize = group.indices.length * indexSize;
