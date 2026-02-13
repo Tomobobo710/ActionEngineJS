@@ -256,10 +256,20 @@ class GLBLoader {
             useTexture: false,
             textureIndex: -1,
             color: null,
-            alpha: 1.0
+            alpha: 1.0,
+            name: null,
+            // PBR properties
+            metallic: 0.0,
+            roughness: 1.0,
+            emissive: [0, 0, 0]
         };
 
         if (!material) return materialData;
+
+        // Extract material name if present
+        if (material.name) {
+            materialData.name = material.name;
+        }
 
         // Extract base color texture if present
         if (material.pbrMetallicRoughness?.baseColorTexture) {
@@ -290,6 +300,21 @@ class GLBLoader {
             if (a !== undefined) {
                 materialData.alpha = a;
             }
+        }
+
+        // Extract PBR material properties
+        if (material.pbrMetallicRoughness) {
+            if (material.pbrMetallicRoughness.metallicFactor !== undefined) {
+                materialData.metallic = material.pbrMetallicRoughness.metallicFactor;
+            }
+            if (material.pbrMetallicRoughness.roughnessFactor !== undefined) {
+                materialData.roughness = material.pbrMetallicRoughness.roughnessFactor;
+            }
+        }
+
+        // Extract emissive factor
+        if (material.emissiveFactor) {
+            materialData.emissive = material.emissiveFactor;
         }
 
         return materialData;
@@ -425,13 +450,25 @@ class GLBLoader {
 
             const triangle = new Triangle(vertices[0].position, vertices[1].position, vertices[2].position, color);
 
-            // Apply alpha from material if present
-            if (material && material.alpha !== undefined) {
-                triangle.alpha = material.alpha;
-            }
-
-            // Store full material data on triangle for texture sampling in shader
+            // Apply material properties to triangle
             if (material) {
+                // Alpha
+                if (material.alpha !== undefined) {
+                    triangle.alpha = material.alpha;
+                }
+
+                // PBR properties
+                if (material.metallic !== undefined) {
+                    triangle.metallic = material.metallic;
+                }
+                if (material.roughness !== undefined) {
+                    triangle.roughness = material.roughness;
+                }
+                if (material.emissive !== undefined) {
+                    triangle.emissive = material.emissive;
+                }
+
+                // Store full material data on triangle for texture sampling in shader
                 triangle.material = material;
                 if (material.useTexture && material.textureIndex >= 0) {
                     materialIndicesUsed.add(material.textureIndex);
@@ -447,6 +484,19 @@ class GLBLoader {
             // Store UV coordinates from vertices if available
             if (texCoords) {
                 triangle.uvs = vertices.map((v) => v.uv);
+            }
+
+            // Attach texture image data to triangle if it uses a texture
+            if (material && material.useTexture && material.textureIndex >= 0) {
+                const textureIndex = material.textureIndex;
+                if (model.textures[textureIndex]) {
+                    triangle.texture = {
+                        imageData: model.textures[textureIndex],
+                        mimeType: model.textureMetadata[textureIndex]?.mimeType || "image/png",
+                        name: model.textureMetadata[textureIndex]?.name || `texture_${textureIndex}`,
+                        materialName: material.name || null // Preserve original material name from GLB
+                    };
+                }
             }
 
             if (joints && weights) {

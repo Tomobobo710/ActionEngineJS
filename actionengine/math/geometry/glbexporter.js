@@ -28,20 +28,40 @@ class GLBExporter {
     }
 
     /**
-     * Create GLB from triangles using materials for each color
+     * Create GLB from triangles using materials for each color/texture combo
      */
     createGLBFromTriangles(triangles, modelName) {
-        // Group triangles by color
-        const colorGroups = new Map();
+        // Group triangles by material (color + texture combo)
+        const materialGroups = new Map();
         const allVertices = [];
+        const allUVs = [];
+        const textureRegistry = new Map(); // Track unique textures
 
         triangles.forEach((triangle, triIndex) => {
             const color = triangle.color || "#808080";
+            const hasTexture = triangle.texture && triangle.texture.imageData;
 
-            if (!colorGroups.has(color)) {
-                colorGroups.set(color, {
+            // Create material key: "color" or "color:textureName"
+            let materialKey = color;
+            let textureId = null;
+
+            if (hasTexture) {
+                // Register unique texture
+                const texName = triangle.texture.name || `texture_${textureRegistry.size}`;
+                if (!textureRegistry.has(texName)) {
+                    textureRegistry.set(texName, triangle.texture);
+                }
+                textureId = texName;
+                materialKey = `${color}:${textureId}`;
+            }
+
+            if (!materialGroups.has(materialKey)) {
+                materialGroups.set(materialKey, {
                     triangles: [],
-                    indices: []
+                    indices: [],
+                    color: color,
+                    textureId: textureId,
+                    hasTexture: hasTexture
                 });
             }
 
@@ -51,24 +71,45 @@ class GLBExporter {
                 allVertices.push(vertex);
             });
 
-            // Store indices for this color group
-            colorGroups.get(color).indices.push(startIndex, startIndex + 1, startIndex + 2);
-            colorGroups.get(color).triangles.push(triangle);
+            // Store indices for this material group
+            materialGroups.get(materialKey).indices.push(startIndex, startIndex + 1, startIndex + 2);
+            materialGroups.get(materialKey).triangles.push(triangle);
+
+            // Add UVs for all vertices (textured get real UVs, non-textured get 0,0)
+            for (let i = 0; i < 3; i++) {
+                if (hasTexture && triangle.uvs && triangle.uvs[i]) {
+                    const uv = triangle.uvs[i];
+                    // Handle both Vector2 objects and {u,v} objects
+                    allUVs.push(uv.u !== undefined ? uv.u : uv.x);
+                    allUVs.push(uv.v !== undefined ? uv.v : uv.y);
+                } else {
+                    // Default UV for non-textured vertices
+                    allUVs.push(0);
+                    allUVs.push(0);
+                }
+            }
         });
 
         // Determine if we need 32-bit indices
         const useUint32 = allVertices.length > 65535;
 
         console.log(
-            `GLB Export: ${triangles.length} triangles, ${allVertices.length} vertices, ${colorGroups.size} colors`,
+            `GLB Export: ${triangles.length} triangles, ${allVertices.length} vertices, ${materialGroups.size} materials`,
             useUint32 ? "(using 32-bit indices)" : "(using 16-bit indices)"
         );
 
         // Create GLTF structure
-        const gltf = this.createGLTFWithMaterials(allVertices, colorGroups, modelName, useUint32);
+        const gltf = this.createGLTFWithMaterials(
+            allVertices,
+            allUVs,
+            materialGroups,
+            textureRegistry,
+            modelName,
+            useUint32
+        );
 
         // Create binary data
-        const binaryData = this.createBinaryData(allVertices, colorGroups, useUint32);
+        const binaryData = this.createBinaryData(allVertices, allUVs, materialGroups, textureRegistry, useUint32);
 
         return this.assembleGLB(gltf, binaryData);
     }
@@ -76,21 +117,28 @@ class GLBExporter {
     /**
      * Create GLTF structure with separate materials and primitives
      */
-    createGLTFWithMaterials(allVertices, colorGroups, modelName, useUint32) {
+    createGLTFWithMaterials(allVertices, allUVs, materialGroups, textureRegistry, modelName, useUint32) {
         const vertexCount = allVertices.length;
 
         // Calculate buffer sizes
         const positionsSize = vertexCount * 3 * 4; // Float32
         const normalsSize = vertexCount * 3 * 4; // Float32
+        const uvsSize = allUVs.length > 0 ? (allUVs.length / 2) * 2 * 4 : 0; // Float32
 
-        // Calculate index buffer sizes for each color group
+        // Calculate index buffer sizes for each material group
         const indexSize = useUint32 ? 4 : 2; // Uint32 or Uint16
         let totalIndicesSize = 0;
-        for (const group of colorGroups.values()) {
+        for (const group of materialGroups.values()) {
             totalIndicesSize += group.indices.length * indexSize;
         }
 
-        const totalBufferSize = positionsSize + normalsSize + totalIndicesSize;
+        // Calculate texture image buffer sizes
+        let totalTextureSize = 0;
+        for (const texture of textureRegistry.values()) {
+            totalTextureSize += texture.imageData.byteLength;
+        }
+
+        const totalBufferSize = positionsSize + normalsSize + uvsSize + totalIndicesSize + totalTextureSize;
 
         let bufferOffset = 0;
         let accessorIndex = 0;
@@ -155,11 +203,77 @@ class GLBExporter {
         });
         const normalAccessor = accessorIndex++;
 
-        // Create material and primitive for each color group
+        // UV accessor (if we have UVs)
+        let uvAccessor = null;
+        if (allUVs.length > 0) {
+            gltf.bufferViews.push({
+                buffer: 0,
+                byteOffset: bufferOffset,
+                byteLength: uvsSize,
+                target: 34962 // ARRAY_BUFFER
+            });
+            bufferOffset += uvsSize;
+
+            gltf.accessors.push({
+                bufferView: bufferViewIndex++,
+                componentType: 5126, // FLOAT
+                count: vertexCount,
+                type: "VEC2"
+            });
+            uvAccessor = accessorIndex++;
+        }
+
+        // Create images and textures array for textures
+        let imageDataOffset = positionsSize + normalsSize + uvsSize + totalIndicesSize;
+        if (textureRegistry.size > 0) {
+            gltf.images = [];
+            gltf.textures = [];
+
+            let imageIndex = 0;
+            for (const [texName, texture] of textureRegistry) {
+                // Create image entry referencing the buffer view
+                gltf.images.push({
+                    name: texName,
+                    mimeType: texture.mimeType,
+                    bufferView: bufferViewIndex
+                });
+
+                // Create buffer view for this image
+                gltf.bufferViews.push({
+                    buffer: 0,
+                    byteOffset: imageDataOffset,
+                    byteLength: texture.imageData.byteLength
+                });
+                imageDataOffset += texture.imageData.byteLength;
+                bufferViewIndex++;
+
+                // Create texture entry
+                gltf.textures.push({
+                    name: texName,
+                    source: imageIndex,
+                    sampler: 0
+                });
+
+                imageIndex++;
+            }
+
+            // Create default sampler
+            gltf.samplers = [
+                {
+                    magFilter: 9729, // LINEAR
+                    minFilter: 9987, // LINEAR_MIPMAP_LINEAR
+                    wrapS: 10497, // REPEAT
+                    wrapT: 10497 // REPEAT
+                }
+            ];
+        }
+
+        // Create material and primitive for each material group
         let materialIndex = 0;
-        for (const [color, group] of colorGroups) {
+        let textureIndex = 0;
+        for (const [materialKey, group] of materialGroups) {
             // Create material
-            const rgb = this.hexToRgb(color);
+            const rgb = this.hexToRgb(group.color);
 
             // Extract alpha from triangles in this group (use first triangle's alpha, or default to 1.0)
             let alpha = 1.0;
@@ -167,23 +281,59 @@ class GLBExporter {
                 alpha = group.triangles[0].alpha;
             }
 
+            // Use preserved material name if available, otherwise generate from color
+            let materialName = `Material_${group.color.slice(1)}`;
+            if (group.hasTexture && group.triangles.length > 0 && group.triangles[0].texture?.materialName) {
+                materialName = group.triangles[0].texture.materialName;
+            }
+
+            // Extract PBR properties from first triangle (all in group should be same material)
+            let metallic = 0.0;
+            let roughness = 1.0;
+            let emissive = [0, 0, 0];
+
+            if (group.triangles.length > 0) {
+                const firstTriangle = group.triangles[0];
+                if (firstTriangle.metallic !== undefined) {
+                    metallic = firstTriangle.metallic;
+                }
+                if (firstTriangle.roughness !== undefined) {
+                    roughness = firstTriangle.roughness;
+                }
+                if (firstTriangle.emissive !== undefined) {
+                    emissive = firstTriangle.emissive;
+                }
+            }
+
             const material = {
-                name: `Material_${color.slice(1)}`,
+                name: materialName,
                 pbrMetallicRoughness: {
                     baseColorFactor: [rgb.r / 255, rgb.g / 255, rgb.b / 255, alpha],
-                    metallicFactor: 0.0,
-                    roughnessFactor: 1.0
+                    metallicFactor: metallic,
+                    roughnessFactor: roughness
                 }
             };
+
+            // Add emissive factor if it's not zero
+            if (emissive[0] !== 0 || emissive[1] !== 0 || emissive[2] !== 0) {
+                material.emissiveFactor = emissive;
+            }
 
             // Enable transparency if alpha < 1.0
             if (alpha < 1.0) {
                 material.alphaMode = "BLEND";
             }
 
+            // Add texture reference if this material uses a texture
+            if (group.hasTexture && group.textureId) {
+                material.pbrMetallicRoughness.baseColorTexture = {
+                    index: textureIndex++
+                };
+            }
+
             gltf.materials.push(material);
 
-            // Create indices buffer view for this color group
+            // Create indices buffer view for this material group
             const indicesSize = group.indices.length * indexSize;
             gltf.bufferViews.push({
                 buffer: 0,
@@ -201,12 +351,20 @@ class GLBExporter {
                 type: "SCALAR"
             });
 
+            // Create primitive attributes
+            const primitiveAttributes = {
+                POSITION: positionAccessor,
+                NORMAL: normalAccessor
+            };
+
+            // Add UV coordinates if available
+            if (uvAccessor !== null && group.hasTexture) {
+                primitiveAttributes.TEXCOORD_0 = uvAccessor;
+            }
+
             // Create primitive
             gltf.meshes[0].primitives.push({
-                attributes: {
-                    POSITION: positionAccessor,
-                    NORMAL: normalAccessor
-                },
+                attributes: primitiveAttributes,
                 indices: accessorIndex++,
                 material: materialIndex++,
                 mode: 4 // TRIANGLES
@@ -217,12 +375,13 @@ class GLBExporter {
     }
 
     /**
-     * Create binary data with shared vertices and separate indices
+     * Create binary data with shared vertices, UVs, indices, and textures
      */
-    createBinaryData(allVertices, colorGroups, useUint32) {
+    createBinaryData(allVertices, allUVs, materialGroups, textureRegistry, useUint32) {
         // Create position data
         const positions = new Float32Array(allVertices.length * 3);
         const normals = new Float32Array(allVertices.length * 3);
+        const uvs = allUVs.length > 0 ? new Float32Array(allUVs) : null;
 
         // We need to calculate normals from triangles since vertices are shared
         const vertexNormals = new Array(allVertices.length).fill(null).map(() => new Vector3(0, 0, 0));
@@ -230,7 +389,7 @@ class GLBExporter {
 
         // Calculate normals by averaging triangle normals
         let vertexIndex = 0;
-        for (const [color, group] of colorGroups) {
+        for (const [materialKey, group] of materialGroups) {
             group.triangles.forEach((triangle) => {
                 for (let i = 0; i < 3; i++) {
                     vertexNormals[vertexIndex].x += triangle.normal.x;
@@ -271,17 +430,21 @@ class GLBExporter {
             normals[i * 3 + 2] = vertexNormals[i].z;
         }
 
-        // Create index buffers for each color group using appropriate type
+        // Create index buffers for each material group using appropriate type
         const IndexArrayType = useUint32 ? Uint32Array : Uint16Array;
         const indexBuffers = [];
-        for (const [color, group] of colorGroups) {
+        for (const [materialKey, group] of materialGroups) {
             const indices = new IndexArrayType(group.indices);
             indexBuffers.push(indices);
         }
 
         // Combine all buffers
-        const totalSize =
-            positions.byteLength + normals.byteLength + indexBuffers.reduce((sum, buf) => sum + buf.byteLength, 0);
+        let totalSize = positions.byteLength + normals.byteLength;
+        totalSize += indexBuffers.reduce((sum, buf) => sum + buf.byteLength, 0);
+        if (uvs) totalSize += uvs.byteLength;
+        for (const texture of textureRegistry.values()) {
+            totalSize += texture.imageData.byteLength;
+        }
 
         const combinedBuffer = new ArrayBuffer(totalSize);
         const view = new Uint8Array(combinedBuffer);
@@ -296,10 +459,22 @@ class GLBExporter {
         view.set(new Uint8Array(normals.buffer), offset);
         offset += normals.byteLength;
 
+        // Copy UVs if present
+        if (uvs) {
+            view.set(new Uint8Array(uvs.buffer), offset);
+            offset += uvs.byteLength;
+        }
+
         // Copy index buffers
         for (const indexBuffer of indexBuffers) {
             view.set(new Uint8Array(indexBuffer.buffer), offset);
             offset += indexBuffer.byteLength;
+        }
+
+        // Copy texture image data
+        for (const texture of textureRegistry.values()) {
+            view.set(new Uint8Array(texture.imageData), offset);
+            offset += texture.imageData.byteLength;
         }
 
         return combinedBuffer;
