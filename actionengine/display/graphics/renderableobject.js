@@ -1,13 +1,20 @@
 // actionengine/display/graphics/renderableobject.js
+
+/**
+ * RenderableObject - Base class for all 3D renderable objects
+ * Provides transform and visual state management
+ */
 class RenderableObject {
     constructor() {
-        // Add visual update tracking
+        this.transform = new Transform();
+        this.height = 0;
+
+        this.body = null;
+        this.physicsWorld = null;
+
         this._visualDirty = true;
         this._lastPosition = null;
         this._lastRotation = null;
-
-        // Frustum culling properties
-        this.excludeFromFrustumCulling = false; // Objects can opt out if needed
     }
 
     markVisualDirty() {
@@ -17,28 +24,39 @@ class RenderableObject {
     isVisualDirty() {
         return this._visualDirty;
     }
+
+    /**
+     * Build model matrix from this object's transform
+     * @returns {Matrix4} Model matrix for shader
+     */
     getModelMatrix() {
-        const matrix = Matrix4.create();
-        const rotationMatrix = Matrix4.create();
+        if (this.body && this.body.rotation) {
+            const matrix = Matrix4.create();
+            const rotationMatrix = Matrix4.create();
 
-        // Apply initial vertical offset
-        Matrix4.translate(matrix, matrix, [0, this.height / 8, 0]);
+            Matrix4.translate(matrix, matrix, [0, this.height / 8, 0]);
+            Matrix4.translate(matrix, matrix, this.transform.position.toArray());
 
-        // Apply position
-        Matrix4.translate(matrix, matrix, this.position.toArray());
-
-        // Apply full rotation from physics body if it exists
-        if (this.body) {
             Matrix4.fromQuat(rotationMatrix, this.body.rotation);
             Matrix4.multiply(matrix, matrix, rotationMatrix);
-        } else {
-            // Fall back to simple Y rotation if no physics body
-            Matrix4.rotateY(matrix, matrix, this.rotation);
+
+            Matrix4.scale(matrix, matrix, [this.transform.scale, this.transform.scale, this.transform.scale]);
+
+            return matrix;
         }
 
-        // Apply scale
-        Matrix4.scale(matrix, matrix, [this.scale, this.scale, this.scale]);
-
-        return matrix;
+        return this.transform.getMatrix(this.height);
     }
+
+    /**
+     * Update game logic
+     * @param {number} deltaTime - Time since last update
+     */
+    update(deltaTime) {}
+
+    /**
+     * Update visual representation
+     * Called after update(). Subclasses override to sync visual state.
+     */
+    updateVisual() {}
 }

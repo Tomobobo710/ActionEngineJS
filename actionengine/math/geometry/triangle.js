@@ -4,28 +4,34 @@ class Triangle {
         this.vertices = [v1, v2, v3];
         this.normal = this.calculateNormal();
         this.color = color; // Default to magenta
-        
+
         // Texture structure: { imageData: Uint8Array, mimeType: string, name: string }
         // Can be null for non-textured triangles
         this.texture = texture;
-        
+
         // UV coordinates: array of 3 objects with {u, v} or Vector2
         // Only present if triangle is textured
         this.uvs = uvs;
-        
+
         // Alpha transparency (0-1), used in materials
         this.alpha = 1.0;
-        
+
         // PBR material properties
-        this.metallic = 0.0;      // 0-1, how metallic the surface is
-        this.roughness = 1.0;     // 0-1, how rough the surface is
+        this.metallic = 0.0; // 0-1, how metallic the surface is
+        this.roughness = 1.0; // 0-1, how rough the surface is
         this.emissive = [0, 0, 0]; // RGB color of emissive glow, [0-1, 0-1, 0-1]
     }
 
     calculateNormal() {
         const edge1 = this.vertices[1].sub(this.vertices[0]);
         const edge2 = this.vertices[2].sub(this.vertices[0]);
-        return edge1.cross(edge2).normalize();
+
+        // OPTIMIZATION: Use static crossInto to avoid allocating an intermediate vector
+        const normal = new Vector3();
+        Vector3.crossInto(normal, edge1, edge2);
+        normal.normalizeInPlace();
+
+        return normal;
     }
 
     getVertexArray() {

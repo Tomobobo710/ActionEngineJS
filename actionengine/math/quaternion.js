@@ -18,6 +18,55 @@ class Quaternion {
         return new Quaternion(0, Math.sin(halfAngle), 0, Math.cos(halfAngle));
     }
 
+    static fromEuler(roll, pitch, yaw) {
+        // Convert euler angles to quaternion
+        // Rotation order: roll (Z-axis) -> pitch (X-axis) -> yaw (Y-axis)
+        // This matches the old Arwing.transformVertex() rotation order
+        const cr = Math.cos(roll * 0.5);
+        const sr = Math.sin(roll * 0.5);
+        const cp = Math.cos(pitch * 0.5);
+        const sp = Math.sin(pitch * 0.5);
+        const cy = Math.cos(yaw * 0.5);
+        const sy = Math.sin(yaw * 0.5);
+
+        // ZXY order: Qz * Qx * Qy
+        const w = cy * cp * cr + sy * sp * sr;
+        const x = cy * sp * cr + sy * cp * sr;
+        const y = sy * cp * cr - cy * sp * sr;
+        const z = cy * cp * sr - sy * sp * cr;
+
+        return new Quaternion(x, y, z, w);
+    }
+
+    setAxisAngle(axis, angle) {
+        const halfAngle = angle * 0.5;
+        const s = Math.sin(halfAngle);
+        this.x = axis.x * s;
+        this.y = axis.y * s;
+        this.z = axis.z * s;
+        this.w = Math.cos(halfAngle);
+        return this;
+    }
+
+    setFromEuler(roll, pitch, yaw) {
+        // Convert euler angles to quaternion
+        // Rotation order: roll (Z-axis) -> pitch (X-axis) -> yaw (Y-axis)
+        // This matches the old Arwing.transformVertex() rotation order
+        const cr = Math.cos(roll * 0.5);
+        const sr = Math.sin(roll * 0.5);
+        const cp = Math.cos(pitch * 0.5);
+        const sp = Math.sin(pitch * 0.5);
+        const cy = Math.cos(yaw * 0.5);
+        const sy = Math.sin(yaw * 0.5);
+
+        // ZXY order: Qz * Qx * Qy
+        this.w = cy * cp * cr + sy * sp * sr;
+        this.x = cy * sp * cr + sy * cp * sr;
+        this.y = sy * cp * cr - cy * sp * sr;
+        this.z = cy * cp * sr - sy * sp * cr;
+        return this;
+    }
+
     slerp(other, t) {
         let cosHalfTheta = this.x * other.x + this.y * other.y + this.z * other.z + this.w * other.w;
 

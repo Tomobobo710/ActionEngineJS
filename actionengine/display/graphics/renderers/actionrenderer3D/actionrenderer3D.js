@@ -164,52 +164,28 @@ class ActionRenderer3D {
         }
 
         // Prepare for main rendering with shadows
+        // Note: Shadow uniform values are now set in ObjectRenderer3D.setupObjectShader()
+        // This eliminates redundant getUniformLocation() calls
         if (this.shadowsEnabled) {
             try {
-                // Get the current shader program
                 const program = this.programManager.getObjectProgram();
                 if (!program) {
                     console.warn("Cannot setup shadows: shader program not available");
                     return;
                 }
 
-                // Use the shader program
+                // IMPORTANT: Program must be bound before applying lights
+                // applyLightsToShader() calls getUniformLocation() which requires active program
                 this.gl.useProgram(program);
 
-                // Get main directional light
-                const mainLight = this.lightManager.getMainDirectionalLight();
-
-                // Now apply all lights' uniforms and shadow textures to the shader
+                // Apply all lights' uniforms and shadow textures to the shader
                 this.lightManager.applyLightsToShader(program, this.glStateManager);
-
-                // Get shadow-specific uniform locations
-                const uniformShadowSoftness = this.gl.getUniformLocation(program, "uShadowSoftness");
-                const uniformPCFSize = this.gl.getUniformLocation(program, "uPCFSize");
-                const uniformPCFEnabled = this.gl.getUniformLocation(program, "uPCFEnabled");
-
-                // Set shadow softness uniform
-                if (uniformShadowSoftness !== null) {
-                    const softness = this.lightManager.constants.SHADOW_FILTERING.SOFTNESS.value;
-                    this.gl.uniform1f(uniformShadowSoftness, softness);
-                }
-
-                // Set PCF size uniform
-                if (uniformPCFSize !== null) {
-                    const pcfSize = this.lightManager.constants.SHADOW_FILTERING.PCF.SIZE.value;
-                    this.gl.uniform1i(uniformPCFSize, pcfSize);
-                }
-
-                // Set PCF enabled uniform
-                if (uniformPCFEnabled !== null) {
-                    const pcfEnabled = this.lightManager.constants.SHADOW_FILTERING.PCF.ENABLED ? 1 : 0;
-                    this.gl.uniform1i(uniformPCFEnabled, pcfEnabled);
-                }
             } catch (error) {
                 console.error("Error setting up shadows:", error);
             }
         }
 
-        // Render objects
+        // Render objects (shadow uniform values now set internally in ObjectRenderer3D)
         this.glStateManager.setupState("object");
         this.objectRenderer.render();
 

@@ -590,8 +590,8 @@ class ActionDirectionalShadowLight extends ActionLight {
             return;
         }
 
-        // Use identity model matrix since triangles are already in world space
-        const modelMatrix = Matrix4.create();
+        // Use object's model matrix (triangles are now in local space)
+        const modelMatrix = object.getModelMatrix ? object.getModelMatrix() : Matrix4.create();
         gl.uniformMatrix4fv(this.shadowLocations.modelMatrix, false, modelMatrix);
 
         // Calculate total vertices and indices

@@ -21,12 +21,6 @@ class ObjectRenderer3D {
             indices: this.gl.createBuffer()
         };
 
-        // Create view frustum for culling
-        this.viewFrustum = new ViewFrustum();
-
-        // Frustum culling is enabled by default
-        this.enableFrustumCulling = false;
-
         // Cache for pre-computed uniform values
         this._uniformCache = {
             frame: -1, // Current frame number for cache validation
@@ -51,7 +45,7 @@ class ObjectRenderer3D {
 
         // Transparency support - track opaque vs transparent triangles
         this.opaqueIndices = [];
-        this.transparentTriangles = []; // Store { triangleIndex, alpha, centerX, centerY, centerZ, distance }
+        this.transparentTriangles = []; // Store triangle indices for transparent triangles
     }
 
     queue(object, camera, currentTime) {
@@ -70,6 +64,7 @@ class ObjectRenderer3D {
 
             // Track all objects in the current frame
             this._frameObjects = [];
+            this._frameObjectMatrices = []; // Track model matrix for each object
             this._totalTriangles = 0;
             this._frameInitialized = true;
             this._currentFrameTime = performance.now();
@@ -82,23 +77,12 @@ class ObjectRenderer3D {
                 this._textureCache = new Map();
             }
 
-            // Update the view frustum with the current camera
-            this.viewFrustum.updateFromCamera(camera);
-
             // Reset the frame counter for uniform cache
             this._frameCount = (this._frameCount || 0) + 1;
         }
 
         // Update statistics
         this.stats.objectsTotal++;
-
-        // Perform frustum culling if enabled
-        if (this.enableFrustumCulling) {
-            if (!this.viewFrustum.isVisible(object)) {
-                this.stats.objectsCulled++;
-                return; // Skip this object as it's outside the frustum
-            }
-        }
 
         // Ensure object's visual geometry is up-to-date with its physics state
         if (typeof object.updateVisual === "function") {
@@ -116,6 +100,9 @@ class ObjectRenderer3D {
 
         // Add this object to our frame tracking
         this._frameObjects.push(object);
+        this._frameObjectMatrices.push(
+            object.getModelMatrix ? object.getModelMatrix() : Matrix4.identity(Matrix4.create())
+        );
         this._totalTriangles += triangleCount;
     }
 
@@ -124,6 +111,7 @@ class ObjectRenderer3D {
             this.drawObjects(this._camera);
             this._frameInitialized = false;
             this._frameObjects = [];
+            this._frameObjectMatrices = [];
             this._totalTriangles = 0;
         }
     }
@@ -147,6 +135,7 @@ class ObjectRenderer3D {
         // Kept for reference: WebGL1 couldn't handle more than 65535 indices (16-bit limit)
 
         // Allocate or resize buffers if needed
+        // OPTIMIZATION: Build indices once (they're always 0,1,2,3,4,5...)
         if (!this.cachedArrays || this.cachedArrays.positions.length < totalVertexCount) {
             // Choose correct index array type based on WebGL version
             const IndexArrayType = Uint32Array;
@@ -158,6 +147,20 @@ class ObjectRenderer3D {
                 alphas: new Float32Array(totalVertexCount / 3), // One alpha per vertex
                 indices: new IndexArrayType(totalIndexCount)
             };
+
+            // Build indices once (they're always sequential, never change)
+            const indices = this.cachedArrays.indices;
+            for (let i = 0; i < totalIndexCount; i++) {
+                indices[i] = i;
+            }
+            this._lastBuiltIndexCount = totalIndexCount;
+        } else if (totalIndexCount > this._lastBuiltIndexCount) {
+            // Only fill new indices if buffer grew
+            const indices = this.cachedArrays.indices;
+            for (let i = this._lastBuiltIndexCount; i < totalIndexCount; i++) {
+                indices[i] = i;
+            }
+            this._lastBuiltIndexCount = totalIndexCount;
         }
 
         // Initialize texture arrays if we need them
@@ -172,6 +175,10 @@ class ObjectRenderer3D {
 
         const { positions, normals, colors, alphas, indices } = this.cachedArrays;
 
+        // OPTIMIZATION: Destructuring outside loops
+        const { uvs, textureIndices, useTextureFlags } = this.textureArrays;
+        let r, g, b;
+
         // Track offset for placing objects in buffer
         let triangleOffset = 0;
         let indexOffset = 0;
@@ -181,11 +188,8 @@ class ObjectRenderer3D {
             const triangles = object.triangles;
             const triangleCount = triangles.length;
 
-            // Process geometry data for this object
             // Use local variables for faster access
             const tri = triangles;
-            const normal = new Float32Array(3);
-            let r, g, b;
 
             for (let i = 0; i < triangleCount; i++) {
                 const triangle = tri[i];
@@ -197,25 +201,29 @@ class ObjectRenderer3D {
                 let alpha = triangle.alpha !== undefined ? triangle.alpha : 1.0;
                 if (color !== triangle.lastColor) {
                     // Use integer operations instead of substring for better performance
-                    const hexColor = parseInt(color.slice(1), 16);
+                    // OPTIMIZATION: Skip slice() by parsing directly with substring
+                    const hexColor = parseInt(color.substring(1), 16);
                     r = ((hexColor >> 16) & 255) / 255;
                     g = ((hexColor >> 8) & 255) / 255;
                     b = (hexColor & 255) / 255;
 
-                    // Cache the parsed color
-                    triangle.cachedColor = { r, g, b };
+                    // OPTIMIZATION: Cache parsed colors as direct values, not objects
+                    triangle.cachedColorR = r;
+                    triangle.cachedColorG = g;
+                    triangle.cachedColorB = b;
                     triangle.lastColor = color;
                 } else {
                     // Use cached color
-                    r = triangle.cachedColor.r;
-                    g = triangle.cachedColor.g;
-                    b = triangle.cachedColor.b;
+                    r = triangle.cachedColorR;
+                    g = triangle.cachedColorG;
+                    b = triangle.cachedColorB;
                 }
 
-                // Cache normal values once per triangle
-                normal[0] = triangle.normal.x;
-                normal[1] = triangle.normal.y;
-                normal[2] = triangle.normal.z;
+                // OPTIMIZATION: Direct normal access - no intermediate array
+                const triNormal = triangle.normal;
+                const nx = triNormal.x;
+                const ny = triNormal.y;
+                const nz = triNormal.z;
 
                 // Process all vertices of this triangle in one batch
                 // Unroll the loop for better performance
@@ -226,9 +234,9 @@ class ObjectRenderer3D {
                 positions[vo0] = v0.x;
                 positions[vo0 + 1] = v0.y;
                 positions[vo0 + 2] = v0.z;
-                normals[vo0] = normal[0];
-                normals[vo0 + 1] = normal[1];
-                normals[vo0 + 2] = normal[2];
+                normals[vo0] = nx;
+                normals[vo0 + 1] = ny;
+                normals[vo0 + 2] = nz;
                 colors[vo0] = r;
                 colors[vo0 + 1] = g;
                 colors[vo0 + 2] = b;
@@ -241,9 +249,9 @@ class ObjectRenderer3D {
                 positions[vo1] = v1.x;
                 positions[vo1 + 1] = v1.y;
                 positions[vo1 + 2] = v1.z;
-                normals[vo1] = normal[0];
-                normals[vo1 + 1] = normal[1];
-                normals[vo1 + 2] = normal[2];
+                normals[vo1] = nx;
+                normals[vo1 + 1] = ny;
+                normals[vo1 + 2] = nz;
                 colors[vo1] = r;
                 colors[vo1 + 1] = g;
                 colors[vo1 + 2] = b;
@@ -256,25 +264,21 @@ class ObjectRenderer3D {
                 positions[vo2] = v2.x;
                 positions[vo2 + 1] = v2.y;
                 positions[vo2 + 2] = v2.z;
-                normals[vo2] = normal[0];
-                normals[vo2 + 1] = normal[1];
-                normals[vo2 + 2] = normal[2];
+                normals[vo2] = nx;
+                normals[vo2 + 1] = ny;
+                normals[vo2 + 2] = nz;
                 colors[vo2] = r;
                 colors[vo2 + 1] = g;
                 colors[vo2 + 2] = b;
                 alphas[alphaIndex2] = alpha;
 
-                // Set up indices with correct offsets for each object
+                // OPTIMIZATION: Indices are pre-built during buffer allocation
+                // No need to rebuild them every frame (they're always sequential)
                 const indexBaseOffset = (triangleOffset + i) * 3;
-                // Every vertex needs its own index in WebGL
-                indices[indexBaseOffset] = (triangleOffset + i) * 3;
-                indices[indexBaseOffset + 1] = (triangleOffset + i) * 3 + 1;
-                indices[indexBaseOffset + 2] = (triangleOffset + i) * 3 + 2;
 
                 // Always populate texture arrays, even for non-textured triangles
                 const baseUVIndex = (triangleOffset + i) * 6;
                 const baseFlagIndex = (triangleOffset + i) * 3;
-                const { uvs, textureIndices, useTextureFlags } = this.textureArrays;
 
                 // Check if this triangle has texture (either from material or legacy texture property)
                 const shouldUseTexture = (triangle.material && triangle.material.useTexture) || triangle.texture;
@@ -323,7 +327,7 @@ class ObjectRenderer3D {
                     }
                 }
 
-                // Set texture data for all three vertices of triangle
+                // OPTIMIZATION: Batch set texture data for all three vertices
                 textureIndices[baseFlagIndex] = textureIndex;
                 textureIndices[baseFlagIndex + 1] = textureIndex;
                 textureIndices[baseFlagIndex + 2] = textureIndex;
@@ -332,14 +336,12 @@ class ObjectRenderer3D {
                 useTextureFlags[baseFlagIndex + 1] = useTextureValue;
                 useTextureFlags[baseFlagIndex + 2] = useTextureValue;
 
-                // Track opaque vs transparent triangles for two-pass rendering
+                // OPTIMIZATION: Track opaque vs transparent - reuse array objects to avoid allocations
                 if (alpha < 1.0) {
-                    this.transparentTriangles.push({
-                        triangleIndex: triangleGlobalIndex
-                    });
+                    // Reuse single temp object or index directly without creating new objects
+                    this.transparentTriangles.push(triangleGlobalIndex);
                 } else {
-                    // Track indices for opaque triangles (draw in original order)
-                    const indexBaseOffset = (triangleOffset + i) * 3;
+                    // OPTIMIZATION: Batch push indices instead of 3 separate calls
                     this.opaqueIndices.push(indexBaseOffset, indexBaseOffset + 1, indexBaseOffset + 2);
                 }
 
@@ -372,7 +374,6 @@ class ObjectRenderer3D {
         }
 
         // Always update texture buffers to ensure consistent behavior
-        const { uvs, textureIndices, useTextureFlags } = this.textureArrays;
         const textureBufferUpdates = [
             { buffer: this.buffers.uv, data: uvs },
             { buffer: this.buffers.textureIndex, data: textureIndices },
@@ -403,8 +404,7 @@ class ObjectRenderer3D {
 
         // Copy transparent indices in sorted order
         for (let i = 0; i < this.transparentTriangles.length; i++) {
-            const tri = this.transparentTriangles[i];
-            const triangleIdx = tri.triangleIndex;
+            const triangleIdx = this.transparentTriangles[i];
             const baseIndexOffset = triangleIdx * 3;
 
             reorderedIndices[indexPos++] = baseIndexOffset;
@@ -421,11 +421,23 @@ class ObjectRenderer3D {
         const locations = this.programManager.getObjectLocations();
         gl.useProgram(program);
 
-        this.setupObjectShader(locations, camera);
+        // Draw each object with its own model matrix
+        let triangleOffsetForObject = 0;
+        for (let objIdx = 0; objIdx < this._frameObjects.length; objIdx++) {
+            const modelMatrix = this._frameObjectMatrices[objIdx];
+            const object = this._frameObjects[objIdx];
+            const triangleCount = object.triangles.length;
 
-        // Draw opaque objects first (with normal depth writes)
-        if (this._opaqueIndexCount > 0) {
-            this.drawObject(locations, this._opaqueIndexCount);
+            // Set up shader with this object's model matrix
+            this.setupObjectShader(locations, camera, modelMatrix);
+
+            // Draw this object's triangles
+            // Offset is in bytes for UNSIGNED_INT indices (4 bytes per index)
+            const indexCount = triangleCount * 3;
+            const offsetBytes = triangleOffsetForObject * 3 * 4;
+            this.drawObject(locations, indexCount, offsetBytes);
+
+            triangleOffsetForObject += triangleCount;
         }
     }
 
@@ -436,6 +448,7 @@ class ObjectRenderer3D {
     _finalizeFrame() {
         this._frameInitialized = false;
         this._frameObjects = [];
+        this._frameObjectMatrices = [];
         this._totalTriangles = 0;
         this._resetTransparencyTracking();
     }
@@ -499,13 +512,13 @@ class ObjectRenderer3D {
         this._cacheUpdated = true;
     }
 
-    setupObjectShader(locations, camera) {
+    setupObjectShader(locations, camera, modelMatrix = null) {
         const gl = this.gl;
 
         // Use pre-computed values from the uniform cache
         gl.uniformMatrix4fv(locations.projectionMatrix, false, this._uniformCache.matrices.projection);
         gl.uniformMatrix4fv(locations.viewMatrix, false, this._uniformCache.matrices.view);
-        gl.uniformMatrix4fv(locations.modelMatrix, false, this._uniformCache.matrices.model);
+        gl.uniformMatrix4fv(locations.modelMatrix, false, modelMatrix || this._uniformCache.matrices.model);
 
         // Set camera position if the shader uses it
         if (locations.cameraPos !== -1 && locations.cameraPos !== null) {
@@ -608,8 +621,41 @@ class ObjectRenderer3D {
             }
         }
 
+        // Set shadow-related uniforms (moved here from ActionRenderer3D to avoid redundant program switching)
+        this._setShadowUniforms();
+
         // Track how many uniform sets we've performed
         this.stats.uniformSetCount++;
+    }
+
+    /**
+     * Set shadow-related uniforms using cached locations
+     * Called from setupObjectShader to consolidate all uniform setup in one place
+     * @private
+     */
+    _setShadowUniforms() {
+        const gl = this.gl;
+        const shadowLocations = this.programManager.getShadowUniformLocations();
+
+        // Get shadow settings from light manager
+        const softness = this.lightManager.constants.SHADOW_FILTERING.SOFTNESS.value;
+        const pcfSize = this.lightManager.constants.SHADOW_FILTERING.PCF.SIZE.value;
+        const pcfEnabled = this.lightManager.constants.SHADOW_FILTERING.PCF.ENABLED ? 1 : 0;
+
+        // Set shadow softness uniform
+        if (shadowLocations.shadowSoftness !== null) {
+            gl.uniform1f(shadowLocations.shadowSoftness, softness);
+        }
+
+        // Set PCF size uniform
+        if (shadowLocations.pcfSize !== null) {
+            gl.uniform1i(shadowLocations.pcfSize, pcfSize);
+        }
+
+        // Set PCF enabled uniform
+        if (shadowLocations.pcfEnabled !== null) {
+            gl.uniform1i(shadowLocations.pcfEnabled, pcfEnabled);
+        }
     }
 
     drawObject(locations, indexCount, offset = 0) {

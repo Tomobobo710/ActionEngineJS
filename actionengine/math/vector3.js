@@ -212,6 +212,14 @@ class Vector3 {
         );
     }
 
+    // Static cross product that writes to an output vector (no allocation)
+    static crossInto(out, a, b) {
+        out.x = a.y * b.z - a.z * b.y;
+        out.y = a.z * b.x - a.x * b.z;
+        out.z = a.x * b.y - a.y * b.x;
+        return out;
+    }
+
     // Array conversion
     toArray() {
         return [this.x, this.y, this.z];

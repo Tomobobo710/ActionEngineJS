@@ -18,6 +18,13 @@ class ProgramManager {
         this.waterLocations = {};
         this.lineLocations = {};
 
+        // Cache shadow-related uniform locations for all shaders
+        this.shadowUniformLocations = {
+            shadowSoftness: null,
+            pcfSize: null,
+            pcfEnabled: null
+        };
+
         // Shader instances
         this.objectShader = null;
         this.lineShader = null;
@@ -276,6 +283,9 @@ class ProgramManager {
             // Update stored program and locations
             this.objectProgram = program;
             this.objectLocations = locations;
+
+            // Cache shadow uniform locations for this shader variant
+            this._cacheShadowUniformLocations(program);
 
             console.log(`[ProgramManager] Object shader variant changed to: ${variant}`);
 
@@ -570,5 +580,24 @@ class ProgramManager {
 
     getLineLocations() {
         return this.lineLocations;
+    }
+
+    /**
+     * Cache shadow-related uniform locations for the current shader program
+     * Called during shader compilation to avoid repeated getUniformLocation calls
+     * @private
+     */
+    _cacheShadowUniformLocations(program) {
+        this.shadowUniformLocations.shadowSoftness = this.gl.getUniformLocation(program, "uShadowSoftness");
+        this.shadowUniformLocations.pcfSize = this.gl.getUniformLocation(program, "uPCFSize");
+        this.shadowUniformLocations.pcfEnabled = this.gl.getUniformLocation(program, "uPCFEnabled");
+    }
+
+    /**
+     * Get cached shadow uniform locations
+     * @returns {Object} Object with shadowSoftness, pcfSize, pcfEnabled locations
+     */
+    getShadowUniformLocations() {
+        return this.shadowUniformLocations;
     }
 }
