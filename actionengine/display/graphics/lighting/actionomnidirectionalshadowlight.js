@@ -301,7 +301,9 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
             this.shadowLocations = {
                 position: this.gl.getAttribLocation(this.shadowProgram, "aPosition"),
                 lightSpaceMatrix: this.gl.getUniformLocation(this.shadowProgram, "uLightSpaceMatrix"),
-                modelMatrix: this.gl.getUniformLocation(this.shadowProgram, "uModelMatrix"),
+                modelPos: this.gl.getUniformLocation(this.shadowProgram, "uModelPos"),
+                modelRotation: this.gl.getUniformLocation(this.shadowProgram, "uModelRotation"),
+                modelScale: this.gl.getUniformLocation(this.shadowProgram, "uModelScale"),
                 lightPos: this.gl.getUniformLocation(this.shadowProgram, "uLightPos"),
                 farPlane: this.gl.getUniformLocation(this.shadowProgram, "uFarPlane"),
                 debugShadowMap: this.gl.getUniformLocation(this.shadowProgram, "uDebugShadowMap"),
@@ -486,9 +488,43 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
             return;
         }
 
-        // Use object's model matrix (triangles are now in local space)
-        const modelMatrix = object.getModelMatrix ? object.getModelMatrix() : Matrix4.create();
-        gl.uniformMatrix4fv(this.shadowLocations.modelMatrix, false, modelMatrix);
+        // Send GPU-side matrix construction uniforms
+        // Extract transform components from object
+        const transform = object.transform;
+        if (transform) {
+            // Send position as vec3 uniform
+            if (this.shadowLocations.modelPos !== -1 && this.shadowLocations.modelPos !== null) {
+                gl.uniform3fv(this.shadowLocations.modelPos, [
+                    transform.position.x,
+                    transform.position.y,
+                    transform.position.z
+                ]);
+            }
+            // Send rotation as vec4 uniform (quaternion)
+            if (this.shadowLocations.modelRotation !== -1 && this.shadowLocations.modelRotation !== null) {
+                gl.uniform4fv(this.shadowLocations.modelRotation, [
+                    transform.rotation.x,
+                    transform.rotation.y,
+                    transform.rotation.z,
+                    transform.rotation.w
+                ]);
+            }
+            // Send scale as float uniform
+            if (this.shadowLocations.modelScale !== -1 && this.shadowLocations.modelScale !== null) {
+                gl.uniform1f(this.shadowLocations.modelScale, transform.scale || 1.0);
+            }
+        } else {
+            // Fallback defaults
+            if (this.shadowLocations.modelPos !== -1 && this.shadowLocations.modelPos !== null) {
+                gl.uniform3fv(this.shadowLocations.modelPos, [0, 0, 0]);
+            }
+            if (this.shadowLocations.modelRotation !== -1 && this.shadowLocations.modelRotation !== null) {
+                gl.uniform4fv(this.shadowLocations.modelRotation, [0, 0, 0, 1]);
+            }
+            if (this.shadowLocations.modelScale !== -1 && this.shadowLocations.modelScale !== null) {
+                gl.uniform1f(this.shadowLocations.modelScale, 1.0);
+            }
+        }
 
         // Calculate total vertices and indices
         const totalVertices = triangles.length * 3;

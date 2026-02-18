@@ -96,4 +96,33 @@ class Quaternion {
             this.w * ratioA + other.w * ratioB
         );
     }
+
+    /**
+     * Transform a vector by this quaternion rotation
+     * Uses the formula: v' = q * v * q^-1
+     * @param {Vector3} vector - The vector to rotate
+     * @returns {Vector3} The rotated vector
+     */
+    transformVector(vector) {
+        const x = vector.x,
+            y = vector.y,
+            z = vector.z;
+        const qx = this.x,
+            qy = this.y,
+            qz = this.z,
+            qw = this.w;
+
+        // Calculate q * v
+        const ix = qw * x + qy * z - qz * y;
+        const iy = qw * y + qz * x - qx * z;
+        const iz = qw * z + qx * y - qy * x;
+        const iw = -qx * x - qy * y - qz * z;
+
+        // Calculate (q * v) * q^-1
+        const rx = ix * qw + iw * -qx + iy * -qz - iz * -qy;
+        const ry = iy * qw + iw * -qy + iz * -qx - ix * -qz;
+        const rz = iz * qw + iw * -qz + ix * -qy - iy * -qx;
+
+        return new Vector3(rx, ry, rz);
+    }
 }

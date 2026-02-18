@@ -66,6 +66,43 @@ class ObjectShader {
     //--------------------------------------------------------------------------
 
     /**
+     * Helper functions for GPU-side matrix construction
+     * Matches Matrix4.fromQuat() from matrix4.js to ensure correct orientation
+     * @returns {string} - GLSL helper functions
+     */
+    getMatrixConstructionHelpers() {
+        return `
+    // Convert quaternion to 3x3 rotation matrix
+    // Uses the same formula as Matrix4.fromQuat() in the JS math library
+    mat3 quaternionToMatrix(vec4 q) {
+        float x = q.x, y = q.y, z = q.z, w = q.w;
+        float x2 = x + x, y2 = y + y, z2 = z + z;
+        float xx = x * x2, xy = x * y2, xz = x * z2;
+        float yy = y * y2, yz = y * z2, zz = z * z2;
+        float wx = w * x2, wy = w * y2, wz = w * z2;
+        
+        return mat3(
+            1.0 - (yy + zz), xy + wz,       xz - wy,
+            xy - wz,       1.0 - (xx + zz), yz + wx,
+            xz + wy,       yz - wx,       1.0 - (xx + yy)
+        );
+    }
+    
+    // Build full 4x4 model matrix from position, quaternion rotation, scale
+    mat4 buildModelMatrix(vec3 position, vec4 rotation, float scale) {
+        mat3 rotMatrix = quaternionToMatrix(rotation);
+        mat3 scaledRotMatrix = rotMatrix * mat3(scale);
+        
+        return mat4(
+            vec4(scaledRotMatrix[0], 0.0),
+            vec4(scaledRotMatrix[1], 0.0),
+            vec4(scaledRotMatrix[2], 0.0),
+            vec4(position, 1.0)
+        );
+    }`;
+    }
+
+    /**
      * Default object vertex shader
      * @returns {string} - Vertex shader source code
      */
@@ -84,7 +121,9 @@ class ObjectShader {
     
     uniform mat4 uProjectionMatrix;
     uniform mat4 uViewMatrix;
-    uniform mat4 uModelMatrix;
+    uniform vec3 uModelPos;
+    uniform vec4 uModelRotation;
+    uniform float uModelScale;
     uniform mat4 uLightSpaceMatrix;  // Added for shadow mapping
     uniform vec3 uLightDir;
     
@@ -99,8 +138,11 @@ class ObjectShader {
     out vec3 vFragPos;
     out float vFragDepth;  // For logarithmic depth buffer
     
+    ${this.getMatrixConstructionHelpers()}
+    
     void main() {
-        vec4 worldPos = uModelMatrix * vec4(aPosition, 1.0);
+        mat4 modelMatrix = buildModelMatrix(uModelPos, uModelRotation, uModelScale);
+        vec4 worldPos = modelMatrix * vec4(aPosition, 1.0);
         vFragPos = worldPos.xyz;
         gl_Position = uProjectionMatrix * uViewMatrix * worldPos;
         
@@ -111,8 +153,8 @@ class ObjectShader {
         // Position in light space for shadow mapping
         vFragPosLightSpace = uLightSpaceMatrix * worldPos;
         
-        // Pass world-space normal
-        vNormal = mat3(uModelMatrix) * aNormal;
+        // Pass world-space normal (use 3x3 rotation part for normal)
+        vNormal = quaternionToMatrix(uModelRotation) * aNormal;
         
         // Calculate basic diffuse lighting
         // Note: We negate the light direction to make it consistent with shadow mapping
@@ -484,6 +526,7 @@ class ObjectShader {
         vec4 baseColor;
         if (vUseTexture > 0.5) {  // Check if this fragment uses texture
             baseColor = texture(uTextureArray, vec3(vTexCoord, vTextureIndex));
+            // baseColor.a *= vAlpha;  // Apply triangle alpha to textured fragments
         } else {
             baseColor = vec4(vColor, vAlpha);
         }
@@ -686,7 +729,9 @@ class ObjectShader {
     // Uniforms - shared data for all vertices
     uniform mat4 uProjectionMatrix;
     uniform mat4 uViewMatrix;
-    uniform mat4 uModelMatrix;
+    uniform vec3 uModelPos;
+    uniform vec4 uModelRotation;
+    uniform float uModelScale;
     uniform mat4 uLightSpaceMatrix;  // Added for shadow mapping
 
     uniform vec3 uLightDir;
@@ -705,13 +750,16 @@ class ObjectShader {
     flat out float vUseTexture;
     out float vFragDepth;    // For logarithmic depth buffer
     
+    ${this.getMatrixConstructionHelpers()}
+    
     void main() {
-        // Calculate world position
-        vec4 worldPos = uModelMatrix * vec4(aPosition, 1.0);
+        // Calculate world position from GPU-constructed matrix
+        mat4 modelMatrix = buildModelMatrix(uModelPos, uModelRotation, uModelScale);
+        vec4 worldPos = modelMatrix * vec4(aPosition, 1.0);
         vWorldPos = worldPos.xyz;
         vFragPos = worldPos.xyz;
-        // Transform normal to world space
-        vNormal = mat3(uModelMatrix) * aNormal;
+        // Transform normal to world space (use 3x3 rotation part for normal)
+        vNormal = quaternionToMatrix(uModelRotation) * aNormal;
         
         // Calculate view direction
         vViewDir = normalize(uCameraPos - worldPos.xyz);
@@ -1357,7 +1405,9 @@ void main() {
         
         uniform mat4 uProjectionMatrix;
         uniform mat4 uViewMatrix;
-        uniform mat4 uModelMatrix;
+        uniform vec3 uModelPos;
+        uniform vec4 uModelRotation;
+        uniform float uModelScale;
         uniform vec3 uLightDir;
         
         flat out float vLighting;
@@ -1365,9 +1415,13 @@ void main() {
         out float vAlpha;
         out float vFragDepth;  // For logarithmic depth buffer
         
+        ${this.getMatrixConstructionHelpers()}
+        
         void main() {
-            gl_Position = uProjectionMatrix * uViewMatrix * uModelMatrix * vec4(aPosition, 1.0);
-            vec3 worldNormal = normalize(mat3(uModelMatrix) * aNormal);
+            mat4 modelMatrix = buildModelMatrix(uModelPos, uModelRotation, uModelScale);
+            vec4 worldPos = modelMatrix * vec4(aPosition, 1.0);
+            gl_Position = uProjectionMatrix * uViewMatrix * worldPos;
+            vec3 worldNormal = normalize(quaternionToMatrix(uModelRotation) * aNormal);
             // Negate light direction to be consistent with other shaders
             vLighting = max(0.3, min(1.0, dot(worldNormal, normalize(-uLightDir))));
             

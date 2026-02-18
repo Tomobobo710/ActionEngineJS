@@ -88,7 +88,18 @@ class WaterRenderer3D {
         // Set uniforms
         this.gl.uniformMatrix4fv(this.waterLocations.projectionMatrix, false, projection);
         this.gl.uniformMatrix4fv(this.waterLocations.viewMatrix, false, view);
-        this.gl.uniformMatrix4fv(this.waterLocations.modelMatrix, false, model);
+
+        // Send GPU-side matrix construction uniforms (water is typically at identity/origin)
+        if (this.waterLocations.modelPos !== -1 && this.waterLocations.modelPos !== null) {
+            this.gl.uniform3fv(this.waterLocations.modelPos, [0, 0, 0]);
+        }
+        if (this.waterLocations.modelRotation !== -1 && this.waterLocations.modelRotation !== null) {
+            this.gl.uniform4fv(this.waterLocations.modelRotation, [0, 0, 0, 1]);
+        }
+        if (this.waterLocations.modelScale !== -1 && this.waterLocations.modelScale !== null) {
+            this.gl.uniform1f(this.waterLocations.modelScale, 1.0);
+        }
+
         this.gl.uniform1f(this.waterLocations.time, currentTime * this.waterConfig.waveSpeed);
         this.gl.uniform3fv(this.waterLocations.cameraPos, camera.position.toArray());
         this.gl.uniform3fv(this.waterLocations.lightDir, [0.5, -1.0, 0.5]);

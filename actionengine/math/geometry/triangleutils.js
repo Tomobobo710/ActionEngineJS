@@ -31,4 +31,12 @@ class TriangleUtils {
 		const w3 = 1 - w1 - w2;
 		return { w1, w2, w3 };
 	}
+
+	// In-place version that writes to an output object (no allocation)
+	static getBarycentricCoordsInto(x, y, p1, p2, p3, out) {
+		const denominator = (p2.y - p3.y) * (p1.x - p3.x) + (p3.x - p2.x) * (p1.y - p3.y);
+		out.w1 = ((p2.y - p3.y) * (x - p3.x) + (p3.x - p2.x) * (y - p3.y)) / denominator;
+		out.w2 = ((p3.y - p1.y) * (x - p3.x) + (p1.x - p3.x) * (y - p3.y)) / denominator;
+		out.w3 = 1 - out.w1 - out.w2;
+	}
 }

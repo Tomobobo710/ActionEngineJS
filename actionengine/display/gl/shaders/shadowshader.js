@@ -1,6 +1,43 @@
 // actionengine/display/gl/shaders/shadowshader.js
 class ShadowShader {
     /**
+     * Helper functions for GPU-side matrix construction
+     * Matches Matrix4.fromQuat() from matrix4.js to ensure correct orientation
+     * @returns {string} - GLSL helper functions
+     */
+    getMatrixConstructionHelpers() {
+        return `
+    // Convert quaternion to 3x3 rotation matrix
+    // Uses the same formula as Matrix4.fromQuat() in the JS math library
+    mat3 quaternionToMatrix(vec4 q) {
+        float x = q.x, y = q.y, z = q.z, w = q.w;
+        float x2 = x + x, y2 = y + y, z2 = z + z;
+        float xx = x * x2, xy = x * y2, xz = x * z2;
+        float yy = y * y2, yz = y * z2, zz = z * z2;
+        float wx = w * x2, wy = w * y2, wz = w * z2;
+        
+        return mat3(
+            1.0 - (yy + zz), xy + wz,       xz - wy,
+            xy - wz,       1.0 - (xx + zz), yz + wx,
+            xz + wy,       yz - wx,       1.0 - (xx + yy)
+        );
+    }
+    
+    // Build full 4x4 model matrix from position, quaternion rotation, scale
+    mat4 buildModelMatrix(vec3 position, vec4 rotation, float scale) {
+        mat3 rotMatrix = quaternionToMatrix(rotation);
+        mat3 scaledRotMatrix = rotMatrix * mat3(scale);
+        
+        return mat4(
+            vec4(scaledRotMatrix[0], 0.0),
+            vec4(scaledRotMatrix[1], 0.0),
+            vec4(scaledRotMatrix[2], 0.0),
+            vec4(position, 1.0)
+        );
+    }`;
+    }
+
+    /**
      * Dedicated vertex shader for directional shadow mapping
      * This is the clean version that only handles directional shadows
      */
@@ -9,10 +46,15 @@ class ShadowShader {
         in vec3 aPosition;
         
         uniform mat4 uLightSpaceMatrix;
-        uniform mat4 uModelMatrix;
+        uniform vec3 uModelPos;
+        uniform vec4 uModelRotation;
+        uniform float uModelScale;
+        
+        ${this.getMatrixConstructionHelpers()}
         
         void main() {
-            gl_Position = uLightSpaceMatrix * uModelMatrix * vec4(aPosition, 1.0);
+            mat4 modelMatrix = buildModelMatrix(uModelPos, uModelRotation, uModelScale);
+            gl_Position = uLightSpaceMatrix * modelMatrix * vec4(aPosition, 1.0);
         }`;
     }
 
@@ -25,12 +67,17 @@ class ShadowShader {
         in vec3 aPosition;
          
          uniform mat4 uLightSpaceMatrix;
-         uniform mat4 uModelMatrix;
+         uniform vec3 uModelPos;
+         uniform vec4 uModelRotation;
+         uniform float uModelScale;
          out vec4 vWorldPos; // For omnidirectional shadows
         uniform vec3 uLightPos; // For omnidirectional shadows
         
+        ${this.getMatrixConstructionHelpers()}
+        
         void main() {
-            vec4 worldPos = uModelMatrix * vec4(aPosition, 1.0);
+            mat4 modelMatrix = buildModelMatrix(uModelPos, uModelRotation, uModelScale);
+            vec4 worldPos = modelMatrix * vec4(aPosition, 1.0);
             vWorldPos = worldPos;
             gl_Position = uLightSpaceMatrix * worldPos;
         }`;
@@ -45,13 +92,18 @@ class ShadowShader {
         in vec3 aPosition;
          
          uniform mat4 uLightSpaceMatrix;
-         uniform mat4 uModelMatrix;
+         uniform vec3 uModelPos;
+         uniform vec4 uModelRotation;
+         uniform float uModelScale;
          uniform vec3 uLightPos;
          
          out vec3 vFragPos;
         
+        ${this.getMatrixConstructionHelpers()}
+        
         void main() {
-            vec4 worldPos = uModelMatrix * vec4(aPosition, 1.0);
+            mat4 modelMatrix = buildModelMatrix(uModelPos, uModelRotation, uModelScale);
+            vec4 worldPos = modelMatrix * vec4(aPosition, 1.0);
             vFragPos = worldPos.xyz;
             gl_Position = uLightSpaceMatrix * worldPos;
         }`;

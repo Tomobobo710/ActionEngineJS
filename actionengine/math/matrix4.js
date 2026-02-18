@@ -67,6 +67,53 @@ class Matrix4 {
 
         return result;
     }
+
+    // In-place version that writes to output array (no allocation)
+    static transformVectorInto(vector, viewMatrix, projectionMatrix, out) {
+        // First multiply by view matrix
+        const viewResultX =
+            vector[0] * viewMatrix[0] +
+            vector[1] * viewMatrix[4] +
+            vector[2] * viewMatrix[8] +
+            vector[3] * viewMatrix[12];
+        const viewResultY =
+            vector[0] * viewMatrix[1] +
+            vector[1] * viewMatrix[5] +
+            vector[2] * viewMatrix[9] +
+            vector[3] * viewMatrix[13];
+        const viewResultZ =
+            vector[0] * viewMatrix[2] +
+            vector[1] * viewMatrix[6] +
+            vector[2] * viewMatrix[10] +
+            vector[3] * viewMatrix[14];
+        const viewResultW =
+            vector[0] * viewMatrix[3] +
+            vector[1] * viewMatrix[7] +
+            vector[2] * viewMatrix[11] +
+            vector[3] * viewMatrix[15];
+
+        // Then multiply by projection matrix
+        out[0] =
+            viewResultX * projectionMatrix[0] +
+            viewResultY * projectionMatrix[4] +
+            viewResultZ * projectionMatrix[8] +
+            viewResultW * projectionMatrix[12];
+        out[1] =
+            viewResultX * projectionMatrix[1] +
+            viewResultY * projectionMatrix[5] +
+            viewResultZ * projectionMatrix[9] +
+            viewResultW * projectionMatrix[13];
+        out[2] =
+            viewResultX * projectionMatrix[2] +
+            viewResultY * projectionMatrix[6] +
+            viewResultZ * projectionMatrix[10] +
+            viewResultW * projectionMatrix[14];
+        out[3] =
+            viewResultX * projectionMatrix[3] +
+            viewResultY * projectionMatrix[7] +
+            viewResultZ * projectionMatrix[11] +
+            viewResultW * projectionMatrix[15];
+    }
     static fromQuat(out, q) {
         const x = q.x,
             y = q.y,

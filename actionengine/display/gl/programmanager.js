@@ -47,7 +47,9 @@ class ProgramManager {
         this.uniformNames = {
             projectionMatrix: "uProjectionMatrix",
             viewMatrix: "uViewMatrix",
-            modelMatrix: "uModelMatrix",
+            modelPos: "uModelPos",
+            modelRotation: "uModelRotation",
+            modelScale: "uModelScale",
             lightPos: "uLightPos",
             lightDir: "uLightDir",
             lightIntensity: "uLightIntensity",
@@ -392,7 +394,9 @@ class ProgramManager {
             texCoord: this.gl.getAttribLocation(this.waterProgram, "aTexCoord"),
             projectionMatrix: this.gl.getUniformLocation(this.waterProgram, "uProjectionMatrix"),
             viewMatrix: this.gl.getUniformLocation(this.waterProgram, "uViewMatrix"),
-            modelMatrix: this.gl.getUniformLocation(this.waterProgram, "uModelMatrix"),
+            modelPos: this.gl.getUniformLocation(this.waterProgram, "uModelPos"),
+            modelRotation: this.gl.getUniformLocation(this.waterProgram, "uModelRotation"),
+            modelScale: this.gl.getUniformLocation(this.waterProgram, "uModelScale"),
             time: this.gl.getUniformLocation(this.waterProgram, "uTime"),
             cameraPos: this.gl.getUniformLocation(this.waterProgram, "uCameraPos"),
             lightDir: this.gl.getUniformLocation(this.waterProgram, "uLightDir")
@@ -451,7 +455,9 @@ class ProgramManager {
             // Uniforms
             projectionMatrix: gl.getUniformLocation(program, unif.projectionMatrix),
             viewMatrix: gl.getUniformLocation(program, unif.viewMatrix),
-            modelMatrix: gl.getUniformLocation(program, unif.modelMatrix),
+            modelPos: gl.getUniformLocation(program, unif.modelPos),
+            modelRotation: gl.getUniformLocation(program, unif.modelRotation),
+            modelScale: gl.getUniformLocation(program, unif.modelScale),
             lightPos: gl.getUniformLocation(program, unif.lightPos),
             lightDir: gl.getUniformLocation(program, unif.lightDir),
             lightIntensity: gl.getUniformLocation(program, unif.lightIntensity),

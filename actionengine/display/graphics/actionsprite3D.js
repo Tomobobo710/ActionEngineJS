@@ -138,17 +138,49 @@ class ActionSprite3D extends RenderableObject {
     /**
      * Get the world position of this sprite
      * Takes into account attachment and custom transforms
+     * Uses component-based transforms instead of matrix multiplication
      * @returns {Vector3} World position
      */
     getWorldPosition() {
         if (this.attachedTo && this.attachedTo.transform) {
-            // Transform local offset by parent's model matrix
-            const parentMatrix = this.attachedTo.getModelMatrix();
-            const offsetVec4 = [this.localOffset.x, this.localOffset.y, this.localOffset.z, 1.0];
-            const transformedVec4 = [0, 0, 0, 0];
-            Matrix4.multiplyVector(transformedVec4, parentMatrix, offsetVec4);
+            const parentTransform = this.attachedTo.transform;
 
-            return new Vector3(transformedVec4[0], transformedVec4[1], transformedVec4[2]);
+            // Apply parent scale to local offset
+            const scaledOffset = new Vector3(
+                this.localOffset.x * parentTransform.scale,
+                this.localOffset.y * parentTransform.scale,
+                this.localOffset.z * parentTransform.scale
+            );
+
+            // Apply parent rotation to scaled offset using quaternion
+            const q = parentTransform.rotation;
+            const x = scaledOffset.x,
+                y = scaledOffset.y,
+                z = scaledOffset.z;
+            const qx = q.x,
+                qy = q.y,
+                qz = q.z,
+                qw = q.w;
+
+            // Quaternion rotation formula: v' = q * v * q^-1
+            // Simplified for efficiency (quaternion is already normalized)
+            const ix = qw * x + qy * z - qz * y;
+            const iy = qw * y + qz * x - qx * z;
+            const iz = qw * z + qx * y - qy * x;
+            const iw = -qx * x - qy * y - qz * z;
+
+            const rotatedOffset = new Vector3(
+                ix * qw + iw * -qx + iy * -qz - iz * -qy,
+                iy * qw + iw * -qy + iz * -qx - ix * -qz,
+                iz * qw + iw * -qz + ix * -qy - iy * -qx
+            );
+
+            // Add parent position
+            return new Vector3(
+                parentTransform.position.x + rotatedOffset.x,
+                parentTransform.position.y + rotatedOffset.y,
+                parentTransform.position.z + rotatedOffset.z
+            );
         }
         return this.transform.position;
     }
@@ -195,22 +227,6 @@ class ActionSprite3D extends RenderableObject {
     setOrientation(forward, up = new Vector3(0, 1, 0)) {
         this.forward = forward;
         this.up = up;
-    }
-
-    /**
-     * Override getModelMatrix for sprite positioning
-     * @returns {Matrix4} Model matrix for rendering
-     */
-    getModelMatrix() {
-        const matrix = Matrix4.create();
-        const worldPos = this.getWorldPosition();
-        Matrix4.translate(matrix, matrix, worldPos.toArray());
-
-        if (!this.isBillboard && (this.forward || this.rotation)) {
-            // TODO: Build rotation from forward/up vectors or quaternion
-        }
-
-        return matrix;
     }
 
     /**

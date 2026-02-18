@@ -42,7 +42,7 @@ class ActionPhysicsObject3D extends RenderableObject {
      * Syncs transform and updates triangle data if needed
      */
     updateVisual() {
-        // If body exists, sync transform from it; otherwise transform stays as manually set
+        // If body exists, sync transform from it
         if (this.body) {
             const { x: posX, y: posY, z: posZ } = this.body.position;
 
@@ -79,11 +79,11 @@ class ActionPhysicsObject3D extends RenderableObject {
             this._lastRotation.z = this.body.rotation.z;
             this._lastRotation.w = this.body.rotation.w;
 
+            // Keep local-space triangles for 3D GPU renderer
+            this.triangles = this._originalTriangles;
+
             this._visualDirty = false;
         }
-
-        // GPU transform pipeline: geometry stays in local space, shader applies model matrix
-        // No CPU vertex transformation needed
     }
 
     /**

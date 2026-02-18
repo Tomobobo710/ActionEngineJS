@@ -46,6 +46,7 @@ class ObjectRenderer3D {
         // Transparency support - track opaque vs transparent triangles
         this.opaqueIndices = [];
         this.transparentTriangles = []; // Store triangle indices for transparent triangles
+        this.perObjectOpaqueCount = []; // Track opaque count per object for per-object rendering
     }
 
     queue(object, camera, currentTime) {
@@ -64,7 +65,9 @@ class ObjectRenderer3D {
 
             // Track all objects in the current frame
             this._frameObjects = [];
-            this._frameObjectMatrices = []; // Track model matrix for each object
+            this._frameObjectPositions = []; // Track positions for GPU-side matrix construction
+            this._frameObjectRotations = []; // Track rotations (quaternions) for GPU-side matrix construction
+            this._frameObjectScales = []; // Track scales for GPU-side matrix construction
             this._totalTriangles = 0;
             this._frameInitialized = true;
             this._currentFrameTime = performance.now();
@@ -100,9 +103,20 @@ class ObjectRenderer3D {
 
         // Add this object to our frame tracking
         this._frameObjects.push(object);
-        this._frameObjectMatrices.push(
-            object.getModelMatrix ? object.getModelMatrix() : Matrix4.identity(Matrix4.create())
-        );
+
+        // Extract transform components for GPU-side matrix construction
+        const transform = object.transform;
+        if (transform) {
+            this._frameObjectPositions.push(transform.position);
+            this._frameObjectRotations.push(transform.rotation);
+            this._frameObjectScales.push(transform.scale || 1.0);
+        } else {
+            // Fallback if transform not available
+            this._frameObjectPositions.push({ x: 0, y: 0, z: 0 });
+            this._frameObjectRotations.push({ x: 0, y: 0, z: 0, w: 1 });
+            this._frameObjectScales.push(1.0);
+        }
+
         this._totalTriangles += triangleCount;
     }
 
@@ -111,7 +125,9 @@ class ObjectRenderer3D {
             this.drawObjects(this._camera);
             this._frameInitialized = false;
             this._frameObjects = [];
-            this._frameObjectMatrices = [];
+            this._frameObjectPositions = [];
+            this._frameObjectRotations = [];
+            this._frameObjectScales = [];
             this._totalTriangles = 0;
         }
     }
@@ -182,11 +198,13 @@ class ObjectRenderer3D {
         // Track offset for placing objects in buffer
         let triangleOffset = 0;
         let indexOffset = 0;
+        this.perObjectOpaqueCount = []; // Reset per-object opaque counts
 
         // Process all objects in the frame
         for (const object of this._frameObjects) {
             const triangles = object.triangles;
             const triangleCount = triangles.length;
+            let objectOpaqueCount = 0; // Count opaque triangles for this object
 
             // Use local variables for faster access
             const tri = triangles;
@@ -343,12 +361,16 @@ class ObjectRenderer3D {
                 } else {
                     // OPTIMIZATION: Batch push indices instead of 3 separate calls
                     this.opaqueIndices.push(indexBaseOffset, indexBaseOffset + 1, indexBaseOffset + 2);
+                    objectOpaqueCount += 3; // Track opaque indices for this object
                 }
 
                 if (i === 0 && triangleOffset === 0) {
                     // First triangle of first object
                 }
             }
+
+            // Store opaque count for this object
+            this.perObjectOpaqueCount.push(objectOpaqueCount);
 
             // Update triangle offset for next object
             triangleOffset += triangleCount;
@@ -421,23 +443,16 @@ class ObjectRenderer3D {
         const locations = this.programManager.getObjectLocations();
         gl.useProgram(program);
 
-        // Draw each object with its own model matrix
-        let triangleOffsetForObject = 0;
+        // Draw each object's opaque triangles with correct transform
+        let opaqueOffsetBytes = 0;
         for (let objIdx = 0; objIdx < this._frameObjects.length; objIdx++) {
-            const modelMatrix = this._frameObjectMatrices[objIdx];
-            const object = this._frameObjects[objIdx];
-            const triangleCount = object.triangles.length;
+            const opaqueCount = this.perObjectOpaqueCount[objIdx] || 0;
 
-            // Set up shader with this object's model matrix
-            this.setupObjectShader(locations, camera, modelMatrix);
-
-            // Draw this object's triangles
-            // Offset is in bytes for UNSIGNED_INT indices (4 bytes per index)
-            const indexCount = triangleCount * 3;
-            const offsetBytes = triangleOffsetForObject * 3 * 4;
-            this.drawObject(locations, indexCount, offsetBytes);
-
-            triangleOffsetForObject += triangleCount;
+            if (opaqueCount > 0) {
+                this.setupObjectShader(locations, camera, objIdx);
+                this.drawObject(locations, opaqueCount, opaqueOffsetBytes);
+                opaqueOffsetBytes += opaqueCount * 4;
+            }
         }
     }
 
@@ -448,7 +463,9 @@ class ObjectRenderer3D {
     _finalizeFrame() {
         this._frameInitialized = false;
         this._frameObjects = [];
-        this._frameObjectMatrices = [];
+        this._frameObjectPositions = [];
+        this._frameObjectRotations = [];
+        this._frameObjectScales = [];
         this._totalTriangles = 0;
         this._resetTransparencyTracking();
     }
@@ -512,13 +529,33 @@ class ObjectRenderer3D {
         this._cacheUpdated = true;
     }
 
-    setupObjectShader(locations, camera, modelMatrix = null) {
+    setupObjectShader(locations, camera, objectIndex = 0) {
         const gl = this.gl;
 
         // Use pre-computed values from the uniform cache
         gl.uniformMatrix4fv(locations.projectionMatrix, false, this._uniformCache.matrices.projection);
         gl.uniformMatrix4fv(locations.viewMatrix, false, this._uniformCache.matrices.view);
-        gl.uniformMatrix4fv(locations.modelMatrix, false, modelMatrix || this._uniformCache.matrices.model);
+
+        // Send GPU-side matrix construction uniforms
+        // Get current object's transform components (indexed by objectIndex)
+        const pos = this._frameObjectPositions[objectIndex];
+        const rot = this._frameObjectRotations[objectIndex];
+        const scale = this._frameObjectScales[objectIndex];
+
+        // Send position as vec3 uniform
+        if (locations.modelPos !== -1 && locations.modelPos !== null) {
+            gl.uniform3fv(locations.modelPos, pos ? [pos.x, pos.y, pos.z] : [0, 0, 0]);
+        }
+
+        // Send rotation as vec4 uniform (quaternion)
+        if (locations.modelRotation !== -1 && locations.modelRotation !== null) {
+            gl.uniform4fv(locations.modelRotation, rot ? [rot.x, rot.y, rot.z, rot.w] : [0, 0, 0, 1]);
+        }
+
+        // Send scale as float uniform
+        if (locations.modelScale !== -1 && locations.modelScale !== null) {
+            gl.uniform1f(locations.modelScale, scale || 1.0);
+        }
 
         // Set camera position if the shader uses it
         if (locations.cameraPos !== -1 && locations.cameraPos !== null) {
@@ -851,7 +888,7 @@ class ObjectRenderer3D {
         const locations = this.programManager.getObjectLocations();
 
         gl.useProgram(program);
-        this.setupObjectShader(locations, camera);
+        this.setupObjectShader(locations, camera, 0);
 
         // Set up vertex attributes and draw
         this.drawObject(locations, this._transparentIndexCount, this._opaqueIndexCount * 4);
@@ -867,6 +904,7 @@ class ObjectRenderer3D {
     _resetTransparencyTracking() {
         this.opaqueIndices = [];
         this.transparentTriangles = [];
+        this.perObjectOpaqueCount = [];
         this._opaqueIndexCount = 0;
         this._transparentIndexCount = 0;
     }
