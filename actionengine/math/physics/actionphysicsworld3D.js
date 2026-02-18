@@ -19,12 +19,12 @@ class ActionPhysicsWorld3D {
 
     fixed_update(fixedDeltaTime) {
         if (!this.world || this.isPaused) return;
-        
+
         // Store pre-physics state for objects that need to know if they've moved
         const movedObjects = new Set();
-        
+
         // Capture pre-step positions and rotations for moving objects
-        this.objects.forEach(object => {
+        this.objects.forEach((object) => {
             if (object.body && !object.body.is_static) {
                 movedObjects.add(object);
             }
@@ -33,11 +33,11 @@ class ActionPhysicsWorld3D {
         try {
             // Step physics with the fixed timestep
             this.world.step(fixedDeltaTime);
-            
-            // Mark objects that moved during physics as visually dirty
-            movedObjects.forEach(object => {
-                if (typeof object.markVisualDirty === 'function') {
-                    object.markVisualDirty();
+
+            // Update visual state for all objects that moved during physics
+            movedObjects.forEach((object) => {
+                if (typeof object.updateVisual === "function") {
+                    object.updateVisual();
                 }
             });
         } catch (error) {
@@ -45,16 +45,17 @@ class ActionPhysicsWorld3D {
                 console.error("===== SILHOUETTE ERROR DETECTED =====");
                 console.error("Error message:", error.message);
                 console.error("Error stack:", error.stack);
-                
+
                 // Log object counts and world state
                 console.error("Physics objects count:", this.objects.size);
                 console.error("Rigid bodies count:", this.world.rigid_bodies.length);
-                
+
                 // Log character information if available
                 if (window.gameCharacter) {
                     console.error("Character information:");
                     console.error("  - Type:", window.gameCharacter.constructor.name);
-                    console.error("  - Position:", 
+                    console.error(
+                        "  - Position:",
                         window.gameCharacter.body.position.x,
                         window.gameCharacter.body.position.y,
                         window.gameCharacter.body.position.z
@@ -62,39 +63,44 @@ class ActionPhysicsWorld3D {
                     console.error("  - Has body?", !!window.gameCharacter.body);
                     console.error("  - Body in world?", this.world.rigid_bodies.includes(window.gameCharacter.body));
                 }
-                
+
                 // Log object pool sizes - these are key to understanding the issue
                 if (window.Goblin && window.Goblin.ObjectPool) {
                     console.error("Goblin object pools:");
-                    Object.keys(window.Goblin.ObjectPool.pools).forEach(key => {
+                    Object.keys(window.Goblin.ObjectPool.pools).forEach((key) => {
                         console.error(`  - ${key}: ${window.Goblin.ObjectPool.pools[key].length} objects`);
                     });
                 }
-                
+
                 // Continue execution - skip this physics step
                 console.error("Skipping current physics step due to error");
-                
+
                 // Log a counter of how many times this has happened
                 this._silhouetteErrorCount = (this._silhouetteErrorCount || 0) + 1;
                 console.error(`Total silhouette errors: ${this._silhouetteErrorCount}`);
-                
+
                 // Keep track of what the character was doing when this happened
                 if (window.gameCharacter && window.gameCharacter.debugInfo) {
                     const state = window.gameCharacter.debugInfo.state;
                     console.error("Character state when error occurred:", state ? state.current : "unknown");
                 }
-                
+
                 // Store detailed information for later analysis
                 if (!window._silhouetteErrorLog) window._silhouetteErrorLog = [];
                 window._silhouetteErrorLog.push({
                     timestamp: new Date().toISOString(),
                     errorMessage: error.message,
-                    characterPosition: window.gameCharacter ? 
-                        [window.gameCharacter.body.position.x, 
-                         window.gameCharacter.body.position.y, 
-                         window.gameCharacter.body.position.z] : null,
-                    characterState: window.gameCharacter && window.gameCharacter.debugInfo ? 
-                        window.gameCharacter.debugInfo.state.current : null
+                    characterPosition: window.gameCharacter
+                        ? [
+                              window.gameCharacter.body.position.x,
+                              window.gameCharacter.body.position.y,
+                              window.gameCharacter.body.position.z
+                          ]
+                        : null,
+                    characterState:
+                        window.gameCharacter && window.gameCharacter.debugInfo
+                            ? window.gameCharacter.debugInfo.state.current
+                            : null
                 });
             } else {
                 // Re-throw any other errors
@@ -105,9 +111,9 @@ class ActionPhysicsWorld3D {
 
     update(deltaTime) {
         // This is now a lightweight wrapper for backward compatibility
-        // Physics is now handled in fixed_update()        
+        // Physics is now handled in fixed_update()
         if (!this.world || this.isPaused) return;
-        
+
         // Update any non-physics related components here that need variable timestep
         // (none currently, all physics moved to fixed_update)
     }
@@ -158,11 +164,11 @@ class ActionPhysicsWorld3D {
             this.world.removeRigidBody(this.terrainBody);
         }
         this.terrainBody = body;
-        
+
         //disable masking for now
         //body.collision_groups = group;
         //body.collision_mask = mask;
-        
+
         //console.log("[PhysicsWorld] Adding to world with groups:", group, "mask:", mask);
         this.world.addRigidBody(body);
     }
@@ -214,12 +220,12 @@ class ActionPhysicsWorld3D {
         this.broadphase = new Goblin.SAPBroadphase();
         this.narrowphase = new Goblin.NarrowPhase();
         this.solver = new Goblin.IterativeSolver();
-        
+
         // Clear all object pools
-        Object.keys(Goblin.ObjectPool.pools).forEach(key => {
+        Object.keys(Goblin.ObjectPool.pools).forEach((key) => {
             Goblin.ObjectPool.pools[key].length = 0;
         });
-        
+
         if (this.terrainBody) {
             this.world.removeRigidBody(this.terrainBody);
             this.terrainBody = null;
@@ -228,7 +234,7 @@ class ActionPhysicsWorld3D {
         this.objects.forEach((obj) => {
             this.removeObject(obj);
         });
-        
+
         this.objects.clear();
     }
 

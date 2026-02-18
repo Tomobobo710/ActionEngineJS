@@ -8,10 +8,10 @@
 class ActionCharacter3D extends ActionCharacter {
     constructor(camera, game, position) {
         super(camera, game, position);
-                
+
         // Set additional properties needed by the parent class
         this.firstPersonHeight = this.height * 0.5;
-        
+
         // Create a capsule physics model
         this.characterModel = new ActionPhysicsCapsule3D(
             this.game.physicsWorld,
@@ -21,38 +21,38 @@ class ActionCharacter3D extends ActionCharacter {
             new Vector3(0, 0, 0), // position
             "#4488FF" // character color
         );
-        
+
         console.log("[ActionCharacter3D] Initialized");
     }
-    
+
     fixed_update(fixedDeltaTime) {
         // Call parent's fixed_update for physics
         super.fixed_update(fixedDeltaTime);
     }
-    
+
     update(deltaTime) {
         super.update(deltaTime);
-        
+
         // Update the visual representation to match the character controller
         if (this.characterModel && this.body) {
             // Copy position from character controller to our visual model
             this.characterModel.body.position.x = this.body.position.x;
             this.characterModel.body.position.y = this.body.position.y;
             this.characterModel.body.position.z = this.body.position.z;
-            
+
             // Update capsule rotation based on character facing direction
             const angle = Math.atan2(this.facingDirection.x, this.facingDirection.z);
-            
+
             // First create quaternion using ActionEngine's Quaternion class
             const engineQuat = Quaternion.fromAxisAngle(new Vector3(0, 1, 0), angle);
-            
+
             // Directly set the rotation components on the body's rotation quaternion
             this.characterModel.body.rotation.x = engineQuat.x;
             this.characterModel.body.rotation.y = engineQuat.y;
-            
-            // Mark the character model as dirty since we manually updated its position and rotation
-            if (typeof this.characterModel.markVisualDirty === 'function') {
-                this.characterModel.markVisualDirty();
+
+            // Sync visual state since we manually updated the physics body
+            if (typeof this.characterModel.updateVisual === "function") {
+                this.characterModel.updateVisual();
             }
             this.characterModel.body.rotation.z = engineQuat.z;
             this.characterModel.body.rotation.w = engineQuat.w;

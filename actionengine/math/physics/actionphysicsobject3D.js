@@ -46,7 +46,8 @@ class ActionPhysicsObject3D extends RenderableObject {
         if (this.body) {
             const { x: posX, y: posY, z: posZ } = this.body.position;
 
-            if (!this._visualDirty && this._lastPosition && this._lastRotation) {
+            // Early exit if position/rotation haven't changed significantly
+            if (this._lastPosition && this._lastRotation) {
                 if (
                     Math.abs(this._lastPosition.x - posX) < 0.001 &&
                     Math.abs(this._lastPosition.y - posY) < 0.001 &&
@@ -80,9 +81,8 @@ class ActionPhysicsObject3D extends RenderableObject {
             this._lastRotation.w = this.body.rotation.w;
 
             // Keep local-space triangles for 3D GPU renderer
-            this.triangles = this._originalTriangles;
-
-            this._visualDirty = false;
+            // Respect visibility flag - invisible objects should stay invisible
+            this.triangles = this.isVisible ? this._originalTriangles : [];
         }
     }
 

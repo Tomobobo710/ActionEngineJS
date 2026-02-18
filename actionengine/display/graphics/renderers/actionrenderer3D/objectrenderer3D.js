@@ -87,11 +87,6 @@ class ObjectRenderer3D {
         // Update statistics
         this.stats.objectsTotal++;
 
-        // Ensure object's visual geometry is up-to-date with its physics state
-        if (typeof object.updateVisual === "function") {
-            object.updateVisual();
-        }
-
         const triangles = object.triangles;
 
         // Validate triangles exist
