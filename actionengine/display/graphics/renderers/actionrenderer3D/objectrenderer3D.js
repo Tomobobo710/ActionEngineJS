@@ -8,6 +8,9 @@ class ObjectRenderer3D {
 
         this.indexType = this.gl.UNSIGNED_INT;
 
+        // UBO manager for animated objects
+        this.uboManager = new UniformBufferManager(gl);
+
         // Cache for pre-computed uniform values
         this._uniformCache = {
             frame: -1,
@@ -107,7 +110,8 @@ class ObjectRenderer3D {
             rotation: transform ? transform.rotation : { x: 0, y: 0, z: 0, w: 1 },
             scale: transform ? transform.scale || 1.0 : 1.0,
             alpha: object.alpha !== undefined ? object.alpha : 1.0,
-            isStatic: object.isStatic
+            isStatic: object.isStatic,
+            object: object // Store reference to object for bone matrix retrieval
         });
 
         this.stats.objectsTotal++;
@@ -210,6 +214,40 @@ class ObjectRenderer3D {
             }
         }
 
+        // Extract bone data - ALL meshes need this (shader always expects it)
+        const boneIndices = new Int32Array(count * 12); // 4 indices per vertex, 3 vertices per triangle
+        const boneWeights = new Float32Array(count * 12); // 4 weights per vertex, 3 vertices per triangle
+
+        for (let i = 0; i < count; i++) {
+            const triangle = triangles[i];
+            const baseInd = i * 12;
+
+            for (let v = 0; v < 3; v++) {
+                const vertexOffset = v * 4;
+
+                if (triangle.jointData && triangle.jointData[v]) {
+                    // Skeletal mesh - use actual bone data
+                    const joints = triangle.jointData[v];
+                    const weights = triangle.weightData[v];
+
+                    for (let j = 0; j < 4; j++) {
+                        boneIndices[baseInd + vertexOffset + j] = joints[j] || 0;
+                        boneWeights[baseInd + vertexOffset + j] = weights[j] || 0;
+                    }
+                } else {
+                    // Non-skeletal mesh - zero weights skips skinning in shader
+                    boneIndices[baseInd + vertexOffset] = 0;
+                    boneIndices[baseInd + vertexOffset + 1] = 0;
+                    boneIndices[baseInd + vertexOffset + 2] = 0;
+                    boneIndices[baseInd + vertexOffset + 3] = 0;
+                    boneWeights[baseInd + vertexOffset] = 0;
+                    boneWeights[baseInd + vertexOffset + 1] = 0;
+                    boneWeights[baseInd + vertexOffset + 2] = 0;
+                    boneWeights[baseInd + vertexOffset + 3] = 0;
+                }
+            }
+        }
+
         const mesh = {
             buffers: {
                 position: gl.createBuffer(),
@@ -219,6 +257,8 @@ class ObjectRenderer3D {
                 uv: gl.createBuffer(),
                 textureIndex: gl.createBuffer(),
                 useTexture: gl.createBuffer(),
+                boneIndices: gl.createBuffer(),
+                boneWeights: gl.createBuffer(),
                 indices: gl.createBuffer()
             },
             count: count * 3,
@@ -241,6 +281,8 @@ class ObjectRenderer3D {
         upload(mesh.buffers.uv, uvs);
         upload(mesh.buffers.textureIndex, textureIndices);
         upload(mesh.buffers.useTexture, useTextureFlags);
+        upload(mesh.buffers.boneIndices, boneIndices);
+        upload(mesh.buffers.boneWeights, boneWeights);
 
         // Build reordered index buffer: opaque indices first, then transparent
         const reorderedIndices = new Uint32Array(opaqueIndices.length + transparentIndices.length);
@@ -407,7 +449,7 @@ class ObjectRenderer3D {
             const mesh = this._meshLibrary.get(entry.meshId);
             if (!mesh) continue;
 
-            this.setupObjectShader(locs, camera, -1, entry.position, entry.rotation, entry.scale);
+            this.setupObjectShader(locs, camera, -1, entry.position, entry.rotation, entry.scale, entry.object);
 
             gl.bindBuffer(ARRAY_BUFFER, mesh.buffers.position);
             gl.vertexAttribPointer(locs.position, 3, gl.FLOAT, false, 0, 0);
@@ -442,6 +484,15 @@ class ObjectRenderer3D {
                 gl.vertexAttribPointer(locs.useTexture, 1, gl.FLOAT, false, 0, 0);
                 gl.enableVertexAttribArray(locs.useTexture);
             }
+
+            // Bone attributes - always bound (shader always expects them)
+            gl.bindBuffer(ARRAY_BUFFER, mesh.buffers.boneIndices);
+            gl.vertexAttribIPointer(locs.boneIndices, 4, gl.INT, 0, 0);
+            gl.enableVertexAttribArray(locs.boneIndices);
+
+            gl.bindBuffer(ARRAY_BUFFER, mesh.buffers.boneWeights);
+            gl.vertexAttribPointer(locs.boneWeights, 4, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(locs.boneWeights);
 
             // Draw only opaque triangles in this pass
             if (mesh.opaqueCount > 0) {
@@ -459,7 +510,7 @@ class ObjectRenderer3D {
             const mesh = this._meshLibrary.get(entry.meshId);
             if (!mesh || mesh.transparentCount === 0) continue;
 
-            this.setupObjectShader(locs, camera, -1, entry.position, entry.rotation, entry.scale);
+            this.setupObjectShader(locs, camera, -1, entry.position, entry.rotation, entry.scale, entry.object);
 
             gl.bindBuffer(ARRAY_BUFFER, mesh.buffers.position);
             gl.vertexAttribPointer(locs.position, 3, gl.FLOAT, false, 0, 0);
@@ -494,6 +545,15 @@ class ObjectRenderer3D {
                 gl.vertexAttribPointer(locs.useTexture, 1, gl.FLOAT, false, 0, 0);
                 gl.enableVertexAttribArray(locs.useTexture);
             }
+
+            // Bone attributes - always bound (shader always expects them)
+            gl.bindBuffer(ARRAY_BUFFER, mesh.buffers.boneIndices);
+            gl.vertexAttribIPointer(locs.boneIndices, 4, gl.INT, 0, 0);
+            gl.enableVertexAttribArray(locs.boneIndices);
+
+            gl.bindBuffer(ARRAY_BUFFER, mesh.buffers.boneWeights);
+            gl.vertexAttribPointer(locs.boneWeights, 4, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(locs.boneWeights);
 
             // Draw transparent triangles starting after opaque indices
             const transparentOffset = mesh.opaqueCount * 4; // 4 bytes per uint32 index
@@ -672,7 +732,8 @@ class ObjectRenderer3D {
         unused_idx = -1,
         posOverride = null,
         rotOverride = null,
-        scaleOverride = null
+        scaleOverride = null,
+        object = null
     ) {
         const gl = this.gl;
         const pos = posOverride;
@@ -711,7 +772,49 @@ class ObjectRenderer3D {
             gl.uniform1f(locations.modelScale, scale || 1.0);
         }
 
+        // Handle bone matrices for animated objects
+        const currentProgram = gl.getParameter(gl.CURRENT_PROGRAM);
+
+        if (object && typeof object.getBoneMatrices === "function") {
+            const objectId = object._stableMeshId;
+
+            // Create UBO for this animated object if it doesn't exist
+            if (!this.uboManager.getUBOInfo(objectId)) {
+                this.uboManager.createAnimatedObjectUBO(objectId);
+            }
+
+            // Update UBO with current bone matrices
+            const boneMatrices = object.getBoneMatrices();
+            this.uboManager.updateAnimatedObjectMatrices(objectId, this._flattenMatrices(boneMatrices));
+
+            // Bind UBO to shader
+            this.uboManager.bindAnimatedObjectUBO(objectId, currentProgram);
+        } else {
+            // Bind default UBO for non-animated objects
+            this.uboManager.bindDefaultUBO(currentProgram);
+        }
+
         this.stats.uniformSetCount++;
+    }
+
+    // Helper to flatten array of Matrix4 objects to flat Float32Array for GL upload
+    _flattenMatrices(matrices) {
+        const flat = new Float32Array(256 * 16); // 256 matrices * 16 floats per matrix
+        for (let i = 0; i < Math.min(matrices.length, 256); i++) {
+            const m = matrices[i];
+            const offset = i * 16;
+            if (m) {
+                for (let j = 0; j < 16; j++) {
+                    flat[offset + j] = m[j] || (j % 5 === 0 ? 1 : 0); // Identity if undefined
+                }
+            } else {
+                // Identity matrix
+                for (let j = 0; j < 16; j++) {
+                    flat[offset + j] = j % 5 === 0 ? 1 : 0;
+                }
+            }
+        }
+        return flat;
     }
 
     _setShadowUniforms() {

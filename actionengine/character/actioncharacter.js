@@ -9,7 +9,7 @@ class ActionCharacter extends RenderableObject {
 
         // Character is dynamic (animated vertices)
         this.isStatic = false;
-        
+
         // Stable mesh ID for animated characters to reuse GPU buffers across frames
         this._stableMeshId = `character_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
@@ -282,7 +282,13 @@ class ActionCharacter extends RenderableObject {
 
     // Standard method for renderable objects
     updateVisual() {
-        this.triangles = this.getCharacterModelTriangles();
+        // For GPU skeletal animation, we use the bind-pose geometry
+        // Animation is done in the vertex shader with bone matrices
+        if (!this._bindPoseTriangles && this.characterModel) {
+            // Cache bind-pose triangles on first call
+            this._bindPoseTriangles = this.getBindPoseTriangles();
+        }
+        this.triangles = this._bindPoseTriangles || [];
         this.updateModelMatrix();
     }
 
@@ -296,6 +302,57 @@ class ActionCharacter extends RenderableObject {
 
         // Then translate to world position
         Matrix4.translate(this.modelMatrix, this.modelMatrix, [this.position.x, this.position.y, this.position.z]);
+    }
+
+    // Get bind-pose triangles (geometry in T-pose without animation)
+    // These are uploaded to GPU once and reused for all animation frames
+    getBindPoseTriangles() {
+        if (!this.characterModel) return [];
+
+        const transformedTriangles = [];
+        const modelTransform = Matrix4.create();
+        Matrix4.translate(modelTransform, modelTransform, [0, this.characterVisualYOffset, 0]);
+
+        // Use raw vertex positions without skinning (bind-pose)
+        for (const triangle of this.characterModel.triangles) {
+            const transformedVerts = [];
+            for (let i = 0; i < triangle.vertices.length; i++) {
+                transformedVerts.push(Vector3.transformMat4(triangle.vertices[i], modelTransform));
+            }
+
+            const newTriangle = new Triangle(
+                transformedVerts[0],
+                transformedVerts[1],
+                transformedVerts[2],
+                triangle.color
+            );
+            // CRITICAL: Copy bone weight data so GPU shader can apply skinning
+            newTriangle.jointData = triangle.jointData;
+            newTriangle.weightData = triangle.weightData;
+
+            transformedTriangles.push(newTriangle);
+        }
+
+        return transformedTriangles;
+    }
+
+    // Get current bone matrices for GPU animation
+    // Called by renderer each frame to upload to shader uniform
+    getBoneMatrices() {
+        const skin = this.characterModel.skins[0];
+        skin.update(this.characterModel.nodes);
+
+        // Return joint matrices (pad with identity for unused bones)
+        const matrices = [];
+        for (let i = 0; i < skin.jointMatrices.length; i++) {
+            matrices.push(skin.jointMatrices[i]);
+        }
+        // Pad remaining slots with identity matrices
+        for (let i = matrices.length; i < 256; i++) {
+            matrices.push(Matrix4.identity(Matrix4.create()));
+        }
+
+        return matrices;
     }
 
     // Original method - mainly used by 2d renderer

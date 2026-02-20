@@ -108,24 +108,33 @@ class ObjectShader {
      */
     getDefaultVertexShader() {
         return `#version 300 es
-    // Add precision qualifier to make it match fragment shader
-    precision mediump float;
-    
-    in vec3 aPosition;
-    in vec3 aNormal;
-    in vec3 aColor;
-    in float aAlpha;
-    in vec2 aTexCoord;
-    in float aTextureIndex;
-    in float aUseTexture;
-    
-    uniform mat4 uProjectionMatrix;
-    uniform mat4 uViewMatrix;
-    uniform vec3 uModelPos;
-    uniform vec4 uModelRotation;
-    uniform float uModelScale;
-    uniform mat4 uLightSpaceMatrix;  // Added for shadow mapping
-    uniform vec3 uLightDir;
+        // Add precision qualifier to make it match fragment shader
+        precision mediump float;
+        
+        in vec3 aPosition;
+        in vec3 aNormal;
+        in vec3 aColor;
+        in float aAlpha;
+        in vec2 aTexCoord;
+        in float aTextureIndex;
+        in float aUseTexture;
+        
+        // Skeletal animation attributes
+        in ivec4 aBoneIndices;
+        in vec4 aBoneWeights;
+        
+        uniform mat4 uProjectionMatrix;
+        uniform mat4 uViewMatrix;
+        uniform vec3 uModelPos;
+        uniform vec4 uModelRotation;
+        uniform float uModelScale;
+        uniform mat4 uLightSpaceMatrix;  // Added for shadow mapping
+        uniform vec3 uLightDir;
+        
+        // Bone matrices for skeletal animation (max 256 bones)
+        layout(std140) uniform BoneMatrices {
+            mat4 matrices[256];
+        } boneData;
     
     out vec3 vColor;
     out float vAlpha;
@@ -141,8 +150,28 @@ class ObjectShader {
     ${this.getMatrixConstructionHelpers()}
     
     void main() {
+        // Apply skeletal animation if bone weights are present
+        vec3 skinnedPosition = aPosition;
+        vec3 skinnedNormal = aNormal;
+        
+        float totalWeight = aBoneWeights.x + aBoneWeights.y + aBoneWeights.z + aBoneWeights.w;
+        if (totalWeight > 0.001) {
+            // Normalize weights in case they don't sum to 1.0
+            vec4 normalizedWeights = aBoneWeights / totalWeight;
+            
+            skinnedPosition = vec3(0.0);
+            skinnedNormal = vec3(0.0);
+            
+            // Apply up to 4 bone influences
+            for (int i = 0; i < 4; i++) {
+                mat4 boneMatrix = boneData.matrices[aBoneIndices[i]];
+                skinnedPosition += (boneMatrix * vec4(aPosition, 1.0)).xyz * normalizedWeights[i];
+                skinnedNormal += (boneMatrix * vec4(aNormal, 0.0)).xyz * normalizedWeights[i];
+            }
+        }
+        
         mat4 modelMatrix = buildModelMatrix(uModelPos, uModelRotation, uModelScale);
-        vec4 worldPos = modelMatrix * vec4(aPosition, 1.0);
+        vec4 worldPos = modelMatrix * vec4(skinnedPosition, 1.0);
         vFragPos = worldPos.xyz;
         gl_Position = uProjectionMatrix * uViewMatrix * worldPos;
         
@@ -154,7 +183,7 @@ class ObjectShader {
         vFragPosLightSpace = uLightSpaceMatrix * worldPos;
         
         // Pass world-space normal (use 3x3 rotation part for normal)
-        vNormal = quaternionToMatrix(uModelRotation) * aNormal;
+        vNormal = quaternionToMatrix(uModelRotation) * skinnedNormal;
         
         // Calculate basic diffuse lighting
         // Note: We negate the light direction to make it consistent with shadow mapping
@@ -726,6 +755,10 @@ class ObjectShader {
     in float aTextureIndex;
     in float aUseTexture;
     
+    // Skeletal animation attributes
+    in ivec4 aBoneIndices;
+    in vec4 aBoneWeights;
+    
     // Uniforms - shared data for all vertices
     uniform mat4 uProjectionMatrix;
     uniform mat4 uViewMatrix;
@@ -736,6 +769,11 @@ class ObjectShader {
 
     uniform vec3 uLightDir;
     uniform vec3 uCameraPos;
+    
+    // Bone matrices for skeletal animation (max 256 bones)
+    layout(std140) uniform BoneMatrices {
+        mat4 matrices[256];
+    } boneData;
     
     // Outputs to fragment shader
     out vec3 vNormal;        // Surface normal
@@ -753,13 +791,33 @@ class ObjectShader {
     ${this.getMatrixConstructionHelpers()}
     
     void main() {
+        // Apply skeletal animation if bone weights are present
+        vec3 skinnedPosition = aPosition;
+        vec3 skinnedNormal = aNormal;
+        
+        float totalWeight = aBoneWeights.x + aBoneWeights.y + aBoneWeights.z + aBoneWeights.w;
+        if (totalWeight > 0.001) {
+            // Normalize weights in case they don't sum to 1.0
+            vec4 normalizedWeights = aBoneWeights / totalWeight;
+            
+            skinnedPosition = vec3(0.0);
+            skinnedNormal = vec3(0.0);
+            
+            // Apply up to 4 bone influences
+            for (int i = 0; i < 4; i++) {
+                mat4 boneMatrix = boneData.matrices[aBoneIndices[i]];
+                skinnedPosition += (boneMatrix * vec4(aPosition, 1.0)).xyz * normalizedWeights[i];
+                skinnedNormal += (boneMatrix * vec4(aNormal, 0.0)).xyz * normalizedWeights[i];
+            }
+        }
+        
         // Calculate world position from GPU-constructed matrix
         mat4 modelMatrix = buildModelMatrix(uModelPos, uModelRotation, uModelScale);
-        vec4 worldPos = modelMatrix * vec4(aPosition, 1.0);
+        vec4 worldPos = modelMatrix * vec4(skinnedPosition, 1.0);
         vWorldPos = worldPos.xyz;
         vFragPos = worldPos.xyz;
         // Transform normal to world space (use 3x3 rotation part for normal)
-        vNormal = quaternionToMatrix(uModelRotation) * aNormal;
+        vNormal = quaternionToMatrix(uModelRotation) * skinnedNormal;
         
         // Calculate view direction
         vViewDir = normalize(uCameraPos - worldPos.xyz);
@@ -1403,12 +1461,21 @@ void main() {
         in vec3 aColor;
         in float aAlpha;
         
+        // Skeletal animation attributes
+        in ivec4 aBoneIndices;
+        in vec4 aBoneWeights;
+        
         uniform mat4 uProjectionMatrix;
         uniform mat4 uViewMatrix;
         uniform vec3 uModelPos;
         uniform vec4 uModelRotation;
         uniform float uModelScale;
         uniform vec3 uLightDir;
+        
+        // Bone matrices for skeletal animation (max 256 bones)
+        layout(std140) uniform BoneMatrices {
+            mat4 matrices[256];
+        } boneData;
         
         flat out float vLighting;
         out vec3 vBarycentricCoord;
@@ -1418,10 +1485,30 @@ void main() {
         ${this.getMatrixConstructionHelpers()}
         
         void main() {
+            // Apply skeletal animation if bone weights are present
+            vec3 skinnedPosition = aPosition;
+            vec3 skinnedNormal = aNormal;
+            
+            float totalWeight = aBoneWeights.x + aBoneWeights.y + aBoneWeights.z + aBoneWeights.w;
+            if (totalWeight > 0.001) {
+                // Normalize weights in case they don't sum to 1.0
+                vec4 normalizedWeights = aBoneWeights / totalWeight;
+                
+                skinnedPosition = vec3(0.0);
+                skinnedNormal = vec3(0.0);
+                
+                // Apply up to 4 bone influences
+                for (int i = 0; i < 4; i++) {
+                    mat4 boneMatrix = boneData.matrices[aBoneIndices[i]];
+                    skinnedPosition += (boneMatrix * vec4(aPosition, 1.0)).xyz * normalizedWeights[i];
+                    skinnedNormal += (boneMatrix * vec4(aNormal, 0.0)).xyz * normalizedWeights[i];
+                }
+            }
+            
             mat4 modelMatrix = buildModelMatrix(uModelPos, uModelRotation, uModelScale);
-            vec4 worldPos = modelMatrix * vec4(aPosition, 1.0);
+            vec4 worldPos = modelMatrix * vec4(skinnedPosition, 1.0);
             gl_Position = uProjectionMatrix * uViewMatrix * worldPos;
-            vec3 worldNormal = normalize(quaternionToMatrix(uModelRotation) * aNormal);
+            vec3 worldNormal = normalize(quaternionToMatrix(uModelRotation) * skinnedNormal);
             // Negate light direction to be consistent with other shaders
             vLighting = max(0.3, min(1.0, dot(worldNormal, normalize(-uLightDir))));
             

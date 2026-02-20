@@ -784,7 +784,7 @@ class Animation {
         // Update world matrices starting from root nodes
         for (const node of nodes) {
             // Only process root nodes (nodes with no parents)
-            if (node.children.length > 0 && !nodes.some((n) => n.children.includes(node))) {
+            if (!nodes.some((n) => n.children.includes(node))) {
                 node.updateWorldMatrix();
             }
         }
@@ -888,7 +888,6 @@ class ModelAnimationController {
             if (animation >= 0 && animation < this.model.animations.length) {
                 animationIndex = animation;
             } else {
-                console.warn(`Animation index ${animation} out of range`);
                 return;
             }
         }

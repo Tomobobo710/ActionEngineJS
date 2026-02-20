@@ -41,7 +41,9 @@ class ProgramManager {
             alpha: "aAlpha",
             texCoord: "aTexCoord",
             textureIndex: "aTextureIndex",
-            useTexture: "aUseTexture"
+            useTexture: "aUseTexture",
+            boneIndices: "aBoneIndices",
+            boneWeights: "aBoneWeights"
         };
 
         this.uniformNames = {
@@ -63,7 +65,8 @@ class ProgramManager {
             shadowMap: "uShadowMap",
             shadowsEnabled: "uShadowsEnabled",
             intensityFactor: "uIntensityFactor",
-            farPlane: "uFarPlane"
+            farPlane: "uFarPlane",
+            boneMatrices: "uBoneMatrices"
         };
 
         this.textureUniforms = {
@@ -451,6 +454,8 @@ class ProgramManager {
             texCoord: gl.getAttribLocation(program, attr.texCoord),
             textureIndex: gl.getAttribLocation(program, attr.textureIndex),
             useTexture: gl.getAttribLocation(program, attr.useTexture),
+            boneIndices: gl.getAttribLocation(program, attr.boneIndices),
+            boneWeights: gl.getAttribLocation(program, attr.boneWeights),
 
             // Uniforms
             projectionMatrix: gl.getUniformLocation(program, unif.projectionMatrix),
