@@ -34,8 +34,8 @@ class ActionPhysicsWorld3D {
             // Step physics with the fixed timestep
             this.world.step(fixedDeltaTime);
 
-            // Update visual state for all objects that moved during physics
-            movedObjects.forEach((object) => {
+            // Update visual state for all objects
+            this.objects.forEach((object) => {
                 if (typeof object.updateVisual === "function") {
                     object.updateVisual();
                 }

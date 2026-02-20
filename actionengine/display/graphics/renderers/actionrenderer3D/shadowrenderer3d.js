@@ -5,6 +5,10 @@ class ShadowRenderer3D {
         this.gl = gl;
         this.lightManager = lightManager;
         this.glStateManager = glStateManager;
+
+        // Pre-allocated scratch array for valid objects — reused every frame
+        // to avoid the per-frame allocation from objects.filter().
+        this._validObjects = [];
     }
 
     /**
@@ -17,15 +21,23 @@ class ShadowRenderer3D {
             return;
         }
 
-        // Filter objects that actually have triangles
-        const validObjects = objects.filter((obj) => obj && obj.triangles && obj.triangles.length > 0);
+        // Populate reusable scratch array instead of allocating a new one via filter().
+        // This avoids a per-frame heap allocation (and eventual GC) in the shadow pass.
+        const validObjects = this._validObjects;
+        validObjects.length = 0;
+        for (let i = 0; i < objects.length; i++) {
+            const obj = objects[i];
+            if (obj && obj.triangles && obj.triangles.length > 0) {
+                validObjects.push(obj);
+            }
+        }
 
         if (validObjects.length === 0) {
             return;
         }
 
         // Set up GL state for shadow rendering (no blending, depth writes enabled)
-        this.glStateManager.setupState('shadow');
+        this.glStateManager.setupState("shadow");
 
         // Render directional light shadow maps
         this._renderDirectionalLightShadows(validObjects);

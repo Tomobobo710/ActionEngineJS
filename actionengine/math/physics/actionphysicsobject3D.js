@@ -1,11 +1,20 @@
+// actionengine/math/physics/actionphysicsobject3D.js
 class ActionPhysicsObject3D extends RenderableObject {
     constructor(physicsWorld, triangles, options = {}) {
         super();
+        if (options.meshId) this.meshId = options.meshId;
+        if (options.isStatic !== undefined) this.isStatic = options.isStatic;
         if (!physicsWorld) {
             console.error("[ActionPhysicsObject3D] Physics world is required. Stack trace:", new Error().stack);
             throw new Error("[ActionPhysicsObject3D] Physics world is required - check console for stack trace");
         }
         this.physicsWorld = physicsWorld;
+
+        // If we have an animator, we are likely not static
+        this.isStatic = options.isStatic !== undefined ? options.isStatic : true;
+
+        // Support for visual offset relative to physics body
+        this.visualOffset = options.visualOffset || new Vector3(0, 0, 0);
 
         this._originalTriangles = triangles.slice();
 
@@ -68,7 +77,11 @@ class ActionPhysicsObject3D extends RenderableObject {
             }
 
             // Sync transform from physics body
-            this.transform.position.set(posX, posY, posZ);
+            this.transform.position.set(
+                posX + this.visualOffset.x,
+                posY + this.visualOffset.y,
+                posZ + this.visualOffset.z
+            );
             this.transform.rotation = this.body.rotation;
 
             if (!this._lastPosition) this._lastPosition = new Vector3();
@@ -83,6 +96,27 @@ class ActionPhysicsObject3D extends RenderableObject {
             // Keep local-space triangles for 3D GPU renderer
             // Respect visibility flag - invisible objects should stay invisible
             this.triangles = this.isVisible ? this._originalTriangles : [];
+        }
+
+        // Support for animations
+        if (this.animator && this.isVisible) {
+            // Force non-static mode if we have an animator
+            this.isStatic = false;
+
+            // Update animation (using a rough deltaTime if not provided)
+            this.animator.update();
+
+            // Recalculate triangles from skinned model if possible
+            // Most POIs/Characters that use GLBLoader will have this.characterModel
+            if (this.characterModel && this.characterModel.triangles) {
+                // If this is a character, we should probably call getCharacterModelTriangles
+                if (this.getCharacterModelTriangles) {
+                    this.triangles = this.getCharacterModelTriangles();
+                } else {
+                    // Simple baked update for static buildings with animations
+                    this.triangles = this.characterModel.triangles;
+                }
+            }
         }
     }
 

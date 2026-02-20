@@ -40,6 +40,14 @@ class LightManager {
         // Frame counter for updates
         this.frameCount = 0;
 
+        // Cache for uniform locations keyed by WebGLProgram object.
+        // Avoids repeated getUniformLocation() driver queries every frame.
+        this._uniformLocationCache = new WeakMap();
+
+        // Cached result of getLightConfig() — rebuilt only when lightDataDirty is set.
+        // Avoids allocating a new plain-object tree on every frame from updateUniformCache().
+        this._lightConfigCache = null;
+
         // Initialize the light data textures
         this.initializeLightDataTextures();
     }
@@ -167,6 +175,7 @@ class LightManager {
 
         this.directionalLights.push(light);
         this.lightDataDirty = true; // Mark light data as needing update
+        this._lightConfigCache = null; // Invalidate config cache
 
         return light;
     }
@@ -197,6 +206,7 @@ class LightManager {
 
         this.pointLights.push(light);
         this.lightDataDirty = true; // Mark light data as needing update
+        this._lightConfigCache = null; // Invalidate config cache
 
         return light;
     }
@@ -282,6 +292,7 @@ class LightManager {
         // If any light has changed, mark light data as needing update
         if (changed) {
             this.lightDataDirty = true;
+            this._lightConfigCache = null; // Invalidate config cache so position/intensity changes are picked up
         }
 
         return changed;
@@ -299,14 +310,25 @@ class LightManager {
     }
 
     /**
-     * Get light configuration for the main directional light
-     * This maintains compatibility with existing code
+     * Get light configuration for the main directional light.
+     * Returns a cached object — only rebuilt when light data is marked dirty
+     * (i.e. a light was added, removed, or had its properties changed).
+     * This avoids creating a fresh plain-object tree on every frame from updateUniformCache().
      */
     getLightConfig() {
         const mainLight = this.getMainDirectionalLight();
-        if (!mainLight) return null;
+        if (!mainLight) {
+            this._lightConfigCache = null;
+            return null;
+        }
 
-        return {
+        // Return the cached config if it's still valid
+        if (this._lightConfigCache !== null) {
+            return this._lightConfigCache;
+        }
+
+        // Rebuild the cache
+        this._lightConfigCache = {
             POSITION: {
                 x: mainLight.position.x,
                 y: mainLight.position.y,
@@ -324,6 +346,7 @@ class LightManager {
                 BASE_REFLECTIVITY: this.constants.MATERIAL.BASE_REFLECTIVITY.value
             }
         };
+        return this._lightConfigCache;
     }
 
     /**
@@ -349,73 +372,92 @@ class LightManager {
      * @param {WebGLProgram} program - The shader program to apply lights to
      * @param {GLStateManager} glStateManager - State manager for texture binding
      */
+    /**
+     * Query and cache all uniform locations for a given program (called once per program).
+     * @private
+     */
+    _cacheUniformLocations(program) {
+        const gl = this.gl;
+        const locs = {
+            // Light counts
+            dirLightCount: gl.getUniformLocation(program, "uDirectionalLightCount"),
+            pointLightCount: gl.getUniformLocation(program, "uPointLightCount"),
+            spotLightCount: gl.getUniformLocation(program, "uSpotLightCount"),
+            // Light texture sizes
+            dirLightTextureSize: gl.getUniformLocation(program, "uDirectionalLightTextureSize"),
+            pointLightTextureSize: gl.getUniformLocation(program, "uPointLightTextureSize"),
+            // Shadow / directional
+            shadowsEnabled: gl.getUniformLocation(program, "uShadowsEnabled"),
+            shadowMap: gl.getUniformLocation(program, "uShadowMap"),
+            lightSpaceMatrix: gl.getUniformLocation(program, "uLightSpaceMatrix"),
+            // Point shadow maps (slots 0-3)
+            pointShadowsEnabled0: gl.getUniformLocation(program, "uPointShadowsEnabled"),
+            pointShadowMap0: gl.getUniformLocation(program, "uPointShadowMap"),
+            pointShadowsEnabled1: gl.getUniformLocation(program, "uPointShadowsEnabled1"),
+            pointShadowMap1: gl.getUniformLocation(program, "uPointShadowMap1"),
+            pointShadowsEnabled2: gl.getUniformLocation(program, "uPointShadowsEnabled2"),
+            pointShadowMap2: gl.getUniformLocation(program, "uPointShadowMap2"),
+            pointShadowsEnabled3: gl.getUniformLocation(program, "uPointShadowsEnabled3"),
+            pointShadowMap3: gl.getUniformLocation(program, "uPointShadowMap3")
+        };
+        this._uniformLocationCache.set(program, locs);
+        return locs;
+    }
+
+    /**
+     * Retrieve cached uniform locations for a program, building the cache if needed.
+     * @private
+     */
+    _getUniformLocations(program) {
+        return this._uniformLocationCache.get(program) || this._cacheUniformLocations(program);
+    }
+
     applyLightsToShader(program, glStateManager) {
         const gl = this.gl;
 
         // Make sure light data textures are up-to-date
         this.updateLightDataTextures();
 
+        // Retrieve all cached uniform locations for this program (zero driver queries)
+        const locs = this._getUniformLocations(program);
+
         // -- Set Light Counts --
-        // Set directional light count
-        const dirLightCountLoc = gl.getUniformLocation(program, "uDirectionalLightCount");
-        if (dirLightCountLoc !== null) {
-            gl.uniform1i(dirLightCountLoc, this.directionalLights.length);
-        }
-
-        // Set point light count
-        const pointLightCountLoc = gl.getUniformLocation(program, "uPointLightCount");
-        if (pointLightCountLoc !== null) {
-            gl.uniform1i(pointLightCountLoc, this.pointLights.length);
-        }
-
-        // Set spot light count
-        const spotLightCountLoc = gl.getUniformLocation(program, "uSpotLightCount");
-        if (spotLightCountLoc !== null) {
-            gl.uniform1i(spotLightCountLoc, this.spotLights.length);
-        }
+        if (locs.dirLightCount !== null) gl.uniform1i(locs.dirLightCount, this.directionalLights.length);
+        if (locs.pointLightCount !== null) gl.uniform1i(locs.pointLightCount, this.pointLights.length);
+        if (locs.spotLightCount !== null) gl.uniform1i(locs.spotLightCount, this.spotLights.length);
 
         // -- Set Texture Sizes --
-        const dirLightTextureSizeLoc = gl.getUniformLocation(program, "uDirectionalLightTextureSize");
-        if (dirLightTextureSizeLoc !== null) {
-            const pixelsPerLight = 3; // Each light takes 3 pixels in the texture
+        const pixelsPerLight = 3; // Each light takes 3 pixels in the texture
+        if (locs.dirLightTextureSize !== null) {
             const textureWidth = Math.max(1, this.directionalLights.length * pixelsPerLight);
-            gl.uniform2f(dirLightTextureSizeLoc, textureWidth, 1);
+            gl.uniform2f(locs.dirLightTextureSize, textureWidth, 1);
         }
-
-        const pointLightTextureSizeLoc = gl.getUniformLocation(program, "uPointLightTextureSize");
-        if (pointLightTextureSizeLoc !== null) {
-            const pixelsPerLight = 3; // Each light takes 3 pixels in the texture
+        if (locs.pointLightTextureSize !== null) {
             const textureWidth = Math.max(1, this.pointLights.length * pixelsPerLight);
-            gl.uniform2f(pointLightTextureSizeLoc, textureWidth, 1);
+            gl.uniform2f(locs.pointLightTextureSize, textureWidth, 1);
         }
 
         // -- Apply Legacy Light Uniforms for Backward Compatibility --
-        // Main directional light shadow
         const mainLight = this.getMainDirectionalLight();
         if (mainLight) {
-            // Still call applyToShader for uniforms that aren't in textures yet
             mainLight.applyToShader(program, 0);
         } else {
-            // Make sure shader knows there's no main directional light
-            const shadowsEnabledLoc = gl.getUniformLocation(program, "uShadowsEnabled");
-            if (shadowsEnabledLoc !== null) {
-                gl.uniform1i(shadowsEnabledLoc, 0); // 0 = false
+            if (locs.shadowsEnabled !== null) {
+                gl.uniform1i(locs.shadowsEnabled, 0);
             }
         }
 
-        // Apply shadow maps for point lights (up to 4 with shadow mapping)
-        // This sets the light-specific uniforms in the shader
+        // Apply point light uniforms (up to 4)
         for (let i = 0; i < Math.min(this.pointLights.length, 4); i++) {
             const light = this.pointLights[i];
             if (light) {
-                // Remove logging to reduce console spam
                 light.applyToShader(program, i);
             }
         }
 
         // Bind shadow textures
         if (glStateManager) {
-            this._bindShadowTextures(program, glStateManager);
+            this._bindShadowTextures(program, glStateManager, locs);
         }
     }
 
@@ -423,13 +465,17 @@ class LightManager {
      * Bind shadow textures to shader program
      * @private
      */
-    _bindShadowTextures(program, glStateManager) {
+    _bindShadowTextures(program, glStateManager, locs) {
         const gl = this.gl;
+
+        // locs is already resolved by the caller — no getUniformLocation calls needed here.
+        if (!locs) {
+            locs = this._getUniformLocations(program);
+        }
 
         // Bind directional light shadow map
         const mainLight = this.getMainDirectionalLight();
-        const shadowMapLoc = gl.getUniformLocation(program, "uShadowMap");
-        if (mainLight && mainLight.shadowTexture && shadowMapLoc !== null) {
+        if (mainLight && mainLight.shadowTexture && locs.shadowMap !== null) {
             glStateManager.bindTextureWithUniform(
                 "directionalShadowMap",
                 mainLight.shadowTexture,
@@ -438,49 +484,66 @@ class LightManager {
                 "uShadowMap"
             );
 
-            // Also bind the light space matrix for directional light shadow sampling
-            const lightSpaceMatrixLoc = gl.getUniformLocation(program, "uLightSpaceMatrix");
-            if (lightSpaceMatrixLoc !== null) {
+            // Bind light space matrix using cached location
+            if (locs.lightSpaceMatrix !== null) {
                 const lightSpaceMatrix = mainLight.getLightSpaceMatrix();
                 if (lightSpaceMatrix) {
-                    gl.uniformMatrix4fv(lightSpaceMatrixLoc, false, lightSpaceMatrix);
+                    gl.uniformMatrix4fv(locs.lightSpaceMatrix, false, lightSpaceMatrix);
                 }
             }
         }
 
-        // Bind point light shadow maps
-        const pointLightShadowMaps = [
-            { logicalName: "pointShadowMap0", uniformName: "uPointShadowMap", enabledName: "uPointShadowsEnabled" },
-            { logicalName: "pointShadowMap1", uniformName: "uPointShadowMap1", enabledName: "uPointShadowsEnabled1" },
-            { logicalName: "pointShadowMap2", uniformName: "uPointShadowMap2", enabledName: "uPointShadowsEnabled2" },
-            { logicalName: "pointShadowMap3", uniformName: "uPointShadowMap3", enabledName: "uPointShadowsEnabled3" }
+        // Point shadow map slots — use pre-resolved cached locations
+        const pointShadowDefs = [
+            {
+                logicalName: "pointShadowMap0",
+                uniformName: "uPointShadowMap",
+                enabledLoc: locs.pointShadowsEnabled0,
+                mapLoc: locs.pointShadowMap0
+            },
+            {
+                logicalName: "pointShadowMap1",
+                uniformName: "uPointShadowMap1",
+                enabledLoc: locs.pointShadowsEnabled1,
+                mapLoc: locs.pointShadowMap1
+            },
+            {
+                logicalName: "pointShadowMap2",
+                uniformName: "uPointShadowMap2",
+                enabledLoc: locs.pointShadowsEnabled2,
+                mapLoc: locs.pointShadowMap2
+            },
+            {
+                logicalName: "pointShadowMap3",
+                uniformName: "uPointShadowMap3",
+                enabledLoc: locs.pointShadowsEnabled3,
+                mapLoc: locs.pointShadowMap3
+            }
         ];
 
-        for (let i = 0; i < Math.min(this.pointLights.length, pointLightShadowMaps.length); i++) {
+        for (let i = 0; i < Math.min(this.pointLights.length, pointShadowDefs.length); i++) {
             const pointLight = this.pointLights[i];
-            const shadowMapDef = pointLightShadowMaps[i];
-            const shadowEnabledLoc = gl.getUniformLocation(program, shadowMapDef.enabledName);
+            const def = pointShadowDefs[i];
 
-            if (pointLight && pointLight.shadowTexture && shadowEnabledLoc !== null) {
+            if (pointLight && pointLight.shadowTexture && def.enabledLoc !== null) {
                 glStateManager.bindTextureWithUniform(
-                    shadowMapDef.logicalName,
+                    def.logicalName,
                     pointLight.shadowTexture,
                     "TEXTURE_CUBE_MAP",
                     program,
-                    shadowMapDef.uniformName
+                    def.uniformName
                 );
-                gl.uniform1i(shadowEnabledLoc, 1);
-            } else if (shadowEnabledLoc !== null) {
-                gl.uniform1i(shadowEnabledLoc, 0);
+                gl.uniform1i(def.enabledLoc, 1);
+            } else if (def.enabledLoc !== null) {
+                gl.uniform1i(def.enabledLoc, 0);
             }
         }
 
-        // Disable shadows for unused point light slots
-        for (let i = this.pointLights.length; i < pointLightShadowMaps.length; i++) {
-            const shadowMapDef = pointLightShadowMaps[i];
-            const shadowEnabledLoc = gl.getUniformLocation(program, shadowMapDef.enabledName);
-            if (shadowEnabledLoc !== null) {
-                gl.uniform1i(shadowEnabledLoc, 0);
+        // Disable shadow slots beyond the active point light count
+        for (let i = this.pointLights.length; i < pointShadowDefs.length; i++) {
+            const def = pointShadowDefs[i];
+            if (def.enabledLoc !== null) {
+                gl.uniform1i(def.enabledLoc, 0);
             }
         }
     }

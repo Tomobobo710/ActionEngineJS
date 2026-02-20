@@ -110,12 +110,18 @@ class GLStateManager {
                 blendFunc: { src: "SRC_ALPHA", dst: "ONE_MINUS_SRC_ALPHA" },
                 depthTest: true,
                 depthFunc: "LEQUAL",
-                depthMask: true,
+                depthMask: false,
                 cullFace: true,
                 frontFace: "CCW",
                 cullMode: "BACK"
             }
         };
+
+        // Uniform location cache: WeakMap<WebGLProgram, Map<uniformName, WebGLUniformLocation|null>>
+        // getUniformLocation() is a synchronous driver query that cannot be deferred or batched.
+        // Caching eliminates all repeat calls after the first bind per program+name pair.
+        // WeakMap ensures program entries are automatically cleaned up when programs are deleted.
+        this._uniformLocationCache = new WeakMap();
 
         // Initialize GL state and viewport
         this._initializeGL();
@@ -204,7 +210,18 @@ class GLStateManager {
         this._currentState.activeTextureUnit = unit;
         this._currentState.boundTextures.set(unit, { texture, type: textureType });
 
-        const uniformLoc = this.gl.getUniformLocation(program, uniformName);
+        // Retrieve cached location, or look it up once and store it.
+        // Avoids a synchronous driver round-trip on every texture bind per frame.
+        let programUniforms = this._uniformLocationCache.get(program);
+        if (!programUniforms) {
+            programUniforms = new Map();
+            this._uniformLocationCache.set(program, programUniforms);
+        }
+        let uniformLoc = programUniforms.get(uniformName);
+        if (uniformLoc === undefined) {
+            uniformLoc = this.gl.getUniformLocation(program, uniformName);
+            programUniforms.set(uniformName, uniformLoc);
+        }
         if (uniformLoc !== null) {
             this.gl.uniform1i(uniformLoc, unit);
         } else {

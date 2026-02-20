@@ -7,6 +7,9 @@ class ActionCharacter extends RenderableObject {
         this.game = game;
         this.camera = camera;
 
+        // Character is dynamic (animated vertices)
+        this.isStatic = false;
+
         this.height = 6;
         this.scale = 1;
 
@@ -35,6 +38,10 @@ class ActionCharacter extends RenderableObject {
 
         // Create controller
         this.controller = new Goblin.CharacterController(this.game.physicsWorld.getWorld());
+
+        // Character follows camera orientation by default
+        this.followCameraRotation = true;
+
         // Get the character body from the controller
         this.body = this.controller.body;
 
@@ -66,6 +73,12 @@ class ActionCharacter extends RenderableObject {
         this.characterVisualYOffset = 0.75;
         // Add character body to physics world
         this.game.physicsWorld.getWorld().addRigidBody(this.body);
+
+        // Assign a stable meshId for this specific character instance
+        this.meshId = `character_${this.body.id || Math.floor(Math.random() * 1000000)}`;
+
+        // Initial visual update to populate triangles
+        this.updateVisual();
     }
 
     applyInput(input, deltaTime) {
@@ -202,10 +215,19 @@ class ActionCharacter extends RenderableObject {
             const pos = this.body.position;
 
             this.position.set(pos.x, pos.y, pos.z);
-            this.basePosition.set(this.position.x, this.position.y - this.size / 2, this.position.z);
+            this.basePosition.set(this.position.x, this.position.y - this.height / 2, this.position.z);
 
-            // Use yaw for character facing
-            this.rotation = this.cameraYaw + Math.PI;
+            // Sync with RenderableObject transform for the GPU renderer
+            this.transform.position.set(pos.x, pos.y, pos.z);
+
+            if (this.followCameraRotation) {
+                // Use yaw for character facing
+                this.rotation = this.cameraYaw + Math.PI;
+                this.transform.rotationY = this.rotation; // Sync rotation too
+            } else {
+                // Otherwise just sync the current rotation to the transform
+                this.transform.rotationY = this.rotation;
+            }
 
             this.updateFacingDirection();
 
@@ -278,6 +300,8 @@ class ActionCharacter extends RenderableObject {
 
     // Original method - mainly used by 2d renderer
     getCharacterModelTriangles() {
+        if (!this.characterModel) return [];
+
         function transformVertexWithSkin(vertex, vertexIndex, triangle, skin) {
             if (!triangle.jointData || !triangle.weightData) {
                 return vertex;
@@ -319,14 +343,8 @@ class ActionCharacter extends RenderableObject {
         const angle = Math.atan2(this.facingDirection.x, this.facingDirection.z);
         const modelTransform = Matrix4.create();
 
-        // Position the character at the correct world position
-        Matrix4.translate(modelTransform, modelTransform, [
-            this.position.x,
-            this.position.y + this.characterVisualYOffset,
-            this.position.z
-        ]);
+        Matrix4.translate(modelTransform, modelTransform, [0, this.characterVisualYOffset, 0]);
 
-        Matrix4.rotateY(modelTransform, modelTransform, angle);
         const transformedTriangles = [];
         const skin = this.characterModel.skins[0];
 

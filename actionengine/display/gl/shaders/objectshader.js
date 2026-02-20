@@ -526,7 +526,7 @@ class ObjectShader {
         vec4 baseColor;
         if (vUseTexture > 0.5) {  // Check if this fragment uses texture
             baseColor = texture(uTextureArray, vec3(vTexCoord, vTextureIndex));
-            // baseColor.a *= vAlpha;  // Apply triangle alpha to textured fragments
+            baseColor.a *= vAlpha;  // Apply triangle alpha to textured fragments
         } else {
             baseColor = vec4(vColor, vAlpha);
         }

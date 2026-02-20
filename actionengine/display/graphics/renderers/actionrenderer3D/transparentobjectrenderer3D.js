@@ -15,19 +15,9 @@ class TransparentObjectRenderer3D {
         this.objectRenderer = objectRenderer3D;
     }
 
-    /**
-     * Render transparent objects in sorted order (back-to-front)
-     * Called after opaque rendering with glStateManager.setupState("transparent")
-     * @param {ActionCamera} camera - Current camera
-     */
     render(camera) {
-        // Delegate to ObjectRenderer3D's internal transparent rendering
-        // ObjectRenderer3D has already separated opaque/transparent triangles
-        // and built the transparent index buffer
-
-        // If there are transparent triangles, draw them and finalize
-        // Otherwise finalize without drawing (to reset frame state)
-        if (this.objectRenderer.transparentTriangles.length > 0) {
+        // If there are transparent objects in the queue, draw them
+        if (this.objectRenderer._transparentQueue && this.objectRenderer._transparentQueue.length > 0) {
             this.objectRenderer.drawTransparent(camera);
         } else {
             this.objectRenderer._finalizeFrame();
