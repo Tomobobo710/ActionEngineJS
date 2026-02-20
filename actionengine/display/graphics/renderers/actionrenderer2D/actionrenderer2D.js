@@ -1,4 +1,4 @@
-// actionengine/display/graphics/texture/texturemanager.js
+// actionengine/display/graphics/renderers/actionrenderer2D/actionrenderer2D.js
 class ActionRenderer2D {
 	constructor(canvas) {
 		this.ctx = canvas.getContext("2d");
@@ -64,6 +64,10 @@ class ActionRenderer2D {
 
 		this.checkerTexture = new ProceduralTexture(256, 256);
 		this.checkerTexture.generateCheckerboard();
+
+		// Cache for animated character triangles
+		// Maps character objects to their computed skinned triangles
+		this.skinnedTriangleCache = new Map();
 	}
 
 	/**
@@ -175,8 +179,8 @@ class ActionRenderer2D {
 		// Cache performance.now() once per frame for water effect
 		const frameTime = performance.now();
 
-		// Pass view to collectTriangles
-		const { nearTriangles, farTriangles } = this.collectTriangles(camera, renderablePhysicsObjects, view);
+		// Pass view to collectTriangles, include character for CPU skinning
+		const { nearTriangles, farTriangles } = this.collectTriangles(camera, renderablePhysicsObjects, view, character);
 
 		// Render far triangles first (back to front) WITHOUT depth testing
 		farTriangles.sort((a, b) => b.depth - a.depth);
@@ -207,11 +211,12 @@ class ActionRenderer2D {
 		this.zBuffer.fill(Infinity);
 	}
 
-	collectTriangles(camera, physicsObjects, view) {
+	collectTriangles(camera, physicsObjects, view, character) {
 		const nearTriangles = [];
 		const farTriangles = [];
 
 		const processTriangle = (triangle, worldTransform) => {
+
 			// Transform vertices from local-space to world-space if transform provided
 			let vertices = triangle.vertices;
 			let normal = triangle.normal;
@@ -280,10 +285,22 @@ class ActionRenderer2D {
 
 		// Process physics object triangles
 		for (const physicsObject of physicsObjects) {
+			// Skip character object - it's rendered separately with CPU vertex skinning
+			if (physicsObject === character) continue;
+			
 			// Transform vertices on-the-fly during collection
 			// No need to pre-allocate world-space triangle objects
 			for (const triangle of physicsObject.triangles) {
 				processTriangle(triangle, physicsObject.transform);
+			}
+		}
+
+		// Process character with CPU skinning if present and animated
+		if (character && character.characterModel) {
+			// Get skinned triangles for this character
+			const skinnedTriangles = CPUVertexSkinning.getSkinned2DTriangles(character);
+			for (const triangle of skinnedTriangles) {
+				processTriangle(triangle, character.transform);
 			}
 		}
 
