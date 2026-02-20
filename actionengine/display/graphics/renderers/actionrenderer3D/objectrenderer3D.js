@@ -34,6 +34,33 @@ class ObjectRenderer3D {
         // Persistent geometry library (FAST PATH ONLY)
         this._meshLibrary = new Map();
         this._drawQueue = [];
+
+        // Map triangle arrays to meshIds for automatic deduplication
+        this._trianglesMap = new WeakMap(); // triangles array -> meshId
+        this._meshIdCounter = 0;
+        this._lastTriangles = new Map(); // meshId -> last triangle reference
+    }
+
+    /**
+     * Get or assign a meshId based on triangle array reference
+     * Automatically deduplicates identical triangle arrays
+     * For objects with _stableMeshId (animated characters), uses that instead
+     */
+    getMeshIdForTriangles(triangles, stableMeshId = null) {
+        if (!triangles) return null;
+
+        // Use stable ID if provided (for animated objects like characters)
+        if (stableMeshId) {
+            return stableMeshId;
+        }
+
+        if (!this._trianglesMap.has(triangles)) {
+            // First time seeing this triangle array, assign it a meshId
+            const meshId = `mesh_${this._meshIdCounter++}`;
+            this._trianglesMap.set(triangles, meshId);
+            this._lastTriangles.set(meshId, triangles);
+        }
+        return this._trianglesMap.get(triangles);
     }
 
     queue(object, camera, currentTime) {
@@ -53,19 +80,24 @@ class ObjectRenderer3D {
             this._frameCount = (this._frameCount || 0) + 1;
         }
 
-        const meshId = object.getMeshId ? object.getMeshId() : object.meshId;
+        const triangles = object.triangles;
+        if (!triangles || triangles.length === 0) return;
+
+        // Get meshId based on triangle array reference (automatic deduplication)
+        // For animated objects, use their stable mesh ID instead
+        const meshId = this.getMeshIdForTriangles(triangles, object._stableMeshId);
         if (!meshId) return;
 
-        // AUTO-REGISTER: First time we see this geometry, bake it to GPU
-        // Fast Path only works if we have triangles.
+        // AUTO-REGISTER: First time we see this meshId, bake it to GPU
         if (!this._meshLibrary.has(meshId)) {
-            const triangles = object.triangles;
-            if (triangles && triangles.length > 0) {
-                this.registerStaticMesh(meshId, triangles, object.isStatic);
+            this.registerStaticMesh(meshId, triangles, object.isStatic);
+        } else {
+            // Check if triangle reference changed (handles geometry swaps like bomb detonation)
+            const lastTriangles = this._lastTriangles.get(meshId);
+            if (lastTriangles !== triangles) {
+                this.updateStaticMesh(meshId, triangles);
+                this._lastTriangles.set(meshId, triangles);
             }
-        } else if (!object.isStatic) {
-            // DYNAMIC PATH: If object is not static, we re-upload its geometry
-            this.updateStaticMesh(meshId, object.triangles);
         }
 
         const transform = object.transform;

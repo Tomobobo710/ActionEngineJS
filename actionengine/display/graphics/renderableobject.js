@@ -15,8 +15,6 @@ class RenderableObject {
         this._lastRotation = null;
 
         // Optimization properties
-        // Automatically assign a unique ID so every object can use the GPU fast-path by default
-        this.meshId = `mesh_${Math.random().toString(36).substring(2, 11)}_${Date.now()}`;
         this.isStatic = true; // Default to true; renderer will bake geometry on first frame
 
         // Internal Euler state for standard rotation handling (Radians)
@@ -128,14 +126,6 @@ class RenderableObject {
     }
     set scale(v) {
         this.transform.scale = v;
-    }
-
-    /**
-     * Returns a unique ID for this object's geometry to allow GPU-side caching.
-     * Defaults to this.meshId.
-     */
-    getMeshId() {
-        return this.meshId;
     }
 
     /**

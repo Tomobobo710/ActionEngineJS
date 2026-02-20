@@ -9,6 +9,9 @@ class ActionCharacter extends RenderableObject {
 
         // Character is dynamic (animated vertices)
         this.isStatic = false;
+        
+        // Stable mesh ID for animated characters to reuse GPU buffers across frames
+        this._stableMeshId = `character_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
         this.height = 6;
         this.scale = 1;
@@ -73,9 +76,6 @@ class ActionCharacter extends RenderableObject {
         this.characterVisualYOffset = 0.75;
         // Add character body to physics world
         this.game.physicsWorld.getWorld().addRigidBody(this.body);
-
-        // Assign a stable meshId for this specific character instance
-        this.meshId = `character_${this.body.id || Math.floor(Math.random() * 1000000)}`;
 
         // Initial visual update to populate triangles
         this.updateVisual();

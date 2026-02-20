@@ -2,7 +2,6 @@
 class ActionPhysicsObject3D extends RenderableObject {
     constructor(physicsWorld, triangles, options = {}) {
         super();
-        if (options.meshId) this.meshId = options.meshId;
         if (options.isStatic !== undefined) this.isStatic = options.isStatic;
         if (!physicsWorld) {
             console.error("[ActionPhysicsObject3D] Physics world is required. Stack trace:", new Error().stack);
