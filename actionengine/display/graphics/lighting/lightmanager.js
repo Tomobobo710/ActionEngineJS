@@ -9,10 +9,12 @@ class LightManager {
      * Constructor for the light manager
      * @param {WebGLRenderingContext} gl - The WebGL rendering context
      * @param {ProgramManager} programManager - Reference to the program manager for shader access
+     * @param {ObjectRenderer3D} objectRenderer - Reference to object renderer for shadow mesh library access
      */
-    constructor(gl, programManager) {
+    constructor(gl, programManager, objectRenderer = null) {
         this.gl = gl;
         this.programManager = programManager;
+        this.objectRenderer = objectRenderer;
 
         // Reference to lighting constants
         this.constants = lightingConstants;
@@ -61,7 +63,7 @@ class LightManager {
         if (!this.mainDirectionalLightEnabled) {
             return null;
         }
-        const mainLight = new ActionDirectionalShadowLight(this.gl, this.programManager);
+        const mainLight = new ActionDirectionalShadowLight(this.gl, this.programManager, this.objectRenderer);
 
         // Set initial properties from constants
         mainLight.setPosition(
@@ -192,7 +194,7 @@ class LightManager {
     createPointLight(position, color, intensity, radius = 100.0, castsShadows = false) {
         // Remove logging to reduce console spam
 
-        const light = new ActionOmnidirectionalShadowLight(this.gl, this.programManager);
+        const light = new ActionOmnidirectionalShadowLight(this.gl, this.programManager, this.objectRenderer);
 
         light.setPosition(position);
 

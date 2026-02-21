@@ -110,7 +110,7 @@ class GLStateManager {
                 blendFunc: { src: "SRC_ALPHA", dst: "ONE_MINUS_SRC_ALPHA" },
                 depthTest: true,
                 depthFunc: "LEQUAL",
-                depthMask: false,
+                depthMask: true,
                 cullFace: true,
                 frontFace: "CCW",
                 cullMode: "BACK"

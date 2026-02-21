@@ -207,9 +207,10 @@ class ObjectRenderer3D {
             }
 
             // Separate into opaque and transparent triangle indices
-            if (triAlpha < 1.0) {
+            // Skip fully transparent triangles (alpha = 0) as they are invisible
+            if (triAlpha < 1.0 && triAlpha > 0.0) {
                 transparentIndices.push(baseInd, baseInd + 1, baseInd + 2);
-            } else {
+            } else if (triAlpha > 0.0) {
                 opaqueIndices.push(baseInd, baseInd + 1, baseInd + 2);
             }
         }
@@ -376,9 +377,10 @@ class ObjectRenderer3D {
             }
 
             // Separate into opaque and transparent triangle indices
-            if (triAlpha < 1.0) {
+            // Skip fully transparent triangles (alpha = 0) as they are invisible
+            if (triAlpha < 1.0 && triAlpha > 0.0) {
                 transparentIndices.push(baseInd, baseInd + 1, baseInd + 2);
-            } else {
+            } else if (triAlpha > 0.0) {
                 opaqueIndices.push(baseInd, baseInd + 1, baseInd + 2);
             }
         }

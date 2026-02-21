@@ -10,11 +10,13 @@ class ActionDirectionalShadowLight extends ActionLight {
      * Constructor for a directional shadow light
      * @param {WebGLRenderingContext} gl - The WebGL rendering context
      * @param {ProgramManager} programManager - Reference to the program manager for shader access
+     * @param {ObjectRenderer3D} objectRenderer - Reference to object renderer for mesh library access
      */
-    constructor(gl, programManager) {
+    constructor(gl, programManager, objectRenderer = null) {
         super(gl);
 
         this.programManager = programManager;
+        this.objectRenderer = objectRenderer;
 
         // Directional light specific properties
         this.direction = new Vector3(0, -1, 0);
@@ -38,7 +40,6 @@ class ActionDirectionalShadowLight extends ActionLight {
         if (this.castsShadows) {
             this.setupShadowMap();
             this.setupShadowShaderProgram();
-            this.createReusableBuffers();
         }
     }
 
@@ -630,51 +631,23 @@ class ActionDirectionalShadowLight extends ActionLight {
             }
         }
 
-        // Calculate total vertices and indices
-        const totalVertices = triangles.length * 3;
+        // Get mesh from ObjectRenderer3D library (guaranteed to exist from queue pass)
+        const meshId = this.objectRenderer.getMeshIdForTriangles(triangles, object._stableMeshId);
+        const mesh = this.objectRenderer._meshLibrary.get(meshId);
 
-        // Only allocate new arrays if needed or if size has changed
-        if (!this._positionsArray || this._positionsArray.length < totalVertices * 3) {
-            this._positionsArray = new Float32Array(totalVertices * 3);
-        }
-        if (!this._indicesArray || this._indicesArray.length < totalVertices) {
-            this._indicesArray = new Uint16Array(totalVertices);
+        if (!mesh) {
+            console.warn("Shadow render: mesh not found in library for object", object);
+            return;
         }
 
-        // Fill position and index arrays
-        for (let i = 0; i < triangles.length; i++) {
-            const triangle = triangles[i];
-
-            // Process vertices
-            for (let j = 0; j < 3; j++) {
-                const vertex = triangle.vertices[j];
-                const baseIndex = (i * 3 + j) * 3;
-
-                this._positionsArray[baseIndex] = vertex.x;
-                this._positionsArray[baseIndex + 1] = vertex.y;
-                this._positionsArray[baseIndex + 2] = vertex.z;
-
-                // Set up indices
-                this._indicesArray[i * 3 + j] = i * 3 + j;
-            }
-        }
-
-        // Use buffer orphaning to avoid stalls
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.shadowBuffers.position);
-        gl.bufferData(gl.ARRAY_BUFFER, this._positionsArray.byteLength, gl.DYNAMIC_DRAW);
-        gl.bufferSubData(gl.ARRAY_BUFFER, 0, this._positionsArray.subarray(0, totalVertices * 3));
-
-        // Set up position attribute
+        // Bind position buffer and set up attribute
+        gl.bindBuffer(gl.ARRAY_BUFFER, mesh.buffers.position);
         gl.vertexAttribPointer(this.shadowLocations.position, 3, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(this.shadowLocations.position);
 
-        // Upload index data
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.shadowBuffers.index);
-        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, this._indicesArray.byteLength, gl.DYNAMIC_DRAW);
-        gl.bufferSubData(gl.ELEMENT_ARRAY_BUFFER, 0, this._indicesArray.subarray(0, totalVertices));
-
-        // Draw object
-        gl.drawElements(gl.TRIANGLES, totalVertices, gl.UNSIGNED_SHORT, 0);
+        // Bind index buffer and draw
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.buffers.indices);
+        gl.drawElements(gl.TRIANGLES, mesh.count, gl.UNSIGNED_INT, 0);
     }
     /**
      * Get the model matrix for an object based on its current physics state

@@ -10,8 +10,11 @@ class ActionRenderer3D {
         // Initialize all managers and renderers
         this.programManager = new ProgramManager(this.gl);
 
-        // Initialize LightManager
-        this.lightManager = new LightManager(this.gl, this.programManager);
+        // Initialize object renderer first (needed for shadow mesh library)
+        this.objectRenderer = new ObjectRenderer3D(this, this.gl, this.programManager, null); // Will set lightManager after
+
+        // Initialize LightManager with object renderer reference for shadow optimization
+        this.lightManager = new LightManager(this.gl, this.programManager, this.objectRenderer);
 
         // Initialize texture manager
         this.textureManager = new TextureManager(this.gl);
@@ -27,7 +30,9 @@ class ActionRenderer3D {
         this.weatherRenderer = new WeatherRenderer3D(this.gl, this.programManager);
         this.sunRenderer = new SunRenderer3D(this.gl, this.programManager);
 
-        this.objectRenderer = new ObjectRenderer3D(this, this.gl, this.programManager, this.lightManager);
+        // ObjectRenderer3D already created above - just update the lightManager reference now
+        this.objectRenderer.lightManager = this.lightManager;
+
         this.transparentRenderer = new TransparentObjectRenderer3D(this.objectRenderer);
         this.waterRenderer = new WaterRenderer3D(this.gl, this.programManager);
         this.spriteRenderer = new SpriteRenderer3D(this.gl, this.programManager, this.glStateManager);
