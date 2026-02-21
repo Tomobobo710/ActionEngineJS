@@ -14,13 +14,25 @@ class WaterRenderer3D {
 
         // Add configuration options for water appearance
         this.waterConfig = {
-            waveHeight: 2.0, // Increased from 0.5 to 2.0 to match shader
+            waveHeight: 2.0,
             waveSpeed: 1.0,
             transparency: 0.8,
             reflectivity: 0.6,
             waterColor: [0.0, 0.48, 0.71],
             waveDensity: 2.0
         };
+
+        // Pre-allocated buffers for ocean geometry (avoid per-frame allocation)
+        // Max 100k triangles = 300k vertices
+        this.maxOceanVertices = 300000;
+        this._oceanPositionsBuffer = new Float32Array(this.maxOceanVertices * 3);
+        this._oceanNormalsBuffer = new Float32Array(this.maxOceanVertices * 3);
+        this._oceanTexCoordsBuffer = new Float32Array(this.maxOceanVertices * 2);
+        this._oceanIndicesBuffer = new Uint16Array(this.maxOceanVertices);
+
+        // Track ocean mesh registration
+        this._oceanMeshRegistered = false;
+        this._lastOceanTriangleCount = 0;
 
         this.initializeWaterMesh();
     }
@@ -143,39 +155,59 @@ class WaterRenderer3D {
     updateBuffersWithOcean(ocean) {
         if (!ocean.triangles?.length) return;
 
-        const positions = new Float32Array(ocean.triangles.length * 9);
-        const normals = new Float32Array(ocean.triangles.length * 9);
-        const indices = new Uint16Array(ocean.triangles.length * 3);
+        const triangleCount = ocean.triangles.length;
+        const vertexCount = triangleCount * 3;
 
-        ocean.triangles.forEach((triangle, i) => {
-            const baseIndex = i * 9;
-            for (let j = 0; j < 3; j++) {
-                // Add subtle wave movement
-                const offset =
-                    Math.sin(Date.now() * 0.001 + triangle.vertices[j].x * 0.1) * this.waterConfig.waveHeight;
+        // Only rebuild if triangle count changed
+        if (this._lastOceanTriangleCount !== triangleCount) {
+            let posOffset = 0;
+            let normOffset = 0;
+            let texOffset = 0;
+            let indOffset = 0;
 
-                positions[baseIndex + j * 3] = triangle.vertices[j].x;
-                positions[baseIndex + j * 3 + 1] = triangle.vertices[j].y + offset + ocean.body.position.y;
-                positions[baseIndex + j * 3 + 2] = triangle.vertices[j].z;
+            // Fill buffers with ocean geometry (normals and positions are base, not wave-affected)
+            for (let i = 0; i < triangleCount; i++) {
+                const triangle = ocean.triangles[i];
 
-                normals[baseIndex + j * 3] = triangle.normal.x;
-                normals[baseIndex + j * 3 + 1] = triangle.normal.y;
-                normals[baseIndex + j * 3 + 2] = triangle.normal.z;
+                for (let j = 0; j < 3; j++) {
+                    const vert = triangle.vertices[j];
 
-                indices[i * 3 + j] = i * 3 + j;
+                    // Position (base - waves applied in shader)
+                    this._oceanPositionsBuffer[posOffset++] = vert.x;
+                    this._oceanPositionsBuffer[posOffset++] = vert.y + ocean.body.position.y;
+                    this._oceanPositionsBuffer[posOffset++] = vert.z;
+
+                    // Normal (static per triangle)
+                    this._oceanNormalsBuffer[normOffset++] = triangle.normal.x;
+                    this._oceanNormalsBuffer[normOffset++] = triangle.normal.y;
+                    this._oceanNormalsBuffer[normOffset++] = triangle.normal.z;
+
+                    // Tex coords (defaulted)
+                    this._oceanTexCoordsBuffer[texOffset++] = j === 1 ? 1.0 : j === 2 ? 0.5 : 0.0;
+                    this._oceanTexCoordsBuffer[texOffset++] = j === 2 ? 1.0 : 0.0;
+
+                    // Index
+                    this._oceanIndicesBuffer[indOffset++] = indOffset - 1;
+                }
             }
-        });
 
-        this.waterIndexCount = indices.length;
+            this.waterIndexCount = vertexCount;
+            this._lastOceanTriangleCount = triangleCount;
 
-        // Use DYNAMIC_DRAW for constantly updating buffers
-        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.waterBuffers.position);
-        this.gl.bufferData(this.gl.ARRAY_BUFFER, positions, this.gl.DYNAMIC_DRAW);
+            // Upload buffers once (STATIC_DRAW since geometry is fixed)
+            const gl = this.gl;
 
-        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.waterBuffers.normal);
-        this.gl.bufferData(this.gl.ARRAY_BUFFER, normals, this.gl.DYNAMIC_DRAW);
+            gl.bindBuffer(gl.ARRAY_BUFFER, this.waterBuffers.position);
+            gl.bufferData(gl.ARRAY_BUFFER, this._oceanPositionsBuffer.subarray(0, vertexCount * 3), gl.STATIC_DRAW);
 
-        this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.waterBuffers.indices);
-        this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER, indices, this.gl.DYNAMIC_DRAW);
+            gl.bindBuffer(gl.ARRAY_BUFFER, this.waterBuffers.normal);
+            gl.bufferData(gl.ARRAY_BUFFER, this._oceanNormalsBuffer.subarray(0, vertexCount * 3), gl.STATIC_DRAW);
+
+            gl.bindBuffer(gl.ARRAY_BUFFER, this.waterBuffers.texCoord);
+            gl.bufferData(gl.ARRAY_BUFFER, this._oceanTexCoordsBuffer.subarray(0, vertexCount * 2), gl.STATIC_DRAW);
+
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.waterBuffers.indices);
+            gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, this._oceanIndicesBuffer.subarray(0, vertexCount), gl.STATIC_DRAW);
+        }
     }
 }
