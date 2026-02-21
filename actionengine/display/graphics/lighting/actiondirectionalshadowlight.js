@@ -360,6 +360,8 @@ class ActionDirectionalShadowLight extends ActionLight {
             // Get attribute and uniform locations
             this.shadowLocations = {
                 position: this.gl.getAttribLocation(this.shadowProgram, "aPosition"),
+                boneIndices: this.gl.getAttribLocation(this.shadowProgram, "aBoneIndices"),
+                boneWeights: this.gl.getAttribLocation(this.shadowProgram, "aBoneWeights"),
                 lightSpaceMatrix: this.gl.getUniformLocation(this.shadowProgram, "uLightSpaceMatrix"),
                 modelPos: this.gl.getUniformLocation(this.shadowProgram, "uModelPos"),
                 modelRotation: this.gl.getUniformLocation(this.shadowProgram, "uModelRotation"),
@@ -644,6 +646,36 @@ class ActionDirectionalShadowLight extends ActionLight {
         gl.bindBuffer(gl.ARRAY_BUFFER, mesh.buffers.position);
         gl.vertexAttribPointer(this.shadowLocations.position, 3, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(this.shadowLocations.position);
+
+        // Bind bone attributes if they exist (for skeletal animation)
+        if (mesh.buffers.boneIndices && this.shadowLocations.boneIndices !== -1) {
+            gl.bindBuffer(gl.ARRAY_BUFFER, mesh.buffers.boneIndices);
+            gl.vertexAttribIPointer(this.shadowLocations.boneIndices, 4, gl.INT, 0, 0);
+            gl.enableVertexAttribArray(this.shadowLocations.boneIndices);
+        }
+
+        if (mesh.buffers.boneWeights && this.shadowLocations.boneWeights !== -1) {
+            gl.bindBuffer(gl.ARRAY_BUFFER, mesh.buffers.boneWeights);
+            gl.vertexAttribPointer(this.shadowLocations.boneWeights, 4, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(this.shadowLocations.boneWeights);
+        }
+
+        // Bind bone matrix UBO if object has animations
+        if (object && typeof object.getBoneMatrices === "function" && this.objectRenderer?.uboManager) {
+            const objectId = object._stableMeshId;
+            if (!this.objectRenderer.uboManager.getUBOInfo(objectId)) {
+                this.objectRenderer.uboManager.createAnimatedObjectUBO(objectId);
+            }
+            const boneMatrices = object.getBoneMatrices();
+            this.objectRenderer.uboManager.updateAnimatedObjectMatrices(
+                objectId,
+                this.objectRenderer._flattenMatrices(boneMatrices)
+            );
+            this.objectRenderer.uboManager.bindAnimatedObjectUBO(
+                objectId,
+                this.gl.getParameter(this.gl.CURRENT_PROGRAM)
+            );
+        }
 
         // Bind index buffer and draw
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.buffers.indices);

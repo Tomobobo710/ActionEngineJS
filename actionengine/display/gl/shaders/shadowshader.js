@@ -39,22 +39,46 @@ class ShadowShader {
 
     /**
      * Dedicated vertex shader for directional shadow mapping
-     * This is the clean version that only handles directional shadows
+     * Supports skeletal animation for animated characters
      */
     getDirectionalShadowVertexShader() {
         return `#version 300 es
         in vec3 aPosition;
+        in ivec4 aBoneIndices;
+        in vec4 aBoneWeights;
         
         uniform mat4 uLightSpaceMatrix;
         uniform vec3 uModelPos;
         uniform vec4 uModelRotation;
         uniform float uModelScale;
         
+        // Bone matrices for skeletal animation (max 256 bones)
+        layout(std140) uniform BoneMatrices {
+            mat4 matrices[256];
+        } boneData;
+        
         ${this.getMatrixConstructionHelpers()}
         
         void main() {
+            // Apply skeletal animation if bone weights are present
+            vec3 skinnedPosition = aPosition;
+            
+            float totalWeight = aBoneWeights.x + aBoneWeights.y + aBoneWeights.z + aBoneWeights.w;
+            if (totalWeight > 0.001) {
+                // Normalize weights in case they don't sum to 1.0
+                vec4 normalizedWeights = aBoneWeights / totalWeight;
+                
+                skinnedPosition = vec3(0.0);
+                
+                // Apply up to 4 bone influences
+                for (int i = 0; i < 4; i++) {
+                    mat4 boneMatrix = boneData.matrices[aBoneIndices[i]];
+                    skinnedPosition += (boneMatrix * vec4(aPosition, 1.0)).xyz * normalizedWeights[i];
+                }
+            }
+            
             mat4 modelMatrix = buildModelMatrix(uModelPos, uModelRotation, uModelScale);
-            gl_Position = uLightSpaceMatrix * modelMatrix * vec4(aPosition, 1.0);
+            gl_Position = uLightSpaceMatrix * modelMatrix * vec4(skinnedPosition, 1.0);
         }`;
     }
 
@@ -85,11 +109,13 @@ class ShadowShader {
 
     /**
      * Get the vertex shader for omnidirectional shadow mapping
-     * This variant is optimized for point lights with cubemap shadows
+     * Supports skeletal animation for animated characters
      */
     getOmniShadowVertexShader() {
         return `#version 300 es
         in vec3 aPosition;
+        in ivec4 aBoneIndices;
+        in vec4 aBoneWeights;
          
          uniform mat4 uLightSpaceMatrix;
          uniform vec3 uModelPos;
@@ -97,13 +123,35 @@ class ShadowShader {
          uniform float uModelScale;
          uniform vec3 uLightPos;
          
+         // Bone matrices for skeletal animation (max 256 bones)
+         layout(std140) uniform BoneMatrices {
+             mat4 matrices[256];
+         } boneData;
+         
          out vec3 vFragPos;
         
         ${this.getMatrixConstructionHelpers()}
         
         void main() {
+            // Apply skeletal animation if bone weights are present
+            vec3 skinnedPosition = aPosition;
+            
+            float totalWeight = aBoneWeights.x + aBoneWeights.y + aBoneWeights.z + aBoneWeights.w;
+            if (totalWeight > 0.001) {
+                // Normalize weights in case they don't sum to 1.0
+                vec4 normalizedWeights = aBoneWeights / totalWeight;
+                
+                skinnedPosition = vec3(0.0);
+                
+                // Apply up to 4 bone influences
+                for (int i = 0; i < 4; i++) {
+                    mat4 boneMatrix = boneData.matrices[aBoneIndices[i]];
+                    skinnedPosition += (boneMatrix * vec4(aPosition, 1.0)).xyz * normalizedWeights[i];
+                }
+            }
+            
             mat4 modelMatrix = buildModelMatrix(uModelPos, uModelRotation, uModelScale);
-            vec4 worldPos = modelMatrix * vec4(aPosition, 1.0);
+            vec4 worldPos = modelMatrix * vec4(skinnedPosition, 1.0);
             vFragPos = worldPos.xyz;
             gl_Position = uLightSpaceMatrix * worldPos;
         }`;
