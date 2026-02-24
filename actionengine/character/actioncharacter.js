@@ -314,7 +314,7 @@ class ActionCharacter extends RenderableObject {
         Matrix4.translate(modelTransform, modelTransform, [0, this.characterVisualYOffset, 0]);
 
         // Use raw vertex positions without skinning (bind-pose)
-        for (const triangle of this.characterModel.triangles) {
+        for (const triangle of this.characterModel.getAllTrianglesLocal()) {
             const transformedVerts = [];
             for (let i = 0; i < triangle.vertices.length; i++) {
                 transformedVerts.push(Vector3.transformMat4(triangle.vertices[i], modelTransform));
@@ -406,7 +406,7 @@ class ActionCharacter extends RenderableObject {
         const skin = this.characterModel.skins[0];
 
         // Process each triangle in the model
-        for (const triangle of this.characterModel.triangles) {
+        for (const triangle of this.characterModel.getAllTrianglesLocal()) {
             // Apply skinning to each vertex
             const skinnedVertices = [];
             for (let i = 0; i < triangle.vertices.length; i++) {

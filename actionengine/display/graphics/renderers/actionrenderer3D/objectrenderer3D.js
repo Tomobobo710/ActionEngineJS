@@ -104,7 +104,7 @@ class ObjectRenderer3D {
         }
 
         const transform = object.transform;
-        this._drawQueue.push({
+        const queueEntry = {
             meshId: meshId,
             position: transform ? transform.position : { x: 0, y: 0, z: 0 },
             rotation: transform ? transform.rotation : { x: 0, y: 0, z: 0, w: 1 },
@@ -112,7 +112,9 @@ class ObjectRenderer3D {
             alpha: object.alpha !== undefined ? object.alpha : 1.0,
             isStatic: object.isStatic,
             object: object // Store reference to object for bone matrix retrieval
-        });
+        };
+
+        this._drawQueue.push(queueEntry);
 
         this.stats.objectsTotal++;
     }
@@ -207,10 +209,11 @@ class ObjectRenderer3D {
             }
 
             // Separate into opaque and transparent triangle indices
-            // Skip fully transparent triangles (alpha = 0) as they are invisible
-            if (triAlpha < 1.0 && triAlpha > 0.0) {
+            // Treat alpha == 1.0 as opaque, all other values (including 0) as transparent
+            // This ensures every triangle gets indexed (no orphaned geometry)
+            if (triAlpha < 1.0) {
                 transparentIndices.push(baseInd, baseInd + 1, baseInd + 2);
-            } else if (triAlpha > 0.0) {
+            } else {
                 opaqueIndices.push(baseInd, baseInd + 1, baseInd + 2);
             }
         }

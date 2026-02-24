@@ -28,25 +28,829 @@ class GLBExporter {
     }
 
     /**
-     * Create GLB from triangles using materials for each color/texture combo
+     * Export ActionModel3D to GLB file, preserving object structure and hierarchy
+     * @param {ActionModel3D} model - ActionModel3D instance with objects
+     * @param {string} filename - Output filename (without extension)
+     */
+    static exportActionModel(model, filename = "model") {
+        try {
+            const exporter = new GLBExporter();
+            const glbBuffer = exporter.createGLBFromActionModel(model, filename);
+            exporter.downloadFile(glbBuffer, `${filename}.glb`);
+            console.log(`Exported ${filename}.glb from ActionModel3D with ${model.objects.length} objects`);
+        } catch (error) {
+            console.error("ActionModel GLB export failed:", error);
+            throw error;
+        }
+    }
+
+    /**
+     * Create GLB from ActionModel3D preserving hierarchy and object structure
+     *
+     * Uses model.nodes for hierarchy and model.objects for mesh data.
+     * Each mesh node gets its own mesh in the GLB.
+     * Transform nodes (no mesh) are preserved without geometry.
+     *
+     * @param {ActionModel3D} model - Model with nodes and objects array
+     * @param {string} modelName - Name for the root node
+     * @returns {ArrayBuffer} Complete GLB file buffer
+     */
+    createGLBFromActionModel(model, modelName) {
+        if (!model.objects || model.objects.length === 0) {
+            return this.createGLBFromTriangles([], modelName);
+        }
+
+        // If model has no nodes (procedurally created), generate flat hierarchy
+        if (!model.nodes || model.nodes.length === 0) {
+            console.log("[GLBExporter] No nodes found, generating flat hierarchy for procedural model");
+            model.nodes = [];
+            model.objectToNodeIndex = {};
+            model.rootNodes = [];
+
+            for (let objIdx = 0; objIdx < model.objects.length; objIdx++) {
+                const obj = model.objects[objIdx];
+                const nodeData = {
+                    name: obj.name || `object_${objIdx}`,
+                    children: [], // Store indices, not Node objects
+                    childIndices: [], // Track which indices are children for reference
+                    mesh: objIdx,
+                    translation: obj.transform
+                        ? [obj.transform.position.x, obj.transform.position.y, obj.transform.position.z]
+                        : [0, 0, 0],
+                    rotation: obj.transform
+                        ? [
+                              obj.transform.rotation.x,
+                              obj.transform.rotation.y,
+                              obj.transform.rotation.z,
+                              obj.transform.rotation.w
+                          ]
+                        : [0, 0, 0, 1],
+                    scale: obj.transform
+                        ? [obj.transform.scale.x, obj.transform.scale.y, obj.transform.scale.z]
+                        : [1, 1, 1]
+                };
+                const node = new Node(nodeData, objIdx);
+                model.nodes.push(node);
+                model.objectToNodeIndex[objIdx] = objIdx;
+                model.rootNodes.push(objIdx);
+            }
+        }
+
+        // Build object lookup by node index for quick access
+        const objectByNodeIdx = {};
+        for (let objIdx = 0; objIdx < model.objects.length; objIdx++) {
+            const nodeIdx = model.objectToNodeIndex[objIdx];
+            objectByNodeIdx[nodeIdx] = model.objects[objIdx];
+        }
+
+        // Deduplicate meshes by Triangle array reference (WeakMap equivalent using object identity)
+        const triangleArrayToMeshInfo = new Map();
+        const meshIdByNodeIdx = {}; // Which mesh (by reference) each node uses
+        let meshId = 0;
+
+        // First pass: Identify unique Triangle arrays and which nodes use them
+        for (let nodeIdx = 0; nodeIdx < model.nodes.length; nodeIdx++) {
+            if (objectByNodeIdx[nodeIdx]) {
+                const obj = objectByNodeIdx[nodeIdx];
+                const triangleArray = obj.triangles;
+
+                // Use array reference as key (JavaScript object identity)
+                if (!triangleArrayToMeshInfo.has(triangleArray)) {
+                    triangleArrayToMeshInfo.set(triangleArray, {
+                        meshId: meshId++,
+                        triangles: triangleArray,
+                        nodes: []
+                    });
+                }
+                meshIdByNodeIdx[nodeIdx] = triangleArrayToMeshInfo.get(triangleArray).meshId;
+                triangleArrayToMeshInfo.get(triangleArray).nodes.push(nodeIdx);
+            }
+        }
+
+        // Process unique meshes - keep vertices separate per-mesh, not global
+        const textureRegistry = new Map();
+        const meshData = []; // Each element: { vertices, uvs, materialGroups, meshId, nodeIndices }
+        const nodeTransforms = {}; // Store node transforms by index
+
+        // Collect all node transforms first
+        for (let nodeIdx = 0; nodeIdx < model.nodes.length; nodeIdx++) {
+            const node = model.nodes[nodeIdx];
+            nodeTransforms[nodeIdx] = {
+                translation: node.translation.clone
+                    ? node.translation.clone()
+                    : new Vector3(node.translation.x, node.translation.y, node.translation.z),
+                rotation: new Quaternion(node.rotation.x, node.rotation.y, node.rotation.z, node.rotation.w),
+                scale: node.scale.clone ? node.scale.clone() : new Vector3(node.scale.x, node.scale.y, node.scale.z)
+            };
+        }
+
+        // Export each unique mesh once with its own vertex pool
+        for (const [triangleArray, meshInfo] of triangleArrayToMeshInfo) {
+            const meshVertices = []; // Local vertex pool for this mesh
+            const meshUVs = []; // Local UVs for this mesh
+            const materialGroups = new Map();
+
+            // Group triangles by material
+            triangleArray.forEach((triangle) => {
+                const color = triangle.color || "#808080";
+                const hasTexture = triangle.texture && triangle.texture.imageData;
+
+                let materialKey = color;
+                let textureId = null;
+
+                if (hasTexture) {
+                    const texName = triangle.texture.name || `texture_${textureRegistry.size}`;
+                    if (!textureRegistry.has(texName)) {
+                        textureRegistry.set(texName, triangle.texture);
+                    }
+                    textureId = texName;
+                    materialKey = `${color}:${textureId}`;
+                }
+
+                if (!materialGroups.has(materialKey)) {
+                    materialGroups.set(materialKey, {
+                        triangles: [],
+                        indices: [],
+                        color: color,
+                        textureId: textureId,
+                        hasTexture: hasTexture
+                    });
+                }
+
+                // Deduplicate vertices by position + UV WITHIN this mesh's pool
+                const vertexIndices = [];
+                for (let vi = 0; vi < 3; vi++) {
+                    const vertex = triangle.vertices[vi];
+                    const uv = hasTexture && triangle.uvs && triangle.uvs[vi] ? triangle.uvs[vi] : null;
+
+                    // Create deduplication key including UV
+                    const uvStr = uv
+                        ? `${(uv.u !== undefined ? uv.u : uv.x).toFixed(6)},${(uv.v !== undefined ? uv.v : uv.y).toFixed(6)}`
+                        : "0,0";
+                    const posKey = `${vertex.x.toFixed(6)},${vertex.y.toFixed(6)},${vertex.z.toFixed(6)},${uvStr}`;
+
+                    let vertexIndex;
+                    if (!materialGroups.get(materialKey).vertexMap) {
+                        materialGroups.get(materialKey).vertexMap = new Map();
+                    }
+                    const vertexMap = materialGroups.get(materialKey).vertexMap;
+
+                    if (vertexMap.has(posKey)) {
+                        // Vertex+UV combo already in this mesh's pool
+                        vertexIndex = vertexMap.get(posKey);
+                    } else {
+                        // New vertex+UV combo - add to LOCAL mesh pool
+                        vertexIndex = meshVertices.length;
+                        meshVertices.push(vertex);
+                        vertexMap.set(posKey, vertexIndex);
+
+                        // Add UV for this vertex to LOCAL mesh UV list
+                        if (hasTexture && uv) {
+                            meshUVs.push(uv.u !== undefined ? uv.u : uv.x);
+                            meshUVs.push(uv.v !== undefined ? uv.v : uv.y);
+                        } else {
+                            meshUVs.push(0);
+                            meshUVs.push(0);
+                        }
+                    }
+
+                    vertexIndices.push(vertexIndex);
+                }
+
+                materialGroups.get(materialKey).indices.push(...vertexIndices);
+                materialGroups.get(materialKey).triangles.push(triangle);
+            });
+
+            meshData.push({
+                vertices: meshVertices, // This mesh's local vertices
+                uvs: meshUVs, // This mesh's local UVs
+                materialGroups: materialGroups,
+                meshId: meshInfo.meshId,
+                nodeIndices: meshInfo.nodes
+            });
+        }
+
+        // Check if any mesh needs Uint32 indices
+        const useUint32 = meshData.some((m) => m.vertices.length > 65535);
+
+        // Create GLTF with hierarchy preserved
+        const gltf = this.createGLTFWithHierarchy(
+            meshData,
+            textureRegistry,
+            model,
+            nodeTransforms,
+            modelName,
+            useUint32
+        );
+
+        const binaryData = this.createBinaryData(meshData, textureRegistry, useUint32);
+        return this.assembleGLB(gltf, binaryData);
+    }
+
+    /**
+     * Create GLTF with full node hierarchy preserved
+     * meshData now contains { vertices, uvs, materialGroups, meshId, nodeIndices } - one entry per unique mesh
+     */
+    createGLTFWithHierarchy(meshData, textureRegistry, model, nodeTransforms, modelName, useUint32) {
+        // Build mesh index by meshId (one mesh per unique Triangle array)
+        const meshIndexByMeshId = {};
+        let meshIndex = 0;
+        for (const meshInfo of meshData) {
+            meshIndexByMeshId[meshInfo.meshId] = meshIndex++;
+        }
+
+        // Build reverse lookup: which meshId each node uses
+        const meshIdByNodeIdx = {};
+        for (const meshInfo of meshData) {
+            for (const nodeIdx of meshInfo.nodeIndices) {
+                meshIdByNodeIdx[nodeIdx] = meshInfo.meshId;
+            }
+        }
+
+        // Calculate total buffer size
+        const indexSize = useUint32 ? 4 : 2;
+        let totalBufferSize = 0;
+
+        // Each mesh: positions + normals + uvs (if any) + indices
+        for (const meshInfo of meshData) {
+            const vertexCount = meshInfo.vertices.length;
+            totalBufferSize += vertexCount * 3 * 4; // positions
+            totalBufferSize += vertexCount * 3 * 4; // normals
+            if (meshInfo.uvs.length > 0) {
+                totalBufferSize += meshInfo.uvs.length * 4; // UVs (already float pairs)
+            }
+            for (const group of meshInfo.materialGroups.values()) {
+                totalBufferSize += group.indices.length * indexSize;
+            }
+        }
+
+        // Textures
+        let totalTextureSize = 0;
+        for (const texture of textureRegistry.values()) {
+            totalTextureSize += texture.imageData.byteLength;
+        }
+        totalBufferSize += totalTextureSize;
+
+        let bufferOffset = 0;
+        let accessorIndex = 0;
+        let bufferViewIndex = 0;
+
+        const gltf = {
+            asset: { version: "2.0", generator: "ActionEngine GLBExporter" },
+            scene: 0,
+            scenes: [{ nodes: [] }],
+            nodes: [],
+            meshes: [],
+            materials: [],
+            buffers: [{ byteLength: totalBufferSize }],
+            bufferViews: [],
+            accessors: []
+        };
+
+        // Create accessor metadata for each mesh (positions, normals, uvs, indices per mesh)
+        const meshAccessorData = []; // Maps meshIndex -> { positionAccessor, normalAccessor, uvAccessor, indexAccessors }
+
+        for (let mIdx = 0; mIdx < meshData.length; mIdx++) {
+            const meshInfo = meshData[mIdx];
+            const vertexCount = meshInfo.vertices.length;
+            const accessorData = {
+                positionAccessor: null,
+                normalAccessor: null,
+                uvAccessor: null,
+                indexAccessors: []
+            };
+
+            // Positions for this mesh
+            const positionsSize = vertexCount * 3 * 4;
+            gltf.bufferViews.push({
+                buffer: 0,
+                byteOffset: bufferOffset,
+                byteLength: positionsSize,
+                target: 34962
+            });
+            gltf.accessors.push({
+                bufferView: bufferViewIndex++,
+                componentType: 5126,
+                count: vertexCount,
+                type: "VEC3",
+                min: this.calculateMinVertices(meshInfo.vertices),
+                max: this.calculateMaxVertices(meshInfo.vertices)
+            });
+            accessorData.positionAccessor = accessorIndex++;
+            bufferOffset += positionsSize;
+
+            // Normals for this mesh
+            const normalsSize = vertexCount * 3 * 4;
+            gltf.bufferViews.push({
+                buffer: 0,
+                byteOffset: bufferOffset,
+                byteLength: normalsSize,
+                target: 34962
+            });
+            gltf.accessors.push({
+                bufferView: bufferViewIndex++,
+                componentType: 5126,
+                count: vertexCount,
+                type: "VEC3"
+            });
+            accessorData.normalAccessor = accessorIndex++;
+            bufferOffset += normalsSize;
+
+            // UVs for this mesh (if any)
+            if (meshInfo.uvs.length > 0) {
+                const uvsSize = meshInfo.uvs.length * 4;
+                gltf.bufferViews.push({
+                    buffer: 0,
+                    byteOffset: bufferOffset,
+                    byteLength: uvsSize,
+                    target: 34962
+                });
+                gltf.accessors.push({
+                    bufferView: bufferViewIndex++,
+                    componentType: 5126,
+                    count: vertexCount,
+                    type: "VEC2"
+                });
+                accessorData.uvAccessor = accessorIndex++;
+                bufferOffset += uvsSize;
+            }
+
+            // Index buffers for each material group
+            for (const [materialKey, group] of meshInfo.materialGroups) {
+                const indicesSize = group.indices.length * indexSize;
+                gltf.bufferViews.push({
+                    buffer: 0,
+                    byteOffset: bufferOffset,
+                    byteLength: indicesSize,
+                    target: 34963
+                });
+                gltf.accessors.push({
+                    bufferView: bufferViewIndex++,
+                    componentType: useUint32 ? 5125 : 5123,
+                    count: group.indices.length,
+                    type: "SCALAR"
+                });
+                accessorData.indexAccessors.push(accessorIndex++);
+                bufferOffset += indicesSize;
+            }
+
+            meshAccessorData.push(accessorData);
+        }
+
+        // Textures - map texture names to indices
+        const textureNameToIndex = new Map();
+        if (textureRegistry.size > 0) {
+            gltf.images = [];
+            gltf.textures = [];
+
+            let textureIdx = 0;
+            for (const [texName, texture] of textureRegistry) {
+                gltf.images.push({
+                    name: texName,
+                    mimeType: texture.mimeType,
+                    bufferView: bufferViewIndex
+                });
+
+                gltf.bufferViews.push({
+                    buffer: 0,
+                    byteOffset: bufferOffset,
+                    byteLength: texture.imageData.byteLength
+                });
+                bufferOffset += texture.imageData.byteLength;
+                bufferViewIndex++;
+
+                gltf.textures.push({
+                    source: gltf.images.length - 1
+                });
+
+                textureNameToIndex.set(texName, textureIdx++);
+            }
+        }
+
+        // Build material index map and GLTF materials
+        const materialIndexMap = new Map();
+        let materialIndex = 0;
+
+        for (const meshInfo of meshData) {
+            for (const [materialKey, group] of meshInfo.materialGroups) {
+                if (!materialIndexMap.has(materialKey)) {
+                    const color = group.color;
+                    const rgb = this.hexToRgb(color);
+                    const alpha =
+                        group.triangles.length > 0 && group.triangles[0].alpha !== undefined
+                            ? group.triangles[0].alpha
+                            : 1.0;
+                    let metallic = 0,
+                        roughness = 1.0;
+                    let emissive = [0, 0, 0];
+
+                    if (group.triangles.length > 0) {
+                        const firstTriangle = group.triangles[0];
+                        if (firstTriangle.metallic !== undefined) {
+                            metallic = firstTriangle.metallic;
+                        }
+                        if (firstTriangle.roughness !== undefined) {
+                            roughness = firstTriangle.roughness;
+                        }
+                        if (firstTriangle.emissive !== undefined) {
+                            emissive = firstTriangle.emissive;
+                        }
+                    }
+
+                    const material = {
+                        name: materialKey,
+                        pbrMetallicRoughness: {
+                            baseColorFactor: [rgb.r / 255, rgb.g / 255, rgb.b / 255, alpha],
+                            metallicFactor: metallic,
+                            roughnessFactor: roughness
+                        }
+                    };
+
+                    if (emissive[0] !== 0 || emissive[1] !== 0 || emissive[2] !== 0) {
+                        material.emissiveFactor = emissive;
+                    }
+
+                    if (alpha < 1.0) {
+                        material.alphaMode = "BLEND";
+                    }
+
+                    if (group.hasTexture && group.textureId && textureNameToIndex.has(group.textureId)) {
+                        material.pbrMetallicRoughness.baseColorTexture = {
+                            index: textureNameToIndex.get(group.textureId)
+                        };
+                    }
+
+                    gltf.materials.push(material);
+                    materialIndexMap.set(materialKey, materialIndex++);
+                }
+            }
+        }
+
+        // Create meshes (one per mesh info)
+        let currentMeshIdx = 0;
+        let indexAccessorIdx = 0;
+        for (let mIdx = 0; mIdx < meshData.length; mIdx++) {
+            const meshInfo = meshData[mIdx];
+            const accessorData = meshAccessorData[mIdx];
+            const primitives = [];
+
+            // Each material group gets a primitive
+            let groupIdx = 0;
+            for (const [materialKey, group] of meshInfo.materialGroups) {
+                const primitiveAttributes = {
+                    POSITION: accessorData.positionAccessor,
+                    NORMAL: accessorData.normalAccessor
+                };
+                if (accessorData.uvAccessor !== null) {
+                    primitiveAttributes.TEXCOORD_0 = accessorData.uvAccessor;
+                }
+
+                primitives.push({
+                    attributes: primitiveAttributes,
+                    indices: accessorData.indexAccessors[groupIdx],
+                    material: materialIndexMap.get(materialKey),
+                    mode: 4
+                });
+                groupIdx++;
+            }
+
+            gltf.meshes.push({
+                name: `mesh_${mIdx}`,
+                primitives: primitives
+            });
+            currentMeshIdx++;
+        }
+
+        // Build quick lookup map for Node objects to their indices (for imported models)
+        const nodeToIndexMap = new Map();
+        for (let i = 0; i < model.nodes.length; i++) {
+            nodeToIndexMap.set(model.nodes[i], i);
+        }
+
+        // Create nodes with hierarchy
+        for (let nodeIdx = 0; nodeIdx < model.nodes.length; nodeIdx++) {
+            const node = model.nodes[nodeIdx];
+            const transform = nodeTransforms[nodeIdx];
+
+            const gltfNode = {
+                name: node.name || `node_${nodeIdx}`,
+                translation: [transform.translation.x, transform.translation.y, transform.translation.z],
+                rotation: [transform.rotation.x, transform.rotation.y, transform.rotation.z, transform.rotation.w],
+                scale: [transform.scale.x, transform.scale.y, transform.scale.z]
+            };
+
+            // If this node has a mesh, reference it (use meshId to look up mesh index)
+            if (meshIdByNodeIdx[nodeIdx] !== undefined) {
+                const meshId = meshIdByNodeIdx[nodeIdx];
+                gltfNode.mesh = meshIndexByMeshId[meshId];
+            }
+
+            // Add children - node.children may contain indices OR Node objects (from imported models)
+            if (node.children && node.children.length > 0) {
+                gltfNode.children = [];
+                for (const child of node.children) {
+                    if (typeof child === "number") {
+                        // Already an index - use directly
+                        if (child >= 0 && child < model.nodes.length) {
+                            gltfNode.children.push(child);
+                        }
+                    } else if (child && typeof child === "object") {
+                        // Child is a Node object - look up its index
+                        const childIdx = nodeToIndexMap.get(child);
+                        if (childIdx !== undefined && childIdx >= 0) {
+                            gltfNode.children.push(childIdx);
+                        }
+                    }
+                }
+            }
+
+            gltf.nodes.push(gltfNode);
+        }
+
+        // Set root nodes in scene
+        if (model.rootNodes && model.rootNodes.length > 0) {
+            gltf.scenes[0].nodes = model.rootNodes;
+        } else if (model.nodes.length === 0 && meshData.length > 0) {
+            // Fallback for procedural models with no hierarchy: create single root node with mesh
+            const rootNode = {
+                name: modelName || "root",
+                mesh: 0, // Reference first mesh
+                translation: [0, 0, 0],
+                rotation: [0, 0, 0, 1],
+                scale: [1, 1, 1]
+            };
+            gltf.nodes.push(rootNode);
+            gltf.scenes[0].nodes = [0];
+        } else {
+            // Fallback: nodes with no parent
+            const childSet = new Set();
+            for (const node of model.nodes) {
+                if (node.children) {
+                    for (const child of node.children) {
+                        childSet.add(model.nodes.indexOf(child));
+                    }
+                }
+            }
+            gltf.scenes[0].nodes = model.nodes.map((_, idx) => idx).filter((idx) => !childSet.has(idx));
+        }
+
+        return gltf;
+    }
+
+    /**
+     * Create GLTF with one mesh per object
+     */
+    createGLTFWithMultipleMeshes(allVertices, allUVs, meshData, textureRegistry, modelName, useUint32) {
+        const vertexCount = allVertices.length;
+        const positionsSize = vertexCount * 3 * 4;
+        const normalsSize = vertexCount * 3 * 4;
+        const uvsSize = allUVs.length > 0 ? (allUVs.length / 2) * 2 * 4 : 0;
+
+        const indexSize = useUint32 ? 4 : 2;
+        let totalIndicesSize = 0;
+        for (const meshInfo of meshData) {
+            for (const group of meshInfo.materialGroups.values()) {
+                totalIndicesSize += group.indices.length * indexSize;
+            }
+        }
+
+        let totalTextureSize = 0;
+        for (const texture of textureRegistry.values()) {
+            totalTextureSize += texture.imageData.byteLength;
+        }
+
+        const totalBufferSize = positionsSize + normalsSize + uvsSize + totalIndicesSize + totalTextureSize;
+
+        let bufferOffset = 0;
+        let accessorIndex = 0;
+        let bufferViewIndex = 0;
+
+        const gltf = {
+            asset: { version: "2.0", generator: "ActionEngine GLBExporter" },
+            scene: 0,
+            scenes: [{ nodes: [] }],
+            nodes: [],
+            meshes: [],
+            materials: [],
+            buffers: [{ byteLength: totalBufferSize }],
+            bufferViews: [],
+            accessors: []
+        };
+
+        // Positions
+        gltf.bufferViews.push({
+            buffer: 0,
+            byteOffset: bufferOffset,
+            byteLength: positionsSize,
+            target: 34962
+        });
+        bufferOffset += positionsSize;
+
+        gltf.accessors.push({
+            bufferView: bufferViewIndex++,
+            componentType: 5126,
+            count: vertexCount,
+            type: "VEC3",
+            min: this.calculateMinVertices(allVertices),
+            max: this.calculateMaxVertices(allVertices)
+        });
+        const positionAccessor = accessorIndex++;
+
+        // Normals
+        gltf.bufferViews.push({
+            buffer: 0,
+            byteOffset: bufferOffset,
+            byteLength: normalsSize,
+            target: 34962
+        });
+        bufferOffset += normalsSize;
+
+        gltf.accessors.push({
+            bufferView: bufferViewIndex++,
+            componentType: 5126,
+            count: vertexCount,
+            type: "VEC3"
+        });
+        const normalAccessor = accessorIndex++;
+
+        // UVs
+        let uvAccessor = null;
+        if (allUVs.length > 0) {
+            gltf.bufferViews.push({
+                buffer: 0,
+                byteOffset: bufferOffset,
+                byteLength: uvsSize,
+                target: 34962
+            });
+            bufferOffset += uvsSize;
+
+            gltf.accessors.push({
+                bufferView: bufferViewIndex++,
+                componentType: 5126,
+                count: vertexCount,
+                type: "VEC2"
+            });
+            uvAccessor = accessorIndex++;
+        }
+
+        // Textures - map texture names to indices
+        let imageDataOffset = positionsSize + normalsSize + uvsSize + totalIndicesSize;
+        const textureNameToIndex = new Map();
+        if (textureRegistry.size > 0) {
+            gltf.images = [];
+            gltf.textures = [];
+
+            let textureIdx = 0;
+            for (const [texName, texture] of textureRegistry) {
+                gltf.images.push({
+                    name: texName,
+                    mimeType: texture.mimeType,
+                    bufferView: bufferViewIndex
+                });
+
+                gltf.bufferViews.push({
+                    buffer: 0,
+                    byteOffset: imageDataOffset,
+                    byteLength: texture.imageData.byteLength
+                });
+                imageDataOffset += texture.imageData.byteLength;
+                bufferViewIndex++;
+
+                gltf.textures.push({
+                    source: gltf.images.length - 1
+                });
+
+                textureNameToIndex.set(texName, textureIdx++);
+            }
+        }
+
+        // Create one mesh per object
+        let materialIndex = 0;
+        for (const meshInfo of meshData) {
+            const mesh = {
+                name: meshInfo.objectName,
+                primitives: []
+            };
+
+            for (const [materialKey, group] of meshInfo.materialGroups) {
+                // Create material object
+                const rgb = this.hexToRgb(group.color);
+                const alpha =
+                    group.triangles.length > 0 && group.triangles[0].alpha !== undefined
+                        ? group.triangles[0].alpha
+                        : 1.0;
+                let metallic = 0,
+                    roughness = 1.0;
+                let emissive = [0, 0, 0];
+
+                if (group.triangles.length > 0) {
+                    const firstTriangle = group.triangles[0];
+                    if (firstTriangle.metallic !== undefined) {
+                        metallic = firstTriangle.metallic;
+                    }
+                    if (firstTriangle.roughness !== undefined) {
+                        roughness = firstTriangle.roughness;
+                    }
+                    if (firstTriangle.emissive !== undefined) {
+                        emissive = firstTriangle.emissive;
+                    }
+                }
+
+                const material = {
+                    name: materialKey,
+                    pbrMetallicRoughness: {
+                        baseColorFactor: [rgb.r / 255, rgb.g / 255, rgb.b / 255, alpha],
+                        metallicFactor: metallic,
+                        roughnessFactor: roughness
+                    }
+                };
+
+                if (emissive[0] !== 0 || emissive[1] !== 0 || emissive[2] !== 0) {
+                    material.emissiveFactor = emissive;
+                }
+
+                if (alpha < 1.0) {
+                    material.alphaMode = "BLEND";
+                }
+
+                if (group.hasTexture && group.textureId && textureNameToIndex.has(group.textureId)) {
+                    material.pbrMetallicRoughness.baseColorTexture = {
+                        index: textureNameToIndex.get(group.textureId)
+                    };
+                }
+
+                const materialIdx = gltf.materials.length;
+                gltf.materials.push(material);
+
+                const indicesSize = group.indices.length * indexSize;
+                gltf.bufferViews.push({
+                    buffer: 0,
+                    byteOffset: bufferOffset,
+                    byteLength: indicesSize,
+                    target: 34963
+                });
+                bufferOffset += indicesSize;
+
+                gltf.accessors.push({
+                    bufferView: bufferViewIndex++,
+                    componentType: useUint32 ? 5125 : 5123,
+                    count: group.indices.length,
+                    type: "SCALAR"
+                });
+
+                const primitiveAttributes = {
+                    POSITION: positionAccessor,
+                    NORMAL: normalAccessor
+                };
+
+                if (uvAccessor !== null && group.hasTexture) {
+                    primitiveAttributes.TEXCOORD_0 = uvAccessor;
+                }
+
+                mesh.primitives.push({
+                    attributes: primitiveAttributes,
+                    indices: accessorIndex++,
+                    material: materialIdx,
+                    mode: 4
+                });
+            }
+
+            gltf.meshes.push(mesh);
+        }
+
+        // Create one node per mesh, all at root level
+        for (let i = 0; i < gltf.meshes.length; i++) {
+            gltf.nodes.push({
+                mesh: i,
+                name: meshData[i].objectName
+            });
+            gltf.scenes[0].nodes.push(i);
+        }
+
+        return gltf;
+    }
+
+    /**
+     * Create GLB from any Triangle array (no model hierarchy required)
+     * Converts flat Triangle[] into the same meshData format as ActionModel export
+     * This makes ANY geometry exportable without being GLB-aware
      */
     createGLBFromTriangles(triangles, modelName) {
-        // Group triangles by material (color + texture combo)
+        // Convert flat Triangle[] into meshData format (same as ActionModel pipeline)
+        const meshVertices = []; // Local vertex pool for dedup
+        const meshUVs = []; // Local UVs for dedup
         const materialGroups = new Map();
-        const allVertices = [];
-        const allUVs = [];
-        const textureRegistry = new Map(); // Track unique textures
+        const textureRegistry = new Map();
 
-        triangles.forEach((triangle, triIndex) => {
+        // Group triangles by material and deduplicate vertices
+        triangles.forEach((triangle) => {
             const color = triangle.color || "#808080";
             const hasTexture = triangle.texture && triangle.texture.imageData;
 
-            // Create material key: "color" or "color:textureName"
             let materialKey = color;
             let textureId = null;
 
             if (hasTexture) {
-                // Register unique texture
                 const texName = triangle.texture.name || `texture_${textureRegistry.size}`;
                 if (!textureRegistry.has(texName)) {
                     textureRegistry.set(texName, triangle.texture);
@@ -65,57 +869,90 @@ class GLBExporter {
                 });
             }
 
-            // Add vertices to global array
-            const startIndex = allVertices.length;
-            triangle.vertices.forEach((vertex) => {
-                allVertices.push(vertex);
-            });
+            // Deduplicate vertices by position + UV WITHIN this mesh
+            const vertexIndices = [];
+            for (let vi = 0; vi < 3; vi++) {
+                const vertex = triangle.vertices[vi];
+                const uv = hasTexture && triangle.uvs && triangle.uvs[vi] ? triangle.uvs[vi] : null;
 
-            // Store indices for this material group
-            materialGroups.get(materialKey).indices.push(startIndex, startIndex + 1, startIndex + 2);
-            materialGroups.get(materialKey).triangles.push(triangle);
+                // Create dedup key including UV
+                const uvStr = uv
+                    ? `${(uv.u !== undefined ? uv.u : uv.x).toFixed(6)},${(uv.v !== undefined ? uv.v : uv.y).toFixed(6)}`
+                    : "0,0";
+                const posKey = `${vertex.x.toFixed(6)},${vertex.y.toFixed(6)},${vertex.z.toFixed(6)},${uvStr}`;
 
-            // Add UVs for all vertices (textured get real UVs, non-textured get 0,0)
-            for (let i = 0; i < 3; i++) {
-                if (hasTexture && triangle.uvs && triangle.uvs[i]) {
-                    const uv = triangle.uvs[i];
-                    // Handle both Vector2 objects and {u,v} objects
-                    allUVs.push(uv.u !== undefined ? uv.u : uv.x);
-                    allUVs.push(uv.v !== undefined ? uv.v : uv.y);
-                } else {
-                    // Default UV for non-textured vertices
-                    allUVs.push(0);
-                    allUVs.push(0);
+                let vertexIndex;
+                if (!materialGroups.get(materialKey).vertexMap) {
+                    materialGroups.get(materialKey).vertexMap = new Map();
                 }
+                const vertexMap = materialGroups.get(materialKey).vertexMap;
+
+                if (vertexMap.has(posKey)) {
+                    vertexIndex = vertexMap.get(posKey);
+                } else {
+                    // New vertex - add to mesh pool
+                    vertexIndex = meshVertices.length;
+                    meshVertices.push(vertex);
+                    vertexMap.set(posKey, vertexIndex);
+
+                    // Add UV for this vertex
+                    if (hasTexture && uv) {
+                        meshUVs.push(uv.u !== undefined ? uv.u : uv.x);
+                        meshUVs.push(uv.v !== undefined ? uv.v : uv.y);
+                    } else {
+                        meshUVs.push(0);
+                        meshUVs.push(0);
+                    }
+                }
+
+                vertexIndices.push(vertexIndex);
             }
+
+            materialGroups.get(materialKey).indices.push(...vertexIndices);
+            materialGroups.get(materialKey).triangles.push(triangle);
         });
 
-        // Determine if we need 32-bit indices
-        const useUint32 = allVertices.length > 65535;
+        // Convert to meshData format for unified export pipeline
+        const meshData = [
+            {
+                vertices: meshVertices,
+                uvs: meshUVs,
+                materialGroups: materialGroups,
+                meshId: 0,
+                nodeIndices: [0] // Single mesh, single node
+            }
+        ];
+
+        const useUint32 = meshVertices.length > 65535;
 
         console.log(
-            `GLB Export: ${triangles.length} triangles, ${allVertices.length} vertices, ${materialGroups.size} materials`,
+            `GLB Export: ${triangles.length} triangles, ${meshVertices.length} unique vertices, ${materialGroups.size} materials`,
             useUint32 ? "(using 32-bit indices)" : "(using 16-bit indices)"
         );
 
-        // Create GLTF structure
-        const gltf = this.createGLTFWithMaterials(
-            allVertices,
-            allUVs,
-            materialGroups,
+        // Use unified export pipeline
+        const gltf = this.createGLTFWithHierarchy(
+            meshData,
             textureRegistry,
+            { nodes: [], rootNodes: [] }, // Empty hierarchy for flat export
+            {},
             modelName,
             useUint32
         );
 
-        // Create binary data
-        const binaryData = this.createBinaryData(allVertices, allUVs, materialGroups, textureRegistry, useUint32);
+        const binaryData = this.createBinaryData(meshData, textureRegistry, useUint32);
 
         return this.assembleGLB(gltf, binaryData);
     }
 
     /**
      * Create GLTF structure with separate materials and primitives
+     * @param {Vector3[]} allVertices - All vertex positions
+     * @param {number[]} allUVs - All UV coordinates
+     * @param {Map} materialGroups - Material groupings
+     * @param {Map} textureRegistry - Texture data
+     * @param {string} modelName - Model name
+     * @param {boolean} useUint32 - Use 32-bit indices
      */
     createGLTFWithMaterials(allVertices, allUVs, materialGroups, textureRegistry, modelName, useUint32) {
         const vertexCount = allVertices.length;
@@ -268,9 +1105,15 @@ class GLBExporter {
             ];
         }
 
+        // Map texture names to their indices in gltf.textures
+        const textureNameToIndex = new Map();
+        let textureIndex = 0;
+        for (const texName of textureRegistry.keys()) {
+            textureNameToIndex.set(texName, textureIndex++);
+        }
+
         // Create material and primitive for each material group
         let materialIndex = 0;
-        let textureIndex = 0;
         for (const [materialKey, group] of materialGroups) {
             // Create material
             const rgb = this.hexToRgb(group.color);
@@ -326,9 +1169,12 @@ class GLBExporter {
 
             // Add texture reference if this material uses a texture
             if (group.hasTexture && group.textureId) {
-                material.pbrMetallicRoughness.baseColorTexture = {
-                    index: textureIndex++
-                };
+                const texIdx = textureNameToIndex.get(group.textureId);
+                if (texIdx !== undefined) {
+                    material.pbrMetallicRoughness.baseColorTexture = {
+                        index: texIdx
+                    };
+                }
             }
 
             gltf.materials.push(material);
@@ -362,7 +1208,7 @@ class GLBExporter {
                 primitiveAttributes.TEXCOORD_0 = uvAccessor;
             }
 
-            // Create primitive
+            // Add primitive to main flat mesh (all materials in one mesh)
             gltf.meshes[0].primitives.push({
                 attributes: primitiveAttributes,
                 indices: accessorIndex++,
@@ -375,106 +1221,98 @@ class GLBExporter {
     }
 
     /**
-     * Create binary data with shared vertices, UVs, indices, and textures
+     * Create binary data from per-mesh geometry
+     * Each mesh has its own vertex pool, UVs, and index buffers
      */
-    createBinaryData(allVertices, allUVs, materialGroups, textureRegistry, useUint32) {
-        // Create position data
-        const positions = new Float32Array(allVertices.length * 3);
-        const normals = new Float32Array(allVertices.length * 3);
-        const uvs = allUVs.length > 0 ? new Float32Array(allUVs) : null;
+    createBinaryData(meshData, textureRegistry, useUint32) {
+        const IndexArrayType = useUint32 ? Uint32Array : Uint16Array;
 
-        // We need to calculate normals from triangles since vertices are shared
-        const vertexNormals = new Array(allVertices.length).fill(null).map(() => new Vector3(0, 0, 0));
-        const vertexCounts = new Array(allVertices.length).fill(0);
+        // Collect all binary data in order: positions, normals, UVs, indices (per mesh), textures
+        const bufferParts = [];
 
-        // Calculate normals by averaging triangle normals
-        let vertexIndex = 0;
-        for (const [materialKey, group] of materialGroups) {
-            group.triangles.forEach((triangle) => {
-                for (let i = 0; i < 3; i++) {
+        // Process each mesh to build all binary data
+        for (const meshInfo of meshData) {
+            const vertexCount = meshInfo.vertices.length;
+
+            // Positions for this mesh
+            const positions = new Float32Array(vertexCount * 3);
+            for (let i = 0; i < vertexCount; i++) {
+                const v = meshInfo.vertices[i];
+                positions[i * 3] = v.x;
+                positions[i * 3 + 1] = v.y;
+                positions[i * 3 + 2] = v.z;
+            }
+            bufferParts.push(new Uint8Array(positions.buffer));
+
+            // Normals for this mesh (calculate from triangle normals)
+            const normals = new Float32Array(vertexCount * 3);
+            const vertexNormals = new Array(vertexCount).fill(null).map(() => new Vector3(0, 0, 0));
+            const vertexCounts = new Array(vertexCount).fill(0);
+
+            // Accumulate normals from all triangles
+            for (const group of meshInfo.materialGroups.values()) {
+                for (let idx = 0; idx < group.indices.length; idx++) {
+                    const vertexIndex = group.indices[idx];
+                    const triangleIdx = Math.floor(idx / 3);
+                    const triangle = group.triangles[triangleIdx];
+
                     vertexNormals[vertexIndex].x += triangle.normal.x;
                     vertexNormals[vertexIndex].y += triangle.normal.y;
                     vertexNormals[vertexIndex].z += triangle.normal.z;
                     vertexCounts[vertexIndex]++;
-                    vertexIndex++;
-                }
-            });
-        }
-
-        // Normalize and fill arrays
-        for (let i = 0; i < allVertices.length; i++) {
-            const vertex = allVertices[i];
-            positions[i * 3] = vertex.x;
-            positions[i * 3 + 1] = vertex.y;
-            positions[i * 3 + 2] = vertex.z;
-
-            // Normalize the accumulated normal
-            if (vertexCounts[i] > 0) {
-                vertexNormals[i].x /= vertexCounts[i];
-                vertexNormals[i].y /= vertexCounts[i];
-                vertexNormals[i].z /= vertexCounts[i];
-                const length = Math.sqrt(
-                    vertexNormals[i].x * vertexNormals[i].x +
-                        vertexNormals[i].y * vertexNormals[i].y +
-                        vertexNormals[i].z * vertexNormals[i].z
-                );
-                if (length > 0) {
-                    vertexNormals[i].x /= length;
-                    vertexNormals[i].y /= length;
-                    vertexNormals[i].z /= length;
                 }
             }
 
-            normals[i * 3] = vertexNormals[i].x;
-            normals[i * 3 + 1] = vertexNormals[i].y;
-            normals[i * 3 + 2] = vertexNormals[i].z;
+            // Normalize and fill normals array
+            for (let i = 0; i < vertexCount; i++) {
+                if (vertexCounts[i] > 0) {
+                    vertexNormals[i].x /= vertexCounts[i];
+                    vertexNormals[i].y /= vertexCounts[i];
+                    vertexNormals[i].z /= vertexCounts[i];
+                    const length = Math.sqrt(
+                        vertexNormals[i].x * vertexNormals[i].x +
+                            vertexNormals[i].y * vertexNormals[i].y +
+                            vertexNormals[i].z * vertexNormals[i].z
+                    );
+                    if (length > 0) {
+                        vertexNormals[i].x /= length;
+                        vertexNormals[i].y /= length;
+                        vertexNormals[i].z /= length;
+                    }
+                }
+                normals[i * 3] = vertexNormals[i].x;
+                normals[i * 3 + 1] = vertexNormals[i].y;
+                normals[i * 3 + 2] = vertexNormals[i].z;
+            }
+            bufferParts.push(new Uint8Array(normals.buffer));
+
+            // UVs for this mesh
+            if (meshInfo.uvs.length > 0) {
+                const uvData = new Float32Array(meshInfo.uvs);
+                bufferParts.push(new Uint8Array(uvData.buffer));
+            }
+
+            // Index buffers for each material group
+            for (const group of meshInfo.materialGroups.values()) {
+                const indices = new IndexArrayType(group.indices);
+                bufferParts.push(new Uint8Array(indices.buffer));
+            }
         }
 
-        // Create index buffers for each material group using appropriate type
-        const IndexArrayType = useUint32 ? Uint32Array : Uint16Array;
-        const indexBuffers = [];
-        for (const [materialKey, group] of materialGroups) {
-            const indices = new IndexArrayType(group.indices);
-            indexBuffers.push(indices);
-        }
-
-        // Combine all buffers
-        let totalSize = positions.byteLength + normals.byteLength;
-        totalSize += indexBuffers.reduce((sum, buf) => sum + buf.byteLength, 0);
-        if (uvs) totalSize += uvs.byteLength;
+        // Add texture data
         for (const texture of textureRegistry.values()) {
-            totalSize += texture.imageData.byteLength;
+            bufferParts.push(new Uint8Array(texture.imageData));
         }
 
+        // Combine all parts into single buffer
+        const totalSize = bufferParts.reduce((sum, part) => sum + part.byteLength, 0);
         const combinedBuffer = new ArrayBuffer(totalSize);
-        const view = new Uint8Array(combinedBuffer);
+        const combinedView = new Uint8Array(combinedBuffer);
 
         let offset = 0;
-
-        // Copy positions
-        view.set(new Uint8Array(positions.buffer), offset);
-        offset += positions.byteLength;
-
-        // Copy normals
-        view.set(new Uint8Array(normals.buffer), offset);
-        offset += normals.byteLength;
-
-        // Copy UVs if present
-        if (uvs) {
-            view.set(new Uint8Array(uvs.buffer), offset);
-            offset += uvs.byteLength;
-        }
-
-        // Copy index buffers
-        for (const indexBuffer of indexBuffers) {
-            view.set(new Uint8Array(indexBuffer.buffer), offset);
-            offset += indexBuffer.byteLength;
-        }
-
-        // Copy texture image data
-        for (const texture of textureRegistry.values()) {
-            view.set(new Uint8Array(texture.imageData), offset);
-            offset += texture.imageData.byteLength;
+        for (const part of bufferParts) {
+            combinedView.set(part, offset);
+            offset += part.byteLength;
         }
 
         return combinedBuffer;

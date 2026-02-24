@@ -11,6 +11,7 @@ class GLBLoader {
      */
     constructor() {
         this.nodes = [];
+        this.nodeMap = {}; // Name -> index lookup
         this.meshes = [];
         this.skins = [];
         this.animations = [];
@@ -54,40 +55,56 @@ class GLBLoader {
      * Loads a 3D model from an ArrayBuffer containing GLB data.
      * Handles the complete loading process including node hierarchy,
      * skins, meshes, and animations.
+     * Returns both GLBLoader (for backward compat) and ActionModel3D (new structure).
      * @param {ArrayBuffer} arrayBuffer - The GLB file data
-     * @returns {GLBLoader} A loader instance containing the parsed model
+     * @returns {GLBLoader|ActionModel3D} A loader instance containing the parsed model
      * @private
      */
     static loadFromArrayBuffer(arrayBuffer) {
-        const model = new GLBLoader();
+        const loader = new GLBLoader();
         const { gltf, binaryData } = GLBLoader.parseGLB(arrayBuffer);
         gltf.binaryData = binaryData;
 
         // Extract embedded textures from the model
-        GLBLoader.loadTextures(model, gltf, binaryData);
+        GLBLoader.loadTextures(loader, gltf, binaryData);
+
+        // Create ActionModel3D to hold the structured data
+        const model = new ActionModel3D();
 
         // First create all nodes
-        if (gltf.nodes) {
-            model.nodes = gltf.nodes.map((node, i) => new Node(node, i));
+        if (gltf.nodes && gltf.nodes.length > 0) {
+            loader.nodes = gltf.nodes.map((node, i) => new Node(node, i));
+            model.nodes = loader.nodes;
 
             // Then hook up node hierarchy
             for (let i = 0; i < gltf.nodes.length; i++) {
                 const nodeData = gltf.nodes[i];
                 if (nodeData.children) {
                     // Convert child indices to actual node references
-                    model.nodes[i].children = nodeData.children.map((childIndex) => model.nodes[childIndex]);
+                    const childRefs = [];
+                    for (const childIndex of nodeData.children) {
+                        if (childIndex >= 0 && childIndex < loader.nodes.length) {
+                            childRefs.push(loader.nodes[childIndex]);
+                        }
+                    }
+                    loader.nodes[i].children = childRefs;
                 }
+                // Build node lookup map
+                loader.nodeMap[loader.nodes[i].name] = i;
             }
-            // Update world matrices for all nodes (hierarchical transforms)
+            model.nodeMap = loader.nodeMap;
+
             // Identify root nodes (nodes that are not children of any other node)
             const childSet = new Set();
-            for (const node of model.nodes) {
+            for (const node of loader.nodes) {
                 for (const child of node.children) {
                     childSet.add(child);
                 }
             }
-            for (const node of model.nodes) {
+            for (const node of loader.nodes) {
                 if (!childSet.has(node)) {
+                    const nodeIdx = loader.nodes.indexOf(node);
+                    model.rootNodes.push(nodeIdx);
                     node.updateWorldMatrix();
                 }
             }
@@ -95,24 +112,36 @@ class GLBLoader {
 
         // Create skins after nodes exist
         if (gltf.skins) {
-            model.skins = gltf.skins.map((skin, i) => new Skin(gltf, skin, i));
+            loader.skins = gltf.skins.map((skin, i) => new Skin(gltf, skin, i));
+            model.skins = loader.skins;
 
             // Hook up skin references in nodes
-            for (const node of model.nodes) {
+            for (const node of loader.nodes) {
                 if (node.skin !== null) {
-                    node.skin = model.skins[node.skin];
+                    node.skin = loader.skins[node.skin];
                 }
             }
         }
 
-        // Load meshes with skin data
-        GLBLoader.loadMeshes(model, gltf, binaryData);
+        // Load meshes and create RenderableObjects
+        GLBLoader.loadMeshesWithObjects(model, loader, gltf, binaryData);
 
         // Finally load animations after everything else is set up
         if (gltf.animations) {
-            model.animations = gltf.animations.map((anim) => new Animation(gltf, anim));
+            loader.animations = gltf.animations.map((anim) => new Animation(gltf, anim));
+            model.animations = loader.animations;
         }
 
+        // Store textures in model
+        model.textures = loader.textures;
+        model.textureMetadata = loader.textureMetadata;
+
+        // For backward compatibility, also populate loader.triangles with all triangles
+        console.log(`[GLBLoader] Calling getAllTriangles...`);
+        loader.triangles = model.getAllTriangles();
+        console.log(`[GLBLoader] Got ${loader.triangles.length} triangles, returning model`);
+
+        // Return ActionModel3D as the primary structure
         return model;
     }
 
@@ -186,6 +215,7 @@ class GLBLoader {
 
     /**
      * Processes mesh data from the GLTF JSON and creates triangle geometry.
+     * LEGACY: Use loadMeshesWithObjects for new code
      * @param {GLBLoader} model - The loader instance to store processed mesh data
      * @param {Object} gltf - The parsed GLTF JSON data
      * @param {ArrayBuffer} binaryData - The binary buffer containing geometry data
@@ -241,6 +271,274 @@ class GLBLoader {
                 }
             }
         }
+    }
+
+    /**
+     * Load meshes and create RenderableObjects for ActionModel3D
+     * Creates one RenderableObject per mesh node, preserving hierarchy
+     * @param {ActionModel3D} model - ActionModel3D to populate with objects
+     * @param {GLBLoader} loader - GLBLoader with node data
+     * @param {Object} gltf - The parsed GLTF JSON data
+     * @param {ArrayBuffer} binaryData - The binary buffer containing geometry data
+     * @private
+     */
+    static loadMeshesWithObjects(model, loader, gltf, binaryData) {
+        if (!gltf.meshes || !gltf.nodes) return;
+
+        // Cache Triangle arrays by mesh index to avoid duplication
+        const meshCache = {};
+
+        // Process each node with a mesh
+        for (let nodeIdx = 0; nodeIdx < gltf.nodes.length; nodeIdx++) {
+            const nodeData = gltf.nodes[nodeIdx];
+            if (nodeData.mesh !== undefined) {
+                const node = loader.nodes[nodeIdx];
+                const meshIdx = nodeData.mesh;
+                const mesh = gltf.meshes[meshIdx];
+                const meshData = {
+                    name: mesh.name || node.name || `mesh_${model.meshes.length}`,
+                    primitives: [],
+                    nodeMatrix: node.matrix,
+                    nodeIndex: nodeIdx
+                };
+
+                // Debug logging for specific object
+                if (meshData.name.includes("prop_dynamic_122221") || meshData.name.includes("dclid")) {
+                    console.log(`[DEBUG] Found debug object node:`, {
+                        name: meshData.name,
+                        nodeIndex: nodeIdx,
+                        nodeName: node.name,
+                        translation: node.translation,
+                        rotation: node.rotation,
+                        scale: node.scale,
+                        matrix: node.matrix,
+                        hasChildren: node.children.length > 0
+                    });
+                }
+
+                // Check if we've already created triangles for this mesh index
+                let meshTriangles;
+                if (meshCache[meshIdx]) {
+                    // Reuse the cached Triangle array reference (in local space)
+                    meshTriangles = meshCache[meshIdx];
+                } else {
+                    // First time seeing this mesh index - create Triangle array in LOCAL SPACE
+                    meshTriangles = [];
+                    for (const primitive of mesh.primitives) {
+                        const primData = {
+                            positions: GLBLoader.getAttributeData(primitive.attributes.POSITION, gltf, binaryData),
+                            indices: GLBLoader.getIndexData(primitive.indices, gltf, binaryData),
+                            joints: primitive.attributes.JOINTS_0
+                                ? GLBLoader.getAttributeData(primitive.attributes.JOINTS_0, gltf, binaryData)
+                                : null,
+                            weights: primitive.attributes.WEIGHTS_0
+                                ? GLBLoader.getAttributeData(primitive.attributes.WEIGHTS_0, gltf, binaryData)
+                                : null,
+                            material:
+                                primitive.material !== undefined
+                                    ? GLBLoader.getMaterialData(gltf.materials[primitive.material], gltf)
+                                    : { useTexture: false, textureIndex: -1, color: null },
+                            nodeMatrix: null // Don't bake transform - keep in local space
+                        };
+
+                        // Extract UV coordinates if present
+                        if (primitive.attributes.TEXCOORD_0) {
+                            primData.texCoords = GLBLoader.getAttributeData(
+                                primitive.attributes.TEXCOORD_0,
+                                gltf,
+                                binaryData
+                            );
+                        }
+
+                        // Create triangles for this primitive
+                        const primTriangles = GLBLoader.createTrianglesFromPrimitive(primData, loader);
+                        meshTriangles.push(...primTriangles);
+                        meshData.primitives.push(primData);
+                    }
+                    // Cache this mesh's Triangle array for future nodes
+                    meshCache[meshIdx] = meshTriangles;
+                }
+
+                // Create RenderableObject for this mesh
+                if (meshTriangles.length > 0) {
+                    // Extract world transform from the node's world matrix
+                    const worldTranslation = new Vector3(node.matrix[12], node.matrix[13], node.matrix[14]);
+
+                    // Extract world scale from matrix rows
+                    const sx = Math.sqrt(
+                        node.matrix[0] * node.matrix[0] +
+                            node.matrix[1] * node.matrix[1] +
+                            node.matrix[2] * node.matrix[2]
+                    );
+                    const sy = Math.sqrt(
+                        node.matrix[4] * node.matrix[4] +
+                            node.matrix[5] * node.matrix[5] +
+                            node.matrix[6] * node.matrix[6]
+                    );
+                    const sz = Math.sqrt(
+                        node.matrix[8] * node.matrix[8] +
+                            node.matrix[9] * node.matrix[9] +
+                            node.matrix[10] * node.matrix[10]
+                    );
+                    const worldScale = new Vector3(sx, sy, sz);
+
+                    // Extract rotation by normalizing out the scale and converting to quaternion
+                    const trace = node.matrix[0] / sx + node.matrix[5] / sy + node.matrix[10] / sz;
+                    let worldRotation = new Quaternion(0, 0, 0, 1);
+
+                    if (trace > 0) {
+                        const s = Math.sqrt(trace + 1) * 2;
+                        worldRotation.w = 0.25 * s;
+                        worldRotation.x = (node.matrix[6] / sz - node.matrix[9] / sy) / s;
+                        worldRotation.y = (node.matrix[8] / sx - node.matrix[2] / sz) / s;
+                        worldRotation.z = (node.matrix[1] / sx - node.matrix[4] / sy) / s;
+                    } else if (node.matrix[0] > node.matrix[5] && node.matrix[0] > node.matrix[10]) {
+                        const s = Math.sqrt(1 + node.matrix[0] / sx - node.matrix[5] / sy - node.matrix[10] / sz) * 2;
+                        worldRotation.w = (node.matrix[6] / sz - node.matrix[9] / sy) / s;
+                        worldRotation.x = 0.25 * s;
+                        worldRotation.y = (node.matrix[1] / sx + node.matrix[4] / sy) / s;
+                        worldRotation.z = (node.matrix[8] / sx + node.matrix[2] / sz) / s;
+                    } else if (node.matrix[5] > node.matrix[10]) {
+                        const s = Math.sqrt(1 + node.matrix[5] / sy - node.matrix[0] / sx - node.matrix[10] / sz) * 2;
+                        worldRotation.w = (node.matrix[8] / sx - node.matrix[2] / sz) / s;
+                        worldRotation.x = (node.matrix[1] / sx + node.matrix[4] / sy) / s;
+                        worldRotation.y = 0.25 * s;
+                        worldRotation.z = (node.matrix[6] / sz + node.matrix[9] / sy) / s;
+                    } else {
+                        const s = Math.sqrt(1 + node.matrix[10] / sz - node.matrix[0] / sx - node.matrix[5] / sy) * 2;
+                        worldRotation.w = (node.matrix[1] / sx - node.matrix[4] / sy) / s;
+                        worldRotation.x = (node.matrix[8] / sx + node.matrix[2] / sz) / s;
+                        worldRotation.y = (node.matrix[6] / sz + node.matrix[9] / sy) / s;
+                        worldRotation.z = 0.25 * s;
+                    }
+
+                    model.addObject(meshData.name, meshTriangles, nodeIdx, worldTranslation, worldRotation, worldScale);
+                }
+
+                model.meshes.push(meshData);
+            }
+        }
+    }
+
+    /**
+     * Create Triangle objects from primitive data
+     * Uses existing addPrimitiveTriangles logic to ensure consistency
+     * @param {Object} primData - Primitive data with positions, indices, material
+     * @param {GLBLoader} loader - GLBLoader instance for texture access
+     * @returns {Triangle[]} Array of Triangle objects
+     * @private
+     */
+    static createTrianglesFromPrimitive(primData, loader) {
+        // Reuse the existing addPrimitiveTriangles logic but return triangles instead of adding to model
+        const { positions, indices, joints, weights, material, texCoords, nodeMatrix } = primData;
+        const triangles = [];
+
+        // Build vertex pool with deduplication by position + UV (to match Blender's vertex count)
+        const vertexPool = [];
+        const vertexMap = new Map(); // position+UV string key -> vertex data
+        const vertexData = [];
+
+        for (let i = 0; i < positions.length / 3; i++) {
+            let position = new Vector3(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]);
+
+            // Apply node transform if available (but NOT for skeletal meshes - joints handle transforms)
+            if (nodeMatrix && !joints) {
+                // Transform position by node matrix: p' = M * p
+                const x = position.x,
+                    y = position.y,
+                    z = position.z;
+                position.x = nodeMatrix[0] * x + nodeMatrix[4] * y + nodeMatrix[8] * z + nodeMatrix[12];
+                position.y = nodeMatrix[1] * x + nodeMatrix[5] * y + nodeMatrix[9] * z + nodeMatrix[13];
+                position.z = nodeMatrix[2] * x + nodeMatrix[6] * y + nodeMatrix[10] * z + nodeMatrix[14];
+            }
+
+            // Get UV coordinates for this vertex
+            const uv = texCoords ? { u: texCoords[i * 2], v: texCoords[i * 2 + 1] } : null;
+
+            // Create a key for deduplication including UV (position + UV = unique vertex in rendering)
+            // Use full precision to avoid collapsing nearly-identical vertices
+            const uvStr = uv ? `${uv.u},${uv.v}` : "0,0";
+            const vertexKey = `${position.x},${position.y},${position.z},${uvStr}`;
+
+            let vertexIdx;
+            if (vertexMap.has(vertexKey)) {
+                // Reuse existing position+UV combo
+                vertexIdx = vertexMap.get(vertexKey);
+            } else {
+                // First time seeing this position+UV combo, add to pool
+                vertexIdx = vertexPool.length;
+                vertexPool.push(position);
+                vertexMap.set(vertexKey, vertexIdx);
+            }
+
+            vertexData.push({
+                poolIndex: vertexIdx,
+                position: position,
+                jointIndices: joints ? [joints[i * 4], joints[i * 4 + 1], joints[i * 4 + 2], joints[i * 4 + 3]] : null,
+                weights: weights ? [weights[i * 4], weights[i * 4 + 1], weights[i * 4 + 2], weights[i * 4 + 3]] : null,
+                uv: uv
+            });
+        }
+
+        // Create triangles using pooled vertices
+        for (let i = 0; i < indices.length; i += 3) {
+            const vertices = [vertexData[indices[i]], vertexData[indices[i + 1]], vertexData[indices[i + 2]]];
+
+            // Extract color from material object
+            let color = "#FFFFFF";
+            if (material && material.color) {
+                color = material.color;
+            }
+
+            const triangle = new Triangle(vertices[0].position, vertices[1].position, vertices[2].position, color);
+
+            // Apply material properties to triangle
+            if (material) {
+                if (material.alpha !== undefined) {
+                    triangle.alpha = material.alpha;
+                }
+                if (material.metallic !== undefined) {
+                    triangle.metallic = material.metallic;
+                }
+                if (material.roughness !== undefined) {
+                    triangle.roughness = material.roughness;
+                }
+                if (material.emissive !== undefined) {
+                    triangle.emissive = material.emissive;
+                }
+                triangle.material = material;
+            }
+
+            // Store UV coordinates
+            if (texCoords) {
+                triangle.uvs = vertices.map((v) => v.uv);
+            }
+
+            // Attach texture image data if available
+            if (
+                material &&
+                material.useTexture &&
+                material.textureIndex >= 0 &&
+                loader &&
+                loader.textures[material.textureIndex]
+            ) {
+                triangle.texture = {
+                    imageData: loader.textures[material.textureIndex],
+                    mimeType: loader.textureMetadata[material.textureIndex].mimeType,
+                    name: loader.textureMetadata[material.textureIndex].name
+                };
+            }
+
+            // Attach joint and weight data for skeletal animation
+            if (joints && weights) {
+                triangle.jointData = vertices.map((v) => v.jointIndices);
+                triangle.weightData = vertices.map((v) => v.weights);
+            }
+
+            triangles.push(triangle);
+        }
+
+        return triangles;
     }
 
     /**

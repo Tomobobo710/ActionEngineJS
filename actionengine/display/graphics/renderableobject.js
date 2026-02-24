@@ -6,6 +6,7 @@
  */
 class RenderableObject {
     constructor() {
+        this.name = "RenderableObject"; // Object name (for GLB import/export)
         this.transform = new Transform();
 
         this.body = null;
