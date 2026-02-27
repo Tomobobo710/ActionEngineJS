@@ -107,26 +107,17 @@ class LightManager {
 
         // When enabling the light, make sure the intensity in constants is non-zero
         if (enabled) {
-            // Make sure the intensity in lighting constants is not 0
-            if (this.constants.LIGHT_INTENSITY.value <= 0.001) {
-                // Set to a reasonable default if it was zero
-                this.constants.LIGHT_INTENSITY.value = 100.0;
-            }
-
             // If no directional light exists, create one
             if (this.directionalLights.length === 0) {
                 const light = this.createMainDirectionalLight();
-
-                // Force update light from constants to make sure it has the right properties
-                if (light) {
-                    light.setIntensity(this.constants.LIGHT_INTENSITY.value);
-                }
+                // The light is already synced with constants in createMainDirectionalLight()
             }
-            // If light already exists, make sure its properties match the constants
+            // If light already exists, sync all its properties with the current constants
             else if (this.directionalLights.length > 0) {
                 const light = this.directionalLights[0];
                 if (light) {
-                    light.setIntensity(this.constants.LIGHT_INTENSITY.value);
+                    // Use syncWithConstants() to update all properties from constants
+                    light.syncWithConstants();
                 }
             }
         }
@@ -342,6 +333,11 @@ class LightManager {
                 z: mainLight.direction.z
             },
             INTENSITY: mainLight.intensity,
+            COLOR: {
+                x: mainLight.color.x,
+                y: mainLight.color.y,
+                z: mainLight.color.z
+            },
             MATERIAL: {
                 ROUGHNESS: this.constants.MATERIAL.ROUGHNESS.value,
                 METALLIC: this.constants.MATERIAL.METALLIC.value,

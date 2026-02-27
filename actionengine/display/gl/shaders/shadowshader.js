@@ -250,28 +250,19 @@ class ShadowShader {
      */
     getOmniShadowFragmentShader() {
         return `#version 300 es
-        precision mediump float;
-        
-        in vec3 vFragPos;
-        uniform vec3 uLightPos;
-        uniform float uFarPlane;
-        
-        out vec4 fragColor;
-        
-        void main() {
-            // Get distance between fragment and light source
-            float lightDistance = length(vFragPos - uLightPos);
-            
-            // Map to [0,1] range by dividing by far plane
-            lightDistance = lightDistance / uFarPlane;
-            
-            // Write this as depth value
-            const vec4 bitShift = vec4(1.0, 256.0, 256.0*256.0, 256.0*256.0*256.0);
-            const vec4 bitMask = vec4(1.0/256.0, 1.0/256.0, 1.0/256.0, 0.0);
-            vec4 encodedDepth = fract(lightDistance * bitShift);
-            encodedDepth -= encodedDepth.gbaa * bitMask;
-            
-            fragColor = encodedDepth;
-        }`;
+         precision highp float;
+         
+         in vec3 vFragPos;
+         uniform vec3 uLightPos;
+         uniform float uFarPlane;
+         
+         void main() {
+             // Get distance between fragment and light source
+             float lightDistance = length(vFragPos - uLightPos);
+             
+             // Normalize to [0,1] range by dividing by far plane
+             // gl_FragDepth is automatically written for depth textures
+             gl_FragDepth = lightDistance / uFarPlane;
+         }`;
     }
 }

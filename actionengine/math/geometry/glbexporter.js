@@ -167,6 +167,63 @@ class GLBExporter {
                     materialKey = `${color}:${textureId}`;
                 }
 
+                // Also collect texture maps (normal, metallic/roughness, emissive) from material
+                if (triangle.material) {
+                    // Register normal map texture
+                    if (
+                        triangle.material.normalMapIndex >= 0 &&
+                        model.textures &&
+                        model.textures[triangle.material.normalMapIndex]
+                    ) {
+                        const normalMapName = `normal_map_${triangle.material.normalMapIndex}`;
+                        if (!textureRegistry.has(normalMapName)) {
+                            textureRegistry.set(normalMapName, {
+                                imageData: model.textures[triangle.material.normalMapIndex],
+                                mimeType:
+                                    model.textureMetadata[triangle.material.normalMapIndex]?.mimeType || "image/png",
+                                name: model.textureMetadata[triangle.material.normalMapIndex]?.name || normalMapName
+                            });
+                        }
+                    }
+
+                    // Register metallic/roughness map texture
+                    if (
+                        triangle.material.metallicRoughnessMapIndex >= 0 &&
+                        model.textures &&
+                        model.textures[triangle.material.metallicRoughnessMapIndex]
+                    ) {
+                        const metalRoughMapName = `metallic_roughness_map_${triangle.material.metallicRoughnessMapIndex}`;
+                        if (!textureRegistry.has(metalRoughMapName)) {
+                            textureRegistry.set(metalRoughMapName, {
+                                imageData: model.textures[triangle.material.metallicRoughnessMapIndex],
+                                mimeType:
+                                    model.textureMetadata[triangle.material.metallicRoughnessMapIndex]?.mimeType ||
+                                    "image/png",
+                                name:
+                                    model.textureMetadata[triangle.material.metallicRoughnessMapIndex]?.name ||
+                                    metalRoughMapName
+                            });
+                        }
+                    }
+
+                    // Register emissive map texture
+                    if (
+                        triangle.material.emissiveMapIndex >= 0 &&
+                        model.textures &&
+                        model.textures[triangle.material.emissiveMapIndex]
+                    ) {
+                        const emissiveMapName = `emissive_map_${triangle.material.emissiveMapIndex}`;
+                        if (!textureRegistry.has(emissiveMapName)) {
+                            textureRegistry.set(emissiveMapName, {
+                                imageData: model.textures[triangle.material.emissiveMapIndex],
+                                mimeType:
+                                    model.textureMetadata[triangle.material.emissiveMapIndex]?.mimeType || "image/png",
+                                name: model.textureMetadata[triangle.material.emissiveMapIndex]?.name || emissiveMapName
+                            });
+                        }
+                    }
+                }
+
                 if (!materialGroups.has(materialKey)) {
                     materialGroups.set(materialKey, {
                         triangles: [],
@@ -478,6 +535,42 @@ class GLBExporter {
                         material.pbrMetallicRoughness.baseColorTexture = {
                             index: textureNameToIndex.get(group.textureId)
                         };
+                    }
+
+                    // Add texture maps if available from material data
+                    if (group.triangles.length > 0) {
+                        const firstTriangle = group.triangles[0];
+                        if (firstTriangle.material) {
+                            // Add normal map texture if present
+                            if (firstTriangle.material.normalMapIndex >= 0) {
+                                const normalTexName = `normal_map_${firstTriangle.material.normalMapIndex}`;
+                                if (textureNameToIndex.has(normalTexName)) {
+                                    material.normalTexture = {
+                                        index: textureNameToIndex.get(normalTexName)
+                                    };
+                                }
+                            }
+
+                            // Add metallic/roughness map texture if present
+                            if (firstTriangle.material.metallicRoughnessMapIndex >= 0) {
+                                const metalRoughTexName = `metallic_roughness_map_${firstTriangle.material.metallicRoughnessMapIndex}`;
+                                if (textureNameToIndex.has(metalRoughTexName)) {
+                                    material.pbrMetallicRoughness.metallicRoughnessTexture = {
+                                        index: textureNameToIndex.get(metalRoughTexName)
+                                    };
+                                }
+                            }
+
+                            // Add emissive map texture if present
+                            if (firstTriangle.material.emissiveMapIndex >= 0) {
+                                const emissiveTexName = `emissive_map_${firstTriangle.material.emissiveMapIndex}`;
+                                if (textureNameToIndex.has(emissiveTexName)) {
+                                    material.emissiveTexture = {
+                                        index: textureNameToIndex.get(emissiveTexName)
+                                    };
+                                }
+                            }
+                        }
                     }
 
                     gltf.materials.push(material);

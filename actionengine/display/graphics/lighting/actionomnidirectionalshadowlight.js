@@ -101,7 +101,7 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
         this.shadowFramebuffer = gl.createFramebuffer();
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadowFramebuffer);
 
-        // For WebGL2, use a depth cubemap
+        // For WebGL2, use a proper depth cubemap
         // Create the shadow cubemap texture
         this.shadowTexture = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_CUBE_MAP, this.shadowTexture);
@@ -117,22 +117,38 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
         ];
 
         for (const face of faces) {
-            // Use RGBA format for compatibility with both WebGL1 and WebGL2
-            gl.texImage2D(face, 0, gl.RGBA, this.shadowMapSize, this.shadowMapSize, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+            // Use proper depth format with full floating-point precision
+            gl.texImage2D(
+                face,
+                0,
+                gl.DEPTH_COMPONENT32F,
+                this.shadowMapSize,
+                this.shadowMapSize,
+                0,
+                gl.DEPTH_COMPONENT,
+                gl.FLOAT,
+                null
+            );
         }
 
         // Set up texture parameters
-        gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-        gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE);
+        gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_COMPARE_FUNC, gl.LEQUAL);
 
-        // Create and attach a renderbuffer for depth (we're not reading this)
-        this.depthBuffer = gl.createRenderbuffer();
-        gl.bindRenderbuffer(gl.RENDERBUFFER, this.depthBuffer);
-        gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, this.shadowMapSize, this.shadowMapSize);
-        gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, this.depthBuffer);
+        // Attach cubemap depth texture to framebuffer
+        // We'll attach one face at a time during rendering, but set up the first face for framebuffer completeness
+        gl.framebufferTexture2D(
+            gl.FRAMEBUFFER,
+            gl.DEPTH_ATTACHMENT,
+            gl.TEXTURE_CUBE_MAP_POSITIVE_X,
+            this.shadowTexture,
+            0
+        );
 
         // Store the light index for later use
         this.lightIndex = lightIndex;
@@ -396,13 +412,13 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
             gl.TEXTURE_CUBE_MAP_NEGATIVE_Z
         ];
 
-        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, faces[faceIndex], this.shadowTexture, 0);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, faces[faceIndex], this.shadowTexture, 0);
 
         gl.viewport(0, 0, this.shadowMapSize, this.shadowMapSize);
 
         // Clear the framebuffer
-        gl.clearColor(1.0, 1.0, 1.0, 1.0); // White (far depth)
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        gl.clearDepth(1.0); // Far depth
+        gl.clear(gl.DEPTH_BUFFER_BIT);
 
         // Use shadow mapping program
         gl.useProgram(this.shadowProgram);

@@ -17,6 +17,7 @@ class ObjectRenderer3D {
             shaderProgram: null,
             camera: null,
             lightConfig: null,
+            normalMapStrength: 1.0,
             matrices: {
                 projection: Matrix4.create(),
                 view: Matrix4.create(),
@@ -131,11 +132,15 @@ class ObjectRenderer3D {
 
         const positions = new Float32Array(count * 9);
         const normals = new Float32Array(count * 9);
+        const tangents = new Float32Array(count * 9);
         const colors = new Float32Array(count * 9);
         const alphas = new Float32Array(count * 3);
         const uvs = new Float32Array(count * 6);
         const textureIndices = new Float32Array(count * 3);
         const useTextureFlags = new Float32Array(count * 3);
+        const normalMapIndices = new Float32Array(count * 3);
+        const metallicRoughnessMapIndices = new Float32Array(count * 3);
+        const emissiveMapIndices = new Float32Array(count * 3);
 
         let meshHasTextures = false;
         const opaqueIndices = [];
@@ -154,8 +159,6 @@ class ObjectRenderer3D {
             const g = ((hexColor >> 8) & 255) / 255;
             const b = (hexColor & 255) / 255;
 
-            const triNormal = triangle.normal;
-
             for (let v = 0; v < 3; v++) {
                 const vert = triangle.vertices[v];
                 const off = base + v * 3;
@@ -163,9 +166,23 @@ class ObjectRenderer3D {
                 positions[off + 1] = vert.y;
                 positions[off + 2] = vert.z;
 
-                normals[off] = triNormal.x;
-                normals[off + 1] = triNormal.y;
-                normals[off + 2] = triNormal.z;
+                // Upload face normal
+                normals[off] = triangle.normal.x;
+                normals[off + 1] = triangle.normal.y;
+                normals[off + 2] = triangle.normal.z;
+
+                // Store tangent if available (for normal mapping)
+                if (triangle.tangents && triangle.tangents[v]) {
+                    const tang = triangle.tangents[v];
+                    tangents[off] = tang.x;
+                    tangents[off + 1] = tang.y;
+                    tangents[off + 2] = tang.z;
+                } else {
+                    // Default tangent if not available
+                    tangents[off] = 1;
+                    tangents[off + 1] = 0;
+                    tangents[off + 2] = 0;
+                }
 
                 colors[off] = r;
                 colors[off + 1] = g;
@@ -206,6 +223,18 @@ class ObjectRenderer3D {
             for (let j = 0; j < 3; j++) {
                 textureIndices[baseInd + j] = textureIndex;
                 useTextureFlags[baseInd + j] = useTextureValue;
+
+                // Store material texture map indices
+                normalMapIndices[baseInd + j] =
+                    triangle.material && triangle.material.normalMapIndex >= 0 ? triangle.material.normalMapIndex : -1;
+                metallicRoughnessMapIndices[baseInd + j] =
+                    triangle.material && triangle.material.metallicRoughnessMapIndex >= 0
+                        ? triangle.material.metallicRoughnessMapIndex
+                        : -1;
+                emissiveMapIndices[baseInd + j] =
+                    triangle.material && triangle.material.emissiveMapIndex >= 0
+                        ? triangle.material.emissiveMapIndex
+                        : -1;
             }
 
             // Separate into opaque and transparent triangle indices
@@ -256,11 +285,15 @@ class ObjectRenderer3D {
             buffers: {
                 position: gl.createBuffer(),
                 normal: gl.createBuffer(),
+                tangent: gl.createBuffer(),
                 color: gl.createBuffer(),
                 alpha: gl.createBuffer(),
                 uv: gl.createBuffer(),
                 textureIndex: gl.createBuffer(),
                 useTexture: gl.createBuffer(),
+                normalMapIndex: gl.createBuffer(),
+                metallicRoughnessMapIndex: gl.createBuffer(),
+                emissiveMapIndex: gl.createBuffer(),
                 boneIndices: gl.createBuffer(),
                 boneWeights: gl.createBuffer(),
                 indices: gl.createBuffer()
@@ -280,11 +313,15 @@ class ObjectRenderer3D {
 
         upload(mesh.buffers.position, positions);
         upload(mesh.buffers.normal, normals);
+        upload(mesh.buffers.tangent, tangents);
         upload(mesh.buffers.color, colors);
         upload(mesh.buffers.alpha, alphas);
         upload(mesh.buffers.uv, uvs);
         upload(mesh.buffers.textureIndex, textureIndices);
         upload(mesh.buffers.useTexture, useTextureFlags);
+        upload(mesh.buffers.normalMapIndex, normalMapIndices);
+        upload(mesh.buffers.metallicRoughnessMapIndex, metallicRoughnessMapIndices);
+        upload(mesh.buffers.emissiveMapIndex, emissiveMapIndices);
         upload(mesh.buffers.boneIndices, boneIndices);
         upload(mesh.buffers.boneWeights, boneWeights);
 
@@ -316,11 +353,15 @@ class ObjectRenderer3D {
 
         const positions = new Float32Array(count * 9);
         const normals = new Float32Array(count * 9);
+        const tangents = new Float32Array(count * 9);
         const colors = new Float32Array(count * 9);
         const alphas = new Float32Array(count * 3);
         const uvs = new Float32Array(count * 6);
         const textureIndices = new Float32Array(count * 3);
         const useTextureFlags = new Float32Array(count * 3);
+        const normalMapIndices = new Float32Array(count * 3);
+        const metallicRoughnessMapIndices = new Float32Array(count * 3);
+        const emissiveMapIndices = new Float32Array(count * 3);
         const opaqueIndices = [];
         const transparentIndices = [];
 
@@ -350,6 +391,19 @@ class ObjectRenderer3D {
                 normals[off + 1] = triNormal.y;
                 normals[off + 2] = triNormal.z;
 
+                // Store tangent if available (for normal mapping)
+                if (triangle.tangents && triangle.tangents[v]) {
+                    const tang = triangle.tangents[v];
+                    tangents[off] = tang.x;
+                    tangents[off + 1] = tang.y;
+                    tangents[off + 2] = tang.z;
+                } else {
+                    // Default tangent if not available
+                    tangents[off] = 1;
+                    tangents[off + 1] = 0;
+                    tangents[off + 2] = 0;
+                }
+
                 colors[off] = r;
                 colors[off + 1] = g;
                 colors[off + 2] = b;
@@ -377,6 +431,18 @@ class ObjectRenderer3D {
             for (let j = 0; j < 3; j++) {
                 textureIndices[baseInd + j] = textureIndex;
                 useTextureFlags[baseInd + j] = shouldUseTexture ? 1 : 0;
+
+                // Store material texture map indices
+                normalMapIndices[baseInd + j] =
+                    triangle.material && triangle.material.normalMapIndex >= 0 ? triangle.material.normalMapIndex : -1;
+                metallicRoughnessMapIndices[baseInd + j] =
+                    triangle.material && triangle.material.metallicRoughnessMapIndex >= 0
+                        ? triangle.material.metallicRoughnessMapIndex
+                        : -1;
+                emissiveMapIndices[baseInd + j] =
+                    triangle.material && triangle.material.emissiveMapIndex >= 0
+                        ? triangle.material.emissiveMapIndex
+                        : -1;
             }
 
             // Separate into opaque and transparent triangle indices
@@ -401,11 +467,15 @@ class ObjectRenderer3D {
 
         update(mesh.buffers.position, positions);
         update(mesh.buffers.normal, normals);
+        update(mesh.buffers.tangent, tangents);
         update(mesh.buffers.color, colors);
         update(mesh.buffers.alpha, alphas);
         update(mesh.buffers.uv, uvs);
         update(mesh.buffers.textureIndex, textureIndices);
         update(mesh.buffers.useTexture, useTextureFlags);
+        update(mesh.buffers.normalMapIndex, normalMapIndices);
+        update(mesh.buffers.metallicRoughnessMapIndex, metallicRoughnessMapIndices);
+        update(mesh.buffers.emissiveMapIndex, emissiveMapIndices);
 
         // Rebuild reordered index buffer: opaque indices first, then transparent
         const reorderedIndices = new Uint32Array(opaqueIndices.length + transparentIndices.length);
@@ -464,6 +534,12 @@ class ObjectRenderer3D {
             gl.vertexAttribPointer(locs.normal, 3, gl.FLOAT, false, 0, 0);
             gl.enableVertexAttribArray(locs.normal);
 
+            if (locs.tangent !== -1) {
+                gl.bindBuffer(ARRAY_BUFFER, mesh.buffers.tangent);
+                gl.vertexAttribPointer(locs.tangent, 3, gl.FLOAT, false, 0, 0);
+                gl.enableVertexAttribArray(locs.tangent);
+            }
+
             if (locs.color !== -1) {
                 gl.bindBuffer(ARRAY_BUFFER, mesh.buffers.color);
                 gl.vertexAttribPointer(locs.color, 3, gl.FLOAT, false, 0, 0);
@@ -488,6 +564,21 @@ class ObjectRenderer3D {
                 gl.bindBuffer(ARRAY_BUFFER, mesh.buffers.useTexture);
                 gl.vertexAttribPointer(locs.useTexture, 1, gl.FLOAT, false, 0, 0);
                 gl.enableVertexAttribArray(locs.useTexture);
+            }
+            if (locs.normalMapIndex !== -1) {
+                gl.bindBuffer(ARRAY_BUFFER, mesh.buffers.normalMapIndex);
+                gl.vertexAttribPointer(locs.normalMapIndex, 1, gl.FLOAT, false, 0, 0);
+                gl.enableVertexAttribArray(locs.normalMapIndex);
+            }
+            if (locs.metallicRoughnessMapIndex !== -1) {
+                gl.bindBuffer(ARRAY_BUFFER, mesh.buffers.metallicRoughnessMapIndex);
+                gl.vertexAttribPointer(locs.metallicRoughnessMapIndex, 1, gl.FLOAT, false, 0, 0);
+                gl.enableVertexAttribArray(locs.metallicRoughnessMapIndex);
+            }
+            if (locs.emissiveMapIndex !== -1) {
+                gl.bindBuffer(ARRAY_BUFFER, mesh.buffers.emissiveMapIndex);
+                gl.vertexAttribPointer(locs.emissiveMapIndex, 1, gl.FLOAT, false, 0, 0);
+                gl.enableVertexAttribArray(locs.emissiveMapIndex);
             }
 
             // Bone attributes - always bound (shader always expects them)
@@ -525,6 +616,12 @@ class ObjectRenderer3D {
             gl.vertexAttribPointer(locs.normal, 3, gl.FLOAT, false, 0, 0);
             gl.enableVertexAttribArray(locs.normal);
 
+            if (locs.tangent !== -1) {
+                gl.bindBuffer(ARRAY_BUFFER, mesh.buffers.tangent);
+                gl.vertexAttribPointer(locs.tangent, 3, gl.FLOAT, false, 0, 0);
+                gl.enableVertexAttribArray(locs.tangent);
+            }
+
             if (locs.color !== -1) {
                 gl.bindBuffer(ARRAY_BUFFER, mesh.buffers.color);
                 gl.vertexAttribPointer(locs.color, 3, gl.FLOAT, false, 0, 0);
@@ -549,6 +646,21 @@ class ObjectRenderer3D {
                 gl.bindBuffer(ARRAY_BUFFER, mesh.buffers.useTexture);
                 gl.vertexAttribPointer(locs.useTexture, 1, gl.FLOAT, false, 0, 0);
                 gl.enableVertexAttribArray(locs.useTexture);
+            }
+            if (locs.normalMapIndex !== -1) {
+                gl.bindBuffer(ARRAY_BUFFER, mesh.buffers.normalMapIndex);
+                gl.vertexAttribPointer(locs.normalMapIndex, 1, gl.FLOAT, false, 0, 0);
+                gl.enableVertexAttribArray(locs.normalMapIndex);
+            }
+            if (locs.metallicRoughnessMapIndex !== -1) {
+                gl.bindBuffer(ARRAY_BUFFER, mesh.buffers.metallicRoughnessMapIndex);
+                gl.vertexAttribPointer(locs.metallicRoughnessMapIndex, 1, gl.FLOAT, false, 0, 0);
+                gl.enableVertexAttribArray(locs.metallicRoughnessMapIndex);
+            }
+            if (locs.emissiveMapIndex !== -1) {
+                gl.bindBuffer(ARRAY_BUFFER, mesh.buffers.emissiveMapIndex);
+                gl.vertexAttribPointer(locs.emissiveMapIndex, 1, gl.FLOAT, false, 0, 0);
+                gl.enableVertexAttribArray(locs.emissiveMapIndex);
             }
 
             // Bone attributes - always bound (shader always expects them)
@@ -655,14 +767,14 @@ class ObjectRenderer3D {
         ) {
             gl.uniform1f(locations.lightIntensity, config.INTENSITY);
         }
-
-        if (locations.intensityFactor !== -1 && locations.intensityFactor !== null) {
-            const currentVariant = this.programManager.getCurrentVariant();
-            const factor =
-                currentVariant === "default"
-                    ? this.lightManager.constants.OBJECT_SHADER_DEFAULT_VARIANT_INTENSITY_FACTOR.value
-                    : 1.0;
-            gl.uniform1f(locations.intensityFactor, factor);
+        if (
+            locations.lightColor !== -1 &&
+            locations.lightColor !== null &&
+            mainLightEnabled &&
+            config &&
+            config.COLOR
+        ) {
+            gl.uniform3fv(locations.lightColor, [config.COLOR.x, config.COLOR.y, config.COLOR.z]);
         }
 
         if (locations.roughness !== -1 && locations.roughness !== null)
@@ -671,10 +783,38 @@ class ObjectRenderer3D {
             gl.uniform1f(locations.metallic, this._uniformCache.metallic);
         if (locations.baseReflectivity !== -1 && locations.baseReflectivity !== null)
             gl.uniform1f(locations.baseReflectivity, this._uniformCache.baseReflectivity);
+        if (locations.normalMapStrength !== -1 && locations.normalMapStrength !== null) {
+            const strength =
+                this._uniformCache.normalMapStrength !== undefined ? this._uniformCache.normalMapStrength : 1.0;
+            gl.uniform1f(locations.normalMapStrength, strength);
+        }
 
         if (locations.usePerTextureMaterials !== -1 && locations.usePerTextureMaterials !== null) {
             const usePerTextureMaterials = this.renderer.textureManager?.usePerTextureMaterials || false;
             gl.uniform1i(locations.usePerTextureMaterials, usePerTextureMaterials ? 1 : 0);
+        }
+
+        if (locations.directionalLightAttenuation !== -1 && locations.directionalLightAttenuation !== null) {
+            gl.uniform1i(
+                locations.directionalLightAttenuation,
+                this.lightManager.constants.DEBUG.DIRECTIONAL_LIGHT_ATTENUATION ? 1 : 0
+            );
+        }
+
+        if (locations.ambientIntensity !== -1 && locations.ambientIntensity !== null) {
+            const ambientIntensity =
+                this.lightManager.constants.AMBIENT_INTENSITY !== undefined
+                    ? this.lightManager.constants.AMBIENT_INTENSITY
+                    : 0.3;
+            gl.uniform1f(locations.ambientIntensity, ambientIntensity);
+        }
+
+        if (locations.shadowDarkness !== -1 && locations.shadowDarkness !== null) {
+            const shadowDarkness =
+                this.lightManager.constants.SHADOW_DARKNESS !== undefined
+                    ? this.lightManager.constants.SHADOW_DARKNESS
+                    : 0.8;
+            gl.uniform1f(locations.shadowDarkness, shadowDarkness);
         }
 
         this._setShadowUniforms();
@@ -720,13 +860,12 @@ class ObjectRenderer3D {
 
         const texArray = this.renderer.textureManager.embeddedTextureArray || this.renderer.textureArray;
         if (texArray && locations.textureArray !== -1 && locations.textureArray !== null) {
-            const isPBR = this.renderer.programManager.getCurrentVariant() === "pbr";
             this.renderer.glStateManager.bindTextureWithUniform(
-                isPBR ? "textureArrayPBR" : "textureArray",
+                "textureArray",
                 texArray,
                 "TEXTURE_2D_ARRAY",
                 program,
-                isPBR ? "uPBRTextureArray" : "uTextureArray"
+                "uTextureArray"
             );
         }
     }
@@ -825,11 +964,13 @@ class ObjectRenderer3D {
     _setShadowUniforms() {
         const gl = this.gl;
         const locs = this.programManager.getShadowUniformLocations();
-        const constants = this.lightManager.constants.SHADOW_FILTERING;
+        const constants = this.lightManager.constants;
 
-        if (locs.shadowSoftness !== null) gl.uniform1f(locs.shadowSoftness, constants.SOFTNESS.value);
-        if (locs.pcfSize !== null) gl.uniform1i(locs.pcfSize, constants.PCF.SIZE.value);
-        if (locs.pcfEnabled !== null) gl.uniform1i(locs.pcfEnabled, constants.PCF.ENABLED ? 1 : 0);
+        if (locs.shadowSoftness !== null) gl.uniform1f(locs.shadowSoftness, constants.SHADOW_FILTERING.SOFTNESS.value);
+        if (locs.pcfSize !== null) gl.uniform1i(locs.pcfSize, constants.SHADOW_FILTERING.PCF.SIZE.value);
+        if (locs.pcfEnabled !== null) gl.uniform1i(locs.pcfEnabled, constants.SHADOW_FILTERING.PCF.ENABLED ? 1 : 0);
+        if (locs.shadowSlopeScaleBias !== null)
+            gl.uniform1f(locs.shadowSlopeScaleBias, constants.SHADOW_MAP.SLOPE_SCALE_BIAS.value);
     }
 
     drawObject(locations, indexCount, offset = 0) {
@@ -866,6 +1007,8 @@ class ObjectRenderer3D {
         const prog = this.programManager.getObjectProgram();
         const locs = this.programManager.getObjectLocations();
         gl.useProgram(prog);
+        this.updateUniformCache(camera);
+        this._setFrameConstantUniforms(locs, prog, camera);
         this._drawTransparentList(this._transparentQueue, locs, camera);
         this._finalizeFrame();
     }

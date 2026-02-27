@@ -21,6 +21,7 @@ class ProgramManager {
         // Cache shadow-related uniform locations for all shaders
         this.shadowUniformLocations = {
             shadowSoftness: null,
+            shadowSlopeScaleBias: null,
             pcfSize: null,
             pcfEnabled: null
         };
@@ -37,11 +38,15 @@ class ProgramManager {
         this.attributeNames = {
             position: "aPosition",
             normal: "aNormal",
+            tangent: "aTangent",
             color: "aColor",
             alpha: "aAlpha",
             texCoord: "aTexCoord",
             textureIndex: "aTextureIndex",
             useTexture: "aUseTexture",
+            normalMapIndex: "aNormalMapIndex",
+            metallicRoughnessMapIndex: "aMetallicRoughnessMapIndex",
+            emissiveMapIndex: "aEmissiveMapIndex",
             boneIndices: "aBoneIndices",
             boneWeights: "aBoneWeights"
         };
@@ -64,14 +69,12 @@ class ProgramManager {
             lightSpaceMatrix: "uLightSpaceMatrix",
             shadowMap: "uShadowMap",
             shadowsEnabled: "uShadowsEnabled",
-            intensityFactor: "uIntensityFactor",
             farPlane: "uFarPlane",
             boneMatrices: "uBoneMatrices"
         };
 
         this.textureUniforms = {
-            standard: "uTextureArray",
-            pbr: "uPBRTextureArray",
+            textureArray: "uTextureArray",
             shadowMap: "uShadowMap",
             materialProps: "uMaterialPropertiesTexture"
         };
@@ -174,9 +177,8 @@ class ProgramManager {
             { name: "uPointShadowMap3", unit: 13 }, // Fourth point shadow map
 
             // GROUP 3: TEXTURE ARRAYS (units 20-29) - Large gap to prevent conflicts
-            // Texture array samplers - TEXTURE_2D_ARRAY type
-            { name: "uTextureArray", unit: 20 }, // Standard texture array
-            { name: "uPBRTextureArray", unit: 21 } // PBR texture array
+            // Texture array sampler - TEXTURE_2D_ARRAY type
+            { name: "uTextureArray", unit: 20 } // Consolidated texture array for all shaders
         ];
 
         // Assign each sampler to its dedicated texture unit
@@ -259,7 +261,7 @@ class ProgramManager {
 
     /**
      * Set the current object shader variant and recompile
-     * @param {string} variant - The variant to use ('default', 'pbr', 'virtualboy')
+     * @param {string} variant - The variant to use ('default', 'virtualboy')
      */
     setObjectShaderVariant(variant) {
         if (!this.objectShader) {
@@ -282,8 +284,7 @@ class ProgramManager {
             );
 
             // Get locations for uniforms and attributes
-            const isPBR = variant === "pbr";
-            const locations = this.getStandardShaderLocations(program, isPBR);
+            const locations = this.getStandardShaderLocations(program);
 
             // Update stored program and locations
             this.objectProgram = program;
@@ -310,7 +311,7 @@ class ProgramManager {
      * @returns {string} - Name of the new shader variant
      */
     cycleVariants(callback) {
-        const variants = ["default", "pbr", "virtualboy"];
+        const variants = ["default", "virtualboy"];
         const currentIndex = variants.indexOf(this.currentVariant);
         const nextIndex = (currentIndex + 1) % variants.length;
         const newVariant = variants[nextIndex];
@@ -435,10 +436,9 @@ class ProgramManager {
     /**
      * Get locations for a standard shader
      * @param {WebGLProgram} program - The WebGL program
-     * @param {boolean} isPBR - Whether this is a PBR shader
      * @returns {Object} - Object containing all shader locations
      */
-    getStandardShaderLocations(program, isPBR = false) {
+    getStandardShaderLocations(program) {
         const gl = this.gl;
         const attr = this.attributeNames;
         const unif = this.uniformNames;
@@ -449,11 +449,15 @@ class ProgramManager {
             // Attributes
             position: gl.getAttribLocation(program, attr.position),
             normal: gl.getAttribLocation(program, attr.normal),
+            tangent: gl.getAttribLocation(program, attr.tangent),
             color: gl.getAttribLocation(program, attr.color),
             alpha: gl.getAttribLocation(program, attr.alpha),
             texCoord: gl.getAttribLocation(program, attr.texCoord),
             textureIndex: gl.getAttribLocation(program, attr.textureIndex),
             useTexture: gl.getAttribLocation(program, attr.useTexture),
+            normalMapIndex: gl.getAttribLocation(program, attr.normalMapIndex),
+            metallicRoughnessMapIndex: gl.getAttribLocation(program, attr.metallicRoughnessMapIndex),
+            emissiveMapIndex: gl.getAttribLocation(program, attr.emissiveMapIndex),
             boneIndices: gl.getAttribLocation(program, attr.boneIndices),
             boneWeights: gl.getAttribLocation(program, attr.boneWeights),
 
@@ -466,15 +470,19 @@ class ProgramManager {
             lightPos: gl.getUniformLocation(program, unif.lightPos),
             lightDir: gl.getUniformLocation(program, unif.lightDir),
             lightIntensity: gl.getUniformLocation(program, unif.lightIntensity),
+            lightColor: gl.getUniformLocation(program, "uLightColor"),
             pointLightIntensity: gl.getUniformLocation(program, unif.pointLightIntensity),
             roughness: gl.getUniformLocation(program, unif.roughness),
             metallic: gl.getUniformLocation(program, unif.metallic),
             baseReflectivity: gl.getUniformLocation(program, unif.baseReflectivity),
+            normalMapStrength: gl.getUniformLocation(program, "uNormalMapStrength"),
             usePerTextureMaterials: gl.getUniformLocation(program, "uUsePerTextureMaterials"),
             materialPropertiesTexture: gl.getUniformLocation(program, tex.materialProps),
             cameraPos: gl.getUniformLocation(program, unif.cameraPos),
             time: gl.getUniformLocation(program, unif.time),
-            intensityFactor: gl.getUniformLocation(program, unif.intensityFactor),
+            directionalLightAttenuation: gl.getUniformLocation(program, "uDirectionalLightAttenuation"),
+            ambientIntensity: gl.getUniformLocation(program, "uAmbientIntensity"),
+            shadowDarkness: gl.getUniformLocation(program, "uShadowDarkness"),
 
             // Shadow mapping uniforms
             lightSpaceMatrix: gl.getUniformLocation(program, unif.lightSpaceMatrix),
@@ -519,7 +527,7 @@ class ProgramManager {
             pointShadowMap3: gl.getUniformLocation(program, "uPointShadowMap3"),
 
             // Texture uniform
-            textureArray: gl.getUniformLocation(program, isPBR ? tex.pbr : tex.standard)
+            textureArray: gl.getUniformLocation(program, tex.textureArray)
         };
     }
 
@@ -600,6 +608,7 @@ class ProgramManager {
      */
     _cacheShadowUniformLocations(program) {
         this.shadowUniformLocations.shadowSoftness = this.gl.getUniformLocation(program, "uShadowSoftness");
+        this.shadowUniformLocations.shadowSlopeScaleBias = this.gl.getUniformLocation(program, "uShadowSlopeScaleBias");
         this.shadowUniformLocations.pcfSize = this.gl.getUniformLocation(program, "uPCFSize");
         this.shadowUniformLocations.pcfEnabled = this.gl.getUniformLocation(program, "uPCFEnabled");
     }

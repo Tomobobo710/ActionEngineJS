@@ -33,7 +33,6 @@ class GLStateManager {
             pointShadowMap2: 12,
             pointShadowMap3: 13,
             textureArray: 20,
-            textureArrayPBR: 21,
             spriteTexture: 15
         };
 

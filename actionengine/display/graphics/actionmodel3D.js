@@ -122,6 +122,7 @@ class ActionModel3D {
         toTriangle.material = fromTriangle.material;
         toTriangle.uvs = fromTriangle.uvs;
         toTriangle.texture = fromTriangle.texture;
+        toTriangle.tangents = fromTriangle.tangents;
         toTriangle.jointData = fromTriangle.jointData;
         toTriangle.weightData = fromTriangle.weightData;
     }

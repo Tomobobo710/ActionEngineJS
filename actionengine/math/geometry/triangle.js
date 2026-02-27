@@ -13,13 +13,24 @@ class Triangle {
         // Only present if triangle is textured
         this.uvs = uvs;
 
+        // Tangent vectors: array of 3 Vector3 objects (one per vertex)
+        // Needed for normal map calculations in tangent space
+        this.tangents = null;
+
         // Alpha transparency (0-1), used in materials
         this.alpha = 1.0;
 
-        // PBR material properties
+        // Material properties
         this.metallic = 0.0; // 0-1, how metallic the surface is
         this.roughness = 1.0; // 0-1, how rough the surface is
         this.emissive = [0, 0, 0]; // RGB color of emissive glow, [0-1, 0-1, 0-1]
+
+        // Material texture map references (from GLTF)
+        this.material = null; // Full material object with texture indices:
+        // - textureIndex: base color texture
+        // - normalMapIndex: normal map texture
+        // - metallicRoughnessMapIndex: packed metallic/roughness texture
+        // - emissiveMapIndex: emissive texture
     }
 
     calculateNormal() {
@@ -39,6 +50,7 @@ class Triangle {
     }
 
     getNormalArray() {
+        // Return face normal for all vertices - shader will compute actual normals
         return [...this.normal.toArray(), ...this.normal.toArray(), ...this.normal.toArray()];
     }
 

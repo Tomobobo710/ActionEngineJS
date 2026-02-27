@@ -353,7 +353,6 @@ class ActionRenderer3D {
 
     /**
      * Initialize shadow maps for all shader types
-     * This ensures both default and PBR shaders can render shadows
      */
     _initShadowsForAllShaders() {
         const mainLight = this.lightManager.getMainDirectionalLight();

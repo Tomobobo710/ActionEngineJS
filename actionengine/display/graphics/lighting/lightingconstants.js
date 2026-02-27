@@ -9,7 +9,7 @@ class LightingConstants {
         // Light position and direction
         this.LIGHT_POSITION = {
             x: 0,
-            y: 5000.0,
+            y: 100.0,
             z: 0,
             max: 50000, // Maximum height/position
             min: -50000 // Minimum height/position
@@ -26,18 +26,14 @@ class LightingConstants {
 
         // Light properties
         this.LIGHT_INTENSITY = {
-            value: 7500.0,
+            value: 2.5,
             min: 0,
             max: 100000
         };
 
-        // Default shader intensity factor - controls how intensity affects non-PBR shaders
-        this.OBJECT_SHADER_DEFAULT_VARIANT_INTENSITY_FACTOR = {
-            value: 0.0001, // Scale factor for default shader (increased for more visible lighting)
-            min: 0.000000000000001,
-            max: 1.0,
-            step: 0.00000000000001
-        };
+        // Ambient and shadow intensity
+        this.AMBIENT_INTENSITY = 0.3;
+        this.SHADOW_DARKNESS = 0.8;
 
         // Material properties
         this.MATERIAL = {
@@ -61,15 +57,21 @@ class LightingConstants {
         // Shadow map settings
         this.SHADOW_MAP = {
             SIZE: {
-                value: 16384, // Power of 2 for best performance
+                value: 4096, // Power of 2 for best performance
                 options: [512, 1024, 2048, 4096, 8192, 16384],
                 label: "Shadow Resolution"
             },
             BIAS: {
-                value: 0.0732, // Bias to prevent shadow acne - fine-tuned for testing
+                value: 0.0006, // Bias to prevent shadow acne - fine-tuned for testing
                 min: -0.001, // Narrower range focused on useful values
                 max: 0.1, // Maximum bias value for testing
                 step: 0.0001 // Very small step for fine-grained control
+            },
+            SLOPE_SCALE_BIAS: {
+                value: 0.5, // Additional bias based on surface slope relative to light
+                min: 0.0,
+                max: 2.0,
+                step: 0.1
             }
         };
 
@@ -81,7 +83,7 @@ class LightingConstants {
                 label: "Shadow Resolution"
             },
             BIAS: {
-                value: 0.0732, // Bias to prevent shadow acne - fine-tuned for testing
+                value: 0.005, // Bias to prevent shadow acne - fine-tuned for testing
                 min: -0.001, // Narrower range focused on useful values
                 max: 0.1, // Maximum bias value for testing
                 step: 0.0001 // Very small step for fine-grained control
@@ -91,37 +93,37 @@ class LightingConstants {
         // Shadow projection settings - orthographic frustum for directional light
         this.SHADOW_PROJECTION = {
             LEFT: {
-                value: -4096,
+                value: -50,
                 min: -20000,
                 max: 0,
                 step: 10
             },
             RIGHT: {
-                value: 4096,
+                value: 50,
                 min: 0,
                 max: 20000,
                 step: 10
             },
             BOTTOM: {
-                value: -4096,
+                value: -50,
                 min: -20000,
                 max: 0,
                 step: 10
             },
             TOP: {
-                value: 4096,
+                value: 50,
                 min: 0,
                 max: 20000,
                 step: 10
             },
             NEAR: {
-                value: 4300,
+                value: 1,
                 min: 0.01,
                 max: 50000,
                 step: 1
             },
             FAR: {
-                value: 5001,
+                value: 201,
                 min: 0.1,
                 max: 50000,
                 step: 100
@@ -148,9 +150,9 @@ class LightingConstants {
                 }
             },
             SOFTNESS: {
-                value: -0.7, // Shadow softness (0 = hard, 1 = very soft)
-                min: -60.0,
-                max: 0.0,
+                value: 0.5, // Shadow softness (0 = hard, 1 = very soft)
+                min: 0.0,
+                max: 1.0,
                 step: 0.01
             }
         };
@@ -185,9 +187,10 @@ class LightingConstants {
 
         // Debug settings
         this.DEBUG = {
-            VISUALIZE_SHADOW_MAP: false, // Display shadow map in corner
-            VISUALIZE_FRUSTUM: true, // Visualize shadow frustum
-            FORCE_SHADOW_MAP_TEST: false, // Should never be used - was an unfinished AI concept
+            VISUALIZE_SHADOW_MAP: false,
+            VISUALIZE_FRUSTUM: true,
+            FORCE_SHADOW_MAP_TEST: false,
+            DIRECTIONAL_LIGHT_ATTENUATION: false,
             LIGHT_VISUALIZATION_SIZE: {
                 value: 20,
                 min: 5,
@@ -218,7 +221,6 @@ class LightingConstants {
             lightPosition: { ...this.LIGHT_POSITION },
             lightDirection: { ...this.LIGHT_DIRECTION },
             lightIntensity: { ...this.LIGHT_INTENSITY },
-            objectShaderDefaultVariantIntensityFactor: { ...this.OBJECT_SHADER_DEFAULT_VARIANT_INTENSITY_FACTOR },
             material: { ...this.MATERIAL },
             shadowMap: { ...this.SHADOW_MAP },
             shadowProjection: { ...this.SHADOW_PROJECTION },
@@ -249,10 +251,6 @@ class LightingConstants {
         copyProps(this.LIGHT_POSITION, config.lightPosition);
         copyProps(this.LIGHT_DIRECTION, config.lightDirection);
         copyProps(this.LIGHT_INTENSITY, config.lightIntensity);
-        copyProps(
-            this.OBJECT_SHADER_DEFAULT_VARIANT_INTENSITY_FACTOR,
-            config.objectShaderDefaultVariantIntensityFactor
-        );
         copyProps(this.MATERIAL, config.material);
         copyProps(this.SHADOW_MAP, config.shadowMap);
         copyProps(this.SHADOW_PROJECTION, config.shadowProjection);

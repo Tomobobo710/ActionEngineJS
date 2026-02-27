@@ -433,6 +433,31 @@ class GLBLoader {
         const { positions, indices, joints, weights, material, texCoords, nodeMatrix } = primData;
         const triangles = [];
 
+        // Calculate tangents if we have UV coordinates (needed for normal mapping)
+        let tangents = null;
+        if (texCoords) {
+            // Compute face normals for tangent calculation
+            const faceNormals = new Float32Array(indices.length);
+            for (let i = 0; i < indices.length; i += 3) {
+                const i0 = indices[i];
+                const i1 = indices[i + 1];
+                const i2 = indices[i + 2];
+
+                const p0 = new Vector3(positions[i0 * 3], positions[i0 * 3 + 1], positions[i0 * 3 + 2]);
+                const p1 = new Vector3(positions[i1 * 3], positions[i1 * 3 + 1], positions[i1 * 3 + 2]);
+                const p2 = new Vector3(positions[i2 * 3], positions[i2 * 3 + 1], positions[i2 * 3 + 2]);
+
+                const edge1 = p1.sub(p0);
+                const edge2 = p2.sub(p0);
+                const faceNormal = edge1.cross(edge2).normalize();
+
+                faceNormals[i] = faceNormal.x;
+                faceNormals[i + 1] = faceNormal.y;
+                faceNormals[i + 2] = faceNormal.z;
+            }
+            tangents = GLBLoader.calculateTangents(positions, faceNormals, texCoords, indices);
+        }
+
         // Build vertex pool with deduplication by position + UV (to match Blender's vertex count)
         const vertexPool = [];
         const vertexMap = new Map(); // position+UV string key -> vertex data
@@ -455,6 +480,9 @@ class GLBLoader {
             // Get UV coordinates for this vertex
             const uv = texCoords ? { u: texCoords[i * 2], v: texCoords[i * 2 + 1] } : null;
 
+            // Get tangent for this vertex
+            const tangent = tangents ? new Vector3(tangents[i * 3], tangents[i * 3 + 1], tangents[i * 3 + 2]) : null;
+
             // Create a key for deduplication including UV (position + UV = unique vertex in rendering)
             // Use full precision to avoid collapsing nearly-identical vertices
             const uvStr = uv ? `${uv.u},${uv.v}` : "0,0";
@@ -474,6 +502,7 @@ class GLBLoader {
             vertexData.push({
                 poolIndex: vertexIdx,
                 position: position,
+                tangent: tangent,
                 jointIndices: joints ? [joints[i * 4], joints[i * 4 + 1], joints[i * 4 + 2], joints[i * 4 + 3]] : null,
                 weights: weights ? [weights[i * 4], weights[i * 4 + 1], weights[i * 4 + 2], weights[i * 4 + 3]] : null,
                 uv: uv
@@ -506,12 +535,18 @@ class GLBLoader {
                 if (material.emissive !== undefined) {
                     triangle.emissive = material.emissive;
                 }
+                // Store material with all texture map indices
                 triangle.material = material;
             }
 
             // Store UV coordinates
             if (texCoords) {
                 triangle.uvs = vertices.map((v) => v.uv);
+            }
+
+            // Store tangent coordinates
+            if (tangents) {
+                triangle.tangents = vertices.map((v) => v.tangent);
             }
 
             // Attach texture image data if available
@@ -543,16 +578,19 @@ class GLBLoader {
 
     /**
      * Extracts material information from a GLTF material.
-     * Returns both color and texture data if available.
+     * Returns color, texture data, and texture indices for normal/metallic/roughness/emissive maps.
      * @param {Object} material - GLTF material data
      * @param {Object} gltf - The complete GLTF data object
-     * @returns {Object} Material data with color and optional texture index
+     * @returns {Object} Material data with color and optional texture indices
      * @private
      */
     static getMaterialData(material, gltf) {
         const materialData = {
             useTexture: false,
             textureIndex: -1,
+            normalMapIndex: -1,
+            metallicRoughnessMapIndex: -1,
+            emissiveMapIndex: -1,
             color: null,
             alpha: 1.0,
             name: null,
@@ -580,6 +618,36 @@ class GLBLoader {
                 materialData.textureIndex = imageIdx;
             } else if (texIdx >= 0) {
                 console.warn(`[GLBLoader] Material requests texture index ${texIdx} but image source not found`);
+            }
+        }
+
+        // Extract normal map if present
+        if (material.normalTexture) {
+            const texIdx = material.normalTexture.index;
+            const texture = gltf.textures ? gltf.textures[texIdx] : null;
+            const imageIdx = texture && typeof texture.source === "number" ? texture.source : texIdx;
+            if (imageIdx !== undefined && gltf.images && gltf.images[imageIdx]) {
+                materialData.normalMapIndex = imageIdx;
+            }
+        }
+
+        // Extract metallic/roughness map if present
+        if (material.pbrMetallicRoughness?.metallicRoughnessTexture) {
+            const texIdx = material.pbrMetallicRoughness.metallicRoughnessTexture.index;
+            const texture = gltf.textures ? gltf.textures[texIdx] : null;
+            const imageIdx = texture && typeof texture.source === "number" ? texture.source : texIdx;
+            if (imageIdx !== undefined && gltf.images && gltf.images[imageIdx]) {
+                materialData.metallicRoughnessMapIndex = imageIdx;
+            }
+        }
+
+        // Extract emissive map if present
+        if (material.emissiveTexture) {
+            const texIdx = material.emissiveTexture.index;
+            const texture = gltf.textures ? gltf.textures[texIdx] : null;
+            const imageIdx = texture && typeof texture.source === "number" ? texture.source : texIdx;
+            if (imageIdx !== undefined && gltf.images && gltf.images[imageIdx]) {
+                materialData.emissiveMapIndex = imageIdx;
             }
         }
 
@@ -616,6 +684,98 @@ class GLBLoader {
         }
 
         return materialData;
+    }
+
+    /**
+     * Calculate tangents for a primitive's vertices using positions, normals, and UVs.
+     * Uses the Lengyel algorithm for robust tangent generation.
+     * @param {Float32Array} positions - Vertex positions (x,y,z per vertex)
+     * @param {Float32Array} normals - Vertex normals (x,y,z per vertex)
+     * @param {Float32Array} texCoords - UV coordinates (u,v per vertex)
+     * @param {Uint32Array|Uint16Array} indices - Triangle indices
+     * @returns {Float32Array} Tangents (x,y,z per vertex)
+     * @private
+     */
+    static calculateTangents(positions, normals, texCoords, indices) {
+        const vertexCount = positions.length / 3;
+        const tangents = new Float32Array(positions.length); // Same layout as positions
+        const bitangents = new Float32Array(positions.length);
+
+        // Initialize accumulators
+        for (let i = 0; i < vertexCount; i++) {
+            tangents[i * 3] = 0;
+            tangents[i * 3 + 1] = 0;
+            tangents[i * 3 + 2] = 0;
+            bitangents[i * 3] = 0;
+            bitangents[i * 3 + 1] = 0;
+            bitangents[i * 3 + 2] = 0;
+        }
+
+        // Process each triangle
+        for (let i = 0; i < indices.length; i += 3) {
+            const i0 = indices[i];
+            const i1 = indices[i + 1];
+            const i2 = indices[i + 2];
+
+            // Get vertex positions
+            const p0 = new Vector3(positions[i0 * 3], positions[i0 * 3 + 1], positions[i0 * 3 + 2]);
+            const p1 = new Vector3(positions[i1 * 3], positions[i1 * 3 + 1], positions[i1 * 3 + 2]);
+            const p2 = new Vector3(positions[i2 * 3], positions[i2 * 3 + 1], positions[i2 * 3 + 2]);
+
+            // Get UV coordinates
+            const u0 = new Vector2(texCoords[i0 * 2], texCoords[i0 * 2 + 1]);
+            const u1 = new Vector2(texCoords[i1 * 2], texCoords[i1 * 2 + 1]);
+            const u2 = new Vector2(texCoords[i2 * 2], texCoords[i2 * 2 + 1]);
+
+            // Edge vectors
+            const edge1 = p1.sub(p0);
+            const edge2 = p2.sub(p0);
+
+            // UV differences
+            const dUV1 = new Vector2(u1.x - u0.x, u1.y - u0.y);
+            const dUV2 = new Vector2(u2.x - u0.x, u2.y - u0.y);
+
+            // Calculate determinant
+            const r = 1.0 / (dUV1.x * dUV2.y - dUV1.y * dUV2.x);
+            if (!isFinite(r)) continue; // Skip degenerate triangles
+
+            // Calculate tangent and bitangent
+            const tangent = edge1.scale(dUV2.y).sub(edge2.scale(dUV1.y)).scale(r);
+            const bitangent = edge2.scale(dUV1.x).sub(edge1.scale(dUV2.x)).scale(r);
+
+            // Accumulate to vertices
+            for (const idx of [i0, i1, i2]) {
+                tangents[idx * 3] += tangent.x;
+                tangents[idx * 3 + 1] += tangent.y;
+                tangents[idx * 3 + 2] += tangent.z;
+                bitangents[idx * 3] += bitangent.x;
+                bitangents[idx * 3 + 1] += bitangent.y;
+                bitangents[idx * 3 + 2] += bitangent.z;
+            }
+        }
+
+        // Orthonormalize tangents against normals (Gram-Schmidt)
+        for (let i = 0; i < vertexCount; i++) {
+            const n = new Vector3(normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2]);
+            const t = new Vector3(tangents[i * 3], tangents[i * 3 + 1], tangents[i * 3 + 2]);
+            const b = new Vector3(bitangents[i * 3], bitangents[i * 3 + 1], bitangents[i * 3 + 2]);
+
+            // t = (t - (n · t) * n)
+            const dot = n.dot(t);
+            t.sub(n.scale(dot));
+            t.normalizeInPlace();
+
+            // Determine handedness
+            const cross = n.cross(t);
+            const handedness = cross.dot(b) < 0 ? -1 : 1;
+
+            // Store tangent with handedness in w component (we'll pack it as xyz only)
+            tangents[i * 3] = t.x;
+            tangents[i * 3 + 1] = t.y;
+            tangents[i * 3 + 2] = t.z;
+        }
+
+        return tangents;
     }
 
     /**
@@ -709,6 +869,41 @@ class GLBLoader {
     static addPrimitiveTriangles(model, primitive) {
         const { positions, indices, joints, weights, material, texCoords, nodeMatrix } = primitive;
 
+        // Compute smooth vertex normals for all models
+        const normals = new Float32Array(positions.length);
+        for (let i = 0; i < indices.length; i += 3) {
+            const i0 = indices[i];
+            const i1 = indices[i + 1];
+            const i2 = indices[i + 2];
+
+            const p0 = new Vector3(positions[i0 * 3], positions[i0 * 3 + 1], positions[i0 * 3 + 2]);
+            const p1 = new Vector3(positions[i1 * 3], positions[i1 * 3 + 1], positions[i1 * 3 + 2]);
+            const p2 = new Vector3(positions[i2 * 3], positions[i2 * 3 + 1], positions[i2 * 3 + 2]);
+
+            const edge1 = p1.sub(p0);
+            const edge2 = p2.sub(p0);
+            const faceNormal = edge1.cross(edge2);
+
+            // Accumulate face normal to all vertices
+            for (const idx of [i0, i1, i2]) {
+                normals[idx * 3] += faceNormal.x;
+                normals[idx * 3 + 1] += faceNormal.y;
+                normals[idx * 3 + 2] += faceNormal.z;
+            }
+        }
+
+        // Normalize the computed normals
+        for (let i = 0; i < normals.length; i += 3) {
+            const len = Math.sqrt(
+                normals[i] * normals[i] + normals[i + 1] * normals[i + 1] + normals[i + 2] * normals[i + 2]
+            );
+            if (len > 0.001) {
+                normals[i] /= len;
+                normals[i + 1] /= len;
+                normals[i + 2] /= len;
+            }
+        }
+
         // First create all vertices
         const vertexData = [];
         for (let i = 0; i < positions.length / 3; i++) {
@@ -725,8 +920,12 @@ class GLBLoader {
                 position.z = nodeMatrix[2] * x + nodeMatrix[6] * y + nodeMatrix[10] * z + nodeMatrix[14];
             }
 
+            // Get per-vertex normal for smooth shading
+            const normal = new Vector3(normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2]);
+
             vertexData.push({
                 position: position,
+                normal: normal,
                 jointIndices: joints ? [joints[i * 4], joints[i * 4 + 1], joints[i * 4 + 2], joints[i * 4 + 3]] : null,
                 weights: weights ? [weights[i * 4], weights[i * 4 + 1], weights[i * 4 + 2], weights[i * 4 + 3]] : null,
                 uv: texCoords ? { u: texCoords[i * 2], v: texCoords[i * 2 + 1] } : null

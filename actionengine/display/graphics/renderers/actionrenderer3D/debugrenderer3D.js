@@ -323,20 +323,14 @@ class DebugRenderer3D {
                 precision mediump float;
                 varying vec2 vTexCoord;
                 uniform sampler2D uShadowMap;
-                uniform int uVisualizeMode; // 0 = raw RGBA, 1 = raw grayscale
 
                 void main() {
-                    // Get the raw texture value
+                    // Get the depth value from the shadow map
                     vec4 rawValue = texture2D(uShadowMap, vTexCoord);
-
-                    if (uVisualizeMode == 0) {
-                        // Mode 0: Raw RGBA values exactly as stored
-                        gl_FragColor = rawValue;
-                    } else {
-                        // Mode 1: Raw grayscale using just the red channel, no enhancements
-                        float depth = rawValue.r;
-                        gl_FragColor = vec4(depth, depth, depth, 1.0);
-                    }
+                    float depth = rawValue.r;
+                    
+                    // Display as grayscale
+                    gl_FragColor = vec4(depth, depth, depth, 1.0);
                 }
             `;
 
@@ -347,12 +341,8 @@ class DebugRenderer3D {
             this._shadowDebugLocations = {
                 position: gl.getAttribLocation(this._shadowDebugProgram, "aPosition"),
                 texCoord: gl.getAttribLocation(this._shadowDebugProgram, "aTexCoord"),
-                shadowMap: gl.getUniformLocation(this._shadowDebugProgram, "uShadowMap"),
-                visualizeMode: gl.getUniformLocation(this._shadowDebugProgram, "uVisualizeMode")
+                shadowMap: gl.getUniformLocation(this._shadowDebugProgram, "uShadowMap")
             };
-
-            // Default to visualization mode 0
-            this._shadowVisualizationMode = 0;
 
             // Create buffers for quad
             this._quadPositionBuffer = gl.createBuffer();
@@ -422,16 +412,8 @@ class DebugRenderer3D {
             "uShadowMap"
         );
 
-        // Set visualization mode
-        if (this._shadowDebugLocations.visualizeMode !== null) {
-            gl.uniform1i(this._shadowDebugLocations.visualizeMode, this._shadowVisualizationMode);
-        }
-
-        // Cycle visualization mode when shadow map visualization is enabled
-        // This gives us multiple ways to view the shadow map
-        // Cycle visualization mode every 2 seconds
+        // Cycling mechanism - keep for potential future expansion
         if (!this._lastVisualizationTime || performance.now() - this._lastVisualizationTime > 2000) {
-            this._shadowVisualizationMode = (this._shadowVisualizationMode + 1) % 2; // Just 2 modes now
             this._lastVisualizationTime = performance.now();
         }
 

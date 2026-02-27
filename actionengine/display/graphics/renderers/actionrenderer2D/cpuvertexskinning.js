@@ -1,13 +1,13 @@
 /**
  * CPU Vertex Skinning Module
- * 
+ *
  * Handles the computation of skinned vertices for 2D rendering.
  * Takes animated bone matrices and applies them to model vertices using weight data.
  */
 class CPUVertexSkinning {
 	/**
 	 * Compute CPU-skinned triangles for a character with animation
-	 * 
+	 *
 	 * @param {ActionCharacter} character - The character object with animated skeleton
 	 * @returns {Triangle[]} Array of transformed, skinned triangles
 	 */
@@ -74,7 +74,7 @@ class CPUVertexSkinning {
 		const transformedTriangles = [];
 
 		// Process each triangle in the model
-		for (const triangle of character.characterModel.triangles) {
+		for (const triangle of character.characterModel.getAllTrianglesLocal()) {
 			// Step 1: Apply bone skinning to each vertex
 			const skinnedVertices = [];
 			for (let i = 0; i < triangle.vertices.length; i++) {

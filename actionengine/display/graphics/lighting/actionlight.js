@@ -17,7 +17,7 @@ class ActionLight {
 
         // Basic light properties
         this.position = new Vector3(0, 0, 0);
-        this.color = new Vector3(1, 1, 1); // White light by default
+        this.color = new Vector3(0.3, 0.3, 0.3); // White light by default
         this.intensity = 1.0;
 
         // Shadow capability flag
