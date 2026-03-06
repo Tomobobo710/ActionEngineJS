@@ -200,8 +200,6 @@ class ObjectRenderer3D {
                 useTextureValue = 1;
                 if (triangle.material && triangle.material.useTexture && triangle.material.textureIndex >= 0) {
                     textureIndex = triangle.material.textureIndex;
-                } else if (triangle.texture) {
-                    textureIndex = this.getTextureIndexForProceduralTexture(triangle.texture);
                 }
             }
 
@@ -415,8 +413,6 @@ class ObjectRenderer3D {
             if (shouldUseTexture) {
                 if (triangle.material && triangle.material.useTexture && triangle.material.textureIndex >= 0) {
                     textureIndex = triangle.material.textureIndex;
-                } else if (triangle.texture) {
-                    textureIndex = this.getTextureIndexForProceduralTexture(triangle.texture);
                 }
             }
 
@@ -506,7 +502,6 @@ class ObjectRenderer3D {
         const locs = this.programManager.getObjectLocations();
         gl.useProgram(prog);
 
-        this.renderer.textureManager.updateMaterialPropertiesTexture();
         this._setFrameConstantUniforms(locs, prog, camera);
 
         // Draw all opaque triangles from all objects first
@@ -789,11 +784,6 @@ class ObjectRenderer3D {
             gl.uniform1f(locations.normalMapStrength, strength);
         }
 
-        if (locations.usePerTextureMaterials !== -1 && locations.usePerTextureMaterials !== null) {
-            const usePerTextureMaterials = this.renderer.textureManager?.usePerTextureMaterials || false;
-            gl.uniform1i(locations.usePerTextureMaterials, usePerTextureMaterials ? 1 : 0);
-        }
-
         if (locations.directionalLightAttenuation !== -1 && locations.directionalLightAttenuation !== null) {
             gl.uniform1i(
                 locations.directionalLightAttenuation,
@@ -858,7 +848,7 @@ class ObjectRenderer3D {
             );
         }
 
-        const texArray = this.renderer.textureManager.embeddedTextureArray || this.renderer.textureArray;
+        const texArray = this.renderer.textureManager.textureArray || this.renderer.textureArray;
         if (texArray && locations.textureArray !== -1 && locations.textureArray !== null) {
             this.renderer.glStateManager.bindTextureWithUniform(
                 "textureArray",
@@ -919,6 +909,33 @@ class ObjectRenderer3D {
         // Handle bone matrices for animated objects
         const currentProgram = gl.getParameter(gl.CURRENT_PROGRAM);
 
+        // Use object's TextureSet if available
+        const textureSet = object && object._textureSet ? object._textureSet : null;
+        const locs = this.programManager.getObjectLocations();
+        const program = currentProgram || this.programManager.getObjectProgram();
+
+        // Bind material properties texture from TextureSet
+        if (textureSet && textureSet.materialPropertiesTexture && locs.materialPropertiesTexture !== -1 && locs.materialPropertiesTexture !== null) {
+            this.renderer.glStateManager.bindTextureWithUniform(
+                "materialProperties",
+                textureSet.materialPropertiesTexture,
+                "TEXTURE_2D",
+                program,
+                "uMaterialPropertiesTexture"
+            );
+        }
+
+        // Bind texture array from TextureSet
+        if (textureSet && textureSet.textureArray && locs.textureArray !== -1 && locs.textureArray !== null) {
+            this.renderer.glStateManager.bindTextureWithUniform(
+                "textureArray",
+                textureSet.textureArray,
+                "TEXTURE_2D_ARRAY",
+                program,
+                "uTextureArray"
+            );
+        }
+
         if (object && typeof object.getBoneMatrices === "function") {
             const objectId = object._stableMeshId;
 
@@ -976,29 +993,6 @@ class ObjectRenderer3D {
     drawObject(locations, indexCount, offset = 0) {
         const gl = this.gl;
         gl.drawElements(gl.TRIANGLES, indexCount, this.indexType, offset);
-    }
-
-    getTextureIndexForProceduralTexture(proceduralTexture) {
-        if (typeof textureRegistry === "undefined") return 0;
-        if (!this._textureIndexCache) {
-            this._textureIndexCache = new WeakMap();
-            textureRegistry.textureList.forEach((name, index) => {
-                const texture = textureRegistry.get(name);
-                if (texture) this._textureIndexCache.set(texture, index);
-            });
-        }
-        const index = this._textureIndexCache.get(proceduralTexture);
-        if (index !== undefined) return index;
-
-        const textureName = proceduralTexture.name;
-        if (textureName) {
-            const idx = textureRegistry.textureList.indexOf(textureName);
-            if (idx !== -1) {
-                this._textureIndexCache.set(proceduralTexture, idx);
-                return idx;
-            }
-        }
-        return 0;
     }
 
     drawTransparent(camera) {

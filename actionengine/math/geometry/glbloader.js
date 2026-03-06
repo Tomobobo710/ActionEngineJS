@@ -37,6 +37,30 @@ class GLBLoader {
     }
 
     /**
+     * Loads a 3D model from a File object (from file input).
+     * @param {File} file - File object from input element
+     * @returns {Promise<GLBLoader|ActionModel3D>} A promise resolving to a loader instance containing the parsed model
+     * @throws {Error} If the file cannot be read or parsed
+     */
+    static async loadFromFile(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const arrayBuffer = e.target.result;
+                    resolve(GLBLoader.loadFromArrayBuffer(arrayBuffer));
+                } catch (error) {
+                    reject(error);
+                }
+            };
+            reader.onerror = () => {
+                reject(new Error(`Failed to read file: ${file.name}`));
+            };
+            reader.readAsArrayBuffer(file);
+        });
+    }
+
+    /**
      * Loads a 3D model from a base64 encoded string.
      * @param {string} base64String - The model data encoded as base64
      * @returns {GLBLoader} A loader instance containing the parsed model
@@ -65,7 +89,7 @@ class GLBLoader {
         const { gltf, binaryData } = GLBLoader.parseGLB(arrayBuffer);
         gltf.binaryData = binaryData;
 
-        // Extract embedded textures from the model
+        // Extract textures from the model
         GLBLoader.loadTextures(loader, gltf, binaryData);
 
         // Create ActionModel3D to hold the structured data
@@ -168,7 +192,7 @@ class GLBLoader {
     }
 
     /**
-     * Loads and processes embedded textures from the GLTF model.
+     * Loads and processes textures from the GLTF model.
      * Extracts image data and stores it for later use by the TextureManager.
      * @param {GLBLoader} model - The loader instance to store texture data
      * @param {Object} gltf - The parsed GLTF JSON data

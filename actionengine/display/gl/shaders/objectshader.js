@@ -500,7 +500,6 @@ class ObjectShader {
     uniform float uMetallic;
     uniform float uBaseReflectivity;
     uniform sampler2D uMaterialPropertiesTexture;
-    uniform bool uUsePerTextureMaterials;
     
     // Lighting intensity controls
     uniform float uAmbientIntensity;
@@ -726,7 +725,7 @@ class ObjectShader {
         float metallic = uMetallic;
         float baseReflectivity = uBaseReflectivity;
         
-        if (uUsePerTextureMaterials && vUseTexture > 0.5) {
+        if (vUseTexture > 0.5) {
             // Sample per-texture material properties
             float textureCoord = (vTextureIndex + 0.5) / float(textureSize(uMaterialPropertiesTexture, 0).x);
             vec4 materialProps = texture(uMaterialPropertiesTexture, vec2(textureCoord, 0.5));

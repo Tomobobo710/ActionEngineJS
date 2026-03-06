@@ -476,7 +476,6 @@ class ProgramManager {
             metallic: gl.getUniformLocation(program, unif.metallic),
             baseReflectivity: gl.getUniformLocation(program, unif.baseReflectivity),
             normalMapStrength: gl.getUniformLocation(program, "uNormalMapStrength"),
-            usePerTextureMaterials: gl.getUniformLocation(program, "uUsePerTextureMaterials"),
             materialPropertiesTexture: gl.getUniformLocation(program, tex.materialProps),
             cameraPos: gl.getUniformLocation(program, unif.cameraPos),
             time: gl.getUniformLocation(program, unif.time),

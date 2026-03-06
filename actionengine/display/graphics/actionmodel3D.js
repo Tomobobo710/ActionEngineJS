@@ -24,9 +24,11 @@ class ActionModel3D {
         this.meshes = []; // Complete mesh data from GLB
         this.originalTriangles = []; // Initial triangle geometry (for reference)
 
-        // Texture data (embedded in GLB)
-        this.textures = []; // Array of texture image data
+        // Texture data
+         this.textures = []; // Array of texture image data
         this.textureMetadata = []; // Array of texture metadata (name, mimeType)
+        this._textureSet = null; // TextureSet instance (created automatically when textures load)
+        this._textureSetLoading = false; // Flag to prevent multiple simultaneous loads
 
         // Animation and skeletal data
         this.animations = []; // Animation data from GLB
@@ -159,7 +161,44 @@ class ActionModel3D {
      * @param {boolean} flatten - If true, returns array with single combined object. If false, returns array of individual objects. Default: false
      * @returns {RenderableObject[]} Array of RenderableObjects (one or more depending on flatten)
      */
-    getTransformedObjects(flatten = false) {
+    /**
+     * Load and attach TextureSet for this model's textures to all RenderableObjects
+     * @private
+     */
+    async _loadAndAttachTextureSet(gl) {
+        if (!this.textures || this.textures.length === 0) {
+            return null;
+        }
+
+        // Create TextureSet if not already done
+        if (!this._textureSet) {
+            this._textureSet = new TextureSet(gl);
+            await this._textureSet.loadFromModel(this);
+            
+            // Attach to all existing renderable objects
+            if (this._transformedObjectsCache) {
+                for (const obj of this._transformedObjectsCache) {
+                    obj._textureSet = this._textureSet;
+                }
+            }
+            if (this._flattenedObjectCache) {
+                for (const obj of this._flattenedObjectCache) {
+                    obj._textureSet = this._textureSet;
+                }
+            }
+        }
+
+        return this._textureSet;
+    }
+
+    getTransformedObjects(flatten = false, gl = null) {
+        // Auto-load TextureSet if we have a GL context and textures but no TextureSet yet
+        // This makes texture loading completely transparent (lazy-loaded on first access)
+        if (gl && this.textures.length > 0 && !this._textureSet && !this._textureSetLoading) {
+            this._textureSetLoading = true;
+            this._loadAndAttachTextureSet(gl).catch(e => console.error("Failed to auto-load TextureSet:", e));
+        }
+
         // Return appropriate cached version
         if (flatten) {
             if (this._flattenedObjectCache) {
@@ -187,7 +226,6 @@ class ActionModel3D {
                 transformedObj.transform.position = new Vector3(0, 0, 0);
                 transformedObj.transform.rotation = new Quaternion(0, 0, 0, 1);
                 transformedObj.transform.scale = new Vector3(1, 1, 1);
-
                 transformedObjects.push(transformedObj);
             }
 

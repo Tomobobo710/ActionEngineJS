@@ -58,13 +58,6 @@ class ActionRenderer2D {
 		this.projectedVertsPool = [];
 		this.projectedVertsIndex = 0;
 
-		// Create procedural textures
-		this.grassTexture = new ProceduralTexture(256, 256);
-		this.grassTexture.generateGrass();
-
-		this.checkerTexture = new ProceduralTexture(256, 256);
-		this.checkerTexture.generateCheckerboard();
-
 		// Cache for animated character triangles
 		// Maps character objects to their computed skinned triangles
 		this.skinnedTriangleCache = new Map();
@@ -215,7 +208,7 @@ class ActionRenderer2D {
 		const nearTriangles = [];
 		const farTriangles = [];
 
-		const processTriangle = (triangle, worldTransform) => {
+		const processTriangle = (triangle, worldTransform, parentObject) => {
 
 			// Transform vertices from local-space to world-space if transform provided
 			let vertices = triangle.vertices;
@@ -274,6 +267,8 @@ class ActionRenderer2D {
 			processedTriangle.isWater = triangle.isWater || false;
 			processedTriangle.uvs = triangle.uvs;
 			processedTriangle.texture = triangle.texture;
+			processedTriangle.material = triangle.material;
+			processedTriangle.parentObject = parentObject;
 
 			// Assign different textures based on distance
 			if (processedTriangle.depth <= this.depthConfig.transitionDistance) {
@@ -291,7 +286,7 @@ class ActionRenderer2D {
 			// Transform vertices on-the-fly during collection
 			// No need to pre-allocate world-space triangle objects
 			for (const triangle of physicsObject.triangles) {
-				processTriangle(triangle, physicsObject.transform);
+				processTriangle(triangle, physicsObject.transform, physicsObject);
 			}
 		}
 
@@ -300,7 +295,7 @@ class ActionRenderer2D {
 			// Get skinned triangles for this character
 			const skinnedTriangles = CPUVertexSkinning.getSkinned2DTriangles(character);
 			for (const triangle of skinnedTriangles) {
-				processTriangle(triangle, character.transform);
+				processTriangle(triangle, character.transform, character);
 			}
 		}
 
@@ -347,7 +342,10 @@ class ActionRenderer2D {
 		const baseLighting = triangle.lighting;
 
 		// Cache texture-related values
-		const hasTexture = triangle.texture && triangle.uvs;
+		// Check for either direct texture reference OR material-based texture from TextureSet
+		const hasDirectTexture = triangle.texture && triangle.uvs;
+		const hasMaterialTexture = triangle.material && triangle.material.useTexture && triangle.uvs && triangle.parentObject && triangle.parentObject._textureSet;
+		const hasTexture = hasDirectTexture || hasMaterialTexture;
 		const imageData = this.imageData.data;
 		let oneOverW, uvOverW;
 
@@ -366,8 +364,21 @@ class ActionRenderer2D {
 		}
 
 		// Cache texture dimensions if available
-		const textureWidth = hasTexture ? triangle.texture.width : 0;
-		const textureHeight = hasTexture ? triangle.texture.height : 0;
+		let textureWidth = 0;
+		let textureHeight = 0;
+		if (hasTexture) {
+			if (triangle.texture) {
+				textureWidth = triangle.texture.width;
+				textureHeight = triangle.texture.height;
+			} else if (triangle.material && triangle.material.useTexture && triangle.parentObject && triangle.parentObject._textureSet) {
+				const textureSet = triangle.parentObject._textureSet;
+				const textureIndex = triangle.material.textureIndex;
+				if (textureSet.textures && textureSet.textures[textureIndex]) {
+					textureWidth = textureSet.textures[textureIndex].width;
+					textureHeight = textureSet.textures[textureIndex].height;
+				}
+			}
+		}
 
 		const isWater = triangle.isWater;
 		const zBuffer = this.zBuffer;
@@ -422,14 +433,33 @@ class ActionRenderer2D {
 						u = bary.w1 * triangle.uvs[0].u + bary.w2 * triangle.uvs[1].u + bary.w3 * triangle.uvs[2].u;
 						v = bary.w1 * triangle.uvs[0].v + bary.w2 * triangle.uvs[1].v + bary.w3 * triangle.uvs[2].v;
 					}
-					const texel = triangle.texture.getPixel(
-						Math.floor(u * textureWidth),
-						Math.floor(v * textureHeight)
-					);
-					imageData[pixelIndex] = texel.r * currentLighting;
-					imageData[pixelIndex + 1] = texel.g * currentLighting;
-					imageData[pixelIndex + 2] = texel.b * currentLighting;
-					imageData[pixelIndex + 3] = 255;
+					
+					// Get texture from either direct reference or parent object's TextureSet
+					let textureToSample = triangle.texture;
+					if (!textureToSample && triangle.material && triangle.material.useTexture && triangle.parentObject && triangle.parentObject._textureSet) {
+						const textureSet = triangle.parentObject._textureSet;
+						const textureIndex = triangle.material.textureIndex;
+						if (textureSet.textures && textureSet.textures[textureIndex]) {
+							textureToSample = textureSet.textures[textureIndex];
+						}
+					}
+					
+					if (textureToSample) {
+						const texel = textureToSample.getPixel(
+							Math.floor(u * textureWidth),
+							Math.floor(v * textureHeight)
+						);
+						imageData[pixelIndex] = texel.r * currentLighting;
+						imageData[pixelIndex + 1] = texel.g * currentLighting;
+						imageData[pixelIndex + 2] = texel.b * currentLighting;
+						imageData[pixelIndex + 3] = 255;
+					} else {
+						// Fallback to vertex color if no texture found
+						imageData[pixelIndex] = r * currentLighting;
+						imageData[pixelIndex + 1] = g * currentLighting;
+						imageData[pixelIndex + 2] = b * currentLighting;
+						imageData[pixelIndex + 3] = 255;
+					}
 				} else {
 					imageData[pixelIndex] = r * currentLighting;
 					imageData[pixelIndex + 1] = g * currentLighting;
