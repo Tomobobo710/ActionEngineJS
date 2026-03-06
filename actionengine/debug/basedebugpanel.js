@@ -117,7 +117,7 @@ class BaseDebugPanel {
     }
 
     // Register sliders with input system - similar to LightingDebugPanel
-    registerSliders(sliders, tabName) {
+    registerSliders(sliders, tabName, startY = 100) {
         // Clear any existing slider elements for this tab
         Object.entries(sliders).forEach(([name, slider]) => {
             this.game.input.removeElement(slider.id, "debug");
@@ -129,13 +129,15 @@ class BaseDebugPanel {
 
         // Register each slider with unique bounds
         Object.entries(sliders).forEach(([name, slider], index) => {
+            const sliderY = this.panelY + startY + index * 40;
+
             // Register the slider track
             this.game.input.registerElement(
                 slider.id,
                 {
                     bounds: () => ({
                         x: this.panelX + 160,
-                        y: this.panelY + 100 + index * 40,
+                        y: sliderY,
                         width: 180,
                         height: 20
                     })
@@ -151,7 +153,7 @@ class BaseDebugPanel {
                     {
                         bounds: () => ({
                             x: this.panelX + 160 - 30,
-                            y: this.panelY + 100 + index * 40,
+                            y: sliderY,
                             width: 20,
                             height: 20
                         })
@@ -165,7 +167,7 @@ class BaseDebugPanel {
                     {
                         bounds: () => ({
                             x: this.panelX + 160 + 190,
-                            y: this.panelY + 100 + index * 40,
+                            y: sliderY,
                             width: 20,
                             height: 20
                         })
@@ -283,16 +285,12 @@ class BaseDebugPanel {
     }
 
     // Draw sliders on the panel
-    drawSliders(sliders) {
+    drawSliders(sliders, startY = 100) {
         // Make sure input dialog is created
         this.initializeInputDialog();
 
-        // Register edit buttons if they haven't been registered yet
-        if (Object.keys(sliders).length > 0 && this.inputFields.size === 0) {
-            this.registerEditButtons(sliders);
-        }
         Object.entries(sliders).forEach(([name, slider], index) => {
-            const sliderY = this.panelY + 100 + index * 40;
+            const sliderY = this.panelY + startY + index * 40;
 
             // Draw label
             this.ctx.fillStyle = "#ffffff";
@@ -808,14 +806,14 @@ class BaseDebugPanel {
     }
 
     // Register edit buttons for sliders
-    registerEditButtons(sliders) {
+    registerEditButtons(sliders, startY = 100) {
         // First, clear any existing edit buttons
         this.clearEditButtons();
 
         Object.entries(sliders).forEach(([name, slider], index) => {
             if (!slider.options) {
                 // Only for numeric sliders
-                const sliderY = this.panelY + 100 + index * 40;
+                const sliderY = this.panelY + startY + index * 40;
                 const btnX = this.panelX + 400;
                 const btnY = sliderY - 2;
                 const btnWidth = 45; // Wider button
