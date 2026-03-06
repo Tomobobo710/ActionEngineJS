@@ -153,7 +153,7 @@ class TextureSet {
         const defaults = {
             roughness: 0.8,
             metallic: 0.0,
-            baseReflectivity: 0.1
+            ior: 1.5
         };
 
         // Build properties array
@@ -162,7 +162,7 @@ class TextureSet {
             const props = this.materialProperties.get(i) || defaults;
             data[i * 4] = props.roughness;
             data[i * 4 + 1] = props.metallic;
-            data[i * 4 + 2] = props.baseReflectivity;
+            data[i * 4 + 2] = props.ior;
             data[i * 4 + 3] = 0; // reserved
         }
 

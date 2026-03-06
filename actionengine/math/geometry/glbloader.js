@@ -559,6 +559,9 @@ class GLBLoader {
                 if (material.emissive !== undefined) {
                     triangle.emissive = material.emissive;
                 }
+                if (material.ior !== undefined) {
+                    triangle.ior = material.ior;
+                }
                 // Store material with all texture map indices
                 triangle.material = material;
             }
@@ -621,7 +624,8 @@ class GLBLoader {
             // PBR properties
             metallic: 0.0,
             roughness: 1.0,
-            emissive: [0, 0, 0]
+            emissive: [0, 0, 0],
+            ior: 1.5  // Default IOR, will be overridden if present in material
         };
 
         if (!material) return materialData;
@@ -705,6 +709,11 @@ class GLBLoader {
         // Extract emissive factor
         if (material.emissiveFactor) {
             materialData.emissive = material.emissiveFactor;
+        }
+
+        // Extract IOR from KHR_materials_ior extension
+        if (material.extensions?.KHR_materials_ior?.ior !== undefined) {
+            materialData.ior = material.extensions.KHR_materials_ior.ior;
         }
 
         return materialData;

@@ -349,20 +349,21 @@ class GLBExporter {
         totalBufferSize += totalTextureSize;
 
         let bufferOffset = 0;
-        let accessorIndex = 0;
-        let bufferViewIndex = 0;
-
-        const gltf = {
-            asset: { version: "2.0", generator: "ActionEngine GLBExporter" },
-            scene: 0,
-            scenes: [{ nodes: [] }],
-            nodes: [],
-            meshes: [],
-            materials: [],
-            buffers: [{ byteLength: totalBufferSize }],
-            bufferViews: [],
-            accessors: []
-        };
+         let accessorIndex = 0;
+         let bufferViewIndex = 0;
+        
+         const gltf = {
+             asset: { version: "2.0", generator: "ActionEngine GLBExporter" },
+             scene: 0,
+             scenes: [{ nodes: [] }],
+             nodes: [],
+             meshes: [],
+             materials: [],
+             buffers: [{ byteLength: totalBufferSize }],
+             bufferViews: [],
+             accessors: [],
+             extensionsUsed: ["KHR_materials_ior"]
+         };
 
         // Create accessor metadata for each mesh (positions, normals, uvs, indices per mesh)
         const meshAccessorData = []; // Maps meshIndex -> { positionAccessor, normalAccessor, uvAccessor, indexAccessors }
@@ -500,6 +501,7 @@ class GLBExporter {
                     let metallic = 0,
                         roughness = 1.0;
                     let emissive = [0, 0, 0];
+                    let ior = 1.5;
 
                     if (group.triangles.length > 0) {
                         const firstTriangle = group.triangles[0];
@@ -511,6 +513,9 @@ class GLBExporter {
                         }
                         if (firstTriangle.emissive !== undefined) {
                             emissive = firstTriangle.emissive;
+                        }
+                        if (firstTriangle.ior !== undefined) {
+                            ior = firstTriangle.ior;
                         }
                     }
 
@@ -525,6 +530,16 @@ class GLBExporter {
 
                     if (emissive[0] !== 0 || emissive[1] !== 0 || emissive[2] !== 0) {
                         material.emissiveFactor = emissive;
+                    }
+
+                    // Add IOR as extension
+                    if (ior !== 1.5) {
+                        if (!material.extensions) {
+                            material.extensions = {};
+                        }
+                        material.extensions.KHR_materials_ior = {
+                            ior: ior
+                        };
                     }
 
                     if (alpha < 1.0) {

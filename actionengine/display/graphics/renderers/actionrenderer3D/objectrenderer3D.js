@@ -717,7 +717,7 @@ class ObjectRenderer3D {
         const materialConfig = this.lightManager.constants.MATERIAL;
         this._uniformCache.roughness = materialConfig.ROUGHNESS.value;
         this._uniformCache.metallic = materialConfig.METALLIC.value;
-        this._uniformCache.baseReflectivity = materialConfig.BASE_REFLECTIVITY.value;
+        this._uniformCache.ior = materialConfig.IOR.value;
     }
 
     _setFrameConstantUniforms(locations, program, camera) {
@@ -776,8 +776,8 @@ class ObjectRenderer3D {
             gl.uniform1f(locations.roughness, this._uniformCache.roughness);
         if (locations.metallic !== -1 && locations.metallic !== null)
             gl.uniform1f(locations.metallic, this._uniformCache.metallic);
-        if (locations.baseReflectivity !== -1 && locations.baseReflectivity !== null)
-            gl.uniform1f(locations.baseReflectivity, this._uniformCache.baseReflectivity);
+        if (locations.ior !== -1 && locations.ior !== null)
+            gl.uniform1f(locations.ior, this._uniformCache.ior);
         if (locations.normalMapStrength !== -1 && locations.normalMapStrength !== null) {
             const strength =
                 this._uniformCache.normalMapStrength !== undefined ? this._uniformCache.normalMapStrength : 1.0;

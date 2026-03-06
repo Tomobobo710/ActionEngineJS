@@ -498,7 +498,7 @@ class ObjectShader {
     // PBR Material properties
     uniform float uRoughness;
     uniform float uMetallic;
-    uniform float uBaseReflectivity;
+    uniform float uIOR;
     uniform sampler2D uMaterialPropertiesTexture;
     
     // Lighting intensity controls
@@ -723,7 +723,7 @@ class ObjectShader {
         // Get material properties
         float roughness = uRoughness;
         float metallic = uMetallic;
-        float baseReflectivity = uBaseReflectivity;
+        float ior = uIOR;
         
         if (vUseTexture > 0.5) {
             // Sample per-texture material properties
@@ -731,11 +731,12 @@ class ObjectShader {
             vec4 materialProps = texture(uMaterialPropertiesTexture, vec2(textureCoord, 0.5));
             roughness = materialProps.r;
             metallic = materialProps.g;
-            baseReflectivity = materialProps.b;
+            ior = materialProps.b;
         }
         
-        // Base reflectivity with metallic mix
-        vec3 baseF0 = mix(vec3(baseReflectivity), baseColor.rgb, metallic);
+        // Calculate F0 from IOR: F0 = ((n - 1) / (n + 1))^2
+        float f0 = pow((ior - 1.0) / (ior + 1.0), 2.0);
+        vec3 baseF0 = mix(vec3(f0), baseColor.rgb, metallic);
         
         // Calculate specular BRDF
         vec3 specular = specularBRDF(N, L, V, baseF0, roughness);

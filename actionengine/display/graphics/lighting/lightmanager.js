@@ -341,7 +341,7 @@ class LightManager {
             MATERIAL: {
                 ROUGHNESS: this.constants.MATERIAL.ROUGHNESS.value,
                 METALLIC: this.constants.MATERIAL.METALLIC.value,
-                BASE_REFLECTIVITY: this.constants.MATERIAL.BASE_REFLECTIVITY.value
+                IOR: this.constants.MATERIAL.IOR.value
             }
         };
         return this._lightConfigCache;

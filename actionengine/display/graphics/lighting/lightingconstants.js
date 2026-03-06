@@ -47,10 +47,10 @@ class LightingConstants {
                 min: 0.0,
                 max: 1.0
             },
-            BASE_REFLECTIVITY: {
-                value: 0.0,
-                min: 0.0,
-                max: 1.0
+            IOR: {
+                value: 1.5,
+                min: 1.0,
+                max: 2.5
             }
         };
 

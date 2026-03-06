@@ -24,6 +24,7 @@ class Triangle {
         this.metallic = 0.0; // 0-1, how metallic the surface is
         this.roughness = 1.0; // 0-1, how rough the surface is
         this.emissive = [0, 0, 0]; // RGB color of emissive glow, [0-1, 0-1, 0-1]
+        this.ior = 1.5; // Index of refraction, affects Fresnel reflections
 
         // Material texture map references (from GLTF)
         this.material = null; // Full material object with texture indices:
@@ -31,6 +32,7 @@ class Triangle {
         // - normalMapIndex: normal map texture
         // - metallicRoughnessMapIndex: packed metallic/roughness texture
         // - emissiveMapIndex: emissive texture
+        // - ior: index of refraction
     }
 
     calculateNormal() {
