@@ -499,6 +499,7 @@ class ObjectShader {
     uniform float uRoughness;
     uniform float uMetallic;
     uniform float uIOR;
+    uniform float uTransmission;
     uniform sampler2D uMaterialPropertiesTexture;
     
     // Lighting intensity controls
@@ -724,14 +725,36 @@ class ObjectShader {
         float roughness = uRoughness;
         float metallic = uMetallic;
         float ior = uIOR;
+        float transmission = uTransmission;
+        float volumeThickness = 0.0;
+        float attenuationDistance = 1.0;
+        vec3 volumeColor = vec3(1.0);
         
         if (vUseTexture > 0.5) {
             // Sample per-texture material properties
-            float textureCoord = (vTextureIndex + 0.5) / float(textureSize(uMaterialPropertiesTexture, 0).x);
+            // Texture is tripled width to store 12 channels (3 RGBA samples per texture)
+            float textureSize = float(textureSize(uMaterialPropertiesTexture, 0).x);
+            float textureSampleIndex = vTextureIndex * 3.0; // Each texture occupies 3 slots
+            float textureCoord = (textureSampleIndex + 0.5) / textureSize;
+            float sampleOffset = 1.0 / textureSize;
+            
+            // First sample: roughness, metallic, ior, transmission
             vec4 materialProps = texture(uMaterialPropertiesTexture, vec2(textureCoord, 0.5));
             roughness = materialProps.r;
             metallic = materialProps.g;
             ior = materialProps.b;
+            transmission = materialProps.a;
+            
+            // Second sample: volumeThickness, volumeAttenuationDistance, volumeColor.r, volumeColor.g
+            vec4 volumeProps = texture(uMaterialPropertiesTexture, vec2(textureCoord + sampleOffset, 0.5));
+            volumeThickness = volumeProps.r;
+            attenuationDistance = volumeProps.g;
+            volumeColor.r = volumeProps.b;
+            volumeColor.g = volumeProps.a;
+            
+            // Third sample: volumeColor.b
+            vec4 volumeProps2 = texture(uMaterialPropertiesTexture, vec2(textureCoord + sampleOffset * 2.0, 0.5));
+            volumeColor.b = volumeProps2.r;
         }
         
         // Calculate F0 from IOR: F0 = ((n - 1) / (n + 1))^2
@@ -882,7 +905,31 @@ class ObjectShader {
         // Add emissive
         color += emissiveColor;
         
-        fragColor = vec4(color, baseColor.a);
+        // Apply volume absorption effect
+        // Volume absorbs light based on thickness and attenuation properties
+        if (volumeThickness > 0.0) {
+            // Calculate absorption factor: stronger with higher thickness, weaker with higher attenuation distance
+            float absorptionFactor = (volumeThickness * volumeThickness) / (1.0 + attenuationDistance);
+            
+            // Apply volumetric absorption: tint color by volume color and reduce brightness
+            color = mix(color, color * volumeColor, absorptionFactor * 0.5);
+            
+            // Reduce overall brightness based on absorption (darker with more thickness)
+            color *= (1.0 - absorptionFactor * 0.3);
+        }
+        
+        // Apply transmission: reduce alpha based on transmission factor
+        // transmission = 0.0: fully opaque (alpha = 1.0)
+        // transmission = 1.0: fully transparent (alpha reduced significantly)
+        float finalAlpha = baseColor.a * (1.0 - transmission);
+        
+        // Apply transmission effect: reduce specular highlights for transparent materials
+        if (transmission > 0.0) {
+            // For transparent materials, reduce specular contribution
+            color *= (1.0 - transmission * 0.3);
+        }
+        
+        fragColor = vec4(color, finalAlpha);
         
         // Logarithmic depth buffer encoding
         // Increases precision for distant fragments

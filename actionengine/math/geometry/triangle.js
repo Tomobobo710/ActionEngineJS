@@ -26,6 +26,44 @@ class Triangle {
         this.emissive = [0, 0, 0]; // RGB color of emissive glow, [0-1, 0-1, 0-1]
         this.ior = 1.5; // Index of refraction, affects Fresnel reflections
 
+        // KHR_materials_transmission - transparency with refraction
+        this.transmission = 0.0; // 0-1, factor controlling how much light passes through
+
+        // KHR_materials_volume - absorption and thickness effects
+        this.volume = {
+            thicknessFactor: 0.0,      // 0-1, thickness of the volume
+            attenuationDistance: 1.0,  // Infinity or distance in world units
+            attenuationColor: [1, 1, 1] // RGB, color of absorbed light
+        };
+
+        // KHR_materials_sheen - fabric/cloth materials
+        this.sheen = {
+            colorFactor: [0, 0, 0],    // RGB, sheen color
+            roughnessFactor: 0.0       // 0-1, sheen surface roughness
+        };
+
+        // KHR_materials_clearcoat - clear coat layer
+        this.clearcoat = {
+            factor: 0.0,               // 0-1, clearcoat coverage
+            roughnessFactor: 0.0       // 0-1, clearcoat roughness
+        };
+
+        // KHR_materials_anisotropy - directional roughness
+        this.anisotropy = {
+            strength: 0.0,             // 0-1, anisotropy strength
+            rotation: 0.0              // 0-1, normalized rotation angle
+        };
+
+        // KHR_materials_dispersion - wavelength-dependent refraction
+        this.dispersion = 0.0;         // Abbe number, typically 20-100
+
+        // KHR_materials_iridescence - thin-film interference
+        this.iridescence = {
+            factor: 0.0,               // 0-1, iridescence strength
+            ior: 1.3,                  // Index of refraction for iridescent layer
+            thickness: 0.0             // Layer thickness in micrometers
+        };
+
         // Material texture map references (from GLTF)
         this.material = null; // Full material object with texture indices:
         // - textureIndex: base color texture

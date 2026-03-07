@@ -36,6 +36,11 @@ class TextureSet {
         this.textures = [...model.textures];
         this.textureMetadata = [...model.textureMetadata];
         
+        // Extract material properties from model triangles (GLB extension data)
+        if (model.triangles && model.triangles.length > 0) {
+            this._extractMaterialPropertiesFromTriangles(model.triangles, model.textureMetadata);
+        }
+        
         // Load images asynchronously
         const loadedImages = await this._loadImages();
         
@@ -149,31 +154,54 @@ class TextureSet {
         const gl = this.gl;
         const textureCount = this.textures.length;
 
-        // Default PBR properties
+        // Default PBR + transmission + volume properties
         const defaults = {
             roughness: 0.8,
             metallic: 0.0,
-            ior: 1.5
+            ior: 1.5,
+            transmission: 0.0,
+            volume: {
+                thicknessFactor: 0.0,
+                attenuationDistance: 1.0,
+                attenuationColor: [1, 1, 1]
+            }
         };
 
-        // Build properties array
-        const data = new Float32Array(textureCount * 4);
+        // Build properties array - 12 values per texture (3 RGBA32F samples)
+        // First RGBA: roughness, metallic, ior, transmission
+        // Second RGBA: volumeThickness, volumeAttenuationDistance, volumeColor.r, volumeColor.g
+        // Third RGBA: volumeColor.b, reserved, reserved, reserved
+        const data = new Float32Array(textureCount * 12);
         for (let i = 0; i < textureCount; i++) {
-            const props = this.materialProperties.get(i) || defaults;
-            data[i * 4] = props.roughness;
-            data[i * 4 + 1] = props.metallic;
-            data[i * 4 + 2] = props.ior;
-            data[i * 4 + 3] = 0; // reserved
+            const textureName = this.textureMetadata[i]?.name || `texture_${i}`;
+            const props = this.materialProperties.get(textureName) || defaults;
+            const volume = props.volume || defaults.volume;
+            // First sample (RGBA)
+            data[i * 12 + 0] = props.roughness;
+            data[i * 12 + 1] = props.metallic;
+            data[i * 12 + 2] = props.ior;
+            data[i * 12 + 3] = props.transmission ?? 0.0;
+            // Second sample (RGBA)
+            data[i * 12 + 4] = volume.thicknessFactor ?? 0.0;
+            data[i * 12 + 5] = volume.attenuationDistance ?? 1.0;
+            data[i * 12 + 6] = volume.attenuationColor?.[0] ?? 1.0;
+            data[i * 12 + 7] = volume.attenuationColor?.[1] ?? 1.0;
+            // Third sample (RGBA)
+            data[i * 12 + 8] = volume.attenuationColor?.[2] ?? 1.0;
+            data[i * 12 + 9] = 0; // reserved
+            data[i * 12 + 10] = 0; // reserved
+            data[i * 12 + 11] = 0; // reserved
         }
 
-        // Create 1D texture
+        // Create 1D texture using tripled width to store 12 channels per texture
+        // Format: (textureCount * 3, 1) with RGBA32F
         this.materialPropertiesTexture = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, this.materialPropertiesTexture);
         gl.texImage2D(
             gl.TEXTURE_2D,
             0,
             gl.RGBA32F,
-            textureCount,
+            textureCount * 3,  // Triple width to store 12 channels per texture
             1,
             0,
             gl.RGBA,
@@ -196,11 +224,131 @@ class TextureSet {
     }
 
     /**
+     * Extract material properties from model triangles (GLB KHR extensions)
+     * @private
+     */
+    _extractMaterialPropertiesFromTriangles(triangles, textureMetadata) {
+        // Collect material properties by texture index from all triangles
+        const propertiesByIndex = new Map();
+
+        triangles.forEach(triangle => {
+            // Find which texture this triangle uses
+            let textureIndex = -1;
+            if (triangle.material && triangle.material.textureIndex !== undefined) {
+                textureIndex = triangle.material.textureIndex;
+            }
+
+            if (textureIndex >= 0 && textureIndex < textureMetadata.length) {
+                const textureName = textureMetadata[textureIndex]?.name;
+                if (!textureName) return;
+
+                // Use the first triangle's properties for this texture
+                if (!propertiesByIndex.has(textureName)) {
+                    const props = {
+                        roughness: triangle.roughness ?? 0.8,
+                        metallic: triangle.metallic ?? 0.0,
+                        ior: triangle.ior ?? 1.5,
+                        transmission: triangle.transmission ?? 0.0
+                    };
+
+                    // Add volume properties if present
+                    if (triangle.volume) {
+                        props.volume = { ...triangle.volume };
+                    }
+                    if (triangle.sheen) {
+                        props.sheen = { ...triangle.sheen };
+                    }
+                    if (triangle.clearcoat) {
+                        props.clearcoat = { ...triangle.clearcoat };
+                    }
+                    if (triangle.anisotropy) {
+                        props.anisotropy = { ...triangle.anisotropy };
+                    }
+                    if (triangle.dispersion !== undefined) {
+                        props.dispersion = triangle.dispersion;
+                    }
+                    if (triangle.iridescence) {
+                        props.iridescence = { ...triangle.iridescence };
+                    }
+
+                    propertiesByIndex.set(textureName, props);
+                }
+            }
+        });
+
+        // Store extracted properties
+        propertiesByIndex.forEach((props, textureName) => {
+            this.materialProperties.set(textureName, props);
+        });
+    }
+
+    /**
      * Set material properties for a specific texture in this set
      */
     setMaterialProperties(textureIndex, props) {
         this.materialProperties.set(textureIndex, props);
         // Could regenerate material properties texture, but for now just store
+    }
+
+    /**
+     * Update the material properties texture on the GPU with current CPU-side values
+     * Call this after modifying materialProperties via setMaterialProperties
+     */
+    updateMaterialPropertiesTexture() {
+        if (!this.materialPropertiesReady || !this.materialPropertiesTexture) return;
+
+        const gl = this.gl;
+        const textureCount = this.textures.length;
+
+        // Default PBR + transmission + volume properties
+        const defaults = {
+            roughness: 0.8,
+            metallic: 0.0,
+            ior: 1.5,
+            transmission: 0.0,
+            volume: {
+                thicknessFactor: 0.0,
+                attenuationDistance: 1.0,
+                attenuationColor: [1, 1, 1]
+            }
+        };
+
+        // Rebuild properties array with current materialProperties
+        // 12 values per texture (3 RGBA32F samples)
+        const data = new Float32Array(textureCount * 12);
+        for (let i = 0; i < textureCount; i++) {
+            const textureName = this.textureMetadata[i]?.name || `texture_${i}`;
+            const props = this.materialProperties.get(textureName) || defaults;
+            const volume = props.volume || defaults.volume;
+            // First sample (RGBA)
+            data[i * 12 + 0] = props.roughness;
+            data[i * 12 + 1] = props.metallic;
+            data[i * 12 + 2] = props.ior;
+            data[i * 12 + 3] = props.transmission ?? 0.0;
+            // Second sample (RGBA)
+            data[i * 12 + 4] = volume.thicknessFactor ?? 0.0;
+            data[i * 12 + 5] = volume.attenuationDistance ?? 1.0;
+            data[i * 12 + 6] = volume.attenuationColor?.[0] ?? 1.0;
+            data[i * 12 + 7] = volume.attenuationColor?.[1] ?? 1.0;
+            // Third sample (RGBA)
+            data[i * 12 + 8] = volume.attenuationColor?.[2] ?? 1.0;
+            data[i * 12 + 9] = 0; // reserved
+            data[i * 12 + 10] = 0; // reserved
+            data[i * 12 + 11] = 0; // reserved
+        }
+
+        // Update texture data on GPU
+        gl.bindTexture(gl.TEXTURE_2D, this.materialPropertiesTexture);
+        gl.texSubImage2D(
+            gl.TEXTURE_2D,
+            0,
+            0, 0,
+            textureCount * 3,
+            1,
+            gl.RGBA,
+            gl.FLOAT,
+            data
+        );
     }
 
     /**

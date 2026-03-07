@@ -562,6 +562,27 @@ class GLBLoader {
                 if (material.ior !== undefined) {
                     triangle.ior = material.ior;
                 }
+                if (material.transmission !== undefined) {
+                    triangle.transmission = material.transmission;
+                }
+                if (material.volume) {
+                    triangle.volume = material.volume;
+                }
+                if (material.sheen) {
+                    triangle.sheen = material.sheen;
+                }
+                if (material.clearcoat) {
+                    triangle.clearcoat = material.clearcoat;
+                }
+                if (material.anisotropy) {
+                    triangle.anisotropy = material.anisotropy;
+                }
+                if (material.dispersion !== undefined) {
+                    triangle.dispersion = material.dispersion;
+                }
+                if (material.iridescence) {
+                    triangle.iridescence = material.iridescence;
+                }
                 // Store material with all texture map indices
                 triangle.material = material;
             }
@@ -714,6 +735,63 @@ class GLBLoader {
         // Extract IOR from KHR_materials_ior extension
         if (material.extensions?.KHR_materials_ior?.ior !== undefined) {
             materialData.ior = material.extensions.KHR_materials_ior.ior;
+        }
+
+        // Extract KHR_materials_transmission
+        if (material.extensions?.KHR_materials_transmission?.transmissionFactor !== undefined) {
+            materialData.transmission = material.extensions.KHR_materials_transmission.transmissionFactor;
+        }
+
+        // Extract KHR_materials_volume
+        if (material.extensions?.KHR_materials_volume) {
+            const vol = material.extensions.KHR_materials_volume;
+            materialData.volume = {
+                thicknessFactor: vol.thicknessFactor ?? 0.0,
+                attenuationDistance: vol.attenuationDistance ?? 1.0,
+                attenuationColor: vol.attenuationColorFactor ?? [1, 1, 1]
+            };
+        }
+
+        // Extract KHR_materials_sheen
+        if (material.extensions?.KHR_materials_sheen) {
+            const sheen = material.extensions.KHR_materials_sheen;
+            materialData.sheen = {
+                colorFactor: sheen.sheenColorFactor ?? [0, 0, 0],
+                roughnessFactor: sheen.sheenRoughnessFactor ?? 0.0
+            };
+        }
+
+        // Extract KHR_materials_clearcoat
+        if (material.extensions?.KHR_materials_clearcoat) {
+            const cc = material.extensions.KHR_materials_clearcoat;
+            materialData.clearcoat = {
+                factor: cc.clearcoatFactor ?? 0.0,
+                roughnessFactor: cc.clearcoatRoughnessFactor ?? 0.0
+            };
+        }
+
+        // Extract KHR_materials_anisotropy
+        if (material.extensions?.KHR_materials_anisotropy) {
+            const aniso = material.extensions.KHR_materials_anisotropy;
+            materialData.anisotropy = {
+                strength: aniso.anisotropyStrength ?? 0.0,
+                rotation: aniso.anisotropyRotation ?? 0.0
+            };
+        }
+
+        // Extract KHR_materials_dispersion
+        if (material.extensions?.KHR_materials_dispersion?.dispersiveIor !== undefined) {
+            materialData.dispersion = material.extensions.KHR_materials_dispersion.dispersiveIor;
+        }
+
+        // Extract KHR_materials_iridescence
+        if (material.extensions?.KHR_materials_iridescence) {
+            const irid = material.extensions.KHR_materials_iridescence;
+            materialData.iridescence = {
+                factor: irid.iridescenceFactor ?? 0.0,
+                ior: irid.iridescenceIor ?? 1.3,
+                thickness: irid.iridescenceThickness ?? 0.0
+            };
         }
 
         return materialData;

@@ -51,6 +51,26 @@ class LightingConstants {
                 value: 1.5,
                 min: 1.0,
                 max: 2.5
+            },
+            TRANSMISSION: {
+                value: 0.0,
+                min: 0.0,
+                max: 1.0
+            },
+            VOLUME_THICKNESS: {
+                value: 0.0,
+                min: 0.0,
+                max: 1.0
+            },
+            VOLUME_ATTENUATION_DISTANCE: {
+                value: 1.0,
+                min: 0.0,
+                max: 10.0
+            },
+            VOLUME_COLOR: {
+                r: 1.0,
+                g: 1.0,
+                b: 1.0
             }
         };
 

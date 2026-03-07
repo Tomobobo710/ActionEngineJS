@@ -362,7 +362,7 @@ class GLBExporter {
              buffers: [{ byteLength: totalBufferSize }],
              bufferViews: [],
              accessors: [],
-             extensionsUsed: ["KHR_materials_ior"]
+             extensionsUsed: ["KHR_materials_ior", "KHR_materials_transmission", "KHR_materials_volume", "KHR_materials_sheen", "KHR_materials_clearcoat", "KHR_materials_anisotropy", "KHR_materials_dispersion", "KHR_materials_iridescence"]
          };
 
         // Create accessor metadata for each mesh (positions, normals, uvs, indices per mesh)
@@ -532,14 +532,83 @@ class GLBExporter {
                         material.emissiveFactor = emissive;
                     }
 
+                    // Initialize extensions object if needed
+                    if (!material.extensions) {
+                        material.extensions = {};
+                    }
+
                     // Add IOR as extension
                     if (ior !== 1.5) {
-                        if (!material.extensions) {
-                            material.extensions = {};
-                        }
                         material.extensions.KHR_materials_ior = {
                             ior: ior
                         };
+                    }
+
+                    // Add transmission extension
+                    if (group.triangles.length > 0) {
+                        const firstTriangle = group.triangles[0];
+                        
+                        // KHR_materials_transmission
+                        if (firstTriangle.transmission !== undefined && firstTriangle.transmission > 0) {
+                            material.extensions.KHR_materials_transmission = {
+                                transmissionFactor: firstTriangle.transmission
+                            };
+                        }
+
+                        // KHR_materials_volume
+                        if (firstTriangle.volume && (firstTriangle.volume.thicknessFactor > 0 || 
+                            firstTriangle.volume.attenuationDistance !== Infinity)) {
+                            material.extensions.KHR_materials_volume = {
+                                thicknessFactor: firstTriangle.volume.thicknessFactor,
+                                attenuationDistance: firstTriangle.volume.attenuationDistance,
+                                attenuationColorFactor: firstTriangle.volume.attenuationColor
+                            };
+                        }
+
+                        // KHR_materials_sheen
+                        if (firstTriangle.sheen && (firstTriangle.sheen.colorFactor[0] > 0 || 
+                            firstTriangle.sheen.colorFactor[1] > 0 || firstTriangle.sheen.colorFactor[2] > 0 ||
+                            firstTriangle.sheen.roughnessFactor > 0)) {
+                            material.extensions.KHR_materials_sheen = {
+                                sheenColorFactor: firstTriangle.sheen.colorFactor,
+                                sheenRoughnessFactor: firstTriangle.sheen.roughnessFactor
+                            };
+                        }
+
+                        // KHR_materials_clearcoat
+                        if (firstTriangle.clearcoat && (firstTriangle.clearcoat.factor > 0 || 
+                            firstTriangle.clearcoat.roughnessFactor > 0)) {
+                            material.extensions.KHR_materials_clearcoat = {
+                                clearcoatFactor: firstTriangle.clearcoat.factor,
+                                clearcoatRoughnessFactor: firstTriangle.clearcoat.roughnessFactor
+                            };
+                        }
+
+                        // KHR_materials_anisotropy
+                        if (firstTriangle.anisotropy && (firstTriangle.anisotropy.strength > 0 || 
+                            firstTriangle.anisotropy.rotation > 0)) {
+                            material.extensions.KHR_materials_anisotropy = {
+                                anisotropyStrength: firstTriangle.anisotropy.strength,
+                                anisotropyRotation: firstTriangle.anisotropy.rotation
+                            };
+                        }
+
+                        // KHR_materials_dispersion
+                        if (firstTriangle.dispersion !== undefined && firstTriangle.dispersion > 0) {
+                            material.extensions.KHR_materials_dispersion = {
+                                dispersiveIor: firstTriangle.dispersion
+                            };
+                        }
+
+                        // KHR_materials_iridescence
+                        if (firstTriangle.iridescence && (firstTriangle.iridescence.factor > 0 || 
+                            firstTriangle.iridescence.thickness > 0)) {
+                            material.extensions.KHR_materials_iridescence = {
+                                iridescenceFactor: firstTriangle.iridescence.factor,
+                                iridescenceIor: firstTriangle.iridescence.ior,
+                                iridescenceThickness: firstTriangle.iridescence.thickness
+                            };
+                        }
                     }
 
                     if (alpha < 1.0) {

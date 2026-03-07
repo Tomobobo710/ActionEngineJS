@@ -718,6 +718,7 @@ class ObjectRenderer3D {
         this._uniformCache.roughness = materialConfig.ROUGHNESS.value;
         this._uniformCache.metallic = materialConfig.METALLIC.value;
         this._uniformCache.ior = materialConfig.IOR.value;
+        this._uniformCache.transmission = materialConfig.TRANSMISSION.value;
     }
 
     _setFrameConstantUniforms(locations, program, camera) {
@@ -778,6 +779,8 @@ class ObjectRenderer3D {
             gl.uniform1f(locations.metallic, this._uniformCache.metallic);
         if (locations.ior !== -1 && locations.ior !== null)
             gl.uniform1f(locations.ior, this._uniformCache.ior);
+        if (locations.transmission !== -1 && locations.transmission !== null)
+            gl.uniform1f(locations.transmission, this._uniformCache.transmission);
         if (locations.normalMapStrength !== -1 && locations.normalMapStrength !== null) {
             const strength =
                 this._uniformCache.normalMapStrength !== undefined ? this._uniformCache.normalMapStrength : 1.0;
