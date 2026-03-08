@@ -238,66 +238,6 @@ class GLBLoader {
     }
 
     /**
-     * Processes mesh data from the GLTF JSON and creates triangle geometry.
-     * LEGACY: Use loadMeshesWithObjects for new code
-     * @param {GLBLoader} model - The loader instance to store processed mesh data
-     * @param {Object} gltf - The parsed GLTF JSON data
-     * @param {ArrayBuffer} binaryData - The binary buffer containing geometry data
-     * @private
-     */
-    static loadMeshes(model, gltf, binaryData) {
-        if (!gltf.meshes) return;
-
-        // Process meshes per node to support instancing (multiple nodes referencing the same mesh)
-        if (gltf.nodes) {
-            for (let nodeIdx = 0; nodeIdx < gltf.nodes.length; nodeIdx++) {
-                const nodeData = gltf.nodes[nodeIdx];
-                if (nodeData.mesh !== undefined) {
-                    const meshIdx = nodeData.mesh;
-                    const mesh = gltf.meshes[meshIdx];
-                    const meshData = {
-                        name: mesh.name || `mesh_${model.meshes.length}`,
-                        primitives: [],
-                        nodeMatrix: model.nodes[nodeIdx].matrix
-                    };
-
-                    for (const primitive of mesh.primitives) {
-                        const primData = {
-                            positions: GLBLoader.getAttributeData(primitive.attributes.POSITION, gltf, binaryData),
-                            indices: GLBLoader.getIndexData(primitive.indices, gltf, binaryData),
-                            joints: primitive.attributes.JOINTS_0
-                                ? GLBLoader.getAttributeData(primitive.attributes.JOINTS_0, gltf, binaryData)
-                                : null,
-                            weights: primitive.attributes.WEIGHTS_0
-                                ? GLBLoader.getAttributeData(primitive.attributes.WEIGHTS_0, gltf, binaryData)
-                                : null,
-                            material:
-                                primitive.material !== undefined
-                                    ? GLBLoader.getMaterialData(gltf.materials[primitive.material], gltf)
-                                    : { useTexture: false, textureIndex: -1, color: null },
-                            nodeMatrix: model.nodes[nodeIdx].matrix
-                        };
-
-                        // Extract UV coordinates if present
-                        if (primitive.attributes.TEXCOORD_0) {
-                            primData.texCoords = GLBLoader.getAttributeData(
-                                primitive.attributes.TEXCOORD_0,
-                                gltf,
-                                binaryData
-                            );
-                        }
-
-                        GLBLoader.addPrimitiveTriangles(model, primData);
-                        meshData.primitives.push(primData);
-                    }
-
-                    model.meshes.push(meshData);
-                }
-            }
-        }
-    }
-
-    /**
      * Load meshes and create RenderableObjects for ActionModel3D
      * Creates one RenderableObject per mesh node, preserving hierarchy
      * @param {ActionModel3D} model - ActionModel3D to populate with objects
@@ -369,6 +309,15 @@ class GLBLoader {
                         if (primitive.attributes.TEXCOORD_0) {
                             primData.texCoords = GLBLoader.getAttributeData(
                                 primitive.attributes.TEXCOORD_0,
+                                gltf,
+                                binaryData
+                            );
+                        }
+
+                        // Extract vertex normals if present (for smooth shading from Blender)
+                        if (primitive.attributes.NORMAL) {
+                            primData.normals = GLBLoader.getAttributeData(
+                                primitive.attributes.NORMAL,
                                 gltf,
                                 binaryData
                             );
@@ -446,15 +395,13 @@ class GLBLoader {
 
     /**
      * Create Triangle objects from primitive data
-     * Uses existing addPrimitiveTriangles logic to ensure consistency
      * @param {Object} primData - Primitive data with positions, indices, material
      * @param {GLBLoader} loader - GLBLoader instance for texture access
      * @returns {Triangle[]} Array of Triangle objects
      * @private
      */
     static createTrianglesFromPrimitive(primData, loader) {
-        // Reuse the existing addPrimitiveTriangles logic but return triangles instead of adding to model
-        const { positions, indices, joints, weights, material, texCoords, nodeMatrix } = primData;
+        const { positions, indices, joints, weights, material, texCoords, nodeMatrix, normals } = primData;
         const triangles = [];
 
         // Calculate tangents if we have UV coordinates (needed for normal mapping)
@@ -507,6 +454,9 @@ class GLBLoader {
             // Get tangent for this vertex
             const tangent = tangents ? new Vector3(tangents[i * 3], tangents[i * 3 + 1], tangents[i * 3 + 2]) : null;
 
+            // Get vertex normal if available (from Blender smoothing)
+            const normal = normals ? new Vector3(normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2]) : null;
+
             // Create a key for deduplication including UV (position + UV = unique vertex in rendering)
             // Use full precision to avoid collapsing nearly-identical vertices
             const uvStr = uv ? `${uv.u},${uv.v}` : "0,0";
@@ -527,6 +477,7 @@ class GLBLoader {
                 poolIndex: vertexIdx,
                 position: position,
                 tangent: tangent,
+                normal: normal,
                 jointIndices: joints ? [joints[i * 4], joints[i * 4 + 1], joints[i * 4 + 2], joints[i * 4 + 3]] : null,
                 weights: weights ? [weights[i * 4], weights[i * 4 + 1], weights[i * 4 + 2], weights[i * 4 + 3]] : null,
                 uv: uv
@@ -544,6 +495,15 @@ class GLBLoader {
             }
 
             const triangle = new Triangle(vertices[0].position, vertices[1].position, vertices[2].position, color);
+
+            // If vertex normals were loaded from GLB, assign them for smooth shading
+            if (vertices[0].normal || vertices[1].normal || vertices[2].normal) {
+                triangle.vertexNormals = [
+                    vertices[0].normal || new Vector3(triangle.normal.x, triangle.normal.y, triangle.normal.z),
+                    vertices[1].normal || new Vector3(triangle.normal.x, triangle.normal.y, triangle.normal.z),
+                    vertices[2].normal || new Vector3(triangle.normal.x, triangle.normal.y, triangle.normal.z)
+                ];
+            }
 
             // Apply material properties to triangle
             if (material) {
@@ -968,152 +928,6 @@ class GLBLoader {
         return accessor.componentType === 5125
             ? new Uint32Array(binaryData, byteOffset, accessor.count)
             : new Uint16Array(binaryData, byteOffset, accessor.count);
-    }
-
-    /**
-     * Processes primitive data into triangles with vertex attributes.
-     * Creates triangle geometry with positions, joint weights, and material data.
-     * @param {GLBLoader} model - The loader instance to store processed triangles
-     * @param {Object} primitive - Primitive data containing positions, indices, joints, weights
-     * @private
-     */
-    static addPrimitiveTriangles(model, primitive) {
-        const { positions, indices, joints, weights, material, texCoords, nodeMatrix } = primitive;
-
-        // Compute smooth vertex normals for all models
-        const normals = new Float32Array(positions.length);
-        for (let i = 0; i < indices.length; i += 3) {
-            const i0 = indices[i];
-            const i1 = indices[i + 1];
-            const i2 = indices[i + 2];
-
-            const p0 = new Vector3(positions[i0 * 3], positions[i0 * 3 + 1], positions[i0 * 3 + 2]);
-            const p1 = new Vector3(positions[i1 * 3], positions[i1 * 3 + 1], positions[i1 * 3 + 2]);
-            const p2 = new Vector3(positions[i2 * 3], positions[i2 * 3 + 1], positions[i2 * 3 + 2]);
-
-            const edge1 = p1.sub(p0);
-            const edge2 = p2.sub(p0);
-            const faceNormal = edge1.cross(edge2);
-
-            // Accumulate face normal to all vertices
-            for (const idx of [i0, i1, i2]) {
-                normals[idx * 3] += faceNormal.x;
-                normals[idx * 3 + 1] += faceNormal.y;
-                normals[idx * 3 + 2] += faceNormal.z;
-            }
-        }
-
-        // Normalize the computed normals
-        for (let i = 0; i < normals.length; i += 3) {
-            const len = Math.sqrt(
-                normals[i] * normals[i] + normals[i + 1] * normals[i + 1] + normals[i + 2] * normals[i + 2]
-            );
-            if (len > 0.001) {
-                normals[i] /= len;
-                normals[i + 1] /= len;
-                normals[i + 2] /= len;
-            }
-        }
-
-        // First create all vertices
-        const vertexData = [];
-        for (let i = 0; i < positions.length / 3; i++) {
-            let position = new Vector3(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]);
-
-            // Apply node transform if available (but NOT for skeletal meshes - joints handle transforms)
-            if (nodeMatrix && !joints) {
-                // Transform position by node matrix: p' = M * p
-                const x = position.x,
-                    y = position.y,
-                    z = position.z;
-                position.x = nodeMatrix[0] * x + nodeMatrix[4] * y + nodeMatrix[8] * z + nodeMatrix[12];
-                position.y = nodeMatrix[1] * x + nodeMatrix[5] * y + nodeMatrix[9] * z + nodeMatrix[13];
-                position.z = nodeMatrix[2] * x + nodeMatrix[6] * y + nodeMatrix[10] * z + nodeMatrix[14];
-            }
-
-            // Get per-vertex normal for smooth shading
-            const normal = new Vector3(normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2]);
-
-            vertexData.push({
-                position: position,
-                normal: normal,
-                jointIndices: joints ? [joints[i * 4], joints[i * 4 + 1], joints[i * 4 + 2], joints[i * 4 + 3]] : null,
-                weights: weights ? [weights[i * 4], weights[i * 4 + 1], weights[i * 4 + 2], weights[i * 4 + 3]] : null,
-                uv: texCoords ? { u: texCoords[i * 2], v: texCoords[i * 2 + 1] } : null
-            });
-        }
-
-        // Track material indices used in this primitive
-        const materialIndicesUsed = new Set();
-
-        // Then create triangles using indices
-        for (let i = 0; i < indices.length; i += 3) {
-            const vertices = [vertexData[indices[i]], vertexData[indices[i + 1]], vertexData[indices[i + 2]]];
-
-            // Extract color from material object, use white as default for textured models
-            let color = "#FFFFFF";
-            if (material && material.color) {
-                color = material.color;
-            }
-
-            const triangle = new Triangle(vertices[0].position, vertices[1].position, vertices[2].position, color);
-
-            // Apply material properties to triangle
-            if (material) {
-                // Alpha
-                if (material.alpha !== undefined) {
-                    triangle.alpha = material.alpha;
-                }
-
-                // PBR properties
-                if (material.metallic !== undefined) {
-                    triangle.metallic = material.metallic;
-                }
-                if (material.roughness !== undefined) {
-                    triangle.roughness = material.roughness;
-                }
-                if (material.emissive !== undefined) {
-                    triangle.emissive = material.emissive;
-                }
-
-                // Store full material data on triangle for texture sampling in shader
-                triangle.material = material;
-                if (material.useTexture && material.textureIndex >= 0) {
-                    materialIndicesUsed.add(material.textureIndex);
-                } else if (!material.useTexture) {
-                    // Track non-textured primitives
-                    if (!model.nonTexturedPrimitives) {
-                        model.nonTexturedPrimitives = [];
-                    }
-                    model.nonTexturedPrimitives.push(material.color);
-                }
-            }
-
-            // Store UV coordinates from vertices if available
-            if (texCoords) {
-                triangle.uvs = vertices.map((v) => v.uv);
-            }
-
-            // Attach texture image data to triangle if it uses a texture
-            if (material && material.useTexture && material.textureIndex >= 0) {
-                const textureIndex = material.textureIndex;
-                if (model.textures[textureIndex]) {
-                    triangle.texture = {
-                        imageData: model.textures[textureIndex],
-                        mimeType: model.textureMetadata[textureIndex]?.mimeType || "image/png",
-                        name: model.textureMetadata[textureIndex]?.name || `texture_${textureIndex}`,
-                        materialName: material.name || null // Preserve original material name from GLB
-                    };
-                }
-            }
-
-            if (joints && weights) {
-                triangle.jointData = vertices.map((v) => v.jointIndices);
-                triangle.weightData = vertices.map((v) => v.weights);
-            }
-
-            model.triangles.push(triangle);
-        }
     }
 }
 

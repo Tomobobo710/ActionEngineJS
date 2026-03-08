@@ -45,10 +45,15 @@ class ActionPhysicsBox3D extends ActionPhysicsObject3D {
             faceColors = Array(6).fill("#228B22");
         }
 
-        // Helper to create face vertices
+        // Helper to create face with duplicate vertices (for hard edges)
         const createFace = (v1, v2, v3, v4, faceIndex) => {
-            triangles.push(new Triangle(v1, v2, v3, faceColors[faceIndex]));
-            triangles.push(new Triangle(v1, v3, v4, faceColors[faceIndex]));
+            // Create new vertex instances for this face (don't share with adjacent faces)
+            const vert1 = new Vector3(v1.x, v1.y, v1.z);
+            const vert2 = new Vector3(v2.x, v2.y, v2.z);
+            const vert3 = new Vector3(v3.x, v3.y, v3.z);
+            const vert4 = new Vector3(v4.x, v4.y, v4.z);
+            triangles.push(new Triangle(vert1, vert3, vert2, faceColors[faceIndex]));
+            triangles.push(new Triangle(vert1, vert4, vert3, faceColors[faceIndex]));
         };
 
         // Half dimensions for vertex creation
@@ -56,71 +61,62 @@ class ActionPhysicsBox3D extends ActionPhysicsObject3D {
         const hh = height / 2;
         const hd = depth / 2;
 
-        // Create vertices for each face
-        const vertices = {
-            frontTopLeft: new Vector3(-hw, hh, hd),
-            frontTopRight: new Vector3(hw, hh, hd),
-            frontBottomRight: new Vector3(hw, -hh, hd),
-            frontBottomLeft: new Vector3(-hw, -hh, hd),
-            backTopLeft: new Vector3(-hw, hh, -hd),
-            backTopRight: new Vector3(hw, hh, -hd),
-            backBottomRight: new Vector3(hw, -hh, -hd),
-            backBottomLeft: new Vector3(-hw, -hh, -hd)
-        };
-
         // Create all six faces with their respective colors
-        // Front face
+        // Each face gets its own duplicate vertices (24 total) so they don't share corners
+        // This ensures hard edges between faces instead of smooth shading across boundaries
+        
+        // Front face (z = hd)
         createFace(
-            vertices.frontBottomLeft,
-            vertices.frontBottomRight,
-            vertices.frontTopRight,
-            vertices.frontTopLeft,
-            0 // Index for front face color
+            new Vector3(hw, hh, hd),      // TR
+            new Vector3(hw, -hh, hd),     // BR
+            new Vector3(-hw, -hh, hd),    // BL
+            new Vector3(-hw, hh, hd),     // TL
+            0
         );
 
-        // Back face
+        // Back face (z = -hd)
         createFace(
-            vertices.backBottomRight,
-            vertices.backBottomLeft,
-            vertices.backTopLeft,
-            vertices.backTopRight,
-            1 // Index for back face color
+            new Vector3(-hw, hh, -hd),    // TR
+            new Vector3(-hw, -hh, -hd),   // BR
+            new Vector3(hw, -hh, -hd),    // BL
+            new Vector3(hw, hh, -hd),     // TL
+            1
         );
 
-        // Top face
+        // Top face (y = hh)
         createFace(
-            vertices.frontTopLeft,
-            vertices.frontTopRight,
-            vertices.backTopRight,
-            vertices.backTopLeft,
-            2 // Index for top face color
+            new Vector3(hw, hh, -hd),     // TR
+            new Vector3(hw, hh, hd),      // BR
+            new Vector3(-hw, hh, hd),     // BL
+            new Vector3(-hw, hh, -hd),    // TL
+            2
         );
 
-        // Bottom face
+        // Bottom face (y = -hh)
         createFace(
-            vertices.frontBottomRight,
-            vertices.frontBottomLeft,
-            vertices.backBottomLeft,
-            vertices.backBottomRight,
-            3 // Index for bottom face color
+            new Vector3(hw, -hh, hd),     // TR
+            new Vector3(hw, -hh, -hd),    // BR
+            new Vector3(-hw, -hh, -hd),   // BL
+            new Vector3(-hw, -hh, hd),    // TL
+            3
         );
 
-        // Right face
+        // Right face (x = hw)
         createFace(
-            vertices.frontBottomRight,
-            vertices.backBottomRight,
-            vertices.backTopRight,
-            vertices.frontTopRight,
-            4 // Index for right face color
+            new Vector3(hw, hh, -hd),     // TR
+            new Vector3(hw, -hh, -hd),    // BR
+            new Vector3(hw, -hh, hd),     // BL
+            new Vector3(hw, hh, hd),      // TL
+            4
         );
 
-        // Left face
+        // Left face (x = -hw)
         createFace(
-            vertices.backBottomLeft,
-            vertices.frontBottomLeft,
-            vertices.frontTopLeft,
-            vertices.backTopLeft,
-            5 // Index for left face color
+            new Vector3(-hw, hh, hd),     // TR
+            new Vector3(-hw, -hh, hd),    // BR
+            new Vector3(-hw, -hh, -hd),   // BL
+            new Vector3(-hw, hh, -hd),    // TL
+            5
         );
 
         super(physicsWorld, triangles, options);

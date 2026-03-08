@@ -17,6 +17,11 @@ class Triangle {
         // Needed for normal map calculations in tangent space
         this.tangents = null;
 
+        // Vertex normals: array of 3 Vector3 objects (one per vertex)
+        // Used for smooth shading - averages normals from adjacent triangles
+        // If null, renderer falls back to face normal for all vertices (flat shading)
+        this.vertexNormals = null;
+
         // Alpha transparency (0-1), used in materials
         this.alpha = 1.0;
 

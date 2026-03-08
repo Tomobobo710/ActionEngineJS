@@ -125,6 +125,7 @@ class ActionModel3D {
         toTriangle.uvs = fromTriangle.uvs;
         toTriangle.texture = fromTriangle.texture;
         toTriangle.tangents = fromTriangle.tangents;
+        toTriangle.vertexNormals = fromTriangle.vertexNormals;
         toTriangle.jointData = fromTriangle.jointData;
         toTriangle.weightData = fromTriangle.weightData;
     }

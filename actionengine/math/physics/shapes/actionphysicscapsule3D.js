@@ -155,7 +155,10 @@ class ActionPhysicsCapsule3D extends ActionPhysicsObject3D {
             }
         }
 
-        // Rest of constructor remains the same
+        // Compute smooth vertex normals for curved sides (caps and cylinder)
+        // Keep flat cap edges hard by not smoothing the pole vertices
+        ActionPhysicsCapsule3D._computeSmoothVertexNormalsForCapsule(triangles, radialSegments, heightSegments, capSegments);
+
         super(physicsWorld, triangles);
 
         const shape = new Goblin.CapsuleShape(radius, height);
@@ -166,6 +169,65 @@ class ActionPhysicsCapsule3D extends ActionPhysicsObject3D {
         this.body.angular_damping = 0.01;
 
         this.storeOriginalData();
+    }
+
+    static _computeSmoothVertexNormalsForCapsule(triangles, radialSegments, heightSegments, capSegments) {
+        const positionKey = (v) => `${v.x.toFixed(6)},${v.y.toFixed(6)},${v.z.toFixed(6)}`;
+        
+        // Build map of positions to triangles
+        const positionMap = new Map();
+        for (const triangle of triangles) {
+            for (let v = 0; v < 3; v++) {
+                const key = positionKey(triangle.vertices[v]);
+                if (!positionMap.has(key)) {
+                    positionMap.set(key, []);
+                }
+                positionMap.get(key).push({ triangle, vertexIndex: v });
+            }
+        }
+
+        // Average normals at each shared vertex
+        // Skip poles (top and bottom centers) to keep cap edges hard
+        for (const [key, vertexRefs] of positionMap) {
+            const isCenterPoint = vertexRefs.some(ref => {
+                const v = ref.triangle.vertices[ref.vertexIndex];
+                // Check if this is a pole (center of top or bottom cap)
+                return Math.abs(v.x) < 0.001 && Math.abs(v.z) < 0.001 && Math.abs(Math.abs(v.y) - ref.triangle.vertices[0].y) < 5;
+            });
+
+            if (isCenterPoint) {
+                // Don't smooth poles - use face normals
+                continue;
+            }
+
+            const avgNormal = new Vector3(0, 0, 0);
+            for (const ref of vertexRefs) {
+                avgNormal.x += ref.triangle.normal.x;
+                avgNormal.y += ref.triangle.normal.y;
+                avgNormal.z += ref.triangle.normal.z;
+            }
+            avgNormal.normalizeInPlace();
+
+            // Store averaged normal
+            for (const ref of vertexRefs) {
+                if (!ref.triangle.vertexNormals) {
+                    ref.triangle.vertexNormals = [];
+                }
+                ref.triangle.vertexNormals[ref.vertexIndex] = new Vector3(avgNormal.x, avgNormal.y, avgNormal.z);
+            }
+        }
+
+        // Fill missing normals with face normals
+        for (const triangle of triangles) {
+            if (!triangle.vertexNormals) {
+                triangle.vertexNormals = [];
+            }
+            for (let v = 0; v < 3; v++) {
+                if (!triangle.vertexNormals[v]) {
+                    triangle.vertexNormals[v] = new Vector3(triangle.normal.x, triangle.normal.y, triangle.normal.z);
+                }
+            }
+        }
     }
 
     storeOriginalData() {

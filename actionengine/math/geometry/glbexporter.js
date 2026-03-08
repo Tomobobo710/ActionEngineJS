@@ -1431,11 +1431,17 @@ class GLBExporter {
                 for (let idx = 0; idx < group.indices.length; idx++) {
                     const vertexIndex = group.indices[idx];
                     const triangleIdx = Math.floor(idx / 3);
+                    const vertexIndexInTriangle = idx % 3;
                     const triangle = group.triangles[triangleIdx];
 
-                    vertexNormals[vertexIndex].x += triangle.normal.x;
-                    vertexNormals[vertexIndex].y += triangle.normal.y;
-                    vertexNormals[vertexIndex].z += triangle.normal.z;
+                    // Use vertex normal if available (from smooth shading), otherwise use face normal
+                    const normal = triangle.vertexNormals && triangle.vertexNormals[vertexIndexInTriangle]
+                        ? triangle.vertexNormals[vertexIndexInTriangle]
+                        : triangle.normal;
+
+                    vertexNormals[vertexIndex].x += normal.x;
+                    vertexNormals[vertexIndex].y += normal.y;
+                    vertexNormals[vertexIndex].z += normal.z;
                     vertexCounts[vertexIndex]++;
                 }
             }

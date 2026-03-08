@@ -166,10 +166,11 @@ class ObjectRenderer3D {
                 positions[off + 1] = vert.y;
                 positions[off + 2] = vert.z;
 
-                // Upload face normal
-                normals[off] = triangle.normal.x;
-                normals[off + 1] = triangle.normal.y;
-                normals[off + 2] = triangle.normal.z;
+                // Upload smooth vertex normal (averaged across all triangles sharing this position)
+                const vertexNormal = triangle.vertexNormals && triangle.vertexNormals[v] ? triangle.vertexNormals[v] : triangle.normal;
+                normals[off] = vertexNormal.x;
+                normals[off + 1] = vertexNormal.y;
+                normals[off + 2] = vertexNormal.z;
 
                 // Store tangent if available (for normal mapping)
                 if (triangle.tangents && triangle.tangents[v]) {

@@ -14,7 +14,7 @@
 class ActionPhysicsSphere3D extends ActionPhysicsObject3D {
     constructor(physicsWorld, radius = 5, mass = 1, initialPosition = new Vector3(0, 500, 0), color = "#FFFFFF") {
         // Visual mesh creation with single color system
-        const segments = 8;
+        const segments = 32;
         const triangles = [];
 
         // All triangles use the same color (changed from checkerboard pattern)
@@ -64,6 +64,9 @@ class ActionPhysicsSphere3D extends ActionPhysicsObject3D {
             }
         }
 
+        // Compute smooth vertex normals for the sphere before passing to parent
+        ActionPhysicsSphere3D._computeSmoothVertexNormalsForSphere(triangles);
+
         super(physicsWorld, triangles);
 
         const shape = new Goblin.SphereShape(radius);
@@ -84,5 +87,52 @@ class ActionPhysicsSphere3D extends ActionPhysicsObject3D {
                 this.originalVerts.push(new Vector3(vertex.x, vertex.y, vertex.z));
             });
         });
+    }
+
+    static _computeSmoothVertexNormalsForSphere(triangles) {
+        const positionKey = (v) => `${v.x.toFixed(6)},${v.y.toFixed(6)},${v.z.toFixed(6)}`;
+        
+        // Build map of positions to triangles that share them
+        const positionMap = new Map();
+        for (const triangle of triangles) {
+            for (let v = 0; v < 3; v++) {
+                const key = positionKey(triangle.vertices[v]);
+                if (!positionMap.has(key)) {
+                    positionMap.set(key, []);
+                }
+                positionMap.get(key).push({ triangle, vertexIndex: v });
+            }
+        }
+
+        // Average normals at each shared vertex position
+        for (const [key, vertexRefs] of positionMap) {
+            const avgNormal = new Vector3(0, 0, 0);
+            for (const ref of vertexRefs) {
+                avgNormal.x += ref.triangle.normal.x;
+                avgNormal.y += ref.triangle.normal.y;
+                avgNormal.z += ref.triangle.normal.z;
+            }
+            avgNormal.normalizeInPlace();
+
+            // Assign smoothed normal to each vertex
+            for (const ref of vertexRefs) {
+                if (!ref.triangle.vertexNormals) {
+                    ref.triangle.vertexNormals = [];
+                }
+                ref.triangle.vertexNormals[ref.vertexIndex] = new Vector3(avgNormal.x, avgNormal.y, avgNormal.z);
+            }
+        }
+
+        // Fill in any missing vertex normals
+        for (const triangle of triangles) {
+            if (!triangle.vertexNormals) {
+                triangle.vertexNormals = [];
+            }
+            for (let v = 0; v < 3; v++) {
+                if (!triangle.vertexNormals[v]) {
+                    triangle.vertexNormals[v] = new Vector3(triangle.normal.x, triangle.normal.y, triangle.normal.z);
+                }
+            }
+        }
     }
 }

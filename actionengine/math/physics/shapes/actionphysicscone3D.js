@@ -25,7 +25,7 @@ class ActionPhysicsCone3D extends ActionPhysicsObject3D {
         const triangles = [];
 
         // Segments for mesh detail
-        const radialSegments = 12;
+        const radialSegments = 24;
         const heightSegments = 6;
 
         // Use single color for all triangles (changed from checkerboard pattern)
@@ -86,6 +86,10 @@ class ActionPhysicsCone3D extends ActionPhysicsObject3D {
             triangles.push(new Triangle(v1, v2, base, coneColor));
         }
 
+        // Compute smooth vertex normals for cone sides
+        // Keep the tip pointed and base flat
+        ActionPhysicsCone3D._computeSmoothVertexNormalsForCone(triangles, heightSegments);
+
         super(physicsWorld, triangles);
 
         // Create physics shape and body - Goblin expects half-height
@@ -97,6 +101,69 @@ class ActionPhysicsCone3D extends ActionPhysicsObject3D {
         this.body.angular_damping = 0.01;
 
         this.storeOriginalData();
+    }
+
+    static _computeSmoothVertexNormalsForCone(triangles, heightSegments) {
+        const positionKey = (v) => `${v.x.toFixed(6)},${v.y.toFixed(6)},${v.z.toFixed(6)}`;
+        
+        // Classify triangles as either "side" or "base/tip"
+        // Base triangles all share one center vertex (0, y, 0)
+        const isSideTriangle = (triangle) => {
+            const hasCenter = triangle.vertices.some(v => Math.abs(v.x) < 0.001 && Math.abs(v.z) < 0.001);
+            // If all 3 vertices are at center or the triangle has a center vertex, it's base/tip
+            return !hasCenter;
+        };
+
+        // Build map of positions to SIDE triangles only
+        const positionMap = new Map();
+        for (const triangle of triangles) {
+            if (!isSideTriangle(triangle)) {
+                continue; // Skip base/tip triangles
+            }
+            for (let v = 0; v < 3; v++) {
+                const key = positionKey(triangle.vertices[v]);
+                if (!positionMap.has(key)) {
+                    positionMap.set(key, []);
+                }
+                positionMap.get(key).push({ triangle, vertexIndex: v });
+            }
+        }
+
+        // Average normals from side triangles only
+        for (const [key, vertexRefs] of positionMap) {
+            if (vertexRefs.length < 2) {
+                // Only one side triangle uses this vertex, no smoothing needed
+                continue;
+            }
+
+            const avgNormal = new Vector3(0, 0, 0);
+            for (const ref of vertexRefs) {
+                avgNormal.x += ref.triangle.normal.x;
+                avgNormal.y += ref.triangle.normal.y;
+                avgNormal.z += ref.triangle.normal.z;
+            }
+            avgNormal.normalizeInPlace();
+
+            // Store averaged normal
+            for (const ref of vertexRefs) {
+                if (!ref.triangle.vertexNormals) {
+                    ref.triangle.vertexNormals = [];
+                }
+                ref.triangle.vertexNormals[ref.vertexIndex] = new Vector3(avgNormal.x, avgNormal.y, avgNormal.z);
+            }
+        }
+
+        // Fill missing normals with face normals
+        for (const triangle of triangles) {
+            if (!triangle.vertexNormals) {
+                triangle.vertexNormals = [];
+            }
+            for (let v = 0; v < 3; v++) {
+                if (!triangle.vertexNormals[v]) {
+                    triangle.vertexNormals[v] = new Vector3(triangle.normal.x, triangle.normal.y, triangle.normal.z);
+                }
+            }
+        }
     }
 
     storeOriginalData() {
