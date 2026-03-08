@@ -302,6 +302,27 @@ class Game {
 		return cone;
 	}
 
+	/**
+	 * Create a cylinder with physics - Single Color System
+	 *
+	 * @param {number} radius - Cylinder radius (default: 2)
+	 * @param {number} height - Cylinder height (default: 10)
+	 * @param {number} mass - Physics mass (default: 1)
+	 * @param {Vector3} position - World position (default: 0,15,0)
+	 * @param {string|null} color - Hex color like "#FF0000" or null for default red
+	 * @returns {ActionPhysicsCylinder3D} The created cylinder
+	 */
+	createCylinder(radius = 2, height = 10, mass = 1, position = new Vector3(0, 15, 0), color = null) {
+		// Only pass color if it's not null, let constructor use its default (#FF0000)
+		// This prevents null from overriding the constructor's default color
+		const cylinder =
+			color !== null
+				? new ActionPhysicsCylinder3D(this.physicsWorld, radius, height, mass, position, color)
+				: new ActionPhysicsCylinder3D(this.physicsWorld, radius, height, mass, position);
+		this.physicsWorld.addObject(cylinder);
+		return cylinder;
+	}
+
 	// Create a ground plane (actually just a flat box)
 	createGround(size = 100, position = new Vector3(0, 1, 0)) {
 		// Simply use our box creation method with a flat box shape
@@ -893,7 +914,7 @@ class Game {
 	 */
 	createRandomObject(position) {
 		// Enhanced random object creation with all available shapes!
-		const objectType = Math.floor(Math.random() * 6); // 0-5 for seven types
+		const objectType = Math.floor(Math.random() * 7); // 0-6 for seven types
 
 		// Generate random hex colors for shapes that support them
 		// Using hex format (#RRGGBB) required by the renderer
@@ -933,13 +954,20 @@ class Game {
 				this.addMessage(`Spawning colorful cone!`);
 				return this.createCone(coneRadius, coneHeight, coneMass, position, randomColor);
 
-			case 4: // Sailboat (GeometryBuilder)
+			case 4: // Cylinder (now with single color!)
+				const cylinderRadius = Math.random() * 2 + 1; // 1 to 3
+				const cylinderHeight = Math.random() * 8 + 4; // 4 to 12
+				const cylinderMass = Math.random() * 3 + 1; // 1 to 4
+				this.addMessage(`Spawning colorful cylinder!`);
+				return this.createCylinder(cylinderRadius, cylinderHeight, cylinderMass, position, randomColor);
+
+			case 5: // Sailboat (GeometryBuilder)
 				const sailboatScale = Math.random() * 0.5 + 0.8; // 0.8 to 1.3 scale
 				const sailboatMass = Math.random() * 3 + 2; // 2-5 mass
 				this.addMessage("Spawning procedural sailboat!");
 				return this.createSailboat(sailboatScale, sailboatMass, position);
 
-			case 5: // Detailed Airplane (GeometryBuilder)
+			case 6: // Detailed Airplane (GeometryBuilder)
 				const airplaneScale = Math.random() * 0.5 + 0.7; // 0.7 to 1.2 scale
 				const airplaneMass = Math.random() * 4 + 2; // 2-6 mass
 				this.addMessage("Spawning detailed procedural airplane!");
