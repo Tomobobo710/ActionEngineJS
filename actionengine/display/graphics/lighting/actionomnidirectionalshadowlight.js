@@ -554,23 +554,15 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
             return;
         }
 
-        // Bind position buffer and set up attribute
-        gl.bindBuffer(gl.ARRAY_BUFFER, mesh.buffers.position);
-        gl.vertexAttribPointer(this.shadowLocations.position, 3, gl.FLOAT, false, 0, 0);
-        gl.enableVertexAttribArray(this.shadowLocations.position);
-
-        // Bind bone attributes if they exist (for skeletal animation)
-        if (mesh.buffers.boneIndices && this.shadowLocations.boneIndices !== -1) {
-            gl.bindBuffer(gl.ARRAY_BUFFER, mesh.buffers.boneIndices);
-            gl.vertexAttribIPointer(this.shadowLocations.boneIndices, 4, gl.INT, 0, 0);
-            gl.enableVertexAttribArray(this.shadowLocations.boneIndices);
-        }
-
-        if (mesh.buffers.boneWeights && this.shadowLocations.boneWeights !== -1) {
-            gl.bindBuffer(gl.ARRAY_BUFFER, mesh.buffers.boneWeights);
-            gl.vertexAttribPointer(this.shadowLocations.boneWeights, 4, gl.FLOAT, false, 0, 0);
-            gl.enableVertexAttribArray(this.shadowLocations.boneWeights);
-        }
+        // Use the VAO cache to bind all shadow attributes in one call.
+        // buildShadowVAO() creates the VAO on first access and caches it on
+        // the mesh, keyed by the shadow program object.
+        const shadowVAO = this.objectRenderer.buildShadowVAO(
+            mesh,
+            this.shadowLocations,
+            this.shadowProgram
+        );
+        gl.bindVertexArray(shadowVAO);
 
         // Bind bone matrix UBO if object has animations
         if (object && typeof object.getBoneMatrices === "function" && this.objectRenderer?.uboManager) {
@@ -589,9 +581,9 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
             );
         }
 
-        // Bind index buffer and draw
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.buffers.indices);
+        // Draw — index buffer is already bound inside the VAO
         gl.drawElements(gl.TRIANGLES, mesh.count, gl.UNSIGNED_INT, 0);
+        gl.bindVertexArray(null);
     }
     /**
      * Get the model matrix for an object based on its current physics state
