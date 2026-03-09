@@ -167,7 +167,8 @@ class ObjectRenderer3D {
                 positions[off + 2] = vert.z;
 
                 // Upload smooth vertex normal (averaged across all triangles sharing this position)
-                const vertexNormal = triangle.vertexNormals && triangle.vertexNormals[v] ? triangle.vertexNormals[v] : triangle.normal;
+                const vertexNormal =
+                    triangle.vertexNormals && triangle.vertexNormals[v] ? triangle.vertexNormals[v] : triangle.normal;
                 normals[off] = vertexNormal.x;
                 normals[off + 1] = vertexNormal.y;
                 normals[off + 2] = vertexNormal.z;
@@ -297,7 +298,7 @@ class ObjectRenderer3D {
                 boneWeights: gl.createBuffer(),
                 indices: gl.createBuffer()
             },
-            vao: null,         // VAO for main render pass
+            vaos: new Map(), // VAO per object shader program (keyed by WebGL program object)
             shadowVaos: new Map(), // VAO per shadow program (keyed by WebGL program object)
             count: count * 3,
             hasTextures: meshHasTextures,
@@ -340,14 +341,8 @@ class ObjectRenderer3D {
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.buffers.indices);
         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, reorderedIndices, gl.STATIC_DRAW);
 
-        // --- Create VAO for the main object render pass ---
-        // VAOs capture all vertexAttribPointer/enableVertexAttribArray state so
-        // we only need ONE gl.bindVertexArray() call per mesh per frame instead
-        // of 13+ bindBuffer/vertexAttribPointer/enableVertexAttribArray calls.
-        const locs = this.programManager.getObjectLocations();
-        if (locs) {
-            mesh.vao = this._buildVAO(mesh, locs);
-        }
+        // VAO will be built lazily per-program when first needed
+        // (in _drawEntryList, keyed by shader program to support variant switching)
 
         this._meshLibrary.set(meshId, mesh);
     }
@@ -375,19 +370,19 @@ class ObjectRenderer3D {
             gl.enableVertexAttribArray(loc);
         };
 
-        bindAttr(mesh.buffers.position,                  locs.position,                    3, gl.FLOAT, false);
-        bindAttr(mesh.buffers.normal,                    locs.normal,                      3, gl.FLOAT, false);
-        bindAttr(mesh.buffers.tangent,                   locs.tangent,                     3, gl.FLOAT, false);
-        bindAttr(mesh.buffers.color,                     locs.color,                       3, gl.FLOAT, false);
-        bindAttr(mesh.buffers.alpha,                     locs.alpha,                       1, gl.FLOAT, false);
-        bindAttr(mesh.buffers.uv,                        locs.texCoord,                    2, gl.FLOAT, false);
-        bindAttr(mesh.buffers.textureIndex,              locs.textureIndex,                1, gl.FLOAT, false);
-        bindAttr(mesh.buffers.useTexture,                locs.useTexture,                  1, gl.FLOAT, false);
-        bindAttr(mesh.buffers.normalMapIndex,            locs.normalMapIndex,              1, gl.FLOAT, false);
-        bindAttr(mesh.buffers.metallicRoughnessMapIndex, locs.metallicRoughnessMapIndex,   1, gl.FLOAT, false);
-        bindAttr(mesh.buffers.emissiveMapIndex,          locs.emissiveMapIndex,            1, gl.FLOAT, false);
-        bindAttr(mesh.buffers.boneIndices,               locs.boneIndices,                 4, gl.INT,   false);
-        bindAttr(mesh.buffers.boneWeights,               locs.boneWeights,                 4, gl.FLOAT, false);
+        bindAttr(mesh.buffers.position, locs.position, 3, gl.FLOAT, false);
+        bindAttr(mesh.buffers.normal, locs.normal, 3, gl.FLOAT, false);
+        bindAttr(mesh.buffers.tangent, locs.tangent, 3, gl.FLOAT, false);
+        bindAttr(mesh.buffers.color, locs.color, 3, gl.FLOAT, false);
+        bindAttr(mesh.buffers.alpha, locs.alpha, 1, gl.FLOAT, false);
+        bindAttr(mesh.buffers.uv, locs.texCoord, 2, gl.FLOAT, false);
+        bindAttr(mesh.buffers.textureIndex, locs.textureIndex, 1, gl.FLOAT, false);
+        bindAttr(mesh.buffers.useTexture, locs.useTexture, 1, gl.FLOAT, false);
+        bindAttr(mesh.buffers.normalMapIndex, locs.normalMapIndex, 1, gl.FLOAT, false);
+        bindAttr(mesh.buffers.metallicRoughnessMapIndex, locs.metallicRoughnessMapIndex, 1, gl.FLOAT, false);
+        bindAttr(mesh.buffers.emissiveMapIndex, locs.emissiveMapIndex, 1, gl.FLOAT, false);
+        bindAttr(mesh.buffers.boneIndices, locs.boneIndices, 4, gl.INT, false);
+        bindAttr(mesh.buffers.boneWeights, locs.boneWeights, 4, gl.FLOAT, false);
 
         // Bind the index buffer inside the VAO so it's also captured
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.buffers.indices);
@@ -590,18 +585,20 @@ class ObjectRenderer3D {
         // Rebuild the main VAO now that buffer data has changed.
         // Any shadow VAOs are also stale — delete and clear them so they're
         // rebuilt on next use with the updated index buffer.
-        if (mesh.vao) {
-            gl.deleteVertexArray(mesh.vao);
-            mesh.vao = null;
+        if (mesh.vaos) {
+            for (const v of mesh.vaos.values()) gl.deleteVertexArray(v);
+            mesh.vaos.clear();
         }
         if (mesh.shadowVaos) {
             for (const v of mesh.shadowVaos.values()) gl.deleteVertexArray(v);
             mesh.shadowVaos.clear();
         }
 
-        const locs = this.programManager.getObjectLocations();
-        if (locs) {
-            mesh.vao = this._buildVAO(mesh, locs);
+        // Clear VAOs so they're rebuilt with updated data on next draw
+        // (keyed by shader program to support variant switching)
+        if (mesh.vaos) {
+            for (const v of mesh.vaos.values()) this.gl.deleteVertexArray(v);
+            mesh.vaos.clear();
         }
     }
 
@@ -631,6 +628,7 @@ class ObjectRenderer3D {
 
     _drawEntryList(list, locs, camera) {
         const gl = this.gl;
+        const prog = this.programManager.getObjectProgram();
 
         // Group entries by meshId so each mesh's VAO is bound only once
         const entriesByMeshId = new Map();
@@ -645,14 +643,20 @@ class ObjectRenderer3D {
             const mesh = this._meshLibrary.get(meshId);
             if (!mesh) continue;
 
-            // Lazily build VAO if it wasn't ready at register time
-            if (!mesh.vao) {
-                mesh.vao = this._buildVAO(mesh, locs);
+            if (entries.length === 0) continue;
+
+            // Get or build VAO for this program variant
+            let vao;
+            if (mesh.vaos.has(prog)) {
+                vao = mesh.vaos.get(prog);
+            } else {
+                vao = this._buildVAO(mesh, locs);
+                mesh.vaos.set(prog, vao);
             }
 
             // ONE call instead of ~26 bindBuffer/vertexAttribPointer/
             // enableVertexAttribArray calls (13 attributes × 2 calls each)
-            gl.bindVertexArray(mesh.vao);
+            gl.bindVertexArray(vao);
 
             // Draw each instance with only per-object uniform updates
             for (const entry of entries) {
@@ -669,6 +673,7 @@ class ObjectRenderer3D {
 
     _drawTransparentList(list, locs, camera) {
         const gl = this.gl;
+        const prog = this.programManager.getObjectProgram();
 
         // Group entries by meshId so each mesh's VAO is bound only once
         const entriesByMeshId = new Map();
@@ -686,14 +691,18 @@ class ObjectRenderer3D {
             const mesh = this._meshLibrary.get(meshId);
             if (!mesh || mesh.transparentCount === 0) continue;
 
-            // Lazily build VAO if it wasn't ready at register time
-            if (!mesh.vao) {
-                mesh.vao = this._buildVAO(mesh, locs);
+            // Get or build VAO for this program variant
+            let vao;
+            if (mesh.vaos.has(prog)) {
+                vao = mesh.vaos.get(prog);
+            } else {
+                vao = this._buildVAO(mesh, locs);
+                mesh.vaos.set(prog, vao);
             }
 
             // ONE call instead of ~26 bindBuffer/vertexAttribPointer/
             // enableVertexAttribArray calls
-            gl.bindVertexArray(mesh.vao);
+            gl.bindVertexArray(vao);
 
             for (const entry of entries) {
                 this.setupObjectShader(locs, camera, -1, entry.position, entry.rotation, entry.scale, entry.object);
@@ -810,8 +819,7 @@ class ObjectRenderer3D {
             gl.uniform1f(locations.roughness, this._uniformCache.roughness);
         if (locations.metallic !== -1 && locations.metallic !== null)
             gl.uniform1f(locations.metallic, this._uniformCache.metallic);
-        if (locations.ior !== -1 && locations.ior !== null)
-            gl.uniform1f(locations.ior, this._uniformCache.ior);
+        if (locations.ior !== -1 && locations.ior !== null) gl.uniform1f(locations.ior, this._uniformCache.ior);
         if (locations.transmission !== -1 && locations.transmission !== null)
             gl.uniform1f(locations.transmission, this._uniformCache.transmission);
         if (locations.normalMapStrength !== -1 && locations.normalMapStrength !== null) {
@@ -951,7 +959,12 @@ class ObjectRenderer3D {
         const program = currentProgram || this.programManager.getObjectProgram();
 
         // Bind material properties texture from TextureSet
-        if (textureSet && textureSet.materialPropertiesTexture && locs.materialPropertiesTexture !== -1 && locs.materialPropertiesTexture !== null) {
+        if (
+            textureSet &&
+            textureSet.materialPropertiesTexture &&
+            locs.materialPropertiesTexture !== -1 &&
+            locs.materialPropertiesTexture !== null
+        ) {
             this.renderer.glStateManager.bindTextureWithUniform(
                 "materialProperties",
                 textureSet.materialPropertiesTexture,
