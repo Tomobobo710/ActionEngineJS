@@ -20,6 +20,8 @@ class ActionModel3D {
         this.objects = []; // RenderableObject[] - one for each mesh in the GLB
         this.objectToNodeIndex = {}; // Map object index to its node index (for hierarchy reconstruction)
 
+
+
         // Mesh and geometry data
         this.meshes = []; // Complete mesh data from GLB
         this.originalTriangles = []; // Initial triangle geometry (for reference)
@@ -54,9 +56,10 @@ class ActionModel3D {
      * @param {Vector3} translation - Local translation
      * @param {Quaternion} rotation - Local rotation
      * @param {Vector3} scale - Local scale
+     * @param {Object} physicsData - Optional physics data { shape, body }
      * @returns {RenderableObject} The created renderable object
      */
-    addObject(name, triangles, nodeIndex, translation, rotation, scale) {
+    addObject(name, triangles, nodeIndex, translation, rotation, scale, physicsData = null) {
         const obj = new RenderableObject();
         obj.name = name;
         obj.triangles = triangles;
@@ -67,6 +70,12 @@ class ActionModel3D {
         obj.transform.rotation = new Quaternion(rotation.x, rotation.y, rotation.z, rotation.w);
         obj.transform.scale = scale.clone();
 
+        // Attach physics data directly to the object if provided
+        if (physicsData) {
+            obj.shape = physicsData.shape;
+            obj.body = physicsData.body;
+        }
+
         // Debug logging for specific object
         if (name.includes("prop_dynamic_122221") || name.includes("dclid")) {
             console.log(`[DEBUG] addObject:`, {
@@ -74,7 +83,8 @@ class ActionModel3D {
                 triangleCount: triangles.length,
                 translation: obj.transform.position,
                 rotation: obj.transform.rotation,
-                scale: obj.transform.scale
+                scale: obj.transform.scale,
+                hasPhysics: !!physicsData
             });
         }
 

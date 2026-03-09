@@ -260,7 +260,7 @@ class GLBLoader {
                 const meshIdx = nodeData.mesh;
                 const mesh = gltf.meshes[meshIdx];
                 const meshData = {
-                    name: mesh.name || node.name || `mesh_${model.meshes.length}`,
+                    name: node.name || mesh.name || `mesh_${model.meshes.length}`,
                     primitives: [],
                     nodeMatrix: node.matrix,
                     nodeIndex: nodeIdx
@@ -385,7 +385,32 @@ class GLBLoader {
                         worldRotation.z = 0.25 * s;
                     }
 
-                    model.addObject(meshData.name, meshTriangles, nodeIdx, worldTranslation, worldRotation, worldScale);
+                    // Create physics mesh for this object
+                    let physicsData = null;
+                    if (meshTriangles.length > 0) {
+                        // Extract vertices from triangles
+                        const vertices = [];
+                        const vertexMap = new Map();
+                        const indices = [];
+
+                        for (const triangle of meshTriangles) {
+                            for (const vertex of triangle.vertices) {
+                                const key = `${vertex.x},${vertex.y},${vertex.z}`;
+                                if (!vertexMap.has(key)) {
+                                    vertexMap.set(key, vertices.length);
+                                    vertices.push(vertex);
+                                }
+                                indices.push(vertexMap.get(key));
+                            }
+                        }
+
+                        // Create physics shape using PhysicsShapeBuilder
+                        if (vertices.length > 0 && indices.length > 0) {
+                            physicsData = PhysicsShapeBuilder.createMeshShape(vertices, indices, 0);
+                        }
+                    }
+
+                    model.addObject(meshData.name, meshTriangles, nodeIdx, worldTranslation, worldRotation, worldScale, physicsData);
                 }
 
                 model.meshes.push(meshData);
