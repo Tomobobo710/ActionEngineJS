@@ -20,14 +20,16 @@ class ActionModel3D {
         this.objects = []; // RenderableObject[] - one for each mesh in the GLB
         this.objectToNodeIndex = {}; // Map object index to its node index (for hierarchy reconstruction)
 
-
+        // Compound physics (single body for entire model)
+        this.compoundPhysicsData = null; // { shape, body, debugVertices, debugIndices }
+        this.compoundPhysicsObject = null; // RenderableObject wrapper for compound physics
 
         // Mesh and geometry data
         this.meshes = []; // Complete mesh data from GLB
         this.originalTriangles = []; // Initial triangle geometry (for reference)
 
         // Texture data
-         this.textures = []; // Array of texture image data
+        this.textures = []; // Array of texture image data
         this.textureMetadata = []; // Array of texture metadata (name, mimeType)
         this._textureSet = null; // TextureSet instance (created automatically when textures load)
         this._textureSetLoading = false; // Flag to prevent multiple simultaneous loads
@@ -74,25 +76,45 @@ class ActionModel3D {
         if (physicsData) {
             obj.shape = physicsData.shape;
             obj.body = physicsData.body;
+            // Store the full physics data object for debug visualization
+            obj.physicsData = physicsData;
+            // Set the physics body position and rotation to match the object's world transform
+            obj.body.position.set(translation.x, translation.y, translation.z);
+            obj.body.rotation.x = rotation.x;
+            obj.body.rotation.y = rotation.y;
+            obj.body.rotation.z = rotation.z;
+            obj.body.rotation.w = rotation.w;
         }
 
-        // Debug logging for specific object
-        if (name.includes("prop_dynamic_122221") || name.includes("dclid")) {
-            console.log(`[DEBUG] addObject:`, {
-                name,
-                triangleCount: triangles.length,
-                translation: obj.transform.position,
-                rotation: obj.transform.rotation,
-                scale: obj.transform.scale,
-                hasPhysics: !!physicsData
-            });
-        }
+
 
         const objIndex = this.objects.length;
         this.objects.push(obj);
         this.objectToNodeIndex[objIndex] = nodeIndex;
 
         return obj;
+    }
+
+    /**
+     * Create a RenderableObject wrapper for compound physics data
+     * @returns {RenderableObject|null} RenderableObject with compound physics attached, or null if no compound data
+     */
+    getCompoundPhysicsObject() {
+        if (!this.compoundPhysicsData) {
+            return null;
+        }
+
+        // Create wrapper only once
+        if (!this.compoundPhysicsObject) {
+            const wrapper = new RenderableObject();
+            wrapper.name = "CompoundEnvironment";
+            wrapper.body = this.compoundPhysicsData.body;
+            wrapper.shape = this.compoundPhysicsData.shape;
+            wrapper.physicsData = this.compoundPhysicsData;
+            this.compoundPhysicsObject = wrapper;
+        }
+
+        return this.compoundPhysicsObject;
     }
 
     /**
@@ -185,7 +207,7 @@ class ActionModel3D {
         if (!this._textureSet) {
             this._textureSet = new TextureSet(gl);
             await this._textureSet.loadFromModel(this);
-            
+
             // Attach to all existing renderable objects
             if (this._transformedObjectsCache) {
                 for (const obj of this._transformedObjectsCache) {
@@ -207,7 +229,7 @@ class ActionModel3D {
         // This makes texture loading completely transparent (lazy-loaded on first access)
         if (gl && this.textures.length > 0 && !this._textureSet && !this._textureSetLoading) {
             this._textureSetLoading = true;
-            this._loadAndAttachTextureSet(gl).catch(e => console.error("Failed to auto-load TextureSet:", e));
+            this._loadAndAttachTextureSet(gl).catch((e) => console.error("Failed to auto-load TextureSet:", e));
         }
 
         // Return appropriate cached version
