@@ -161,9 +161,7 @@ class GLBLoader {
         model.textureMetadata = loader.textureMetadata;
 
         // For backward compatibility, also populate loader.triangles with all triangles
-        console.log(`[GLBLoader] Calling getAllTriangles...`);
         loader.triangles = model.getAllTriangles();
-        console.log(`[GLBLoader] Got ${loader.triangles.length} triangles, returning model`);
 
         // Return ActionModel3D as the primary structure
         return model;
@@ -251,6 +249,15 @@ class GLBLoader {
 
         // Cache Triangle arrays by mesh index to avoid duplication
         const meshCache = {};
+        // Cache primitive data by mesh index for physics creation
+        const primitivesCache = {};
+
+        // Collect all physics shapes and their transforms for compound shape creation
+        const physicsShapes = [];
+        const physicsShapeTransforms = [];
+        const allDebugVertices = [];
+        const allDebugIndices = [];
+        let debugIndexOffset = 0;
 
         // Process each node with a mesh
         for (let nodeIdx = 0; nodeIdx < gltf.nodes.length; nodeIdx++) {
@@ -261,26 +268,13 @@ class GLBLoader {
                 const mesh = gltf.meshes[meshIdx];
                 const meshData = {
                     name: node.name || mesh.name || `mesh_${model.meshes.length}`,
-                    primitives: [],
                     nodeMatrix: node.matrix,
                     nodeIndex: nodeIdx
                 };
 
-                // Debug logging for specific object
-                if (meshData.name.includes("prop_dynamic_122221") || meshData.name.includes("dclid")) {
-                    console.log(`[DEBUG] Found debug object node:`, {
-                        name: meshData.name,
-                        nodeIndex: nodeIdx,
-                        nodeName: node.name,
-                        translation: node.translation,
-                        rotation: node.rotation,
-                        scale: node.scale,
-                        matrix: node.matrix,
-                        hasChildren: node.children.length > 0
-                    });
-                }
 
-                // Check if we've already created triangles for this mesh index
+
+                // Check if we've already created triangles and physics primitives for this mesh index
                 let meshTriangles;
                 if (meshCache[meshIdx]) {
                     // Reuse the cached Triangle array reference (in local space)
@@ -288,10 +282,16 @@ class GLBLoader {
                 } else {
                     // First time seeing this mesh index - create Triangle array in LOCAL SPACE
                     meshTriangles = [];
+                    const physicsGeometry = [];
+
                     for (const primitive of mesh.primitives) {
+                        // Extract primitive data for rendering
+                        const positions = GLBLoader.getAttributeData(primitive.attributes.POSITION, gltf, binaryData);
+                        const indices = GLBLoader.getIndexData(primitive.indices, gltf, binaryData);
+
                         const primData = {
-                            positions: GLBLoader.getAttributeData(primitive.attributes.POSITION, gltf, binaryData),
-                            indices: GLBLoader.getIndexData(primitive.indices, gltf, binaryData),
+                            positions,
+                            indices,
                             joints: primitive.attributes.JOINTS_0
                                 ? GLBLoader.getAttributeData(primitive.attributes.JOINTS_0, gltf, binaryData)
                                 : null,
@@ -326,10 +326,13 @@ class GLBLoader {
                         // Create triangles for this primitive
                         const primTriangles = GLBLoader.createTrianglesFromPrimitive(primData, loader);
                         meshTriangles.push(...primTriangles);
-                        meshData.primitives.push(primData);
+
+                        // Store only positions and indices for physics (don't keep rendering data)
+                        physicsGeometry.push({ positions, indices });
                     }
-                    // Cache this mesh's Triangle array for future nodes
+                    // Cache this mesh's Triangle array and physics geometry for future nodes
                     meshCache[meshIdx] = meshTriangles;
+                    primitivesCache[meshIdx] = physicsGeometry;
                 }
 
                 // Create RenderableObject for this mesh
@@ -385,36 +388,131 @@ class GLBLoader {
                         worldRotation.z = 0.25 * s;
                     }
 
-                    // Create physics mesh for this object
+                    // Create physics mesh for this object using primitive data directly
                     let physicsData = null;
-                    if (meshTriangles.length > 0) {
-                        // Extract vertices from triangles
-                        const vertices = [];
-                        const vertexMap = new Map();
-                        const indices = [];
+                    const primitives = primitivesCache[meshIdx];
+                    if (primitives && primitives.length > 0) {
+                        // Build vertices and indices from primitives (already deduplicated by GLTF)
+                        const allVertices = [];
+                        const allIndices = [];
+                        let indexOffset = 0;
 
-                        for (const triangle of meshTriangles) {
-                            for (const vertex of triangle.vertices) {
-                                const key = `${vertex.x},${vertex.y},${vertex.z}`;
-                                if (!vertexMap.has(key)) {
-                                    vertexMap.set(key, vertices.length);
-                                    vertices.push(vertex);
-                                }
-                                indices.push(vertexMap.get(key));
+                        for (const primData of primitives) {
+                            const positions = primData.positions;
+                            const indices = primData.indices;
+
+                            // Convert position floats to Vector3, scale, and transform to world space
+                            for (let i = 0; i < positions.length; i += 3) {
+                                // Local vertex (from file)
+                                const localVertex = new Vector3(positions[i], positions[i + 1], positions[i + 2]);
+
+                                // Apply scale
+                                localVertex.x *= worldScale.x;
+                                localVertex.y *= worldScale.y;
+                                localVertex.z *= worldScale.z;
+
+                                // Apply rotation using quaternion
+                                const rotatedVertex = worldRotation.transformVector(localVertex);
+
+                                // Apply translation
+                                const worldVertex = new Vector3(
+                                    rotatedVertex.x + worldTranslation.x,
+                                    rotatedVertex.y + worldTranslation.y,
+                                    rotatedVertex.z + worldTranslation.z
+                                );
+
+                                allVertices.push(worldVertex);
                             }
+
+                            // Add indices with offset
+                            for (let i = 0; i < indices.length; i++) {
+                                allIndices.push(indices[i] + indexOffset);
+                            }
+
+                            indexOffset += positions.length / 3;
                         }
 
                         // Create physics shape using PhysicsShapeBuilder
-                        if (vertices.length > 0 && indices.length > 0) {
-                            physicsData = PhysicsShapeBuilder.createMeshShape(vertices, indices, 0);
+                        if (allVertices.length > 0 && allIndices.length > 0) {
+                            physicsData = PhysicsShapeBuilder.createMeshShape(allVertices, allIndices, 0);
+                            // Store the geometry for wireframe visualization
+                            if (physicsData) {
+                                physicsData.debugVertices = allVertices;
+                                physicsData.debugIndices = allIndices;
+
+                                // Collect for compound shape
+                                physicsShapes.push(physicsData.shape);
+                                physicsShapeTransforms.push({
+                                    position: new Goblin.Vector3(
+                                        worldTranslation.x,
+                                        worldTranslation.y,
+                                        worldTranslation.z
+                                    ),
+                                    rotation: new Goblin.Quaternion(
+                                        worldRotation.x,
+                                        worldRotation.y,
+                                        worldRotation.z,
+                                        worldRotation.w
+                                    )
+                                });
+
+                                // Collect debug geometry for compound visualization
+                                allDebugVertices.push(...allVertices);
+                                for (const idx of allIndices) {
+                                    allDebugIndices.push(idx + debugIndexOffset);
+                                }
+                                debugIndexOffset += allVertices.length;
+                            }
                         }
                     }
 
-                    model.addObject(meshData.name, meshTriangles, nodeIdx, worldTranslation, worldRotation, worldScale, physicsData);
+                    model.addObject(
+                        meshData.name,
+                        meshTriangles,
+                        nodeIdx,
+                        worldTranslation,
+                        worldRotation,
+                        worldScale,
+                        physicsData
+                    );
                 }
 
                 model.meshes.push(meshData);
             }
+        }
+
+        // Create compound shape from all collected shapes
+        if (physicsShapes.length > 0) {
+            // Since vertices are already in world space, add shapes to compound at origin with identity rotation
+            const compoundShape = new Goblin.CompoundShape();
+            const zeroPos = new Goblin.Vector3(0, 0, 0);
+            const identityRot = new Goblin.Quaternion(0, 0, 0, 1);
+
+            for (let i = 0; i < physicsShapes.length; i++) {
+                // All vertices are already transformed to world space, so use zero offset and identity rotation
+                compoundShape.addChildShape(physicsShapes[i], zeroPos, identityRot);
+            }
+
+            // Create a single compound body at world origin
+            const compoundBody = new Goblin.RigidBody(compoundShape, 0); // mass=0 for static
+            compoundBody.position.set(0, 0, 0);
+            compoundBody.linear_damping = 0.01;
+            compoundBody.angular_damping = 0.01;
+
+            // Store compound physics data on the model
+            model.compoundPhysicsData = {
+                shape: compoundShape,
+                body: compoundBody,
+                debugVertices: allDebugVertices,
+                debugIndices: allDebugIndices,
+                centerX: 0,
+                centerY: 0,
+                centerZ: 0
+            };
+
+            console.log(
+                `[GLBLoader] Created compound physics shape with ${physicsShapes.length} child shapes (vertices in world space)`
+            );
         }
     }
 
@@ -631,7 +729,7 @@ class GLBLoader {
             metallic: 0.0,
             roughness: 1.0,
             emissive: [0, 0, 0],
-            ior: 1.5  // Default IOR, will be overridden if present in material
+            ior: 1.5 // Default IOR, will be overridden if present in material
         };
 
         if (!material) return materialData;
