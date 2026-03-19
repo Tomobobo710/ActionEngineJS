@@ -39,16 +39,24 @@ class GLBLoader {
     /**
      * Loads a 3D model from a File object (from file input).
      * @param {File} file - File object from input element
+     * @param {Function} [onProgress] - Optional callback for progress updates: (progress: number) => void (0-1)
      * @returns {Promise<GLBLoader|ActionModel3D>} A promise resolving to a loader instance containing the parsed model
      * @throws {Error} If the file cannot be read or parsed
      */
-    static async loadFromFile(file) {
+    static async loadFromFile(file, onProgress = null) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
-            reader.onload = (e) => {
+            reader.onprogress = (e) => {
+                if (onProgress && e.lengthComputable) {
+                    onProgress(e.loaded / e.total * 0.3); // 0-30% for file reading
+                }
+            };
+            reader.onload = async (e) => {
                 try {
                     const arrayBuffer = e.target.result;
-                    resolve(GLBLoader.loadFromArrayBuffer(arrayBuffer));
+                    // Parse with progress callback (30-100% for parsing), async with yielding
+                    const model = await GLBLoader.loadFromArrayBufferAsync(arrayBuffer, onProgress);
+                    resolve(model);
                 } catch (error) {
                     reject(error);
                 }
@@ -58,6 +66,94 @@ class GLBLoader {
             };
             reader.readAsArrayBuffer(file);
         });
+    }
+
+    /**
+     * Yield to browser to allow UI updates
+     * @private
+     */
+    static async yield() {
+        return new Promise(resolve => setTimeout(resolve, 0));
+    }
+
+    /**
+     * Construct ActionModel3D from parsed worker data
+     * Worker sends back gltf + binaryData, this constructs the full model
+     * @param {Object} parsedData - { gltf, binaryData, textures, textureMetadata }
+     * @returns {ActionModel3D}
+     * @static
+     */
+    static constructFromParsedData(parsedData) {
+        const { gltf, binaryData, textures, textureMetadata } = parsedData;
+        const loader = new GLBLoader();
+        const model = new ActionModel3D();
+
+        // First create all nodes
+        if (gltf.nodes && gltf.nodes.length > 0) {
+            loader.nodes = gltf.nodes.map((node, i) => new Node(node, i));
+            model.nodes = loader.nodes;
+
+            // Then hook up node hierarchy
+            for (let i = 0; i < gltf.nodes.length; i++) {
+                const nodeData = gltf.nodes[i];
+                if (nodeData.children) {
+                    const childRefs = [];
+                    for (const childIndex of nodeData.children) {
+                        if (childIndex >= 0 && childIndex < loader.nodes.length) {
+                            childRefs.push(loader.nodes[childIndex]);
+                        }
+                    }
+                    loader.nodes[i].children = childRefs;
+                }
+                loader.nodeMap[loader.nodes[i].name] = i;
+            }
+            model.nodeMap = loader.nodeMap;
+
+            // Identify root nodes
+            const childSet = new Set();
+            for (const node of loader.nodes) {
+                for (const child of node.children) {
+                    childSet.add(child);
+                }
+            }
+            for (const node of loader.nodes) {
+                if (!childSet.has(node)) {
+                    const nodeIdx = loader.nodes.indexOf(node);
+                    model.rootNodes.push(nodeIdx);
+                    node.updateWorldMatrix();
+                }
+            }
+        }
+
+        // Create skins after nodes exist
+        if (gltf.skins) {
+            loader.skins = gltf.skins.map((skin, i) => new Skin(gltf, skin, i));
+            model.skins = loader.skins;
+
+            for (const node of loader.nodes) {
+                if (node.skin !== null) {
+                    node.skin = loader.skins[node.skin];
+                }
+            }
+        }
+
+        // Load meshes and create RenderableObjects
+        GLBLoader.loadMeshesWithObjects(model, loader, gltf, binaryData);
+
+        // Load animations
+        if (gltf.animations) {
+            loader.animations = gltf.animations.map((anim) => new Animation(gltf, anim));
+            model.animations = loader.animations;
+        }
+
+        // Store textures in model
+        model.textures = textures;
+        model.textureMetadata = textureMetadata;
+
+        // For backward compatibility
+        loader.triangles = model.getAllTriangles();
+
+        return model;
     }
 
     /**
@@ -76,21 +172,23 @@ class GLBLoader {
     }
 
     /**
-     * Loads a 3D model from an ArrayBuffer containing GLB data.
-     * Handles the complete loading process including node hierarchy,
-     * skins, meshes, and animations.
-     * Returns both GLBLoader (for backward compat) and ActionModel3D (new structure).
+     * Async version that yields to browser between major work chunks
      * @param {ArrayBuffer} arrayBuffer - The GLB file data
-     * @returns {GLBLoader|ActionModel3D} A loader instance containing the parsed model
+     * @param {Function} [onProgress] - Optional callback for progress updates
+     * @returns {Promise<ActionModel3D>}
      * @private
      */
-    static loadFromArrayBuffer(arrayBuffer) {
+    static async loadFromArrayBufferAsync(arrayBuffer, onProgress = null) {
         const loader = new GLBLoader();
         const { gltf, binaryData } = GLBLoader.parseGLB(arrayBuffer);
         gltf.binaryData = binaryData;
+        if (onProgress) onProgress(0.05);
+        await GLBLoader.yield();
 
         // Extract textures from the model
         GLBLoader.loadTextures(loader, gltf, binaryData);
+        if (onProgress) onProgress(0.1);
+        await GLBLoader.yield();
 
         // Create ActionModel3D to hold the structured data
         const model = new ActionModel3D();
@@ -133,6 +231,8 @@ class GLBLoader {
                 }
             }
         }
+        if (onProgress) onProgress(0.25);
+        await GLBLoader.yield();
 
         // Create skins after nodes exist
         if (gltf.skins) {
@@ -146,9 +246,13 @@ class GLBLoader {
                 }
             }
         }
+        if (onProgress) onProgress(0.4);
+        await GLBLoader.yield();
 
         // Load meshes and create RenderableObjects
         GLBLoader.loadMeshesWithObjects(model, loader, gltf, binaryData);
+        if (onProgress) onProgress(0.7);
+        await GLBLoader.yield();
 
         // Finally load animations after everything else is set up
         if (gltf.animations) {
@@ -162,6 +266,107 @@ class GLBLoader {
 
         // For backward compatibility, also populate loader.triangles with all triangles
         loader.triangles = model.getAllTriangles();
+        if (onProgress) onProgress(1.0);
+        await GLBLoader.yield();
+
+        // Return ActionModel3D as the primary structure
+        return model;
+    }
+
+    /**
+     * Loads a 3D model from an ArrayBuffer containing GLB data.
+     * Handles the complete loading process including node hierarchy,
+     * skins, meshes, and animations.
+     * Returns both GLBLoader (for backward compat) and ActionModel3D (new structure).
+     * @param {ArrayBuffer} arrayBuffer - The GLB file data
+     * @param {Function} [onProgress] - Optional callback for progress updates: (progress: number) => void (0-1)
+     * @returns {GLBLoader|ActionModel3D} A loader instance containing the parsed model
+     * @private
+     */
+    static loadFromArrayBuffer(arrayBuffer, onProgress = null) {
+        const loader = new GLBLoader();
+        const { gltf, binaryData } = GLBLoader.parseGLB(arrayBuffer);
+        gltf.binaryData = binaryData;
+        if (onProgress) onProgress(0.5);
+
+        // Extract textures from the model
+        GLBLoader.loadTextures(loader, gltf, binaryData);
+        if (onProgress) onProgress(0.6);
+
+        // Create ActionModel3D to hold the structured data
+        const model = new ActionModel3D();
+
+        // First create all nodes
+        if (gltf.nodes && gltf.nodes.length > 0) {
+            loader.nodes = gltf.nodes.map((node, i) => new Node(node, i));
+            model.nodes = loader.nodes;
+
+            // Then hook up node hierarchy
+            for (let i = 0; i < gltf.nodes.length; i++) {
+                const nodeData = gltf.nodes[i];
+                if (nodeData.children) {
+                    // Convert child indices to actual node references
+                    const childRefs = [];
+                    for (const childIndex of nodeData.children) {
+                        if (childIndex >= 0 && childIndex < loader.nodes.length) {
+                            childRefs.push(loader.nodes[childIndex]);
+                        }
+                    }
+                    loader.nodes[i].children = childRefs;
+                }
+                // Build node lookup map
+                loader.nodeMap[loader.nodes[i].name] = i;
+            }
+            model.nodeMap = loader.nodeMap;
+
+            // Identify root nodes (nodes that are not children of any other node)
+            const childSet = new Set();
+            for (const node of loader.nodes) {
+                for (const child of node.children) {
+                    childSet.add(child);
+                }
+            }
+            for (const node of loader.nodes) {
+                if (!childSet.has(node)) {
+                    const nodeIdx = loader.nodes.indexOf(node);
+                    model.rootNodes.push(nodeIdx);
+                    node.updateWorldMatrix();
+                }
+            }
+        }
+        if (onProgress) onProgress(0.7);
+
+        // Create skins after nodes exist
+        if (gltf.skins) {
+            loader.skins = gltf.skins.map((skin, i) => new Skin(gltf, skin, i));
+            model.skins = loader.skins;
+
+            // Hook up skin references in nodes
+            for (const node of loader.nodes) {
+                if (node.skin !== null) {
+                    node.skin = loader.skins[node.skin];
+                }
+            }
+        }
+        if (onProgress) onProgress(0.8);
+
+        // Load meshes and create RenderableObjects
+        GLBLoader.loadMeshesWithObjects(model, loader, gltf, binaryData);
+        if (onProgress) onProgress(0.9);
+
+        // Finally load animations after everything else is set up
+        if (gltf.animations) {
+            loader.animations = gltf.animations.map((anim) => new Animation(gltf, anim));
+            model.animations = loader.animations;
+        }
+
+        // Store textures in model
+        model.textures = loader.textures;
+        model.textureMetadata = loader.textureMetadata;
+
+        // For backward compatibility, also populate loader.triangles with all triangles
+        loader.triangles = model.getAllTriangles();
+        if (onProgress) onProgress(1.0);
 
         // Return ActionModel3D as the primary structure
         return model;
