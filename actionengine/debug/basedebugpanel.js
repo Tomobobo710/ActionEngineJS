@@ -523,10 +523,9 @@ class BaseDebugPanel {
 
             // If panel is becoming visible, additional initialization can be done here
             if (this.visible) {
-                this.lastActivatedTime = Date.now();
-                this.onShow();
+                this.show();
             } else {
-                this.onHide();
+                this.hide();
             }
         }
 
@@ -560,9 +559,8 @@ class BaseDebugPanel {
     }
 
     // Override these methods in child classes
-    onShow() {
+    show() {
         // Called when panel becomes visible
-        this.lastActivatedTime = Date.now();
     }
 
     updateContent() {
@@ -786,7 +784,7 @@ class BaseDebugPanel {
     }
 
     // Handle tab or panel visibility changes
-    onHide() {
+    hide() {
         // Close input dialog if open
         this.closeInputDialog();
 
