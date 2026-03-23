@@ -1,3 +1,4 @@
+//actionengine/network/client/SyncSystem.js
 /**
  * SyncSystem - Generic client-to-client state synchronization
  *

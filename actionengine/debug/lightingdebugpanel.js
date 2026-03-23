@@ -1,3 +1,4 @@
+//actionengine/debug/lightingdebugpanel.js
 // game/debug/lightingdebugpanel.js
 class LightingDebugPanel extends BaseDebugPanel {
     constructor(canvas, game) {

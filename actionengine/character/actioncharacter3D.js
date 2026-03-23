@@ -1,4 +1,4 @@
-// actionengine/character/actioncharacter3D.js
+//actionengine/character/actioncharacter3D.js
 
 /*
  * A basic character controller wrapper.

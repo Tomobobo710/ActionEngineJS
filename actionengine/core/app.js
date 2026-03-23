@@ -1,4 +1,4 @@
-// actionengine/core/app.js
+//actionengine/core/app.js
 
 // Inject overlay CSS immediately when this script loads
 (function () {

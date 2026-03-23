@@ -1,5 +1,4 @@
-// actionengine/camera/cameracollisionhandler.js
-// @import ../physics/actionraycast.js
+//actionengine/camera/cameracollisionhandler.js
 
 class CameraCollisionHandler {
     constructor(physicsWorld) {
@@ -25,8 +24,8 @@ class CameraCollisionHandler {
             // Calculate ray length
             const rayLength = Math.sqrt(
                 Math.pow(desiredCameraPosition.x - eyePosition.x, 2) +
-                    Math.pow(desiredCameraPosition.y - eyePosition.y, 2) +
-                    Math.pow(desiredCameraPosition.z - eyePosition.z, 2)
+                Math.pow(desiredCameraPosition.y - eyePosition.y, 2) +
+                Math.pow(desiredCameraPosition.z - eyePosition.z, 2)
             );
 
             // Don't perform collision check if camera is too close

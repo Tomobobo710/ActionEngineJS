@@ -1,3 +1,4 @@
+//actionengine/network/client/ActionNetManagerGUI.js
 /**
  * ActionNetManagerGUI - Bridge component for networking setup and lobby UI.
  *

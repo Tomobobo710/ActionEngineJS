@@ -1,3 +1,4 @@
+//actionengine/network/client/ActionNetManagerP2P.js
 /**
  * ActionNetManagerP2P - P2P network manager using ActionNetP2P library (dual WebRTC channels)
  *

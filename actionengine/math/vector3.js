@@ -1,4 +1,4 @@
-// actionengine/math/vector3.js
+//actionengine/math/vector3.js
 class Vector3 {
     // Vector pool for object reuse
     static _pool = [];

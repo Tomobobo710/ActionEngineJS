@@ -1,4 +1,4 @@
-// actionengine/display/graphics/actioncamera.js
+//actionengine/camera/actioncamera.js
 class ActionCamera {
     constructor(position, target) {
         this.position = position || new Vector3(0, 10, -20);

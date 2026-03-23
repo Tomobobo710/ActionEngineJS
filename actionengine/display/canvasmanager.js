@@ -1,4 +1,4 @@
-// actionengine/display/canvasmanager.js
+//actionengine/display/canvasmanager.js
 class CanvasManager {
     constructor(width = 800, height = 600) {
         this.width = width;

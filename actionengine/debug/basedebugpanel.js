@@ -1,3 +1,4 @@
+//actionengine/debug/basedebugpanel.js
 // game/debug/basedebugpanel.js
 class BaseDebugPanel {
     constructor(debugCanvas, game, options = {}) {

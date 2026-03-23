@@ -1,4 +1,4 @@
-// actionengine/sound/actionreverb.js
+//actionengine/sound/soundfont/actionreverb.js
 // ActionReverb - Reverb effect for audio processing
 
 /**

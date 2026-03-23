@@ -1,3 +1,4 @@
+//actionengine/network/client/ActionNetManager.js
 /**
  * ActionNetManager - Core networking API for ActionEngine
  *

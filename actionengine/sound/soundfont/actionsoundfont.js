@@ -1,4 +1,4 @@
-// actionengine/sound/actionsoundfont.js
+//actionengine/sound/soundfont/actionsoundfont.js
 // ActionSoundFont - Custom SoundFont player implementation
 // Drop-in replacement for 3rd party sf2-player library
 

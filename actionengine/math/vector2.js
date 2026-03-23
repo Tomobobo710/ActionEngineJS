@@ -1,4 +1,4 @@
-// actionengine/math/vector2.js
+//actionengine/math/vector2.js
 class Vector2 {
     constructor(x = 0, y = 0) {
         this.x = x;

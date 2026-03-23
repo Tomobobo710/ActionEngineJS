@@ -1,4 +1,4 @@
-// actionengine/math/transform.js
+//actionengine/math/transform.js
 
 /**
  * Transform - Encapsulates position, rotation, scale and model matrix calculation
@@ -8,7 +8,7 @@ class Transform {
     constructor() {
         this.position = new Vector3(0, 0, 0);
         this.rotation = new Quaternion(0, 0, 0, 1);
-        this.scale = 1.0;
+        this.scale = new Vector3(1, 1, 1);
     }
 
     /**
@@ -33,7 +33,7 @@ class Transform {
         const clone = new Transform();
         clone.position = this.position.clone();
         clone.rotation = new Quaternion(this.rotation.x, this.rotation.y, this.rotation.z, this.rotation.w);
-        clone.scale = this.scale;
+        clone.scale = this.scale.clone();
         return clone;
     }
 
@@ -44,33 +44,30 @@ class Transform {
      * @returns {Vector3} Point in world space
      */
     transformPoint(point) {
-        // Rotate using quaternion math: v' = q * v * q^-1
-        const x = point.x,
-            y = point.y,
-            z = point.z;
+        // 1. Scale first (Local Space)
+        const sx = point.x * this.scale.x;
+        const sy = point.y * this.scale.y;
+        const sz = point.z * this.scale.z;
+
+        // 2. Rotate (after scaling)
         const qx = this.rotation.x,
             qy = this.rotation.y,
             qz = this.rotation.z,
             qw = this.rotation.w;
 
-        // q * v
-        const ix = qw * x + qy * z - qz * y;
-        const iy = qw * y + qz * x - qx * z;
-        const iz = qw * z + qx * y - qy * x;
-        const iw = -qx * x - qy * y - qz * z;
+        // q * v (v is the scaled point)
+        const ix = qw * sx + qy * sz - qz * sy;
+        const iy = qw * sy + qz * sx - qx * sz;
+        const iz = qw * sz + qx * sy - qy * sx;
+        const iw = -qx * sx - qy * sy - qz * sz;
 
         // (q * v) * q^-1
         const rx = ix * qw + iw * -qx + iy * -qz - iz * -qy;
         const ry = iy * qw + iw * -qy + iz * -qx - ix * -qz;
         const rz = iz * qw + iw * -qz + ix * -qy - iy * -qx;
 
-        // Scale
-        const sx = rx * this.scale;
-        const sy = ry * this.scale;
-        const sz = rz * this.scale;
-
-        // Translate
-        return new Vector3(sx + this.position.x, sy + this.position.y, sz + this.position.z);
+        // 3. Translate
+        return new Vector3(rx + this.position.x, ry + this.position.y, rz + this.position.z);
     }
 
     /**
@@ -80,28 +77,29 @@ class Transform {
      * @returns {Vector3} Vector in world space
      */
     transformVector(vector) {
-        // Rotate using quaternion math: v' = q * v * q^-1
-        const x = vector.x,
-            y = vector.y,
-            z = vector.z;
+        // 1. Scale first (Local Space)
+        const sx = vector.x * this.scale.x;
+        const sy = vector.y * this.scale.y;
+        const sz = vector.z * this.scale.z;
+
+        // 2. Rotate (after scaling)
         const qx = this.rotation.x,
             qy = this.rotation.y,
             qz = this.rotation.z,
             qw = this.rotation.w;
 
-        // q * v
-        const ix = qw * x + qy * z - qz * y;
-        const iy = qw * y + qz * x - qx * z;
-        const iz = qw * z + qx * y - qy * x;
-        const iw = -qx * x - qy * y - qz * z;
+        // q * v (v is the scaled vector)
+        const ix = qw * sx + qy * sz - qz * sy;
+        const iy = qw * sy + qz * sx - qx * sz;
+        const iz = qw * sz + qx * sy - qy * sx;
+        const iw = -qx * sx - qy * sy - qz * sz;
 
         // (q * v) * q^-1
         const rx = ix * qw + iw * -qx + iy * -qz - iz * -qy;
         const ry = iy * qw + iw * -qy + iz * -qx - ix * -qz;
         const rz = iz * qw + iw * -qz + ix * -qy - iy * -qx;
 
-        // Scale
-        return new Vector3(rx * this.scale, ry * this.scale, rz * this.scale);
+        return new Vector3(rx, ry, rz);
     }
 
     /**
@@ -113,35 +111,32 @@ class Transform {
      * @returns {Vector3} The destination vector
      */
     transformPointInto(point, dest) {
-        // Rotate using quaternion math: v' = q * v * q^-1
-        const x = point.x,
-            y = point.y,
-            z = point.z;
+        // 1. Scale first (Local Space)
+        const sx = point.x * this.scale.x;
+        const sy = point.y * this.scale.y;
+        const sz = point.z * this.scale.z;
+
+        // 2. Rotate (after scaling)
         const qx = this.rotation.x,
             qy = this.rotation.y,
             qz = this.rotation.z,
             qw = this.rotation.w;
 
         // q * v
-        const ix = qw * x + qy * z - qz * y;
-        const iy = qw * y + qz * x - qx * z;
-        const iz = qw * z + qx * y - qy * x;
-        const iw = -qx * x - qy * y - qz * z;
+        const ix = qw * sx + qy * sz - qz * sy;
+        const iy = qw * sy + qz * sx - qx * sz;
+        const iz = qw * sz + qx * sy - qy * sx;
+        const iw = -qx * sx - qy * sy - qz * sz;
 
         // (q * v) * q^-1
         const rx = ix * qw + iw * -qx + iy * -qz - iz * -qy;
         const ry = iy * qw + iw * -qy + iz * -qx - ix * -qz;
         const rz = iz * qw + iw * -qz + ix * -qy - iy * -qx;
 
-        // Scale
-        const sx = rx * this.scale;
-        const sy = ry * this.scale;
-        const sz = rz * this.scale;
-
-        // Translate and store in destination
-        dest.x = sx + this.position.x;
-        dest.y = sy + this.position.y;
-        dest.z = sz + this.position.z;
+        // 3. Translate and store in destination
+        dest.x = rx + this.position.x;
+        dest.y = ry + this.position.y;
+        dest.z = rz + this.position.z;
         return dest;
     }
 
@@ -154,30 +149,32 @@ class Transform {
      * @returns {Vector3} The destination vector
      */
     transformVectorInto(vector, dest) {
-        // Rotate using quaternion math: v' = q * v * q^-1
-        const x = vector.x,
-            y = vector.y,
-            z = vector.z;
+        // 1. Scale first (Local Space)
+        const sx = vector.x * this.scale.x;
+        const sy = vector.y * this.scale.y;
+        const sz = vector.z * this.scale.z;
+
+        // 2. Rotate (after scaling)
         const qx = this.rotation.x,
             qy = this.rotation.y,
             qz = this.rotation.z,
             qw = this.rotation.w;
 
         // q * v
-        const ix = qw * x + qy * z - qz * y;
-        const iy = qw * y + qz * x - qx * z;
-        const iz = qw * z + qx * y - qy * x;
-        const iw = -qx * x - qy * y - qz * z;
+        const ix = qw * sx + qy * sz - qz * sy;
+        const iy = qw * sy + qz * sx - qx * sz;
+        const iz = qw * sz + qx * sy - qy * sx;
+        const iw = -qx * sx - qy * sy - qz * sz;
 
         // (q * v) * q^-1
         const rx = ix * qw + iw * -qx + iy * -qz - iz * -qy;
         const ry = iy * qw + iw * -qy + iz * -qx - ix * -qz;
         const rz = iz * qw + iw * -qz + ix * -qy - iy * -qx;
 
-        // Scale and store in destination
-        dest.x = rx * this.scale;
-        dest.y = ry * this.scale;
-        dest.z = rz * this.scale;
+        // Store in destination
+        dest.x = rx;
+        dest.y = ry;
+        dest.z = rz;
         return dest;
     }
 }

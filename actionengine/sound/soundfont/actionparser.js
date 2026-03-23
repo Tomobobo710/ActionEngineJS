@@ -1,4 +1,4 @@
-// actionengine/sound/actionparser.js
+//actionengine/sound/soundfont/actionparser.js
 // ActionParser - SoundFont2 file parser
 
 /**

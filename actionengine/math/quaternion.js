@@ -1,4 +1,4 @@
-// actionengine/math/quaternion.js
+//actionengine/math/quaternion.js
 class Quaternion {
     constructor(x = 0, y = 0, z = 0, w = 1) {
         this.x = x;
