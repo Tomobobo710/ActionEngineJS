@@ -6,11 +6,8 @@ class ActionPhysicsCompoundShape3D extends ActionPhysicsObject3D {
 
         // Create the Goblin compound shape
         this.compoundShape = new Goblin.CompoundShape();
-        this.body = new Goblin.RigidBody(this.compoundShape, mass);
-        this.body.position.set(initialPosition.x, initialPosition.y, initialPosition.z);
-
-        this.body.linear_damping = 0.01;
-        this.body.angular_damping = 0.01;
+        this.body = new ActionRigidBody(this.compoundShape, mass);
+        this.body.position = initialPosition;
 
         // Keep track of the child objects
         this.childObjects = [];

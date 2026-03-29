@@ -35,14 +35,8 @@ class ActionPhysicsMesh3D extends ActionPhysicsObject3D {
 
         // Create physics shape and body
         const shape = new Goblin.MeshShape(goblinVertices, indices);
-        this.body = new Goblin.RigidBody(shape, mass);
-        this.body.position.set(initialPosition.x, initialPosition.y, initialPosition.z);
-
-        // Set damping properties if it's not static
-        if (mass > 0) {
-            this.body.linear_damping = 0.01;
-            this.body.angular_damping = 0.01;
-        }
+        this.body = new ActionRigidBody(shape, mass);
+        this.body.position = initialPosition;
 
         this.storeOriginalData();
     }

@@ -122,13 +122,10 @@ class ActionPhysicsBox3D extends ActionPhysicsObject3D {
 
         super(physicsWorld, triangles, options);
 
-        // Create physics shape and body
+        // Create physics body from shape
         const shape = new Goblin.BoxShape(width / 2, height / 2, depth / 2);
-        this.body = new Goblin.RigidBody(shape, mass);
-        this.body.position.set(initialPosition.x, initialPosition.y, initialPosition.z);
-
-        this.body.linear_damping = 0.01;
-        this.body.angular_damping = 0.01;
+        this.body = new ActionRigidBody(shape, mass);
+        this.body.position = initialPosition;
 
         this.storeOriginalData();
 

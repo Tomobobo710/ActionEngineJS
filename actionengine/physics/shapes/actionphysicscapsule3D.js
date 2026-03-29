@@ -162,11 +162,8 @@ class ActionPhysicsCapsule3D extends ActionPhysicsObject3D {
         super(physicsWorld, triangles);
 
         const shape = new Goblin.CapsuleShape(radius, height);
-        this.body = new Goblin.RigidBody(shape, mass);
-        this.body.position.set(initialPosition.x, initialPosition.y, initialPosition.z);
-
-        this.body.linear_damping = 0.01;
-        this.body.angular_damping = 0.01;
+        this.body = new ActionRigidBody(shape, mass);
+        this.body.position = initialPosition;
 
         this.storeOriginalData();
     }

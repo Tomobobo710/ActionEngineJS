@@ -71,8 +71,8 @@ class ActionPhysicsPlane3D extends ActionPhysicsObject3D {
         super(physicsWorld, triangles);
 
         const shape = new Goblin.PlaneShape(orientation, width / 2, length / 2);
-        this.body = new Goblin.RigidBody(shape, mass);
-        this.body.position.set(initialPosition.x, initialPosition.y, initialPosition.z);
+        this.body = new ActionRigidBody(shape, mass);
+        this.body.position = initialPosition;
 
         this.storeOriginalData();
     }

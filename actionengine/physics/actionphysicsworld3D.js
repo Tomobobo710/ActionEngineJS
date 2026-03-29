@@ -131,17 +131,20 @@ class ActionPhysicsWorld3D {
         this.objects.add(object);
         if (object.body) {
             //console.log("[PhysicsWorld] Adding object body:", object.body);
-            this.world.addRigidBody(object.body);
+            // Handle both ActionRigidBody wrappers and raw Goblin bodies
+            const body = object.body instanceof ActionRigidBody ? object.body._body : object.body;
+            this.world.addRigidBody(body);
         }
         if (object.rigidBodies) {
             object.rigidBodies.forEach((body) => {
-                console.log("[PhysicsWorld] Adding object body:", body);
-                this.world.addRigidBody(body);
+                //console.log("[PhysicsWorld] Adding object body:", body);
+                const goblinBody = body instanceof ActionRigidBody ? body._body : body;
+                this.world.addRigidBody(goblinBody);
             });
         }
         if (object.constraints) {
             object.constraints.forEach((constraint) => {
-                console.log("[PhysicsWorld] Adding object constraint:", constraint);
+                //console.log("[PhysicsWorld] Adding object constraint:", constraint);
                 this.world.addConstraint(constraint);
             });
         }
@@ -187,13 +190,14 @@ class ActionPhysicsWorld3D {
 
     removeObject(object) {
         if (object.body) {
-            this.world.removeRigidBody(object.body);
+            const body = object.body instanceof ActionRigidBody ? object.body._body : object.body;
+            this.world.removeRigidBody(body);
         }
-        // Check for additional bodies
         if (object.rigidBodies) {
             object.rigidBodies.forEach((body) => {
                 //console.log("[PhysicsWorld] Removing object body:", body);
-                this.world.removeRigidBody(body);
+                const goblinBody = body instanceof ActionRigidBody ? body._body : body;
+                this.world.removeRigidBody(goblinBody);
             });
         }
         if (object.constraints) {
