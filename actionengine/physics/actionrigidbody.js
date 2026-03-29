@@ -147,6 +147,42 @@ class ActionRigidBody {
     // === Forces ===
     
     /**
+     * Get accumulated force (will be applied in next integration)
+     * Access individual axes: accumulatedForce.x, .y, .z
+     */
+    get accumulatedForce() {
+        return this._body.accumulated_force;
+    }
+    
+    /**
+     * Set accumulated force
+     * @param {Vector3} value - Force vector to set
+     */
+    set accumulatedForce(value) {
+        this._body.accumulated_force.x = value.x;
+        this._body.accumulated_force.y = value.y;
+        this._body.accumulated_force.z = value.z;
+    }
+    
+    /**
+     * Get accumulated torque (will be applied in next integration)
+     * Access individual axes: accumulatedTorque.x, .y, .z
+     */
+    get accumulatedTorque() {
+        return this._body.accumulated_torque;
+    }
+    
+    /**
+     * Set accumulated torque
+     * @param {Vector3} value - Torque vector to set
+     */
+    set accumulatedTorque(value) {
+        this._body.accumulated_torque.x = value.x;
+        this._body.accumulated_torque.y = value.y;
+        this._body.accumulated_torque.z = value.z;
+    }
+    
+    /**
      * Apply a force at the body's center of mass
      * @param {Vector3} force - Force to apply
      */
@@ -183,6 +219,14 @@ class ActionRigidBody {
     // === Utility ===
     
     /**
+     * Get custom gravity for this body (null if using world gravity)
+     * @returns {Vector3|null}
+     */
+    get gravity() {
+        return this._body.gravity;
+    }
+    
+    /**
      * Set custom gravity for this body (overrides world gravity)
      * @param {Vector3} gravity - Custom gravity vector
      */
@@ -197,6 +241,140 @@ class ActionRigidBody {
     isSleeping() {
         return this._body.linear_velocity.length() < 0.01 && 
                this._body.angular_velocity.length() < 0.01;
+    }
+    
+    // === Collision & Layers ===
+    
+    /**
+     * Get bitmask of collision groups this body belongs to
+     */
+    get collisionGroups() {
+        return this._body.collision_groups;
+    }
+    
+    /**
+     * Set bitmask of collision groups this body belongs to
+     */
+    set collisionGroups(value) {
+        this._body.collision_groups = value;
+    }
+    
+    /**
+     * Get collision mask (which groups to collide with)
+     */
+    get collisionMask() {
+        return this._body.collision_mask;
+    }
+    
+    /**
+     * Set collision mask (which groups to collide with)
+     */
+    set collisionMask(value) {
+        this._body.collision_mask = value;
+    }
+    
+    // === Per-Axis Control ===
+    
+    /**
+     * Get per-axis linear movement multiplier (Vector3)
+     */
+    get linearFactor() {
+        return this._body.linear_factor;
+    }
+    
+    /**
+     * Set per-axis linear movement multiplier (Vector3)
+     */
+    set linearFactor(value) {
+        this._body.linear_factor.x = value.x;
+        this._body.linear_factor.y = value.y;
+        this._body.linear_factor.z = value.z;
+    }
+    
+    /**
+     * Get per-axis angular movement multiplier (Vector3)
+     */
+    get angularFactor() {
+        return this._body.angular_factor;
+    }
+    
+    /**
+     * Set per-axis angular movement multiplier (Vector3)
+     */
+    set angularFactor(value) {
+        this._body.angular_factor.x = value.x;
+        this._body.angular_factor.y = value.y;
+        this._body.angular_factor.z = value.z;
+    }
+    
+    // === Body Data ===
+    
+    /**
+     * Get the physics shape
+     */
+    get shape() {
+        return this._body.shape;
+    }
+    
+    /**
+     * Get the unique Goblin ID for this body
+     */
+    get id() {
+        return this._body.id;
+    }
+    
+    /**
+     * Get the axis-aligned bounding box
+     */
+    get aabb() {
+        return this._body.aabb;
+    }
+    
+    /**
+     * Get current acceleration
+     */
+    get acceleration() {
+        return this._body.acceleration;
+    }
+    
+    /**
+     * Get the physics world this body belongs to
+     */
+    get world() {
+        return this._body.world;
+    }
+    
+    // === Velocity Queries ===
+    
+    /**
+     * Get velocity at a specific point in local space
+     * @param {Vector3} point - Point in local coordinates
+     * @param {Vector3} out - Output vector for velocity
+     * @returns {Vector3} The output vector
+     */
+    getVelocityInLocalPoint(point, out) {
+        return this._body.getVelocityInLocalPoint(point, out);
+    }
+    
+    // === Physics Queries ===
+    
+    /**
+     * Find the point on this body that is most extreme in a given direction
+     * @param {Vector3} direction - Direction to search
+     * @param {Vector3} supportPoint - Output vector to store result
+     */
+    findSupportPoint(direction, supportPoint) {
+        return this._body.findSupportPoint(direction, supportPoint);
+    }
+    
+    /**
+     * Check if a ray segment intersects this body
+     * @param {Vector3} rayStart - Start point of ray segment
+     * @param {Vector3} rayEnd - End point of ray segment
+     * @param {Array} intersectionList - Array to append intersection results to
+     */
+    rayIntersect(rayStart, rayEnd, intersectionList) {
+        return this._body.rayIntersect(rayStart, rayEnd, intersectionList);
     }
     
     // === Contact Callbacks ===
