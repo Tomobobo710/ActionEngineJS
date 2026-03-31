@@ -1,7 +1,6 @@
 //actionengine/physics/shapes/actionphysicsplane3D.js
 class ActionPhysicsPlane3D extends ActionPhysicsObject3D {
     constructor(
-        physicsWorld,
         orientation = 1,
         width = 100,
         length = 100,
@@ -68,7 +67,7 @@ class ActionPhysicsPlane3D extends ActionPhysicsObject3D {
             }
         }
 
-        super(physicsWorld, triangles);
+        super(triangles);
 
         const shape = new Goblin.PlaneShape(orientation, width / 2, length / 2);
         this.body = new ActionRigidBody(shape, mass);

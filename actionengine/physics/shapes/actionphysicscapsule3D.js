@@ -13,7 +13,6 @@
  * - If total height < 2 × radius, cylinder height becomes negative = impossible!
  * - This constraint is enforced by the Goblin physics library
  *
- * @param {ActionPhysicsWorld3D} physicsWorld - The physics world
  * @param {number} radius - Capsule radius (default: 2)
  * @param {number} height - Total height including caps - MUST be > 2×radius (default: 10)
  * @param {number} mass - Physics mass (default: 1)
@@ -22,7 +21,6 @@
  */
 class ActionPhysicsCapsule3D extends ActionPhysicsObject3D {
     constructor(
-        physicsWorld,
         radius = 2,
         height = 10,
         mass = 1,
@@ -159,7 +157,7 @@ class ActionPhysicsCapsule3D extends ActionPhysicsObject3D {
         // Keep flat cap edges hard by not smoothing the pole vertices
         ActionPhysicsCapsule3D._computeSmoothVertexNormalsForCapsule(triangles, radialSegments, heightSegments, capSegments);
 
-        super(physicsWorld, triangles);
+        super(triangles);
 
         const shape = new Goblin.CapsuleShape(radius, height);
         this.body = new ActionRigidBody(shape, mass);

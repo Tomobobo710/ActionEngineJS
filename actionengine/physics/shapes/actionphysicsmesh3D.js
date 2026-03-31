@@ -1,7 +1,6 @@
 //actionengine/physics/shapes/actionphysicsmesh3D.js
 class ActionPhysicsMesh3D extends ActionPhysicsObject3D {
     constructor(
-        physicsWorld,
         vertices, // Array of Vector3 positions
         indices, // Array of indices forming triangles (groups of 3)
         mass = 0, // Default to static (0 = immovable)
@@ -28,7 +27,7 @@ class ActionPhysicsMesh3D extends ActionPhysicsObject3D {
             triangles.push(new Triangle(v1, v2, v3, color));
         }
 
-        super(physicsWorld, triangles);
+        super(triangles);
 
         // Convert vertices to Goblin.Vector3 for the physics engine
         const goblinVertices = vertices.map((v) => new Goblin.Vector3(v.x, v.y, v.z));

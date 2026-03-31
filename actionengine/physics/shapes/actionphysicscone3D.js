@@ -5,7 +5,6 @@
  * BREAKING CHANGE: Previously used two-color checkerboard pattern (color1, color2).
  * Now uses single color system for consistency with other shapes.
  *
- * @param {ActionPhysicsWorld3D} physicsWorld - The physics world
  * @param {number} radius - Cone base radius (default: 2)
  * @param {number} height - Cone height (default: 10)
  * @param {number} mass - Physics mass (default: 1)
@@ -14,7 +13,6 @@
  */
 class ActionPhysicsCone3D extends ActionPhysicsObject3D {
     constructor(
-        physicsWorld,
         radius = 2,
         height = 10,
         mass = 1,
@@ -90,7 +88,7 @@ class ActionPhysicsCone3D extends ActionPhysicsObject3D {
         // Keep the tip pointed and base flat
         ActionPhysicsCone3D._computeSmoothVertexNormalsForCone(triangles, heightSegments);
 
-        super(physicsWorld, triangles);
+        super(triangles);
 
         // Create physics shape and body - Goblin expects half-height
         const shape = new Goblin.ConeShape(radius, height / 2);

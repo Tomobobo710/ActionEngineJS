@@ -232,8 +232,8 @@ class Game {
 		// This prevents null from overriding the constructor's default behavior
 		const box =
 			color !== null
-				? new ActionPhysicsBox3D(this.physicsWorld, width, height, depth, mass, position, color)
-				: new ActionPhysicsBox3D(this.physicsWorld, width, height, depth, mass, position);
+				? new ActionPhysicsBox3D(width, height, depth, mass, position, color)
+				: new ActionPhysicsBox3D(width, height, depth, mass, position);
 		this.physicsWorld.addObject(box);
 		return box;
 	}
@@ -252,8 +252,8 @@ class Game {
 		// This prevents null from overriding the constructor's default color
 		const sphere =
 			color !== null
-				? new ActionPhysicsSphere3D(this.physicsWorld, radius, mass, position, color)
-				: new ActionPhysicsSphere3D(this.physicsWorld, radius, mass, position);
+				? new ActionPhysicsSphere3D(radius, mass, position, color)
+				: new ActionPhysicsSphere3D(radius, mass, position);
 		this.physicsWorld.addObject(sphere);
 		return sphere;
 	}
@@ -275,8 +275,8 @@ class Game {
 		// This prevents null from overriding the constructor's default color
 		const capsule =
 			color !== null
-				? new ActionPhysicsCapsule3D(this.physicsWorld, radius, height, mass, position, color)
-				: new ActionPhysicsCapsule3D(this.physicsWorld, radius, height, mass, position);
+				? new ActionPhysicsCapsule3D(radius, height, mass, position, color)
+				: new ActionPhysicsCapsule3D(radius, height, mass, position);
 		this.physicsWorld.addObject(capsule);
 		return capsule;
 	}
@@ -296,8 +296,8 @@ class Game {
 		// This prevents null from overriding the constructor's default color
 		const cone =
 			color !== null
-				? new ActionPhysicsCone3D(this.physicsWorld, radius, height, mass, position, color)
-				: new ActionPhysicsCone3D(this.physicsWorld, radius, height, mass, position);
+				? new ActionPhysicsCone3D(radius, height, mass, position, color)
+				: new ActionPhysicsCone3D(radius, height, mass, position);
 		this.physicsWorld.addObject(cone);
 		return cone;
 	}
@@ -317,8 +317,8 @@ class Game {
 		// This prevents null from overriding the constructor's default color
 		const cylinder =
 			color !== null
-				? new ActionPhysicsCylinder3D(this.physicsWorld, radius, height, mass, position, color)
-				: new ActionPhysicsCylinder3D(this.physicsWorld, radius, height, mass, position);
+				? new ActionPhysicsCylinder3D(radius, height, mass, position, color)
+				: new ActionPhysicsCylinder3D(radius, height, mass, position);
 		this.physicsWorld.addObject(cylinder);
 		return cylinder;
 	}

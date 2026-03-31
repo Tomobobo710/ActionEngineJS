@@ -14,7 +14,6 @@ class ActionCharacter3D extends ActionCharacter {
 
         // Create a capsule physics model
         this.characterModel = new ActionPhysicsCapsule3D(
-            this.game.physicsWorld,
             2,
             6,
             0, // mass

@@ -135,7 +135,6 @@ class GeometryBuilder {
 
         // Use ActionEngine's proper mesh physics class
         const physicsObject = new ActionPhysicsMesh3D(
-            physicsWorld,
             vector3Vertices,
             indices,
             mass,

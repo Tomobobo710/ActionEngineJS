@@ -1,13 +1,8 @@
 //actionengine/physics/actionphysicsobject3D.js
 class ActionPhysicsObject3D extends RenderableObject {
-    constructor(physicsWorld, triangles, options = {}) {
+    constructor(triangles, options = {}) {
         super();
         if (options.isStatic !== undefined) this.isStatic = options.isStatic;
-        if (!physicsWorld) {
-            console.error("[ActionPhysicsObject3D] Physics world is required. Stack trace:", new Error().stack);
-            throw new Error("[ActionPhysicsObject3D] Physics world is required - check console for stack trace");
-        }
-        this.physicsWorld = physicsWorld;
 
         // If we have an animator, we are likely not static
         this.isStatic = options.isStatic !== undefined ? options.isStatic : true;

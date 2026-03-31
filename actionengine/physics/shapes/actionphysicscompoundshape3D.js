@@ -1,8 +1,8 @@
 //actionengine/physics/shapes/actionphysicscompoundshape3D.js
 class ActionPhysicsCompoundShape3D extends ActionPhysicsObject3D {
-    constructor(physicsWorld, initialPosition = new Vector3(0, 500, 0), mass = 1) {
+    constructor(initialPosition = new Vector3(0, 500, 0), mass = 1) {
         // Start with an empty triangle list - we'll add them as child shapes are added
-        super(physicsWorld, []);
+        super([]);
 
         // Create the Goblin compound shape
         this.compoundShape = new Goblin.CompoundShape();
@@ -96,21 +96,18 @@ const physicsWorld = new ActionPhysicsWorld3D();
 
 // Create a compound shape at position (0, 20, 0) with mass 5
 const compoundShape = new ActionPhysicsCompoundShape3D(
-    physicsWorld,
     new Vector3(0, 20, 0),
     5
 );
 
 // Create a sphere (without adding it to the world)
 const sphere = new ActionPhysicsSphere3D(
-    physicsWorld,
     2,  // radius
     1   // mass (this won't matter for the compound)
 );
 
 // Create a box (without adding it to the world)
 const box = new ActionPhysicsBox3D(
-    physicsWorld,
     3, 3, 3,  // dimensions
     1         // mass (this won't matter for the compound)
 );

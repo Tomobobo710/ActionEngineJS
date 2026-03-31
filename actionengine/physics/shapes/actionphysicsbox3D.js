@@ -5,7 +5,6 @@
  * BREAKING CHANGE: Previously used rainbow faces by default.
  * Now uses single green color system for consistency with other shapes.
  *
- * @param {ActionPhysicsWorld3D} physicsWorld - The physics world
  * @param {number} width - Box width (default: 10)
  * @param {number} height - Box height (default: 10)
  * @param {number} depth - Box depth (default: 10)
@@ -15,7 +14,6 @@
  */
 class ActionPhysicsBox3D extends ActionPhysicsObject3D {
     constructor(
-        physicsWorld,
         width = 10,
         height = 10,
         depth = 10,
@@ -120,7 +118,7 @@ class ActionPhysicsBox3D extends ActionPhysicsObject3D {
             5
         );
 
-        super(physicsWorld, triangles, options);
+        super(triangles, options);
 
         // Create physics body from shape
         const shape = new Goblin.BoxShape(width / 2, height / 2, depth / 2);

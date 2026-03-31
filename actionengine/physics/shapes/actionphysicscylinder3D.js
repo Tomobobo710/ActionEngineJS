@@ -5,7 +5,6 @@
  * BREAKING CHANGE: Previously used two-color checkerboard pattern (color1, color2).
  * Now uses single color system for consistency with other shapes.
  *
- * @param {ActionPhysicsWorld3D} physicsWorld - The physics world
  * @param {number} radius - Cylinder radius (default: 2)
  * @param {number} height - Cylinder height (default: 10)
  * @param {number} mass - Physics mass (default: 1)
@@ -14,7 +13,6 @@
  */
 class ActionPhysicsCylinder3D extends ActionPhysicsObject3D {
     constructor(
-        physicsWorld,
         radius = 2,
         height = 10,
         mass = 1,
@@ -89,7 +87,7 @@ class ActionPhysicsCylinder3D extends ActionPhysicsObject3D {
         // Keep the flat caps hard-edged
         ActionPhysicsCylinder3D._computeSmoothVertexNormalsForCylinder(triangles, radialSegments, halfHeight);
 
-        super(physicsWorld, triangles);
+        super(triangles);
 
         // Create physics shape and body
         const shape = new Goblin.CylinderShape(radius, halfHeight);

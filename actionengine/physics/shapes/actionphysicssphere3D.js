@@ -5,14 +5,13 @@
  * BREAKING CHANGE: Previously used black/white checkerboard pattern.
  * Now uses single color system for consistent developer experience.
  *
- * @param {ActionPhysicsWorld3D} physicsWorld - The physics world
  * @param {number} radius - Sphere radius (default: 5)
  * @param {number} mass - Physics mass (default: 1)
  * @param {Vector3} initialPosition - Starting position (default: 0,500,0)
  * @param {string} color - Hex color string like "#FF0000" (default: "#FFFFFF" white)
  */
 class ActionPhysicsSphere3D extends ActionPhysicsObject3D {
-    constructor(physicsWorld, radius = 5, mass = 1, initialPosition = new Vector3(0, 500, 0), color = "#FFFFFF") {
+    constructor(radius = 5, mass = 1, initialPosition = new Vector3(0, 500, 0), color = "#FFFFFF") {
         // Visual mesh creation with single color system
         const segments = 32;
         const triangles = [];
@@ -67,7 +66,7 @@ class ActionPhysicsSphere3D extends ActionPhysicsObject3D {
         // Compute smooth vertex normals for the sphere before passing to parent
         ActionPhysicsSphere3D._computeSmoothVertexNormalsForSphere(triangles);
 
-        super(physicsWorld, triangles);
+        super(triangles);
 
         const shape = new Goblin.SphereShape(radius);
         this.body = new ActionRigidBody(shape, mass);
