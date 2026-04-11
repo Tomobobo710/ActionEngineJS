@@ -123,7 +123,7 @@ class ActionUI {
         const keyMap = {
             'Backspace': 'Backspace',
             'Delete': 'Delete',
-            'Enter': 'Action1',
+            'Enter': 'Enter',
             'Escape': 'Action2'
         };
         

@@ -209,8 +209,16 @@ class ActionUITextInput extends ActionUIComponent {
         }
 
         // Enter: Submit
-        if (key === 'Action1') {
+        if (key === 'Enter') {
             this.onSubmit && this.onSubmit(this.value, this);
+        }
+
+        // Action2 or Escape: Unfocus
+        if (key === 'Action2' || key === 'Escape') {
+            this._focused = false;
+            if (this._ui) {
+                this._ui._focusedId = null;
+            }
         }
     }
 

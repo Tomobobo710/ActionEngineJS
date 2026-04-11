@@ -247,7 +247,7 @@ class ActionUIOnScreenKeyboard extends ActionUIComponent {
                 break;
             case 'enter':
                 if (this.target && this.target._focused) {
-                    this.target.onKeyDown('Action1');
+                    this.target.onKeyDown('Enter');
                 }
                 break;
             case 'done':
