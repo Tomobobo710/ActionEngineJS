@@ -55,7 +55,7 @@ class Game {
         this.ui.makeLabel({ text: 'Component Gallery', x: 130, y: 18, width: 240, height: 24, fontSize: t.fontSizeSm, color: t.colorTextMuted });
         this.tabBar = this.ui.makeTabBar({
             x: 380, y: 10, width: 400, height: 34,
-            tabs: [{ label: 'Controls', id: 'controls' }, { label: 'Inputs', id: 'inputs' }, { label: 'Display', id: 'display' }, { label: 'Feedback', id: 'feedback' }, { label: 'Themes', id: 'themes' }],
+            tabs: [{ label: 'Controls', id: 'controls' }, { label: 'Inputs', id: 'inputs' }, { label: 'Display', id: 'display' }, { label: 'Feedback', id: 'feedback' }, { label: 'Themes', id: 'themes' }, { label: 'Console', id: 'console' }],
             selected: 0, onChange: (id, tabBar) => { this._playClick(); const idx = this.tabBar.tabs.findIndex(t => t.id === id); this._switchTab(idx); }
         });
         this.ui.makeSeparator({ x: 0, y: 52, width: 800, height: 1 });
@@ -69,6 +69,7 @@ class Game {
         this._buildDisplayPanel();
         this._buildFeedbackPanel();
         this._buildThemesPanel();
+        this._buildConsolePanel();
     }
 
     _switchTab(index) {
@@ -275,6 +276,73 @@ class Game {
         [{ color: '#7c6aff', label: 'Primary' }, { color: '#e94560', label: 'Red' }, { color: '#00e5cc', label: 'Teal' }, { color: '#f39c12', label: 'Amber' }, { color: '#00c896', label: 'Green' }].forEach(({ color, label }, i) => {
             this._child(panel, new ActionUIColorSwatch({ x: x + pad + i * 44, y: cy, size: 36, color, label, tooltip: label, onClick: () => { this._playClick(); this.ui.notify(`Color: ${color}`, 'info'); } }));
         });
+    }
+
+    _buildConsolePanel() {
+        const { x, y, w, h } = DEMO.PANEL;
+        const t = this.ui.theme;
+        const pad = 14;
+        const panel = new ActionUIPanel({ x, y, width: w, height: h, title: 'Console', shadow: true });
+        this.ui.add(panel);
+        this._tabPanels.push(panel);
+
+        let cy = y + 46;
+        const panelW = w - pad * 2;
+
+        // ListView for messages
+        this.consoleList = this._child(panel, new ActionUIListView({
+            x: x + pad, y: cy, width: panelW, height: 340,
+            itemHeight: 18, padding: 8, maxItems: 50
+        }));
+        cy += 350;
+
+        // Text input for console
+        this.consoleInput = this._child(panel, new ActionUITextInput({
+            x: x + pad, y: cy, width: panelW, height: 34,
+            placeholder: 'Type a message and press Enter to submit...',
+            label: 'Input',
+            onSubmit: (value) => {
+                if (value.trim()) {
+                    this._playClick();
+                    this.consoleList.addItem(`> ${value}`);
+                    this.consoleInput.value = '';
+                }
+            }
+        }));
+        cy += 52;
+
+        // Clear button
+        this._child(panel, new ActionUIButton({
+            x: x + pad, y: cy, width: panelW / 2 - 5, height: 32,
+            text: 'Clear', variant: 'ghost',
+            onClick: () => {
+                this._playClick();
+                this.consoleList.clear();
+                this.ui.notify('Console cleared', 'info');
+            }
+        }));
+
+        // Add sample message button
+        this._child(panel, new ActionUIButton({
+            x: x + pad + panelW / 2 + 5, y: cy, width: panelW / 2 - 5, height: 32,
+            text: 'Add Sample', variant: 'ghost',
+            onClick: () => {
+                this._playClick();
+                const messages = [
+                    '[System] Ready',
+                    '[Player] Hello world!',
+                    '[Warning] Low memory',
+                    '[Error] Connection failed',
+                    '[Success] All systems online'
+                ];
+                const msg = messages[Math.floor(Math.random() * messages.length)];
+                this.consoleList.addItem(msg);
+                this.ui.notify('Message added', 'info');
+            }
+        }));
+
+        // Add initial message
+        this.consoleList.addItem('[System] Console initialized');
     }
 
     _buildFeedbackPanel() {
