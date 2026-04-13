@@ -10,6 +10,7 @@ class ActionUIListView extends ActionUIComponent {
         this.itemHeight = props.itemHeight || 20; // Height per item
         this.padding = props.padding || 8; // Padding inside the list
         this.maxItems = props.maxItems || null; // null = no limit, otherwise trim oldest
+        this.wheelScrollMultiplier = props.wheelScrollMultiplier || 3; // items to scroll per wheel tick
         this._scrollY = 0; // Current scroll position
         this._targetScrollY = 0; // Target scroll for smooth scrolling
         this._hoveredIndex = -1;
@@ -71,6 +72,13 @@ class ActionUIListView extends ActionUIComponent {
 
     onPointerDown(px, py) {
         // Can be extended for click handling on items
+    }
+
+    onMouseWheel(wheelDelta) {
+        // wheelDelta: positive = scroll up, negative = scroll down
+        const scrollAmount = wheelDelta * this.itemHeight * this.wheelScrollMultiplier;
+        const maxScroll = Math.max(0, this.items.length * this.itemHeight - (this.height - this.padding * 2));
+        this._targetScrollY = Math.max(0, Math.min(maxScroll, this._targetScrollY - scrollAmount));
     }
 
     draw(ctx) {
@@ -137,7 +145,9 @@ class ActionUIListView extends ActionUIComponent {
         const scrollbarX = this.x + this.width - 6;
         const scrollbarWidth = 4;
         const scrollbarHeight = Math.max(20, (innerHeight / totalHeight) * innerHeight);
-        const scrollbarY = this.y + this.padding + (this._scrollY / totalHeight) * (innerHeight - scrollbarHeight);
+        const maxScroll = totalHeight - innerHeight;
+        const scrollRatio = maxScroll > 0 ? this._scrollY / maxScroll : 0;
+        const scrollbarY = this.y + this.padding + scrollRatio * (innerHeight - scrollbarHeight);
 
         // Track
         ctx.fillStyle = t.withAlpha(t.colorBorder, 0.3);
