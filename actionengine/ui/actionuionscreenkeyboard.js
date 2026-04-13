@@ -202,6 +202,11 @@ class ActionUIOnScreenKeyboard extends ActionUIComponent {
     }
 
     _onUpdate(dt) {
+        // Close if target is no longer visible
+        if (this._showing && this.target && !this.target._isEffectivelyVisible()) {
+            this.close();
+        }
+
         const target = this._showing ? 1 : 0;
         this._showT = ActionUIDrawUtils.lerp(this._showT, target, dt / this.theme.animDurationNormal);
         if (!this._showing && this._showT < 0.01) this.visible = false;
