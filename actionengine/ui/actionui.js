@@ -32,6 +32,9 @@ class ActionUI {
         // Keyboard/gamepad navigation focus
         this._kbFocus      = null;    // currently keyboard-focused component
         this._kbFocusVisible = false; // whether to draw focus ring
+        
+        // Enable/disable keyboard navigation
+        this._enableKeyboardNavigation = true;
 
         // Track pointer state internally (ActionEngine drives us from outside)
         this._pointer     = { x: 0, y: 0, down: false };
@@ -52,9 +55,34 @@ class ActionUI {
         this._keyboardListener = window.addEventListener('keydown', (e) => {
             this._handleKeyboardInput(e);
         }, { capture: true });
+
+        // Listen to wheel events for scrollable components
+        this._wheelListener = window.addEventListener('wheel', (e) => {
+            this._handleMouseWheel(e);
+        }, { passive: false });
+    }
+
+    // Getter/setter for keyboard navigation
+    get enableKeyboardNavigation() {
+        return this._enableKeyboardNavigation;
+    }
+
+    set enableKeyboardNavigation(value) {
+        this._enableKeyboardNavigation = value;
+        // Clear focus when disabling keyboard navigation
+        if (!value) {
+            this._kbFocus = null;
+            this._kbFocusVisible = false;
+        } else {
+            // Re-enable visibility when turning back on so ring shows on next navigation
+            this._kbFocusVisible = true;
+        }
     }
 
     _handleKeyboardInput(e) {
+        // If keyboard navigation is disabled, don't handle
+        if (!this.enableKeyboardNavigation) return;
+        
         // Ignore physical keyboard input when on-screen keyboard is showing
         if (this._osk && this._osk._showing) return;
 
@@ -152,6 +180,26 @@ class ActionUI {
         if (keyMap[e.key]) {
             focused.onKeyDown(keyMap[e.key]);
             e.preventDefault();
+        }
+    }
+
+    _handleMouseWheel(e) {
+        // Find the component under the pointer that can handle mouse wheel
+        const pointerPos = this.input.getPointerPosition();
+        
+        // Iterate components in reverse order (top-to-bottom) to find the topmost hittable component
+        for (let i = this._components.length - 1; i >= 0; i--) {
+            const comp = this._components[i];
+            if (!comp.visible) continue;
+            if (!comp.containsPoint(pointerPos.x, pointerPos.y)) continue;
+            
+            // Check if component has a wheel handler
+            if (typeof comp.onMouseWheel === 'function') {
+                e.preventDefault();
+                // Pass normalized wheel delta (positive = up, negative = down)
+                comp.onMouseWheel(e.deltaY > 0 ? -1 : 1);
+                return;
+            }
         }
     }
 
@@ -414,6 +462,9 @@ class ActionUI {
     }
 
     _handleKeyboard() {
+        // If keyboard navigation is disabled, only handle on-screen keyboard and modals/text inputs
+        const kbNavDisabled = !this.enableKeyboardNavigation;
+        
         // If the on-screen keyboard is showing, pass keys to it
         if (this._osk && this._osk._showing) {
             const keys = ['DirLeft', 'DirRight', 'DirUp', 'DirDown', 'Action1', 'Action2'];
@@ -444,6 +495,9 @@ class ActionUI {
             }
             return;
         }
+
+        // Skip keyboard navigation if disabled
+        if (kbNavDisabled) return;
 
         // Keyboard navigation
         const isKbActive = this._kbFocus && this._kbFocus._kbActive;
@@ -760,12 +814,16 @@ class ActionUI {
             // Tooltip drawn last (topmost)
             if (l === 'gui') {
                 this._tooltip.draw(ctx);
-                // Keyboard focus ring
+            }
+            
+            // Keyboard focus ring drawn on the layer of the focused component
+            if (this._kbFocus && this._kbFocus.layer === l) {
                 this._drawKbFocusRing(ctx);
-                // On-screen keyboard (drawn above everything)
-                if (this._osk && this._osk._showing) {
-                    this._osk.draw(ctx);
-                }
+            }
+            
+            // On-screen keyboard drawn last (above everything) on the layer of its target
+            if (this._osk && this._osk._showing && this._osk.target && this._osk.target._isEffectivelyVisible() && this._osk.target.layer === l) {
+                this._osk.draw(ctx);
             }
         }
     }
