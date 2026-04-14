@@ -91,7 +91,7 @@ class ActionPhysicsCylinder3D extends ActionPhysicsObject3D {
 
         // Create physics shape and body
         const shape = new Goblin.CylinderShape(radius, halfHeight);
-        this.body = new ActionRigidBody(shape, mass);
+        this.body = new ActionRigidBody3D(shape, mass);
         this.body.position = initialPosition;
 
         this.storeOriginalData();

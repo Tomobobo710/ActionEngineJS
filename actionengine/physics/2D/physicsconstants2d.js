@@ -1,4 +1,4 @@
-// actionengine/math/physics/physicsconstants2d.js
+// actionengine/math/physics/physicsconstants2D.js
 /**
  * PhysicsConstants2D — Centralized tunable constants for the 2D physics engine.
  *

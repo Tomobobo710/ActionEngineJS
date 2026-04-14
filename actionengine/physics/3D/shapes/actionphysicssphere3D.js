@@ -69,7 +69,7 @@ class ActionPhysicsSphere3D extends ActionPhysicsObject3D {
         super(triangles);
 
         const shape = new Goblin.SphereShape(radius);
-        this.body = new ActionRigidBody(shape, mass);
+        this.body = new ActionRigidBody3D(shape, mass);
         this.body.position = initialPosition;
 
         // Store original data for visual updates

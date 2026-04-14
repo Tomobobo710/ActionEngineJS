@@ -1,4 +1,4 @@
-//actionengine/physics/actionrigidbody.js
+//actionengine/physics/actionrigidbody3D.js
 
 /**
  * ActionRigidBody - Engine-level physics body
@@ -6,7 +6,7 @@
  * Wraps Goblin.RigidBody and exposes a clean API.
  * Handles mass, forces, velocities, damping, and contact callbacks.
  */
-class ActionRigidBody {
+class ActionRigidBody3D {
     /**
      * Create a rigid body from a shape or wrap an existing body
      * @param {Object} shapeOrBody - Physics shape (box, sphere, mesh) or existing body

@@ -1,4 +1,4 @@
-// actionengine/math/physics/actioncircleshape2d.js
+// actionengine/math/physics/actioncircleshape2D.js
 /**
  * ActionCircleShape2D — Circle collider.
  * Defined by a radius. Centroid is always at (0,0) in local space.

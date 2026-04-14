@@ -92,7 +92,7 @@ class ActionPhysicsCone3D extends ActionPhysicsObject3D {
 
         // Create physics shape and body - Goblin expects half-height
         const shape = new Goblin.ConeShape(radius, height / 2);
-        this.body = new ActionRigidBody(shape, mass);
+        this.body = new ActionRigidBody3D(shape, mass);
         this.body.position = initialPosition;
 
         this.storeOriginalData();

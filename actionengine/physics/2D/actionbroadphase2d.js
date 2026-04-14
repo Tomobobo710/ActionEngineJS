@@ -1,4 +1,4 @@
-// actionengine/math/physics/actionbroadphase2d.js
+// actionengine/math/physics/actionbroadphase2D.js
 /**
  * ActionBroadPhase2D — Spatial hash broadphase for 2D collision culling.
  *

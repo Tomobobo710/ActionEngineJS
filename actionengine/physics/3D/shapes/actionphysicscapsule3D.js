@@ -160,7 +160,7 @@ class ActionPhysicsCapsule3D extends ActionPhysicsObject3D {
         super(triangles);
 
         const shape = new Goblin.CapsuleShape(radius, height);
-        this.body = new ActionRigidBody(shape, mass);
+        this.body = new ActionRigidBody3D(shape, mass);
         this.body.position = initialPosition;
 
         this.storeOriginalData();

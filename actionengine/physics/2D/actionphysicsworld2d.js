@@ -1,4 +1,4 @@
-// actionengine/math/physics/actionphysicsworld2d.js
+// actionengine/math/physics/actionphysicsworld2D.js
 /**
  * ActionPhysicsWorld2D — The 2D physics world.
  *

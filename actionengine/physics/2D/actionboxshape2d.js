@@ -1,4 +1,4 @@
-// actionengine/math/physics/actionboxshape2d.js
+// actionengine/math/physics/actionboxshape2D.js
 /**
  * ActionBoxShape2D — Oriented bounding box collider.
  * Defined by half-extents (halfWidth, halfHeight).

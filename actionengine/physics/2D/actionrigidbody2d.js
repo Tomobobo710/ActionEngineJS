@@ -1,4 +1,4 @@
-// actionengine/math/physics/actionrigidbody2d.js
+// actionengine/math/physics/actionrigidbody2D.js
 /**
  * ActionRigidBody2D — A 2D rigid body with mass, inertia, linear/angular
  * velocity, force/torque accumulators, and damping.

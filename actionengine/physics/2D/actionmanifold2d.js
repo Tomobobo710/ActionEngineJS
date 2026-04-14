@@ -1,4 +1,4 @@
-// actionengine/math/physics/actionmanifold2d.js
+// actionengine/math/physics/actionmanifold2D.js
 /**
  * ActionContactPoint2D — A single contact point in a manifold.
  */

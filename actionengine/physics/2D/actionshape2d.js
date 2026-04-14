@@ -1,4 +1,4 @@
-// actionengine/math/physics/actionshape2d.js
+// actionengine/math/physics/actionshape2D.js
 /**
  * ActionShape2D — Base class for 2D collision shapes.
  * 

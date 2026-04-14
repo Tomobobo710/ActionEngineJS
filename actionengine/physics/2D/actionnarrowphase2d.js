@@ -1,4 +1,4 @@
-// actionengine/math/physics/actionnarrowphase2d.js
+// actionengine/math/physics/actionnarrowphase2D.js
 /**
  * ActionNarrowPhase2D — Narrow-phase collision detection.
  * 

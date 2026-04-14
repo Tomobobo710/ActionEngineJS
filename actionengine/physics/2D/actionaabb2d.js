@@ -1,4 +1,4 @@
-// actionengine/math/physics/actionaabb2d.js
+// actionengine/math/physics/actionaabb2D.js
 /**
  * ActionAABB2D - Axis-Aligned Bounding Box for 2D broadphase
  * Lightweight rect used for spatial queries and overlap tests.

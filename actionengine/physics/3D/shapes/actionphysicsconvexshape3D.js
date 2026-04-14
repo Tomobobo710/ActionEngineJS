@@ -37,7 +37,7 @@ class ActionPhysicsConvexShape3D extends ActionPhysicsObject3D {
         super(triangles);
 
         // Create the rigid body
-        this.body = new ActionRigidBody(goblinShape, mass);
+        this.body = new ActionRigidBody3D(goblinShape, mass);
         this.body.position = initialPosition;
 
         this.storeOriginalData();
