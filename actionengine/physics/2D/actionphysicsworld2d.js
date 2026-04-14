@@ -134,6 +134,11 @@ class ActionPhysicsWorld2D {
 
             const bodies = this.bodies;
 
+            // 0. Update contact state tracking for onContactStart deduplication
+            for (let i = 0; i < bodies.length; i++) {
+                bodies[i]._updateContactState();
+            }
+
             // 1. Integrate forces (gravity, external forces → velocity)
             for (let i = 0; i < bodies.length; i++) {
                 bodies[i].integrateForces(dt, this.gravityX, this.gravityY);
@@ -193,6 +198,21 @@ class ActionPhysicsWorld2D {
                 this.solver.preSolve(manifolds, dt);
                 this.solver.warmStart(manifolds);
                 this.solver.solveVelocity(manifolds);
+                
+                // Invoke continuous onContact callbacks (fire every frame)
+                for (let m = 0; m < manifolds.length; m++) {
+                    const manifold = manifolds[m];
+                    // Also register contacts for persistent manifolds
+                    manifold.bodyA._addContact(manifold.bodyB.id);
+                    manifold.bodyB._addContact(manifold.bodyA.id);
+                    
+                    if (manifold.bodyA._invokeContact) {
+                        manifold.bodyA._invokeContact(manifold.bodyB, manifold.contacts, manifold);
+                    }
+                    if (manifold.bodyB._invokeContact) {
+                        manifold.bodyB._invokeContact(manifold.bodyA, manifold.contacts, manifold);
+                    }
+                }
             }
 
             // 5. Integrate velocities → positions
@@ -269,8 +289,23 @@ class ActionPhysicsWorld2D {
 
             // Fire contact listeners
             for (let m = 0; m < manifolds.length; m++) {
+                const manifold = manifolds[m];
+                
+                // World-level listeners (existing functionality)
                 for (let l = 0; l < this._contactListeners.length; l++) {
-                    this._contactListeners[l](manifolds[m]);
+                    this._contactListeners[l](manifold);
+                }
+                
+                // Body-level listeners (new functionality)
+                // Register contact for both bodies
+                manifold.bodyA._addContact(manifold.bodyB.id);
+                manifold.bodyB._addContact(manifold.bodyA.id);
+                
+                if (manifold.bodyA._invokeContactStart) {
+                    manifold.bodyA._invokeContactStart(manifold.bodyB, manifold.contacts, manifold);
+                }
+                if (manifold.bodyB._invokeContactStart) {
+                    manifold.bodyB._invokeContactStart(manifold.bodyA, manifold.contacts, manifold);
                 }
             }
         }
@@ -313,6 +348,25 @@ class ActionPhysicsWorld2D {
     }
 
     _updateManifoldCache(manifolds) {
+        // Fire onContactEnd for any manifolds that existed last frame but don't exist this frame
+        const newKeys = new Set();
+        for (let i = 0; i < manifolds.length; i++) {
+            const key = this._pairKey(manifolds[i].bodyA, manifolds[i].bodyB);
+            newKeys.add(key);
+        }
+        
+        for (const [key, oldManifold] of this._manifoldCache) {
+            if (!newKeys.has(key)) {
+                // This contact ended
+                if (oldManifold.bodyA._invokeContactEnd) {
+                    oldManifold.bodyA._invokeContactEnd(oldManifold.bodyB);
+                }
+                if (oldManifold.bodyB._invokeContactEnd) {
+                    oldManifold.bodyB._invokeContactEnd(oldManifold.bodyA);
+                }
+            }
+        }
+        
         this._manifoldCache.clear();
         for (let i = 0; i < manifolds.length; i++) {
             const m = manifolds[i];
