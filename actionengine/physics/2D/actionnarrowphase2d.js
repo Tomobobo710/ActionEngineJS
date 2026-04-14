@@ -107,8 +107,8 @@ class ActionNarrowPhase2D {
         const localY = dx * sin + dy * cos;
 
         // Clamp to box extents to find closest point
-        const closestX = MathUtils.clamp(localX, -shape.halfWidth, shape.halfWidth);
-        const closestY = MathUtils.clamp(localY, -shape.halfHeight, shape.halfHeight);
+        const closestX = Math.min(Math.max(localX, -shape.halfWidth), shape.halfWidth);
+        const closestY = Math.min(Math.max(localY, -shape.halfHeight), shape.halfHeight);
 
         const diffX = localX - closestX;
         const diffY = localY - closestY;

@@ -154,7 +154,7 @@ class ActionContactSolver2D {
                         // Coulomb friction clamp
                         const maxFriction = manifold.friction * cp.normalImpulse;
                         const oldImpulse = cp.tangentImpulse;
-                        cp.tangentImpulse = MathUtils.clamp(oldImpulse + lambda, -maxFriction, maxFriction);
+                        cp.tangentImpulse = Math.min(Math.max(oldImpulse + lambda, -maxFriction), maxFriction);
                         lambda = cp.tangentImpulse - oldImpulse;
 
                         const impulseX = cp._tangentX * lambda;
@@ -254,7 +254,7 @@ class ActionContactSolver2D {
                     const C = Math.min(0, separation + slop);
                     
                     // Clamp correction amount
-                    const correction = MathUtils.clamp(0.8 * C, -maxCorrection, 0);
+                    const correction = Math.min(Math.max(0.8 * C, -maxCorrection), 0);
 
                     // Effective mass for position correction
                     const raCrossN = rAx * normal.y - rAy * normal.x;
