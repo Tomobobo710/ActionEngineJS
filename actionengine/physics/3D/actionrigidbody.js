@@ -380,7 +380,15 @@ class ActionRigidBody {
     // === Contact Callbacks ===
     
     /**
-     * Register callback for when this body starts touching another
+     * Register callback for when this body BEGINS touching another (fires once per contact)
+     * @param {Function} callback - Called with (otherBody, contact)
+     */
+    onContactStart(callback) {
+        this._body.addListener('contactStart', callback);
+    }
+    
+    /**
+     * Register callback for when this body is touching another (fires every frame in contact)
      * @param {Function} callback - Called with (otherBody, contact)
      */
     onContact(callback) {
