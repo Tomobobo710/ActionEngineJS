@@ -79,6 +79,10 @@ class ActionRigidBody2D {
         // User data — attach whatever you want
         this.userData = options.userData || null;
 
+        // Contact tracking - for deduplicating onContactStart
+        this._currentContacts = new Set(); // Set of body IDs currently in contact
+        this._lastFrameContacts = new Set(); // Set of body IDs in contact last frame
+
         // Compute mass properties
         if (this.type === 'dynamic') {
             const density = options.density !== undefined ? options.density : PhysicsConstants2D.BODY_DEFAULT_DENSITY;
@@ -129,7 +133,7 @@ class ActionRigidBody2D {
         if (this.type !== 'dynamic') return;
         this.force.x += forceX;
         this.force.y += forceY;
-        this.isAwake = true;
+        this.wake();
     }
 
     applyForceAtPoint(forceX, forceY, worldPointX, worldPointY) {
@@ -139,20 +143,20 @@ class ActionRigidBody2D {
         const rx = worldPointX - this.position.x;
         const ry = worldPointY - this.position.y;
         this.torque += rx * forceY - ry * forceX;
-        this.isAwake = true;
+        this.wake();
     }
 
     applyTorque(torque) {
         if (this.type !== 'dynamic') return;
         this.torque += torque;
-        this.isAwake = true;
+        this.wake();
     }
 
     applyImpulse(impulseX, impulseY) {
         if (this.type !== 'dynamic') return;
         this.linearVelocity.x += impulseX * this.invMass;
         this.linearVelocity.y += impulseY * this.invMass;
-        this.isAwake = true;
+        this.wake();
     }
 
     applyImpulseAtPoint(impulseX, impulseY, worldPointX, worldPointY) {
@@ -271,6 +275,10 @@ class ActionRigidBody2D {
         this.linearVelocity.y = vy;
     }
 
+    setAngularVelocity(av) {
+        this.angularVelocity = av;
+    }
+
     getSpeed() {
         return this.linearVelocity.length();
     }
@@ -285,5 +293,101 @@ class ActionRigidBody2D {
             this.linearVelocity.x - this.angularVelocity * ry,
             this.linearVelocity.y + this.angularVelocity * rx
         );
+    }
+    
+    // ---- Contact Callbacks (Body-level collision detection) ----
+    
+    /**
+     * Register a callback for when this body starts touching another
+     * Fires every frame while in contact
+     * @param {Function} callback - Called with (otherBody, contactPoints, manifold)
+     */
+    onContact(callback) {
+        if (!this._contactListeners) {
+            this._contactListeners = [];
+        }
+        this._contactListeners.push(callback);
+    }
+    
+    /**
+     * Register a callback that fires ONCE when contact begins
+     * @param {Function} callback - Called with (otherBody, contactPoints, manifold)
+     */
+    onContactStart(callback) {
+        if (!this._contactStartListeners) {
+            this._contactStartListeners = [];
+        }
+        this._contactStartListeners.push(callback);
+    }
+    
+    /**
+     * Register a callback for when this body stops touching another
+     * @param {Function} callback - Called with (otherBody)
+     */
+    onContactEnd(callback) {
+        if (!this._contactEndListeners) {
+            this._contactEndListeners = [];
+        }
+        this._contactEndListeners.push(callback);
+    }
+    
+    /**
+     * Internal: Invoke contact callbacks for this body (fires every frame in contact)
+     * Called by physics world during collision detection
+     * @private
+     */
+    _invokeContact(otherBody, contactPoints, manifold) {
+        if (this._contactListeners) {
+            for (let i = 0; i < this._contactListeners.length; i++) {
+                this._contactListeners[i](otherBody, contactPoints, manifold);
+            }
+        }
+    }
+    
+    /**
+     * Internal: Invoke contact start callbacks (fires once per contact pair)
+     * Called by physics world when contact first begins
+     * @private
+     */
+    _invokeContactStart(otherBody, contactPoints, manifold) {
+        // Only fire if this is a NEW contact (not in contact last frame)
+        if (!this._lastFrameContacts.has(otherBody.id)) {
+            if (this._contactStartListeners) {
+                for (let i = 0; i < this._contactStartListeners.length; i++) {
+                    this._contactStartListeners[i](otherBody, contactPoints, manifold);
+                }
+            }
+        }
+    }
+    
+    /**
+     * Internal: Update contact state for deduplication
+     * Called at the start of each physics frame
+     * @private
+     */
+    _updateContactState() {
+        this._lastFrameContacts = new Set(this._currentContacts);
+        this._currentContacts.clear();
+    }
+    
+    /**
+     * Internal: Register a contact with another body
+     * @private
+     */
+    _addContact(otherBodyId) {
+        this._currentContacts.add(otherBodyId);
+    }
+    
+    /**
+     * Internal: Invoke contact end callbacks for this body
+     * Called by physics world when contact ends
+     * @private
+     */
+    _invokeContactEnd(otherBody) {
+        if (this._contactEndListeners) {
+            for (let i = 0; i < this._contactEndListeners.length; i++) {
+                this._contactEndListeners[i](otherBody);
+            }
+        }
     }
 }
