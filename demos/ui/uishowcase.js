@@ -60,7 +60,29 @@ class Game {
         });
         this.ui.makeSeparator({ x: 0, y: 52, width: 800, height: 1 });
         this.ui.makeBadge({ x: 100, y: 12, count: 1, color: 'success', size: 18, tooltip: 'v1.0' });
-    }
+        
+        // Debug panel on debug layer
+        this.debugPanelVisible = false;
+        this.debugPanel = new ActionUIPanel({
+            x: 10, y: 70, width: 280, height: 180,
+            title: 'Multi-Layer Example', shadow: true, visible: false, layer: 'debug'
+        });
+        this.ui.add(this.debugPanel);
+        this.debugPanel.addChild(new ActionUILabel({
+            text: 'This panel renders on the "debug" layer!',
+            x: 20, y: 110, width: 240, height: 30,
+            fontSize: t.fontSizeSm, color: t.colorTextMuted, wrap: true, layer: 'debug'
+        }));
+        this.debugPanel.addChild(new ActionUILabel({
+            text: 'Use layer property on any component to control which canvas it draws to: "gui", "debug", or "game"',
+            x: 20, y: 140, width: 240, height: 40,
+            fontSize: t.fontSizeSm, color: t.colorAccent, wrap: true, layer: 'debug'
+        }));
+        this.debugPanel.addChild(new ActionUIButton({
+            text: 'Close', x: 20, y: 185, width: 240, height: 24,
+            variant: 'ghost', onClick: () => { this.debugPanelVisible = false; }
+        }));
+        }
 
     _buildTabPanels() {
         this._tabPanels = [];
@@ -412,6 +434,11 @@ class Game {
             const ptr = this.input.getPointerPosition();
             this.ui.showContextMenu(this._ctxMenu, ptr.x, ptr.y);
         }
+        // Toggle debug panel with ActionDebugToggle
+        if (this.input.isKeyJustPressed('ActionDebugToggle')) {
+            this.debugPanelVisible = !this.debugPanelVisible;
+            this.debugPanel.visible = this.debugPanelVisible;
+        }
         this.ui.update(dt);
     }
 
@@ -420,6 +447,7 @@ class Game {
         this.guiCtx.clearRect(0, 0, DEMO.WIDTH, DEMO.HEIGHT);
         this.ui.draw('gui');
         this.debugCtx.clearRect(0, 0, DEMO.WIDTH, DEMO.HEIGHT);
+        this.ui.draw('debug');
     }
 
     _drawBackground() {
