@@ -1,7 +1,7 @@
 //actionengine/physics/actionrigidbody3D.js
 
 /**
- * ActionRigidBody - Engine-level physics body
+ * ActionRigidBody3D - Engine-level physics body
  * 
  * Wraps Goblin.RigidBody and exposes a clean API.
  * Handles mass, forces, velocities, damping, and contact callbacks.
@@ -14,7 +14,7 @@ class ActionRigidBody3D {
      */
     constructor(shapeOrBody, mass = 1) {
         if (!shapeOrBody) {
-            throw new Error("[ActionRigidBody] Physics shape or body is required");
+            throw new Error("[ActionRigidBody3D] Physics shape or body is required");
         }
         
         // Check if this is already a body (has _mass property) or a shape

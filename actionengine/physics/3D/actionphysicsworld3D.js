@@ -153,14 +153,14 @@ class ActionPhysicsWorld3D {
         this.objects.add(object);
         if (object.body) {
             //console.log("[PhysicsWorld] Adding object body:", object.body);
-            // Handle both ActionRigidBody wrappers and raw Goblin bodies
-            const body = object.body instanceof ActionRigidBody ? object.body._body : object.body;
+            // Handle both ActionRigidBody3D wrappers and raw Goblin bodies
+            const body = object.body instanceof ActionRigidBody3D ? object.body._body : object.body;
             this.world.addRigidBody(body);
         }
         if (object.rigidBodies) {
             object.rigidBodies.forEach((body) => {
                 //console.log("[PhysicsWorld] Adding object body:", body);
-                const goblinBody = body instanceof ActionRigidBody ? body._body : body;
+                const goblinBody = body instanceof ActionRigidBody3D ? body._body : body;
                 this.world.addRigidBody(goblinBody);
             });
         }
@@ -212,13 +212,13 @@ class ActionPhysicsWorld3D {
 
     removeObject(object) {
         if (object.body) {
-            const body = object.body instanceof ActionRigidBody ? object.body._body : object.body;
+            const body = object.body instanceof ActionRigidBody3D ? object.body._body : object.body;
             this.world.removeRigidBody(body);
         }
         if (object.rigidBodies) {
             object.rigidBodies.forEach((body) => {
                 //console.log("[PhysicsWorld] Removing object body:", body);
-                const goblinBody = body instanceof ActionRigidBody ? body._body : body;
+                const goblinBody = body instanceof ActionRigidBody3D ? body._body : body;
                 this.world.removeRigidBody(goblinBody);
             });
         }
