@@ -1,6 +1,6 @@
 // game/game.js — ActionPhysics2D Demo
 
-const SCENES = ['Stacking', 'Pyramid', 'SquarePyramid', 'Funnel', 'Mixed', 'Chaos'];
+const SCENES = ['Stacking', 'Pyramid', 'SquarePyramid', 'Callbacks'];
 
 const PALETTE = [
     '#00d4ff', '#ff6b6b', '#ffd93d', '#6bcb77', '#c084fc',
@@ -57,6 +57,19 @@ class Game {
         this.activeManifolds = [];
         this.contactFlashes = [];
 
+        // Callbacks scene logging
+        this.contactLog = [];
+        this.maxLogLines = 15;
+        this.playerBody = null;
+        this.contactListView = null;
+
+        // ActionUI setup
+        const theme = new ActionUITheme({
+            colorBackground: '#050510', colorSurface: '#0a0a1a', colorSurfaceRaised: '#0f0f2a',
+            colorPrimary: '#4682be', colorPrimaryHover: '#5a9fd4', colorAccent: '#00d4ff', colorSuccess: '#00c896',
+        });
+        this.ui = new ActionUI(canvases, input, theme);
+
         // Setup
         this.setupAudio();
         this.setupGUI();
@@ -96,37 +109,108 @@ class Game {
     // ── GUI Setup ─────────────────────────────
 
     setupGUI() {
-        // Scene buttons (bottom bar)
-        const bw = 80, gap = 4;
-        const totalW = SCENES.length * (bw + gap) - gap;
-        const startX = (this.W - totalW) / 2;
-        this.sceneButtons = SCENES.map((name, i) => {
-            const btn = { id: `scene_${i}`, label: name, x: startX + i * (bw + gap), y: this.H - 40, w: bw, h: 30, hovered: false };
-            this.input.registerElement(btn.id, { bounds: () => ({ x: btn.x, y: btn.y, width: btn.w, height: btn.h }) });
-            return btn;
+        const t = this.ui.theme;
+
+        // Top background panel
+        this.ui.add(new ActionUIPanel({
+            x: 0, y: 0, width: this.W, height: 45,
+            title: null, shadow: false, fill: true, border: false
+        }));
+
+        // Hint label at top
+        this.ui.makeLabel({
+            text: 'Action1: change shape  |  Click: spawn  |  Arrow Keys: force  |  Action4: pause  |  DebugKey: debug',
+            x: 0, y: 0, width: this.W, height: 16,
+            fontSize: t.fontSizeSm, color: t.colorTextMuted, align: 'center'
         });
 
-        // Top-right control buttons
-        this.ctrlButtons = [
-            { id: 'btn_slowmo', label: 'Slow', x: this.W - 315, y: 10, w: 50, h: 26, hovered: false },
-            { id: 'btn_pause', label: 'Pause', x: this.W - 260, y: 10, w: 50, h: 26, hovered: false },
-            { id: 'btn_reset', label: 'Reset', x: this.W - 205, y: 10, w: 50, h: 26, hovered: false },
-            { id: 'btn_aabb', label: 'AABB', x: this.W - 150, y: 10, w: 46, h: 26, hovered: false },
-            { id: 'btn_cps', label: 'CPs', x: this.W - 100, y: 10, w: 38, h: 26, hovered: false },
-        ];
-        this.ctrlButtons.forEach(b => {
-            this.input.registerElement(b.id, { bounds: () => ({ x: b.x, y: b.y, width: b.w, height: b.h }) });
-        });
-
-        // Spawn mode buttons
+        // Spawn mode buttons (top left)
         this.modeButtons = [
-            { id: 'mode_circle', label: 'Circle', mode: 'circle', x: 14, y: 10, w: 58, h: 26, hovered: false },
-            { id: 'mode_box', label: 'Box', mode: 'box', x: 76, y: 10, w: 42, h: 26, hovered: false },
-            { id: 'mode_bullet', label: 'Bullet', mode: 'bullet', x: 122, y: 10, w: 55, h: 26, hovered: false },
+            { btn: this.ui.makeButton({ text: 'Circle', x: 14, y: 15, width: 60, height: 26, variant: 'secondary', onClick: () => { this.spawnMode = 'circle'; this.updateButtonStates(); } }) },
+            { btn: this.ui.makeButton({ text: 'Box', x: 78, y: 15, width: 50, height: 26, variant: 'secondary', onClick: () => { this.spawnMode = 'box'; this.updateButtonStates(); } }) },
+            { btn: this.ui.makeButton({ text: 'Bullet', x: 132, y: 15, width: 60, height: 26, variant: 'secondary', onClick: () => { this.spawnMode = 'bullet'; this.updateButtonStates(); } }) }
         ];
-        this.modeButtons.forEach(b => {
-            this.input.registerElement(b.id, { bounds: () => ({ x: b.x, y: b.y, width: b.w, height: b.h }) });
+        this.modeNames = ['circle', 'box', 'bullet'];
+
+        // Control buttons (top right)
+        this.ctrlButtons = [
+            { btn: this.ui.makeButton({ text: 'Slow', x: this.W - 310, y: 15, width: 50, height: 26, variant: 'ghost', onClick: () => { this.slowMo = !this.slowMo; this.updateButtonStates(); } }) },
+            { btn: this.ui.makeButton({ text: 'Pause', x: this.W - 255, y: 15, width: 50, height: 26, variant: 'ghost', onClick: () => { this.paused = !this.paused; this.updateButtonStates(); } }) },
+            { btn: this.ui.makeButton({ text: 'Reset', x: this.W - 200, y: 15, width: 50, height: 26, variant: 'ghost', onClick: () => this.buildScene(this.currentScene) }) },
+            { btn: this.ui.makeButton({ text: 'AABB', x: this.W - 145, y: 15, width: 48, height: 26, variant: 'ghost', onClick: () => { this.showAABBs = !this.showAABBs; this.updateButtonStates(); } }) },
+            { btn: this.ui.makeButton({ text: 'CPs', x: this.W - 92, y: 15, width: 40, height: 26, variant: 'ghost', onClick: () => { this.showContacts = !this.showContacts; this.updateButtonStates(); } }) }
+        ];
+
+        // Bottom background panel
+        this.ui.add(new ActionUIPanel({
+            x: 0, y: this.H - 48, width: this.W, height: 48,
+            title: null, shadow: false, fill: true, border: false
+        }));
+
+        // Scene buttons (bottom bar)
+        const sceneButtonW = 110;
+        const totalSceneW = SCENES.length * (sceneButtonW + 4) - 4;
+        const sceneStartX = (this.W - totalSceneW) / 2;
+        this.sceneButtons = SCENES.map((name, i) => ({
+            btn: this.ui.makeButton({
+                text: name,
+                x: sceneStartX + i * (sceneButtonW + 4),
+                y: this.H - 36,
+                width: sceneButtonW,
+                height: 28,
+                variant: 'secondary',
+                onClick: () => { this.currentScene = i; this.buildScene(i); this.updateButtonStates(); }
+            })
+        }));
+        
+        this.updateButtonStates();
+
+        // Stats label (bottom center)
+        this.statsLabel = this.ui.makeLabel({
+            text: '',
+            x: 0, y: 530, width: this.W, height: 14,
+            fontSize: t.fontSizeSm, color: t.colorTextMuted, align: 'center'
         });
+
+        // Debug panel
+        this.debugPanel = new ActionUIPanel({
+            x: 10, y: 48, width: 320, height: 220,
+            title: 'Debug Info', shadow: true, visible: false, layer: 'debug'
+        });
+        this.ui.add(this.debugPanel);
+
+        this.debugLabels = [];
+        const debugLines = [
+            'Scene', 'Bodies', 'Dynamic', 'Sleeping', 'Contacts', 'Gravity',
+            'Vel iters', 'Broadphase', 'FPS', 'dt', 'Spawn', 'AABB', 'CPs'
+        ];
+        debugLines.forEach((label, i) => {
+            const lbl = new ActionUILabel({
+                text: `${label}: --`,
+                x: 20, y: 95 + i * 13, width: 280, height: 12,
+                fontSize: t.fontSizeSm, color: t.colorTextMuted, layer: 'debug'
+            });
+            this.debugPanel.addChild(lbl);
+            this.debugLabels.push(lbl);
+        });
+    }
+
+    updateButtonStates() {
+        // Update mode buttons
+        this.modeButtons.forEach((m, i) => {
+            m.btn.variant = this.spawnMode === this.modeNames[i] ? 'primary' : 'secondary';
+        });
+        
+        // Update scene buttons
+        this.sceneButtons.forEach((s, i) => {
+            s.btn.variant = this.currentScene === i ? 'primary' : 'secondary';
+        });
+
+        // Update control buttons (toggle states)
+        this.ctrlButtons[0].btn.variant = this.slowMo ? 'primary' : 'ghost';
+        this.ctrlButtons[1].btn.variant = this.paused ? 'primary' : 'ghost';
+        this.ctrlButtons[3].btn.variant = this.showAABBs ? 'primary' : 'ghost';
+        this.ctrlButtons[4].btn.variant = this.showContacts ? 'primary' : 'ghost';
     }
 
     // ── Scene Building ─────────────────────────
@@ -138,6 +222,11 @@ class Game {
         this.activeManifolds = [];
         this.contactFlashes = [];
         this.colorIndex = 0;
+
+        // Hide ListView if not in callbacks scene
+        if (this.contactListView) {
+            this.contactListView.visible = (idx === 3);
+        }
 
         this.world.onContact((m) => {
             this.activeManifolds.push(m);
@@ -166,9 +255,7 @@ class Game {
             case 0: this.sceneStacking(); break;
             case 1: this.scenePyramid(); break;
             case 2: this.sceneSquarePyramid(); break;
-            case 3: this.sceneFunnel(); break;
-            case 4: this.sceneMixed(); break;
-            case 5: this.sceneChaos(); break;
+            case 3: this.sceneCallbacks(); break;
         }
 
         this.audio.play('scene_change', { volume: 0.12 });
@@ -178,21 +265,21 @@ class Game {
         const T = 25;
         const floorOffset = 50; // raise floor up by this many pixels
         // Floor
-        this.addStaticBox(this.W / 2, this.H - T / 2 - floorOffset, this.W / 2 + T, T / 2, 0, restitution, friction);
+        this.addStaticBox(this.W / 2, this.H - T / 2 - floorOffset, this.W / 2 + T, T / 2, 0, restitution, friction, { type: 'wall', name: 'Floor' });
         // Left
-        this.addStaticBox(-T / 2, this.H / 2, T / 2, this.H / 2 + T, 0, restitution, friction);
+        this.addStaticBox(-T / 2, this.H / 2, T / 2, this.H / 2 + T, 0, restitution, friction, { type: 'wall', name: 'Left Wall' });
         // Right
-        this.addStaticBox(this.W + T / 2, this.H / 2, T / 2, this.H / 2 + T, 0, restitution, friction);
+        this.addStaticBox(this.W + T / 2, this.H / 2, T / 2, this.H / 2 + T, 0, restitution, friction, { type: 'wall', name: 'Right Wall' });
     }
 
     addCeiling(restitution = 0.3, friction = 0.5) {
         this.addStaticBox(this.W / 2, -12, this.W / 2 + 25, 12, 0, restitution, friction);
     }
 
-    addStaticBox(x, y, hw, hh, angle = 0, restitution = 0.3, friction = 0.5) {
+    addStaticBox(x, y, hw, hh, angle = 0, restitution = 0.3, friction = 0.5, userData = null) {
         const shape = new ActionBoxShape2D(hw, hh);
         const body = this.world.createBody(shape, {
-            type: 'static', x, y, angle, friction, restitution
+            type: 'static', x, y, angle, friction, restitution, userData
         });
         this.bodyColors.set(body.id, '#334455');
         return body;
@@ -252,9 +339,10 @@ class Game {
             }
         }
 
-        // Some circles on the ramp
+        // Some circles on the ramp - different fixed sizes (inverted order)
+        const circleSizes = [20, 18, 16, 14, 12];
         for (let i = 0; i < 5; i++) {
-            this.spawnCircle(120 + i * 20, 280 - i * 30, 10 + Math.random() * 8, {
+            this.spawnCircle(120 + i * 20, 280 - i * 30, circleSizes[i], {
                 restitution: 0.3
             });
         }
@@ -317,91 +405,6 @@ class Game {
         });
     }
 
-    sceneFunnel() {
-        this.addWalls(0.4, 0.3);
-
-        // Funnel walls
-        this.addStaticBox(220, 260, 120, 8, 0.65, 0.4, 0.2);
-        this.addStaticBox(580, 260, 120, 8, -0.65, 0.4, 0.2);
-
-        // Shelves below funnel with gap
-        this.addStaticBox(250, 400, 100, 8, 0, 0.3, 0.4);
-        this.addStaticBox(550, 400, 100, 8, 0, 0.3, 0.4);
-
-        // Rain of objects
-        for (let i = 0; i < 25; i++) {
-            const x = 250 + Math.random() * 300;
-            const y = -30 - i * 26;
-            if (Math.random() > 0.4) {
-                this.spawnCircle(x, y, 8 + Math.random() * 12, { restitution: 0.45 });
-            } else {
-                this.spawnBox(x, y, 8 + Math.random() * 12, 6 + Math.random() * 8, {
-                    angle: Math.random() * Math.PI, restitution: 0.35
-                });
-            }
-        }
-    }
-
-    sceneMixed() {
-        this.addWalls(0.4, 0.4);
-
-        // Platforms
-        this.addStaticBox(200, 380, 90, 8, 0.3, 0.3, 0.6);
-        this.addStaticBox(580, 300, 90, 8, -0.25, 0.3, 0.6);
-        this.addStaticBox(400, 430, 80, 8, 0, 0.3, 0.6);
-
-        // Circles
-        for (let i = 0; i < 10; i++) {
-            this.spawnCircle(
-                100 + Math.random() * 600,
-                50 + Math.random() * 200,
-                10 + Math.random() * 16,
-                { restitution: 0.3 + Math.random() * 0.4 }
-            );
-        }
-
-        // Boxes
-        for (let i = 0; i < 8; i++) {
-            this.spawnBox(
-                100 + Math.random() * 600,
-                50 + Math.random() * 200,
-                10 + Math.random() * 18,
-                8 + Math.random() * 12,
-                { angle: Math.random() * Math.PI, restitution: 0.2 + Math.random() * 0.3 }
-            );
-        }
-    }
-
-    sceneChaos() {
-        this.addWalls(0.6, 0.2);
-        this.addCeiling(0.6, 0.2);
-
-        // Spinning rotor platforms (static, rotated each frame)
-        this.chaosRotors = [
-            { body: this.addStaticBox(200, 250, 70, 8, 0, 0.5, 0.1), speed: 1.8 },
-            { body: this.addStaticBox(600, 350, 70, 8, 0, 0.5, 0.1), speed: -2.2 },
-            { body: this.addStaticBox(400, 180, 60, 8, 0, 0.5, 0.1), speed: 1.4 },
-        ];
-
-        // Chaos objects
-        for (let i = 0; i < 25; i++) {
-            const x = 80 + Math.random() * 640;
-            const y = 80 + Math.random() * 400;
-            const vx = (Math.random() - 0.5) * 500;
-            const vy = (Math.random() - 0.5) * 500;
-            if (Math.random() > 0.35) {
-                this.spawnCircle(x, y, 8 + Math.random() * 14, {
-                    restitution: 0.65, vx, vy
-                });
-            } else {
-                this.spawnBox(x, y, 10 + Math.random() * 14, 8 + Math.random() * 10, {
-                    angle: Math.random() * Math.PI,
-                    restitution: 0.65, friction: 0.15, vx, vy
-                });
-            }
-        }
-    }
-
     fireBullet(x, y, tx, ty) {
         const dx = tx - x, dy = ty - y;
         const len = Math.sqrt(dx * dx + dy * dy);
@@ -413,6 +416,134 @@ class Game {
             color: '#ff2d55'
         });
         this.audio.play('bullet_fire', { volume: 0.5 });
+    }
+
+    // ── Callbacks Scene ────────────────────────
+
+    sceneCallbacks() {
+        // Clear contact log and set up ListView
+        this.contactLog = [];
+        this.spawnedBodyCount = 0;
+        
+        // Remove old ListView if exists
+        if (this.contactListView) {
+            this.ui.remove(this.contactListView);
+        }
+
+        // Create ListView for contact log with opacity
+        this.contactListView = new ActionUIListView({
+            x: 10, y: 55, width: 400, height: 200,
+            itemHeight: 16, padding: 8, maxItems: this.maxLogLines, layer: 'gui'
+        });
+        this.contactListView.opacity = 0.5;
+        this.ui.add(this.contactListView);
+
+        // Use standard walls
+        this.addWalls(0.1, 0.9);
+
+        // Player ball
+        this.playerBody = this.world.createBody(new ActionCircleShape2D(15), {
+            type: 'dynamic',
+            x: 100,
+            y: 100,
+            restitution: 0.5,
+            friction: 0.3,
+            linearDamping: 0.05,
+            angularDamping: 0.05,
+            density: 0.01,
+            userData: { type: 'player', name: 'Player Ball' }
+        });
+        this.bodyColors.set(this.playerBody.id, '#00ff55');
+
+        this.playerBody.onContactStart((otherBody) => {
+            this.log(`PLAYER contacted: ${otherBody.userData.name}`);
+            this.audio.play('hit_hard', { volume: 0.2 });
+        });
+
+        this.playerBody.onContact((otherBody) => {
+            // Log once per contact (not every frame)
+            if (!this.playerBody._lastLoggedContacts) {
+                this.playerBody._lastLoggedContacts = new Set();
+            }
+            if (!this.playerBody._lastLoggedContacts.has(otherBody.id)) {
+                this.log(`~ touching ${otherBody.userData.name}`);
+                this.playerBody._lastLoggedContacts.add(otherBody.id);
+            }
+        });
+
+        this.playerBody.onContactEnd((otherBody) => {
+            this.log(`PLAYER left: ${otherBody.userData.name}`);
+            if (this.playerBody._lastLoggedContacts) {
+                this.playerBody._lastLoggedContacts.delete(otherBody.id);
+            }
+        });
+
+        // Pre-placed example objects
+        const examples = [
+            { x: 300, y: 150, shape: 'circle', radius: 20, name: 'Blue Ball' },
+            { x: 500, y: 150, shape: 'box', w: 25, h: 25, name: 'Red Box' },
+            { x: 700, y: 200, shape: 'circle', radius: 15, name: 'Yellow Sphere' },
+            { x: 400, y: 350, shape: 'box', w: 60, h: 15, name: 'Green Platform' },
+        ];
+
+        const colors = ['#4488ff', '#ff4444', '#ffff00', '#44ff44'];
+
+        examples.forEach((ex, idx) => {
+            let body;
+            if (ex.shape === 'circle') {
+                body = this.world.createBody(new ActionCircleShape2D(ex.radius), {
+                    type: 'dynamic',
+                    x: ex.x,
+                    y: ex.y,
+                    restitution: 0.2,
+                    friction: 0.8,
+                    linearDamping: 0.1,
+                    angularDamping: 0.1,
+                    density: 1.0,
+                    userData: { type: 'example', name: ex.name }
+                });
+            } else {
+                body = this.world.createBody(new ActionBoxShape2D(ex.w, ex.h), {
+                    type: 'dynamic',
+                    x: ex.x,
+                    y: ex.y,
+                    restitution: 0.1,
+                    friction: 0.9,
+                    linearDamping: 0.15,
+                    angularDamping: 0.15,
+                    density: 1.0,
+                    userData: { type: 'example', name: ex.name }
+                });
+            }
+
+            this.bodyColors.set(body.id, colors[idx]);
+
+            body.onContactStart((otherBody) => {
+                if (otherBody === this.playerBody) {
+                    this.log(`${ex.name} touched by PLAYER`);
+                }
+            });
+
+            body.onContactEnd((otherBody) => {
+                if (otherBody === this.playerBody) {
+                    this.log(`${ex.name} lost PLAYER`);
+                }
+            });
+        });
+    }
+
+    log(msg) {
+        const timestamp = new Date().toLocaleTimeString();
+        const logMsg = `[${timestamp}] ${msg}`;
+        this.contactLog.unshift(logMsg);
+        if (this.contactLog.length > this.maxLogLines) {
+            this.contactLog.pop();
+        }
+        
+        // Add to ListView if it exists
+        if (this.contactListView) {
+            this.contactListView.addItem(logMsg);
+        }
     }
 
     // ── ActionEngine Hooks ─────────────────────
@@ -431,17 +562,10 @@ class Game {
             this._fpsCounter = 0;
         }
 
+        this.ui.update(this.dt);
         this.handleInput();
 
         if (!this.paused) {
-            // Chaos rotors
-            if (this.currentScene === 4 && this.chaosRotors) {
-                for (const cr of this.chaosRotors) {
-                    cr.body.angle += cr.speed * this.dt;
-                    cr.body._aabbDirty = true;
-                }
-            }
-
             // Fixed timestep physics (decoupled from framerate)
             // timeScale controls simulation speed, not timestep size
             this.physicsAccumulator += this.dt * this.timeScale;
@@ -483,33 +607,8 @@ class Game {
     // ── Input ──────────────────────────────────
 
     handleInput() {
-        // Scene buttons
-        this.sceneButtons.forEach((b, i) => {
-            b.hovered = this.input.isElementHovered(b.id);
-            if (this.input.isElementJustPressed(b.id)) {
-                this.currentScene = i;
-                this.buildScene(i);
-            }
-        });
-
-        // Control buttons
-        this.ctrlButtons.forEach(b => {
-            b.hovered = this.input.isElementHovered(b.id);
-        });
-        if (this.input.isElementJustPressed('btn_slowmo')) {
-            this.slowMo = !this.slowMo;
-            this.timeScale = this.slowMo ? 0.25 : 1.0;
-        }
-        if (this.input.isElementJustPressed('btn_pause')) this.paused = !this.paused;
-        if (this.input.isElementJustPressed('btn_reset')) this.buildScene(this.currentScene);
-        if (this.input.isElementJustPressed('btn_aabb')) this.showAABBs = !this.showAABBs;
-        if (this.input.isElementJustPressed('btn_cps')) this.showContacts = !this.showContacts;
-
-        // Mode buttons
-        this.modeButtons.forEach(b => {
-            b.hovered = this.input.isElementHovered(b.id);
-            if (this.input.isElementJustPressed(b.id)) this.spawnMode = b.mode;
-        });
+        // Update timeScale based on slowMo
+        this.timeScale = this.slowMo ? 0.25 : 1.0;
 
         // Keys
         if (this.input.isKeyJustPressed('ActionDebugToggle')) this.debugVisible = !this.debugVisible;
@@ -561,14 +660,35 @@ class Game {
         if (this.spawnMode === 'bullet') {
             this.fireBullet(this.W / 2, this.H - 100, x, y);
         } else if (this.spawnMode === 'circle') {
-            this.spawnCircle(x, y, 10 + Math.random() * 14, { restitution: 0.4 });
+            const body = this.spawnCircle(x, y, 10 + Math.random() * 14, { restitution: 0.4 });
+            if (this.currentScene === 3) this.attachSpawnedBodyCallbacks(body);
             this.audio.play('spawn', { volume: 0.15 });
         } else if (this.spawnMode === 'box') {
-            this.spawnBox(x, y, 10 + Math.random() * 16, 8 + Math.random() * 12, {
+            const body = this.spawnBox(x, y, 10 + Math.random() * 16, 8 + Math.random() * 12, {
                 angle: Math.random() * Math.PI, restitution: 0.3
             });
+            if (this.currentScene === 3) this.attachSpawnedBodyCallbacks(body);
             this.audio.play('spawn', { volume: 0.15 });
         }
+    }
+
+    attachSpawnedBodyCallbacks(body) {
+        const name = body.shape.type === ActionShapeType2D.CIRCLE ? `Spawned Circle ${this.spawnedBodyCount || 0}` : `Spawned Box ${this.spawnedBodyCount || 0}`;
+        if (!body.userData) body.userData = {};
+        body.userData.name = name;
+        this.spawnedBodyCount = (this.spawnedBodyCount || 0) + 1;
+        
+        body.onContactStart((otherBody) => {
+            if (otherBody === this.playerBody) {
+                this.log(`${body.userData.name} touched by PLAYER`);
+            }
+        });
+
+        body.onContactEnd((otherBody) => {
+            if (otherBody === this.playerBody) {
+                this.log(`${body.userData.name} lost PLAYER`);
+            }
+        });
     }
 
     // ── Game Layer ─────────────────────────────
@@ -767,129 +887,49 @@ class Game {
     // ── GUI Layer ──────────────────────────────
 
     drawGUI() {
-        const ctx = this.guiCtx;
-        ctx.clearRect(0, 0, this.W, this.H);
+        this.guiCtx.clearRect(0, 0, this.W, this.H);
 
-        // Top bar
-        ctx.fillStyle = 'rgba(5,5,15,0.72)';
-        ctx.fillRect(0, 0, this.W, 42);
-
-        // Mode buttons
-        for (const b of this.modeButtons) {
-            const active = this.spawnMode === b.mode;
-            this.drawButton(ctx, b, active);
-        }
-
-        // Stats (center)
-        ctx.fillStyle = '#6899bb';
-        ctx.font = '11px monospace';
-        ctx.textAlign = 'center';
+        // Update stats label
         const s = this.world.stats;
-        ctx.fillText(
-            `Bodies: ${s.bodyCount}  |  Dynamic: ${s.dynamicCount}  |  Sleeping: ${s.sleepingCount}  |  Contacts: ${s.contactCount}  |  FPS: ${this.fps}`,
-            this.W / 2, 30
-        );
+        this.statsLabel.text = `Bodies: ${s.bodyCount}  |  Dynamic: ${s.dynamicCount}  |  Sleeping: ${s.sleepingCount}  |  Contacts: ${s.contactCount}  |  FPS: ${this.fps}`;
 
-        // Control buttons
-        for (const b of this.ctrlButtons) {
-            const active = (b.id === 'btn_slowmo' && this.slowMo) ||
-                           (b.id === 'btn_pause' && this.paused) ||
-                           (b.id === 'btn_aabb' && this.showAABBs) ||
-                           (b.id === 'btn_cps' && this.showContacts);
-            this.drawButton(ctx, b, active);
-        }
-
-        // Bottom scene bar
-        ctx.fillStyle = 'rgba(5,5,15,0.78)';
-        ctx.fillRect(0, this.H - 48, this.W, 48);
-
-        this.sceneButtons.forEach((b, i) => {
-            this.drawButton(ctx, b, i === this.currentScene);
-        });
-
-        // Hints
-        ctx.fillStyle = 'rgba(100,130,160,0.5)';
-        ctx.font = '10px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText(
-            'Click: spawn  |  ◀▶: scenes  |  Action1: mode  |  Action4: pause  |  F9: debug',
-            this.W / 2, this.H - 52
-        );
-    }
-
-    drawButton(ctx, b, active) {
-        ctx.fillStyle = active ? 'rgba(70,130,190,0.9)'
-                       : b.hovered ? 'rgba(50,70,100,0.85)'
-                       : 'rgba(20,25,42,0.85)';
-        ctx.strokeStyle = active ? '#5599cc' : 'rgba(60,80,120,0.5)';
-        ctx.lineWidth = active ? 1.5 : 1;
-        ctx.beginPath();
-        ctx.roundRect(b.x, b.y, b.w, b.h, 4);
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.fillStyle = active ? '#ddeeff' : b.hovered ? '#b0c8e0' : '#6a7a8a';
-        ctx.font = active ? 'bold 10px monospace' : '10px monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(b.label, b.x + b.w / 2, b.y + b.h / 2);
-        ctx.textBaseline = 'alphabetic';
+        // ActionUI draws buttons automatically
+        this.ui.draw('gui');
     }
 
     // ── Debug Layer ────────────────────────────
 
     drawDebug() {
-        const ctx = this.debugCtx;
-        ctx.clearRect(0, 0, this.W, this.H);
+        this.debugCtx.clearRect(0, 0, this.W, this.H);
 
-        const px = 10, py = 48;
-        const panelW = 260, panelH = 310;
+        // Toggle debug panel visibility
+        this.debugPanel.visible = this.debugVisible;
 
-        ctx.fillStyle = 'rgba(0,12,4,0.88)';
-        ctx.strokeStyle = '#00aa44';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.roundRect(px, py, panelW, panelH, 6);
-        ctx.fill();
-        ctx.stroke();
+        if (this.debugVisible) {
+            const s = this.world.stats;
+            const values = [
+                SCENES[this.currentScene],
+                s.bodyCount.toString(),
+                s.dynamicCount.toString(),
+                `${s.sleepingCount} / ${s.dynamicCount}`,
+                s.contactCount.toString(),
+                `(${this.world.gravityX}, ${this.world.gravityY})`,
+                this.world.solver.velocityIterations.toString(),
+                `${this.world.broadphase.cellSize}px cells`,
+                this.fps.toString(),
+                `${(this.dt * 1000).toFixed(1)}ms`,
+                this.spawnMode,
+                this.showAABBs.toString(),
+                this.showContacts.toString()
+            ];
 
-        ctx.fillStyle = '#00ff66';
-        ctx.font = '12px monospace';
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'top';
+            this.debugLabels.forEach((label, i) => {
+                const labelName = label.text.split(':')[0];
+                label.text = `${labelName}: ${values[i]}`;
+            });
 
-        const s = this.world.stats;
-        const lines = [
-            '── ActionPhysicsWorld2D Debug ──',
-            '',
-            `Scene         : ${SCENES[this.currentScene]}`,
-            `Bodies        : ${s.bodyCount}`,
-            `Dynamic       : ${s.dynamicCount}`,
-            `Sleeping      : ${s.sleepingCount} / ${s.dynamicCount}`,
-            `Contacts      : ${s.contactCount}`,
-            `CCD hits      : ${s.ccdCount}`,
-            `Gravity       : (${this.world.gravityX}, ${this.world.gravityY})`,
-            '',
-            `Vel iters     : ${this.world.solver.velocityIterations}`,
-            `Pos iters     : ${this.world.solver.positionIterations}`,
-            `CCD           : ${this.world.enableCCD ? 'ON' : 'OFF'}`,
-            `Broadphase    : ${this.world.broadphase.cellSize}px cells`,
-            '',
-            `FPS           : ${this.fps}`,
-            `dt            : ${(this.dt * 1000).toFixed(1)}ms`,
-            `Spawn mode    : ${this.spawnMode}`,
-            `Show AABB     : ${this.showAABBs}`,
-            `Show CPs      : ${this.showContacts}`,
-        ];
-
-        for (let i = 0; i < lines.length; i++) {
-            const col = lines[i].startsWith('──') ? '#44ff88'
-                      : lines[i].includes('Sleeping') ? (s.sleepingCount > 0 ? '#88ffaa' : '#00ff66')
-                      : '#00ff66';
-            ctx.fillStyle = col;
-            ctx.fillText(lines[i], px + 10, py + 10 + i * 14);
+            // Draw debug UI
+            this.ui.draw('debug');
         }
-
-        ctx.textBaseline = 'alphabetic';
     }
 }
