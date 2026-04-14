@@ -1,11 +1,11 @@
-//actionengine/physics/physicsshapebuilder.js
+//actionengine/physics/physicsshapebuilder3D.js
 /**
- * PhysicsShapeBuilder - Utility for creating Goblin physics shapes and bodies from mesh geometry
+ * PhysicsShapeBuilder3D - Utility for creating Goblin physics shapes and bodies from mesh geometry
  * 
  * Converts vertex arrays and triangle indices into Goblin.MeshShape objects
  * with corresponding RigidBody wrappers for use in physics simulations.
  */
-class PhysicsShapeBuilder {
+class PhysicsShapeBuilder3D {
     /**
      * Create a Goblin mesh shape from vertex positions and triangle indices
      * @param {Vector3[]} vertices - Array of Vector3 positions (in local space)
@@ -15,12 +15,12 @@ class PhysicsShapeBuilder {
      */
     static createMeshShape(vertices, indices, mass = 0) {
         if (!vertices || vertices.length === 0) {
-            console.warn("[PhysicsShapeBuilder] No vertices provided");
+            console.warn("[PhysicsShapeBuilder3D] No vertices provided");
             return null;
         }
 
         if (!indices || indices.length === 0) {
-            console.warn("[PhysicsShapeBuilder] No indices provided");
+            console.warn("[PhysicsShapeBuilder3D] No indices provided");
             return null;
         }
 

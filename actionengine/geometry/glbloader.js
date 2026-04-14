@@ -637,9 +637,9 @@ class GLBLoader {
                             indexOffset += positions.length / 3;
                         }
 
-                        // Create physics shape using PhysicsShapeBuilder
+                        // Create physics shape using PhysicsShapeBuilder3D
                         if (allVertices.length > 0 && allIndices.length > 0) {
-                            physicsData = PhysicsShapeBuilder.createMeshShape(allVertices, allIndices, 0);
+                            physicsData = PhysicsShapeBuilder3D.createMeshShape(allVertices, allIndices, 0);
                             // Store the geometry for wireframe visualization
                             if (physicsData) {
                                 physicsData.debugVertices = allVertices;

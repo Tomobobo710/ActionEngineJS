@@ -1,10 +1,10 @@
-//actionengine/physics/actionraycast.js
+//actionengine/physics/actionraycast3D.js
 
 /**
  * Utility class for performing raycasts in the ActionEngine world.
  * Provides a simplified wrapper around the Goblin Physics raycasting system.
  */
-class ActionRaycast {
+class ActionRaycast3D {
     /**
      * Cast a ray from start to end in the physics world
      * @param {Vector3|{x,y,z}} start - Starting point of the ray

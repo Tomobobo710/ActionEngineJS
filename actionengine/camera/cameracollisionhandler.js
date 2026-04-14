@@ -33,8 +33,8 @@ class CameraCollisionHandler {
                 return desiredCameraPosition;
             }
 
-            // Use our ActionRaycast utility to check for collisions
-            const hit = ActionRaycast.cast(eyePosition, desiredCameraPosition, this.physicsWorld, {
+            // Use our ActionRaycast3D utility to check for collisions
+            const hit = ActionRaycast3D.cast(eyePosition, desiredCameraPosition, this.physicsWorld, {
                 ignoreObjects: ["Character"],
                 minDistance: 0.1
             });
@@ -46,7 +46,7 @@ class CameraCollisionHandler {
                 const adjustedDistance = Math.max(0, hit.distance - cameraRadius);
 
                 // Calculate the point along the ray using the utility method
-                return ActionRaycast.getPointOnRay(eyePosition, hit.rayDirection, adjustedDistance);
+                return ActionRaycast3D.getPointOnRay(eyePosition, hit.rayDirection, adjustedDistance);
             }
 
             // No intersection, return original position
