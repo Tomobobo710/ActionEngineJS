@@ -15,6 +15,17 @@ class ActionPhysicsWorld3D {
         this.physicsAccumulator = 0;
         this.lastPhysicsTime = performance.now();
         this.isPaused = false;
+
+        // World-level contact listeners
+        this._contactListeners = [];
+    }
+
+    /**
+     * Register a callback: fn(manifold) called for each active contact.
+     * @param {Function} fn - Called with (manifold) for each contact manifold
+     */
+    onContact(fn) {
+        this._contactListeners.push(fn);
     }
 
     fixed_update(fixedDeltaTime) {
@@ -33,6 +44,17 @@ class ActionPhysicsWorld3D {
         try {
             // Step physics with the fixed timestep
             this.world.step(fixedDeltaTime);
+
+            // Invoke world-level contact listeners
+            if (this._contactListeners.length > 0) {
+                let manifold = this.world.narrowphase.contact_manifolds.first;
+                while (manifold) {
+                    for (let i = 0; i < this._contactListeners.length; i++) {
+                        this._contactListeners[i](manifold);
+                    }
+                    manifold = manifold.next_manifold;
+                }
+            }
 
             // Update visual state for all objects
             this.objects.forEach((object) => {
