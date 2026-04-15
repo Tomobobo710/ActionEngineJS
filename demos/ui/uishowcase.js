@@ -54,8 +54,8 @@ class Game {
         this.ui.makeLabel({ text: 'ActionUI', x: 20, y: 8, width: 300, height: 40, fontSize: t.fontSizeXl, fontWeight: t.fontWeightBold, color: t.colorPrimary, shadow: true });
         this.ui.makeLabel({ text: 'Component Gallery', x: 130, y: 18, width: 240, height: 24, fontSize: t.fontSizeSm, color: t.colorTextMuted });
         this.tabBar = this.ui.makeTabBar({
-            x: 380, y: 10, width: 400, height: 34,
-            tabs: [{ label: 'Controls', id: 'controls' }, { label: 'Inputs', id: 'inputs' }, { label: 'Display', id: 'display' }, { label: 'Feedback', id: 'feedback' }, { label: 'Themes', id: 'themes' }, { label: 'Console', id: 'console' }],
+            x: 250, y: 10, width: 450, height: 34,
+            tabs: [{ label: 'Controls', id: 'controls' }, { label: 'Inputs', id: 'inputs' }, { label: 'Display', id: 'display' }, { label: 'Feedback', id: 'feedback' }, { label: 'Windows', id: 'windows' }, { label: 'Themes', id: 'themes' }, { label: 'Console', id: 'console' }],
             selected: 0, onChange: (id, tabBar) => { this._playClick(); const idx = this.tabBar.tabs.findIndex(t => t.id === id); this._switchTab(idx); }
         });
         this.ui.makeSeparator({ x: 0, y: 52, width: 800, height: 1 });
@@ -90,6 +90,7 @@ class Game {
         this._buildInputsPanel();
         this._buildDisplayPanel();
         this._buildFeedbackPanel();
+        this._buildWindowsPanel();
         this._buildThemesPanel();
         this._buildConsolePanel();
     }
@@ -256,6 +257,52 @@ class Game {
             scrollPanelB.addChild(btn);
             btn._parent = panel;
         });
+    }
+
+    _buildWindowsPanel() {
+        const { x, y, w, h } = DEMO.PANEL;
+        const t = this.ui.theme;
+        const pad = 14;
+        const panel = new ActionUIPanel({ x, y, width: w, height: h, title: 'Windows & Dialogs', shadow: true });
+        this.ui.add(panel);
+        this._tabPanels.push(panel);
+
+        let cy = y + 46;
+        this._child(panel, new ActionUILabel({ text: 'Draggable & Resizable Windows', x: x + pad, y: cy, width: w - pad * 2, height: 16, fontSize: t.fontSizeSm, fontWeight: t.fontWeightMedium, color: t.colorTextMuted, uppercase: true }));
+        cy += 24;
+
+        // Example window 1 - draggable, resizable
+        this._child(panel, new ActionUIButton({ x: x + pad, y: cy, width: 120, height: 32, text: 'Open Window 1', variant: 'primary', onClick: () => {
+            this._playClick();
+            const win = new ActionUIWindow({ x: 150, y: 150, width: 320, height: 240, title: 'Window 1', resizable: true });
+            win.addChild(new ActionUILabel({ text: 'This is a draggable, resizable window!\n\nDrag by title bar. Resize from bottom-right corner. Click X to close.', x: 0, y: 0, width: 300, height: 100, fontSize: t.fontSizeSm, color: t.colorTextMuted, wrap: true }));
+            win.onClose = () => this.ui.remove(win);
+            this.ui.add(win);
+        }}));
+
+        cy += 42;
+        this._child(panel, new ActionUIButton({ x: x + pad, y: cy, width: 120, height: 32, text: 'Open Window 2', variant: 'secondary', onClick: () => {
+            this._playClick();
+            const win = new ActionUIWindow({ x: 500, y: 200, width: 280, height: 200, title: 'Settings', resizable: true });
+            win.addChild(new ActionUILabel({ text: 'Settings', x: 0, y: 0, width: 260, height: 20, fontSize: t.fontSizeSm, color: t.colorText, fontWeight: t.fontWeightMedium }));
+            win.addChild(new ActionUIToggleSwitch({ x: 0, y: 30, label: 'Option 1', checked: true, onChange: () => this._playToggle() }));
+            win.addChild(new ActionUIToggleSwitch({ x: 0, y: 62, label: 'Option 2', checked: false, onChange: () => this._playToggle() }));
+            win.addChild(new ActionUIButton({ text: 'Save', x: 0, y: 110, width: 260, height: 32, variant: 'success', onClick: () => { this.ui.notify('Settings saved!', 'success'); } }));
+            win.onClose = () => this.ui.remove(win);
+            this.ui.add(win);
+        }}));
+
+        cy += 42;
+        this._child(panel, new ActionUIButton({ x: x + pad, y: cy, width: 120, height: 32, text: 'Open Window 3', variant: 'accent', onClick: () => {
+            this._playClick();
+            const win = new ActionUIWindow({ x: 100, y: 300, width: 300, height: 180, title: 'Info', resizable: false });
+            win.addChild(new ActionUILabel({ text: 'Non-resizable Window\n\nThis window cannot be resized, only dragged and closed.', x: 0, y: 0, width: 280, height: 100, fontSize: t.fontSizeSm, color: t.colorTextMuted, wrap: true }));
+            win.onClose = () => this.ui.remove(win);
+            this.ui.add(win);
+        }}));
+
+        cy += 60;
+        this._child(panel, new ActionUILabel({ text: 'Try dragging windows by their title bar. Resizable windows can be dragged from bottom-right corner.', x: x + pad, y: cy, width: w - pad * 2, height: 80, fontSize: t.fontSizeSm, color: t.colorTextMuted, wrap: true }));
     }
 
     _buildThemesPanel() {
