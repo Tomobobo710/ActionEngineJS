@@ -606,28 +606,14 @@ class GLBLoader {
                             const positions = primData.positions;
                             const indices = primData.indices;
 
-                            // Convert position floats to Vector3, scale, and transform to world space
-                            for (let i = 0; i < positions.length; i += 3) {
-                                // Local vertex (from file)
-                                const localVertex = new Vector3(positions[i], positions[i + 1], positions[i + 2]);
-
-                                // Apply scale
-                                localVertex.x *= worldScale.x;
-                                localVertex.y *= worldScale.y;
-                                localVertex.z *= worldScale.z;
-
-                                // Apply rotation using quaternion
-                                const rotatedVertex = worldRotation.transformVector(localVertex);
-
-                                // Apply translation
-                                const worldVertex = new Vector3(
-                                    rotatedVertex.x + worldTranslation.x,
-                                    rotatedVertex.y + worldTranslation.y,
-                                    rotatedVertex.z + worldTranslation.z
-                                );
-
-                                allVertices.push(worldVertex);
-                            }
+                            // Transform vertices to world space
+                            const worldVertices = PhysicsShapeBuilder3D.transformVerticesToWorldSpace(
+                                positions,
+                                worldTranslation,
+                                worldRotation,
+                                worldScale
+                            );
+                            allVertices.push(...worldVertices);
 
                             // Add indices with offset
                             for (let i = 0; i < indices.length; i++) {
@@ -640,7 +626,6 @@ class GLBLoader {
                         // Create physics shape using PhysicsShapeBuilder3D
                         if (allVertices.length > 0 && allIndices.length > 0) {
                             physicsData = PhysicsShapeBuilder3D.createMeshShape(allVertices, allIndices, 0);
-                            // Store the geometry for wireframe visualization
                             if (physicsData) {
                                 physicsData.debugVertices = allVertices;
                                 physicsData.debugIndices = allIndices;
@@ -688,36 +673,17 @@ class GLBLoader {
 
         // Create compound shape from all collected shapes
         if (physicsShapes.length > 0) {
-            // Since vertices are already in world space, add shapes to compound at origin with identity rotation
-            const compoundShape = new Goblin.CompoundShape();
-            const zeroPos = new Goblin.Vector3(0, 0, 0);
-            const identityRot = new Goblin.Quaternion(0, 0, 0, 1);
-
-            for (let i = 0; i < physicsShapes.length; i++) {
-                // All vertices are already transformed to world space, so use zero offset and identity rotation
-                compoundShape.addChildShape(physicsShapes[i], zeroPos, identityRot);
-            }
-
-            // Create a single compound body at world origin
-            const compoundBody = new Goblin.RigidBody(compoundShape, 0); // mass=0 for static
-            compoundBody.position.set(0, 0, 0);
-            compoundBody.linear_damping = 0.01;
-            compoundBody.angular_damping = 0.01;
-
-            // Store compound physics data on the model
-            model.compoundPhysicsData = {
-                shape: compoundShape,
-                body: compoundBody,
-                debugVertices: allDebugVertices,
-                debugIndices: allDebugIndices,
-                centerX: 0,
-                centerY: 0,
-                centerZ: 0
-            };
-
-            console.log(
-                `[GLBLoader] Created compound physics shape with ${physicsShapes.length} child shapes (vertices in world space)`
+            model.compoundPhysicsData = PhysicsShapeBuilder3D.createCompoundPhysics(
+                physicsShapes,
+                allDebugVertices,
+                allDebugIndices
             );
+
+            if (model.compoundPhysicsData) {
+                console.log(
+                    `[GLBLoader] Created compound physics shape with ${physicsShapes.length} child shapes (vertices in world space)`
+                );
+            }
         }
     }
 

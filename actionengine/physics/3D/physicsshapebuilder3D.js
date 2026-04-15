@@ -93,4 +93,81 @@ class PhysicsShapeBuilder3D {
             body: body
         };
     }
+
+    /**
+     * Transform vertices to world space
+     * @param {Array<number>} positions - Local vertex positions (flat array of x,y,z values)
+     * @param {Vector3} translation - World translation
+     * @param {Quaternion} rotation - World rotation
+     * @param {Vector3} scale - World scale
+     * @returns {Array<Vector3>} Vertices transformed to world space
+     */
+    static transformVerticesToWorldSpace(positions, translation, rotation, scale) {
+        const worldVertices = [];
+
+        for (let i = 0; i < positions.length; i += 3) {
+            // Local vertex
+            const localVertex = new Vector3(positions[i], positions[i + 1], positions[i + 2]);
+
+            // Apply scale
+            localVertex.x *= scale.x;
+            localVertex.y *= scale.y;
+            localVertex.z *= scale.z;
+
+            // Apply rotation
+            const rotatedVertex = rotation.transformVector(localVertex);
+
+            // Apply translation
+            const worldVertex = new Vector3(
+                rotatedVertex.x + translation.x,
+                rotatedVertex.y + translation.y,
+                rotatedVertex.z + translation.z
+            );
+
+            worldVertices.push(worldVertex);
+        }
+
+        return worldVertices;
+    }
+
+    /**
+     * Create a compound physics shape from multiple physics shapes
+     * @param {Array<Object>} physicsShapes - Array of physics shape objects
+     * @param {Array<Vector3>} allDebugVertices - Accumulated debug vertices
+     * @param {Array<number>} allDebugIndices - Accumulated debug indices
+     * @returns {Object|null} Compound physics data with shape and body, or null if no shapes
+     */
+    static createCompoundPhysics(physicsShapes, allDebugVertices, allDebugIndices) {
+        if (!physicsShapes || physicsShapes.length === 0) {
+            return null;
+        }
+
+        try {
+            const compoundShape = new Goblin.CompoundShape();
+            const zeroPos = new Goblin.Vector3(0, 0, 0);
+            const identityRot = new Goblin.Quaternion(0, 0, 0, 1);
+
+            for (let i = 0; i < physicsShapes.length; i++) {
+                compoundShape.addChildShape(physicsShapes[i], zeroPos, identityRot);
+            }
+
+            const compoundBody = new Goblin.RigidBody(compoundShape, 0); // mass=0 for static
+            compoundBody.position.set(0, 0, 0);
+            compoundBody.linear_damping = 0.01;
+            compoundBody.angular_damping = 0.01;
+
+            return {
+                shape: compoundShape,
+                body: compoundBody,
+                debugVertices: allDebugVertices || [],
+                debugIndices: allDebugIndices || [],
+                centerX: 0,
+                centerY: 0,
+                centerZ: 0
+            };
+        } catch (error) {
+            console.warn(`[PhysicsShapeBuilder3D] Failed to create compound physics:`, error);
+            return null;
+        }
+    }
 }

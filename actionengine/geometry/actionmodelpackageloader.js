@@ -132,8 +132,80 @@ class ActionModelPackageLoader {
                     );
                 }
 
+                // Create physics for this mesh object
+                if (mesh.triangles && mesh.triangles.length > 0) {
+                    // Extract vertices from triangles (in local space)
+                    const vertices = [];
+                    const indices = [];
+                    const vertexMap = new Map();
+                    let vertexIndex = 0;
+
+                    for (const tri of mesh.triangles) {
+                        const triIndices = [];
+                        for (const vertex of tri.vertices) {
+                            const key = `${vertex.x},${vertex.y},${vertex.z}`;
+                            if (!vertexMap.has(key)) {
+                                vertices.push(vertex);
+                                vertexMap.set(key, vertexIndex);
+                                vertexIndex++;
+                            }
+                            triIndices.push(vertexMap.get(key));
+                        }
+                        indices.push(...triIndices);
+                    }
+
+                    // Transform vertices to world space to match GLBLoader behavior
+                    const worldVertices = PhysicsShapeBuilder3D.transformVerticesToWorldSpace(
+                        vertices.flatMap(v => [v.x, v.y, v.z]),
+                        obj.transform.position,
+                        obj.transform.rotation,
+                        obj.transform.scale
+                    );
+
+                    // Create physics shape
+                    const physicsData = PhysicsShapeBuilder3D.createMeshShape(worldVertices, indices, 0);
+                    if (physicsData) {
+                        physicsData.debugVertices = worldVertices;
+                        physicsData.debugIndices = indices;
+                        obj.shape = physicsData.shape;
+                        obj.body = physicsData.body;
+                        obj.physicsData = physicsData;
+                        
+                        // Set physics body position to world origin since vertices are already in world space
+                        obj.body.position.set(0, 0, 0);
+                        obj.body.rotation.set(0, 0, 0, 1);
+                    }
+                }
+
                 model.objects.push(obj);
             });
+
+            // Create compound physics from all mesh physics shapes
+            const physicsShapes = [];
+            const allDebugVertices = [];
+            const allDebugIndices = [];
+            let debugIndexOffset = 0;
+
+            for (const obj of model.objects) {
+                if (obj.physicsData && obj.physicsData.shape) {
+                    physicsShapes.push(obj.physicsData.shape);
+                    if (obj.physicsData.debugVertices) {
+                        allDebugVertices.push(...obj.physicsData.debugVertices);
+                        for (const idx of obj.physicsData.debugIndices) {
+                            allDebugIndices.push(idx + debugIndexOffset);
+                        }
+                        debugIndexOffset += obj.physicsData.debugVertices.length;
+                    }
+                }
+            }
+
+            if (physicsShapes.length > 0) {
+                model.compoundPhysicsData = PhysicsShapeBuilder3D.createCompoundPhysics(
+                    physicsShapes,
+                    allDebugVertices,
+                    allDebugIndices
+                );
+            }
 
             // Load animations if present
             if (hasAnimations) {
