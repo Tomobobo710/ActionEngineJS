@@ -14,7 +14,7 @@ class ActionUIModal extends ActionUIComponent {
         this._showT     = 0;
         this._showing   = false;
         this.onClose    = props.onClose     || null;
-        this.zIndex     = 100;
+        this.zIndex     = 1000;  // Always on top
         this._kbFocus   = 0;  // keyboard focus index
 
         // Center on screen
@@ -80,12 +80,20 @@ class ActionUIModal extends ActionUIComponent {
 
     onPointerDown(px, py) {
         if (!this._showing) return;
-        this._btns.forEach(b => b.onPointerDown(px, py));
+        this._btns.forEach(b => {
+            if (b.containsPoint(px, py)) {
+                b.onPointerDown(px, py);
+            }
+        });
     }
 
     onPointerUp(px, py) {
         if (!this._showing) return;
-        this._btns.forEach(b => b.onPointerUp(px, py));
+        this._btns.forEach(b => {
+            if (b.containsPoint(px, py)) {
+                b.onPointerUp(px, py);
+            }
+        });
     }
 
     onPointerMove(px, py) {

@@ -83,11 +83,12 @@ class ActionUIComponent {
     }
 
     _applyOpacity(ctx) {
-        ctx.globalAlpha = this.opacity;
+        this._savedOpacity = ctx.globalAlpha;
+        ctx.globalAlpha *= this.opacity;
     }
 
     _restoreOpacity(ctx) {
-        ctx.globalAlpha = 1;
+        ctx.globalAlpha = this._savedOpacity || 1;
     }
 
     // Draw an inset highlight shine — subtle top edge gradient
