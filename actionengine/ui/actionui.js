@@ -40,6 +40,7 @@ class ActionUI {
         this._pointer     = { x: 0, y: 0, down: false };
         this._prevDown    = false;
         this._dropdownWasOpen = false;  // Track if dropdown was open during pointer down
+        this._pointerCapturedBy = null;  // Component that has captured the pointer
 
         // Register a catch-all element for pointer tracking
         // This keeps the internal state aligned with ActionEngine's input pipeline
@@ -218,8 +219,14 @@ class ActionUI {
             }, comp.layer);
             this._components.push(comp);
 
+            // Windows automatically come to front when added
+            if (comp instanceof ActionUIWindow) {
+                comp._bringToFront();
+            }
+
             // If it has children (panels/grids), register those too
-            if (comp.children) {
+            // BUT: windows manage their own children rendering, don't auto-add them
+            if (comp.children && !(comp instanceof ActionUIWindow)) {
                 comp.children.forEach(child => this.add(child));
             }
         }
@@ -394,6 +401,13 @@ class ActionUI {
     }
 
     _handlePointerDown(px, py, sorted) {
+        // If a modal is showing, it blocks all other input
+        const showingModal = this._components.find(c => c instanceof ActionUIModal && c._showing);
+        if (showingModal) {
+            showingModal.onPointerDown(px, py);
+            return;
+        }
+
         // Context menus intercept first
         for (const menu of [...this._activeContextMenus].reverse()) {
             if (menu.visible && menu._open) {
@@ -408,8 +422,24 @@ class ActionUI {
         let clickedTextInput = false;
         for (const comp of sorted) {
             if (!comp._isEffectivelyVisible() || !comp.enabled) continue;
+            // Windows are opaque — if click is anywhere in window bounds, it blocks everything below
+            if (comp instanceof ActionUIWindow) {
+                if (comp.containsPoint(px, py)) {
+                    comp.onPointerDown(px, py);
+                    if (comp._pointerCaptured) {
+                        this._pointerCapturedBy = comp;
+                    }
+                    return;  // Window consumes event, stop checking lower components
+                }
+                continue;  // Click not on this window, check next
+            }
+            
             if (comp.containsPoint(px, py)) {
                 comp.onPointerDown(px, py);
+                // Track pointer capture if component has _pointerCaptured flag
+                if (comp._pointerCaptured) {
+                    this._pointerCapturedBy = comp;
+                }
                 // Focus management
                 if (comp instanceof ActionUITextInput) {
                     if (this._focusedId && this._focusedId !== comp.id) {
@@ -421,7 +451,7 @@ class ActionUI {
                     clickedTextInput = true;
                 }
                 handled = true;
-                // Only break on opaque widgets (modals, dropdowns, context menus)
+                // Only break on opaque widgets (modals, dropdowns)
                 if (comp instanceof ActionUIModal || comp instanceof ActionUIDropdown) break;
             }
         }
@@ -448,13 +478,39 @@ class ActionUI {
     }
 
     _handlePointerUp(px, py, sorted) {
+        // If a modal is showing, it blocks all other input
+        const showingModal = this._components.find(c => c instanceof ActionUIModal && c._showing);
+        if (showingModal) {
+            showingModal.onPointerUp(px, py);
+            return;
+        }
+
+        // If a component has captured the pointer, only send to that component
+        if (this._pointerCapturedBy) {
+            this._pointerCapturedBy.onPointerUp(px, py);
+            this._pointerCapturedBy = null;
+            return;
+        }
+        // Windows consume pointer events completely (block everything below)
         for (const comp of sorted) {
             if (!comp._isEffectivelyVisible()) continue;
+            if (comp instanceof ActionUIWindow) {
+                if (comp.containsPoint(px, py)) {
+                    comp.onPointerUp(px, py);
+                    return;  // Window consumes event
+                }
+                continue;  // Click not on this window, check next
+            }
             comp.onPointerUp(px, py);
         }
     }
 
     _handlePointerMove(px, py) {
+        // If a component has captured the pointer, only send to that component
+        if (this._pointerCapturedBy) {
+            this._pointerCapturedBy.onPointerMove(px, py);
+            return;
+        }
         for (const comp of this._components) {
             if (!comp._isEffectivelyVisible()) continue;
             comp.onPointerMove(px, py);
