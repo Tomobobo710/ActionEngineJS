@@ -52,81 +52,107 @@ class ActionUISlider extends ActionUIComponent {
     }
 
     _updateFromPointer(px) {
-        const t   = this.theme;
-        const th  = t.sliderThumbSize;
-        const tx0 = this.x + th / 2;
-        const tx1 = this.x + this.width - th / 2;
-        const pct = Math.max(0, Math.min(1, (px - tx0) / (tx1 - tx0)));
-        let val   = this.min + pct * (this.max - this.min);
-        if (this.step > 0) val = Math.round(val / this.step) * this.step;
-        val = Math.max(this.min, Math.min(this.max, val));
-        if (val !== this.value) {
-            this.value = val;
-            this.onChange && this.onChange(this.value, this);
-        }
-    }
+         const t   = this.theme;
+         const th  = t.sliderThumbSize;
+         
+         // Match layout from draw()
+         const hasLabel = !!this.label;
+         const labelH = hasLabel ? 18 : 0;
+         const sliderY = this.y + (hasLabel ? labelH + 4 : 0);
+         const sliderH = this.height - labelH - (hasLabel ? 4 : 0);
+         
+         // Value label width
+         const disp = Number.isInteger(this.value) ? this.value : this.value.toFixed(1);
+         const dispStr = String(disp);
+         const valueW = dispStr.length * 7 + 4;
+         const valuePad = 12;
+         
+         const tx0 = this.x + th / 2;
+         const tx1 = this.x + this.width - valueW - valuePad;
+         const pct = Math.max(0, Math.min(1, (px - tx0) / (tx1 - tx0)));
+         let val   = this.min + pct * (this.max - this.min);
+         if (this.step > 0) val = Math.round(val / this.step) * this.step;
+         val = Math.max(this.min, Math.min(this.max, val));
+         if (val !== this.value) {
+             this.value = val;
+             this.onChange && this.onChange(this.value, this);
+         }
+     }
 
     draw(ctx) {
-        if (!this.visible) return;
-        const t      = this.theme;
-        const th     = t.sliderThumbSize;
-        const trH    = t.sliderTrackHeight;
-        const midY   = this.y + this.height / 2;
-        const tx0    = this.x + th / 2;
-        const tx1    = this.x + this.width - th / 2;
-        const pct    = (this.value - this.min) / (this.max - this.min);
-        const fillX  = tx0 + pct * (tx1 - tx0);
-        const col    = this.color ? t.resolveColor(this.color) : t.colorPrimary;
-        const thumbR = (th / 2) * (1 + this._hoverT * 0.15);
+         if (!this.visible) return;
+         const t      = this.theme;
+         const th     = t.sliderThumbSize;
+         const trH    = t.sliderTrackHeight;
+         
+         // Layout: if label exists, use two-line layout for pixel-perfect spacing
+         const hasLabel = !!this.label;
+         const labelH = hasLabel ? 18 : 0;     // label line height
+         const sliderY = this.y + (hasLabel ? labelH + 4 : 0); // 4px gap after label
+         const sliderH = this.height - labelH - (hasLabel ? 4 : 0);
+         const midY   = sliderY + sliderH / 2;
+         
+         // Value label width (measured approximation)
+         const disp = Number.isInteger(this.value) ? this.value : this.value.toFixed(1);
+         const dispStr = String(disp);
+         const valueW = dispStr.length * 7 + 4; // rough measurement: ~7px per digit + padding
+         
+         // Track bounds with space reserved for value label
+         const valuePad = 12; // padding between track and value label
+         const tx0    = this.x + th / 2;
+         const tx1    = this.x + this.width - valueW - valuePad;
+         const pct    = (this.value - this.min) / (this.max - this.min);
+         const fillX  = tx0 + pct * (tx1 - tx0);
+         const col    = this.color ? t.resolveColor(this.color) : t.colorPrimary;
+         const thumbR = (th / 2) * (1 + this._hoverT * 0.15);
 
-        ctx.save();
-        this._applyOpacity(ctx);
+         ctx.save();
+         this._applyOpacity(ctx);
 
-        // Label
-        if (this.label) {
-            ActionUIDrawUtils.text(ctx, this.label,
-                this.x, this.y + 2,
-                t.font(t.fontSizeSm, t.fontWeightMedium),
-                t.colorTextMuted, 'left', 'top'
-            );
-        }
+         // Title label (top line)
+         if (this.label) {
+             ActionUIDrawUtils.text(ctx, this.label,
+                 this.x, this.y + 2,
+                 t.font(t.fontSizeSm, t.fontWeightMedium),
+                 t.colorTextMuted, 'left', 'top'
+             );
+         }
 
-        // Track background
-        ActionUIDrawUtils.fillRoundRect(ctx, tx0, midY - trH/2, tx1 - tx0, trH, trH/2, t.colorScrollTrack);
+         // Track background
+         ActionUIDrawUtils.fillRoundRect(ctx, tx0, midY - trH/2, tx1 - tx0, trH, trH/2, t.colorScrollTrack);
 
-        // Track fill
-        if (pct > 0) {
-            const fillGrad = ctx.createLinearGradient(tx0, midY, fillX, midY);
-            fillGrad.addColorStop(0, t.withAlpha(col, 0.7));
-            fillGrad.addColorStop(1, col);
-            ActionUIDrawUtils.fillRoundRect(ctx, tx0, midY - trH/2, fillX - tx0, trH, trH/2, fillGrad);
-        }
+         // Track fill
+         if (pct > 0) {
+             const fillGrad = ctx.createLinearGradient(tx0, midY, fillX, midY);
+             fillGrad.addColorStop(0, t.withAlpha(col, 0.7));
+             fillGrad.addColorStop(1, col);
+             ActionUIDrawUtils.fillRoundRect(ctx, tx0, midY - trH/2, fillX - tx0, trH, trH/2, fillGrad);
+         }
 
-        // Tick marks (if step)
-        if (this.step > 0) {
-            const steps = Math.floor((this.max - this.min) / this.step);
-            for (let i = 1; i < steps; i++) {
-                const tx = tx0 + (i / steps) * (tx1 - tx0);
-                ActionUIDrawUtils.line(ctx, tx, midY - trH, tx, midY + trH, t.withAlpha(t.colorBorder, 0.5), 1);
-            }
-        }
+         // Tick marks (if step)
+         if (this.step > 0) {
+             const steps = Math.floor((this.max - this.min) / this.step);
+             for (let i = 1; i < steps; i++) {
+                 const tx = tx0 + (i / steps) * (tx1 - tx0);
+                 ActionUIDrawUtils.line(ctx, tx, midY - trH, tx, midY + trH, t.withAlpha(t.colorBorder, 0.5), 1);
+             }
+         }
 
-        // Thumb
-        ActionUIDrawUtils.shadow(ctx, t.withAlpha(col, 0.5), 8 + this._hoverT * 6, 0, 1);
-        ActionUIDrawUtils.circle(ctx, fillX, midY, thumbR, col, t.colorSurface, 2);
-        ActionUIDrawUtils.clearShadow(ctx);
+         // Thumb
+         ActionUIDrawUtils.shadow(ctx, t.withAlpha(col, 0.5), 8 + this._hoverT * 6, 0, 1);
+         ActionUIDrawUtils.circle(ctx, fillX, midY, thumbR, col, t.colorSurface, 2);
+         ActionUIDrawUtils.clearShadow(ctx);
 
-        // Value label
-        if (this.showValue) {
-            const disp = Number.isInteger(this.value) ? this.value : this.value.toFixed(1);
-            ActionUIDrawUtils.text(ctx, String(disp),
-                this.x + this.width, this.y + this.height / 2,
-                t.font(t.fontSizeSm, t.fontWeightMedium),
-                t.colorTextMuted, 'right', 'middle'
-            );
-        }
+         // Value label (right side, reserved space)
+         if (this.showValue) {
+             ActionUIDrawUtils.text(ctx, dispStr,
+                 this.x + this.width, midY,
+                 t.font(t.fontSizeSm, t.fontWeightMedium),
+                 t.colorTextMuted, 'right', 'middle'
+             );
+         }
 
-        this._restoreOpacity(ctx);
-        ctx.restore();
-    }
+         this._restoreOpacity(ctx);
+         ctx.restore();
+     }
 }
