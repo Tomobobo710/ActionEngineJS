@@ -611,28 +611,6 @@ class ActionNetManagerGUI {
     }
 
     /**
-     * Render spinner for P2P connection
-     */
-    renderSpinner(x, y, size = 30) {
-        const radius = size / 2;
-        const rotation = (this.spinnerFrame % 60) * ((Math.PI * 2) / 60); // Full rotation every 60 frames
-
-        this.guiCtx.save();
-        this.guiCtx.translate(x, y);
-        this.guiCtx.rotate(rotation);
-
-        // Draw spinner arc
-        this.guiCtx.strokeStyle = "#ffffff";
-        this.guiCtx.lineWidth = 3;
-        this.guiCtx.lineCap = "round";
-        this.guiCtx.beginPath();
-        this.guiCtx.arc(0, 0, radius, 0, Math.PI * 1.5); // 3/4 circle
-        this.guiCtx.stroke();
-
-        this.guiCtx.restore();
-    }
-
-    /**
      * Render label with optional semi-transparent background
      */
     renderLabel(
