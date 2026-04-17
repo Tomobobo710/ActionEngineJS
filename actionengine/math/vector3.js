@@ -235,41 +235,19 @@ class Vector3 {
         return this.x * this.x + this.y * this.y + this.z * this.z;
     }
 
-    toArray() {
-        return [this.x, this.y, this.z];
-    }
-
-    length() {
-        return Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z);
-    }
-
-    add(v) {
-        return new Vector3(this.x + v.x, this.y + v.y, this.z + v.z);
-    }
-
-    sub(v) {
-        return new Vector3(this.x - v.x, this.y - v.y, this.z - v.z);
-    }
-
     mult(n) {
         return new Vector3(this.x * n, this.y * n, this.z * n);
-    }
-
-    normalize() {
-        const len = this.length();
-        if (len === 0) {
-            return new Vector3();
-        }
-        return new Vector3(this.x / len, this.y / len, this.z / len);
     }
 
     scale(scalar) {
         return new Vector3(this.x * scalar, this.y * scalar, this.z * scalar);
     }
+
     // Scale a vector by a scalar
     static scale(v, scalar) {
         return new Vector3(v.x * scalar, v.y * scalar, v.z * scalar);
     }
+
     divideScalar(scalar) {
         if (scalar === 0) {
             console.warn("Vector3: Division by zero!");
@@ -290,14 +268,6 @@ class Vector3 {
             Math.abs(this.y - other.y) < epsilon &&
             Math.abs(this.z - other.z) < epsilon
         );
-    }
-
-    dot(v) {
-        return this.x * v.x + this.y * v.y + this.z * v.z;
-    }
-
-    cross(v) {
-        return new Vector3(this.y * v.z - this.z * v.y, this.z * v.x - this.x * v.z, this.x * v.y - this.y * v.x);
     }
 
     clone() {
