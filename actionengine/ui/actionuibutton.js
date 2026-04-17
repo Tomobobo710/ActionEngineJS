@@ -135,33 +135,47 @@ class ActionUIButton extends ActionUIComponent {
     }
 
     _resolveColors(t) {
-        const v = this.variant;
-        if (!this.enabled) return {
-            bg:     t.colorDisabled,
-            fg:     t.colorDisabledText,
-            border: null
-        };
-        const map = {
-            primary:   { bg: t.colorPrimary,   fg: t.colorPrimaryText, border: null },
-            secondary: { bg: t.colorSecondary,  fg: t.colorText,        border: null },
-            ghost:     { bg: 'rgba(255,255,255,0.06)', fg: t.colorText, border: t.colorBorder },
-            danger:    { bg: t.colorDanger,     fg: '#fff',             border: null },
-            success:   { bg: t.colorSuccess,    fg: '#fff',             border: null },
-            accent:    { bg: t.colorAccent,     fg: t.colorTextInverse, border: null },
-        };
-        return map[v] || map.primary;
-    }
+         const v = this.variant;
+         if (!this.enabled) return {
+             bg:     t.colorDisabled,
+             fg:     t.colorDisabledText,
+             border: null
+         };
+         const map = {
+             primary:   { bg: t.colorPrimary,   fg: t.colorPrimaryText, border: null },
+             secondary: { bg: t.colorSecondary,  fg: t.colorText,        border: null },
+             ghost:     { bg: t.colorGhostBg, fg: t.colorText, border: t.colorGhostBorder },
+             danger:    { bg: t.colorDanger,     fg: '#fff',             border: null },
+             success:   { bg: t.colorSuccess,    fg: '#fff',             border: null },
+             accent:    { bg: t.colorAccent,     fg: t.colorTextInverse, border: null },
+         };
+         return map[v] || map.primary;
+     }
 
     _liftColor(hex, amount) {
-        // If hex is a gradient/rgba string, just return it
-        if (!hex.startsWith('#')) return hex;
-        const h = hex.slice(1);
-        const full = h.length === 3 ? h.split('').map(c => c+c).join('') : h;
-        const r = Math.min(255, Math.max(0, parseInt(full.slice(0,2),16) + Math.round(amount * 255)));
-        const g = Math.min(255, Math.max(0, parseInt(full.slice(2,4),16) + Math.round(amount * 255)));
-        const b = Math.min(255, Math.max(0, parseInt(full.slice(4,6),16) + Math.round(amount * 255)));
-        return `rgb(${r},${g},${b})`;
-    }
+         // Handle hex colors
+         if (hex.startsWith('#')) {
+             const h = hex.slice(1);
+             const full = h.length === 3 ? h.split('').map(c => c+c).join('') : h;
+             const r = Math.min(255, Math.max(0, parseInt(full.slice(0,2),16) + Math.round(amount * 255)));
+             const g = Math.min(255, Math.max(0, parseInt(full.slice(2,4),16) + Math.round(amount * 255)));
+             const b = Math.min(255, Math.max(0, parseInt(full.slice(4,6),16) + Math.round(amount * 255)));
+             return `rgb(${r},${g},${b})`;
+         }
+         // Handle rgba colors
+         if (hex.startsWith('rgba(')) {
+             const match = hex.match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/);
+             if (match) {
+                 const r = Math.min(255, Math.max(0, parseInt(match[1]) + Math.round(amount * 255)));
+                 const g = Math.min(255, Math.max(0, parseInt(match[2]) + Math.round(amount * 255)));
+                 const b = Math.min(255, Math.max(0, parseInt(match[3]) + Math.round(amount * 255)));
+                 const a = match[4];
+                 return `rgba(${r}, ${g}, ${b}, ${a})`;
+             }
+         }
+         // For other formats, return as-is
+         return hex;
+     }
 }
 
 

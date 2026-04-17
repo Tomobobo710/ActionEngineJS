@@ -1092,14 +1092,15 @@ class ActionUIScrollableArea {
         if (!this.drawBackground) return;
 
         const { x, y, width, height } = this.listArea;
+        const bgWidth = width * 0.98;
 
         // Draw background fill
         if (this.backgroundConfig.fillColor) {
             this.ctx.fillStyle = this.backgroundConfig.fillColor;
             if (this.backgroundConfig.cornerRadius > 0) {
-                this.drawRoundedRect(x, y, width, height, this.backgroundConfig.cornerRadius);
+                this.drawRoundedRect(x, y, bgWidth, height, this.backgroundConfig.cornerRadius);
             } else {
-                this.ctx.fillRect(x, y, width, height);
+                this.ctx.fillRect(x, y, bgWidth, height);
             }
         }
     }
@@ -1116,15 +1117,16 @@ class ActionUIScrollableArea {
         if (!this.drawBackground) return;
 
         const { x, y, width, height } = this.listArea;
+        const bgWidth = width * 0.98;
 
         // Draw border
         if (this.backgroundConfig.borderColor && this.backgroundConfig.borderWidth > 0) {
             this.ctx.strokeStyle = this.backgroundConfig.borderColor;
             this.ctx.lineWidth = this.backgroundConfig.borderWidth;
             if (this.backgroundConfig.cornerRadius > 0) {
-                this.drawRoundedRectStroke(x, y, width, height, this.backgroundConfig.cornerRadius);
+                this.drawRoundedRectStroke(x, y, bgWidth, height, this.backgroundConfig.cornerRadius);
             } else {
-                this.ctx.strokeRect(x, y, width, height);
+                this.ctx.strokeRect(x, y, bgWidth, height);
             }
         }
     }

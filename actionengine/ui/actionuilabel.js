@@ -19,12 +19,12 @@ class ActionUILabel extends ActionUIComponent {
     }
 
     draw(ctx) {
-        if (!this.visible) return;
-        const t    = this.theme;
-        const fs   = this.fontSize   || t.fontSizeMd;
-        const fw   = this.fontWeight || t.fontWeightNormal;
-        const col  = this.color      || t.colorText;
-        const font = this.mono ? t.fontMono(fs, fw) : t.font(fs, fw);
+         if (!this.visible) return;
+         const t    = this.theme;
+         const fs   = this.fontSize   || t.fontSizeMd;
+         const fw   = this.fontWeight || t.fontWeightNormal;
+         const col  = this.color ? t.resolveColor(this.color) : t.colorText;
+         const font = this.mono ? t.fontMono(fs, fw) : t.font(fs, fw);
         let   str  = this.text;
         if (this.uppercase) str = str.toUpperCase();
 

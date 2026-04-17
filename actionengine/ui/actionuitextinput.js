@@ -276,7 +276,7 @@ class ActionUITextInput extends ActionUIComponent {
         // Label
         if (this.label) {
             ActionUIDrawUtils.text(ctx, this.label,
-                this.x, this.y - 2,
+                this.x, this.y - 3,
                 t.font(t.fontSizeSm, t.fontWeightMedium), t.colorTextMuted,
                 'left', 'bottom'
             );

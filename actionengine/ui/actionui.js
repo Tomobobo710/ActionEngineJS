@@ -7,61 +7,62 @@ class ActionUI {
     /**
      * @param {Object} canvases  - ActionEngine canvases object
      * @param {Object} input     - ActionEngine input system
-     * @param {ActionUITheme} theme    - optional theme instance
      */
-    constructor(canvases, input, theme) {
-        this.input    = input;
-        this.theme    = theme || new ActionUITheme();
+    constructor(canvases, input) {
+         this.input    = input;
+         this._currentThemePreset = 'dark';
+         this._themeOverrides = {};
+         this.theme = this._buildTheme();
 
-        // Canvas contexts keyed by layer
-        this._ctxMap  = {
-            gui:   canvases.guiCtx,
-            debug: canvases.debugCtx,
-            game:  canvases.gameCanvas.getContext('2d'),
-        };
+         // Canvas contexts keyed by layer
+         this._ctxMap  = {
+             gui:   canvases.guiCtx,
+             debug: canvases.debugCtx,
+             game:  canvases.gameCanvas.getContext('2d'),
+         };
 
-        this._components   = [];      // flat list of all registered components
-        this._tooltip      = new ActionUITooltip({ visible: false });
-        this._tooltip._ui  = this;
-        this._osk          = new ActionUIOnScreenKeyboard({ target: null });
-        this._osk._ui      = this;
-        this._notifications = [];
-        this._notifSlotY   = 20;
-        this._focusedId    = null;
+         this._components   = [];      // flat list of all registered components
+         this._tooltip      = new ActionUITooltip({ visible: false });
+         this._tooltip._ui  = this;
+         this._osk          = new ActionUIOnScreenKeyboard({ target: null });
+         this._osk._ui      = this;
+         this._notifications = [];
+         this._notifSlotY   = 20;
+         this._focusedId    = null;
 
-        // Keyboard/gamepad navigation focus
-        this._kbFocus      = null;    // currently keyboard-focused component
-        this._kbFocusVisible = false; // whether to draw focus ring
-        
-        // Enable/disable keyboard navigation
-        this._enableKeyboardNavigation = true;
+         // Keyboard/gamepad navigation focus
+         this._kbFocus      = null;    // currently keyboard-focused component
+         this._kbFocusVisible = false; // whether to draw focus ring
+         
+         // Enable/disable keyboard navigation
+         this._enableKeyboardNavigation = true;
 
-        // Track pointer state internally (ActionEngine drives us from outside)
-        this._pointer     = { x: 0, y: 0, down: false };
-        this._prevDown    = false;
-        this._dropdownWasOpen = false;  // Track if dropdown was open during pointer down
-        this._pointerCapturedBy = null;  // Component that has captured the pointer
+         // Track pointer state internally (ActionEngine drives us from outside)
+         this._pointer     = { x: 0, y: 0, down: false };
+         this._prevDown    = false;
+         this._dropdownWasOpen = false;  // Track if dropdown was open during pointer down
+         this._pointerCapturedBy = null;  // Component that has captured the pointer
 
-        // Register a catch-all element for pointer tracking
-        // This keeps the internal state aligned with ActionEngine's input pipeline
-        this._inputElementId = '__actionui_root__';
-        this.input.registerElement(this._inputElementId, {
-            bounds: () => ({ x: 0, y: 0, width: 800, height: 600 })
-        });
+         // Register a catch-all element for pointer tracking
+         // This keeps the internal state aligned with ActionEngine's input pipeline
+         this._inputElementId = '__actionui_root__';
+         this.input.registerElement(this._inputElementId, {
+             bounds: () => ({ x: 0, y: 0, width: 800, height: 600 })
+         });
 
-        // Context menus need global pointer-down to close
-        this._activeContextMenus = [];
+         // Context menus need global pointer-down to close
+         this._activeContextMenus = [];
 
-        // Listen to keyboard events for text input (capture phase to intercept before browser defaults)
-        this._keyboardListener = window.addEventListener('keydown', (e) => {
-            this._handleKeyboardInput(e);
-        }, { capture: true });
+         // Listen to keyboard events for text input (capture phase to intercept before browser defaults)
+         this._keyboardListener = window.addEventListener('keydown', (e) => {
+             this._handleKeyboardInput(e);
+         }, { capture: true });
 
-        // Listen to wheel events for scrollable components
-        this._wheelListener = window.addEventListener('wheel', (e) => {
-            this._handleMouseWheel(e);
-        }, { passive: false });
-    }
+         // Listen to wheel events for scrollable components
+         this._wheelListener = window.addEventListener('wheel', (e) => {
+             this._handleMouseWheel(e);
+         }, { passive: false });
+     }
 
     // Getter/setter for keyboard navigation
     get enableKeyboardNavigation() {
@@ -909,4 +910,76 @@ class ActionUI {
     makeScrollPanel(props)   { const c = new ActionUIScrollPanel(props);   this.add(c); return c; }
     makeGrid(props)          { const c = new ActionUIGrid(props);          this.add(c); return c; }
     makeOnScreenKeyboard(props) { const c = new ActionUIOnScreenKeyboard(props); return c; }
-}
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Theme switching
+    // ─────────────────────────────────────────────────────────────────────────────
+    /**
+     * Switch to a named theme preset, clears all overrides
+     * @param {string} presetName - name of preset (dark, light, neon, ocean, forest)
+     */
+    setTheme(presetName) {
+        if (!ACTION_UI_THEME_PRESETS[presetName]) {
+            console.warn(`Theme preset not found: ${presetName}`);
+            return;
+        }
+        this._currentThemePreset = presetName;
+        this._themeOverrides = {};  // Clear overrides on preset switch
+        this._buildTheme();
+    }
+
+    /**
+     * Set theme value overrides. Accepts array of objects or single key/value pair.
+     * @param {Array|string} keysOrArray - array of override objects, or single key name
+     * @param {*} value - new value (only used if first param is string)
+     */
+    setThemeOverride(keysOrArray, value) {
+        if (Array.isArray(keysOrArray)) {
+            // Merge array of override objects
+            keysOrArray.forEach(override => {
+                Object.assign(this._themeOverrides, override);
+            });
+        } else {
+            // Single key/value pair
+            if (value === null) {
+                delete this._themeOverrides[keysOrArray];
+            } else {
+                this._themeOverrides[keysOrArray] = value;
+            }
+        }
+        this._buildTheme();
+    }
+
+    /**
+     * Clear all user overrides and reset to preset defaults
+     */
+    clearThemeOverrides() {
+        this._themeOverrides = {};
+        this._buildTheme();
+    }
+
+    /**
+     * Build theme from current preset + overrides
+     * @private
+     */
+    _buildTheme() {
+         const preset = ACTION_UI_THEME_PRESETS[this._currentThemePreset] || {};
+         this.theme = new ActionUITheme({ ...preset, ...this._themeOverrides });
+         // Mark all scroll panels to rebuild with new theme colors
+         if (this._components) {
+             this._markScrollPanelsForRebuild();
+         }
+     }
+
+     _markScrollPanelsForRebuild() {
+         const markRecursive = (comp) => {
+             if (comp instanceof ActionUIScrollPanel) {
+                 comp._needsRebuild = true;
+             }
+             if (comp.children) {
+                 comp.children.forEach(markRecursive);
+             }
+         };
+         this._components.forEach(markRecursive);
+     }
+     }

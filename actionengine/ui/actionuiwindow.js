@@ -138,8 +138,8 @@ class ActionUIWindow extends ActionUIComponent {
     _getCloseButtonBounds() {
         const btnSize = 24;
         return {
-            x: this.x + this.width - this.padding - btnSize,
-            y: this.y + (this.titleBarHeight - btnSize) / 2,
+            x: this.x + this.width - this.padding - btnSize - 1,
+            y: this.y + 1 + (this.titleBarHeight - 1 - btnSize) / 2,
             width: btnSize,
             height: btnSize
         };
@@ -147,8 +147,8 @@ class ActionUIWindow extends ActionUIComponent {
 
     _getResizeHandleBounds() {
         return {
-            x: this.x + this.width - this.resizeHandleSize,
-            y: this.y + this.height - this.resizeHandleSize,
+            x: this.x + this.width - this.resizeHandleSize - 1,
+            y: this.y + this.height - this.resizeHandleSize - 1,
             width: this.resizeHandleSize,
             height: this.resizeHandleSize
         };
@@ -185,25 +185,25 @@ class ActionUIWindow extends ActionUIComponent {
         ctx.lineWidth = 1;
         ctx.strokeRect(this.x, this.y, this.width, this.height);
 
-        // Title bar background
+        // Title bar background (inset by border)
         ctx.fillStyle = this.theme.colorSurfaceRaised;
-        ctx.fillRect(this.x, this.y, this.width, this.titleBarHeight);
+        ctx.fillRect(this.x + 1, this.y + 1, this.width - 2, this.titleBarHeight - 1);
 
         // Title text
         ctx.fillStyle = this.theme.colorText;
         ctx.font = `${this.theme.fontWeightBold} ${this.theme.fontSizeMd}px ${this.theme.fontFamily}`;
         ctx.textBaseline = 'middle';
-        ctx.fillText(this.title, this.x + this.padding, this.y + this.titleBarHeight / 2);
+        ctx.fillText(this.title, this.x + this.padding + 1, this.y + 1 + (this.titleBarHeight - 1) / 2);
 
         // Close button
         this._drawButton(ctx, this._getCloseButtonBounds(), '✕', this._closeHovered);
 
         // Resize handle indicator
-        if (this.resizable) {
-            const rh = this._getResizeHandleBounds();
-            ctx.fillStyle = this.theme.colorTextMuted;
-            ctx.fillRect(rh.x, rh.y, rh.width, rh.height);
-        }
+         if (this.resizable) {
+             const rh = this._getResizeHandleBounds();
+             ctx.fillStyle = this.theme.colorTextMuted;
+             ctx.fillRect(rh.x, rh.y, rh.width, rh.height);
+         }
 
         // Draw children with clipping
         ctx.save();
@@ -247,7 +247,7 @@ class ActionUIWindow extends ActionUIComponent {
         ctx.font = `${this.theme.fontWeightMedium} ${this.theme.fontSizeMd}px ${this.theme.fontFamily}`;
         ctx.textBaseline = 'middle';
         ctx.textAlign = 'center';
-        ctx.fillText(symbol, bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+        ctx.fillText(symbol, bounds.x + bounds.width / 2, bounds.y + bounds.height / 2 + 1);
         ctx.textAlign = 'left';
     }
 }

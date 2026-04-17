@@ -73,14 +73,17 @@ class ActionUIIconRenderer {
             ctx.stroke();
         },
         settings: (ctx, s) => {
-            const cx = s/2, cy = s/2, r = s*0.18, R = s*0.36, teeth = 8;
+            const cx = s/2, cy = s/2, r = s*0.15, R = s*0.32, Ro = s*0.44, teeth = 6;
             ctx.beginPath();
             for (let i = 0; i < teeth; i++) {
-                const a0 = (Math.PI*2/teeth)*i - 0.3;
-                const a1 = a0 + 0.3, a2 = a0 + (Math.PI*2/teeth - 0.3);
+                const a0 = (Math.PI*2/teeth)*i;
+                const a1 = a0 + Math.PI*2/teeth*0.25;
+                const a2 = a0 + Math.PI*2/teeth*0.75;
+                const a3 = a0 + Math.PI*2/teeth;
                 ctx.lineTo(cx + R*Math.cos(a0), cy + R*Math.sin(a0));
-                ctx.lineTo(cx + (R+s*0.08)*Math.cos(a1), cy + (R+s*0.08)*Math.sin(a1));
-                ctx.lineTo(cx + R*Math.cos(a2), cy + R*Math.sin(a2));
+                ctx.lineTo(cx + Ro*Math.cos(a1), cy + Ro*Math.sin(a1));
+                ctx.lineTo(cx + Ro*Math.cos(a2), cy + Ro*Math.sin(a2));
+                ctx.lineTo(cx + R*Math.cos(a3), cy + R*Math.sin(a3));
             }
             ctx.closePath();
             ctx.stroke();
@@ -92,9 +95,9 @@ class ActionUIIconRenderer {
             ctx.beginPath();
             ctx.arc(s/2, s/2, s*0.42, 0, Math.PI*2);
             ctx.stroke();
-            ActionUIDrawUtils.circle(ctx, s/2, s*0.32, s*0.07, ctx.fillStyle);
+            ActionUIDrawUtils.circle(ctx, s/2, s*0.28, s*0.05, ctx.fillStyle);
             ctx.beginPath();
-            ctx.moveTo(s/2, s*0.44); ctx.lineTo(s/2, s*0.70);
+            ctx.moveTo(s/2, s*0.48); ctx.lineTo(s/2, s*0.73);
             ctx.stroke();
         },
         warning: (ctx, s) => {
@@ -155,7 +158,10 @@ class ActionUIIconRenderer {
             ctx.closePath();
             ctx.stroke();
             ctx.beginPath();
-            ctx.arc(s*0.62, s/2, s*0.2, -Math.PI/4, Math.PI/4);
+            ctx.arc(s*0.62, s/2, s*0.15, -Math.PI/5, Math.PI/5);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(s*0.62, s/2, s*0.28, -Math.PI/4, Math.PI/4);
             ctx.stroke();
         },
         play: (ctx, s) => {
@@ -171,16 +177,30 @@ class ActionUIIconRenderer {
             ActionUIDrawUtils.fillRoundRect(ctx, s*0.58, s*0.18, s*0.2, s*0.64, 2, ctx.fillStyle);
         },
         refresh: (ctx, s) => {
+            // Tweakable parameters
+            const radius = s*0.32;
+            const arcStart = -Math.PI*0.9;
+            const arcEnd = Math.PI*0.6;
+            const arrowAngle = arcEnd;
+            const arrowOffsetX = -5;  // Tweak: move arrow left/right
+            const arrowOffsetY = -1.3;  // Tweak: move arrow up/down
+            const headLen = s*0.36;  // Tweak: arrow size
+            const headSpread = 0.4;  // Tweak: arrow spread angle
+            
             ctx.beginPath();
-            ctx.arc(s/2, s/2, s*0.32, -Math.PI*0.9, Math.PI*0.6);
+            ctx.arc(s/2, s/2, radius, arcStart, arcEnd);
             ctx.stroke();
-            const ax = s/2 + s*0.32*Math.cos(Math.PI*0.6);
-            const ay = s/2 + s*0.32*Math.sin(Math.PI*0.6);
+            
+            const ax = s/2 + radius*Math.cos(arrowAngle) + arrowOffsetX;
+            const ay = s/2 + radius*Math.sin(arrowAngle) + arrowOffsetY;
+            const headAngle = arrowAngle - Math.PI/2;
+            
             ctx.beginPath();
-            ctx.moveTo(ax - s*0.12, ay - s*0.04);
-            ctx.lineTo(ax, ay);
-            ctx.lineTo(ax + s*0.04, ay - s*0.14);
-            ctx.stroke();
+            ctx.moveTo(ax, ay);
+            ctx.lineTo(ax + headLen*Math.cos(headAngle + headSpread), ay + headLen*Math.sin(headAngle + headSpread));
+            ctx.lineTo(ax + headLen*Math.cos(headAngle - headSpread), ay + headLen*Math.sin(headAngle - headSpread));
+            ctx.closePath();
+            ctx.fill();
         },
         trash: (ctx, s) => {
             ctx.beginPath();

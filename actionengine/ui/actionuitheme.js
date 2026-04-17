@@ -36,6 +36,8 @@ class ActionUITheme {
         this.colorScrollTrack       = 'rgba(255,255,255,0.06)';
         this.colorScrollThumb       = 'rgba(255,255,255,0.22)';
         this.colorScrollThumbHover  = 'rgba(255,255,255,0.40)';
+        this.colorGhostBg           = '#2a2a4a';
+        this.colorGhostBorder       = '#4a4a6a';
 
         // Typography
         this.fontFamily             = 'system-ui, -apple-system, Arial, sans-serif';
@@ -299,3 +301,74 @@ class ActionUIDrawUtils {
     // Ease in-out
     static easeInOut(t) { return t < 0.5 ? 2*t*t : 1-Math.pow(-2*t+2,2)/2; }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Theme Presets
+// ─────────────────────────────────────────────────────────────────────────────
+const ACTION_UI_THEME_PRESETS = {
+    dark: {
+        colorBackground: '#1a1a2e', colorSurface: '#16213e', colorSurfaceRaised: '#0f3460',
+        colorSurfaceOverlay: 'rgba(15,52,96,0.97)', colorPrimary: '#7c6aff', colorPrimaryHover: '#ff6b81',
+        colorPrimaryActive: '#c73652', colorPrimaryText: '#ffffff', colorSecondary: '#533483',
+        colorAccent: '#00d4ff', colorAccentDim: 'rgba(0,212,255,0.18)', colorSuccess: '#2ecc71',
+        colorWarning: '#f39c12', colorDanger: '#e74c3c', colorInfo: '#3498db', colorDisabled: '#4a4a6a',
+        colorDisabledText: '#7a7a9a', colorText: '#e8e8f0', colorTextMuted: '#9898b8',
+        colorTextInverse: '#1a1a2e', colorBorder: 'rgba(255,255,255,0.12)', colorBorderFocus: '#00d4ff',
+        colorKbFocusActive: '#f0c040', colorShadow: 'rgba(0,0,0,0.55)', colorScrollTrack: 'rgba(255,255,255,0.06)',
+        colorScrollThumb: 'rgba(255,255,255,0.22)', colorScrollThumbHover: 'rgba(255,255,255,0.40)',
+        colorGhostBg: '#2a2a4a', colorGhostBorder: '#4a4a6a',
+        modalOverlayColor: 'rgba(0,0,0,0.72)'
+    },
+    light: {
+        colorBackground: '#f8f9fa', colorSurface: '#ffffff', colorSurfaceRaised: '#f0f2f5',
+        colorSurfaceOverlay: 'rgba(240,242,245,0.97)', colorPrimary: '#2563eb', colorPrimaryHover: '#3b82f6',
+        colorPrimaryActive: '#1e40af', colorPrimaryText: '#ffffff', colorSecondary: '#218bb8',
+        colorAccent: '#06b6d4', colorAccentDim: 'rgba(6,182,212,0.18)', colorSuccess: '#10b981',
+        colorWarning: '#f59e0b', colorDanger: '#ef4444', colorInfo: '#3b82f6', colorDisabled: '#d1d5db',
+        colorDisabledText: '#9ca3af', colorText: '#1f2937', colorTextMuted: '#6b7280',
+        colorTextInverse: '#ffffff', colorBorder: 'rgba(0,0,0,0.12)', colorBorderFocus: '#06b6d4',
+        colorKbFocusActive: '#fbbf24', colorShadow: 'rgba(0,0,0,0.10)', colorScrollTrack: 'rgba(0,0,0,0.06)',
+        colorScrollThumb: 'rgba(0,0,0,0.20)', colorScrollThumbHover: 'rgba(0,0,0,0.35)',
+        colorGhostBg: '#f0f0f0', colorGhostBorder: '#cccccc',
+        modalOverlayColor: 'rgba(0,0,0,0.50)'
+    },
+    neon: {
+        colorBackground: '#0a0e27', colorSurface: '#141829', colorSurfaceRaised: '#1e2749',
+        colorSurfaceOverlay: 'rgba(30,39,73,0.97)', colorPrimary: '#ff006e', colorPrimaryHover: '#ff1a7f',
+        colorPrimaryActive: '#e00055', colorPrimaryText: '#ffffff', colorSecondary: '#7c3aed',
+        colorAccent: '#00f5ff', colorAccentDim: 'rgba(0,245,255,0.18)', colorSuccess: '#39ff14',
+        colorWarning: '#ffbe0b', colorDanger: '#ff4757', colorInfo: '#00d4ff', colorDisabled: '#475569',
+        colorDisabledText: '#64748b', colorText: '#f0f0ff', colorTextMuted: '#b0b0d0',
+        colorTextInverse: '#0a0e27', colorBorder: 'rgba(255,0,110,0.20)', colorBorderFocus: '#00f5ff',
+        colorKbFocusActive: '#ffbe0b', colorShadow: 'rgba(255,0,110,0.40)', colorScrollTrack: 'rgba(255,0,110,0.08)',
+        colorScrollThumb: 'rgba(0,245,255,0.30)', colorScrollThumbHover: 'rgba(0,245,255,0.50)',
+        colorGhostBg: '#2d0a1f', colorGhostBorder: '#7d2a6f',
+        modalOverlayColor: 'rgba(10,14,39,0.80)'
+    },
+    ocean: {
+        colorBackground: '#0c1f2d', colorSurface: '#0f2a3d', colorSurfaceRaised: '#184860',
+        colorSurfaceOverlay: 'rgba(24,72,96,0.97)', colorPrimary: '#0ea5e9', colorPrimaryHover: '#38bdf8',
+        colorPrimaryActive: '#0284c7', colorPrimaryText: '#ffffff', colorSecondary: '#0369a1',
+        colorAccent: '#06b6d4', colorAccentDim: 'rgba(6,182,212,0.18)', colorSuccess: '#14b8a6',
+        colorWarning: '#f97316', colorDanger: '#ef4444', colorInfo: '#0ea5e9', colorDisabled: '#334155',
+        colorDisabledText: '#64748b', colorText: '#e0f2fe', colorTextMuted: '#7dd3fc',
+        colorTextInverse: '#0c1f2d', colorBorder: 'rgba(6,182,212,0.20)', colorBorderFocus: '#06b6d4',
+        colorKbFocusActive: '#fbbf24', colorShadow: 'rgba(15,23,42,0.55)', colorScrollTrack: 'rgba(6,182,212,0.06)',
+        colorScrollThumb: 'rgba(6,182,212,0.25)', colorScrollThumbHover: 'rgba(6,182,212,0.40)',
+        colorGhostBg: '#0a1f3f', colorGhostBorder: '#0e5a7f',
+        modalOverlayColor: 'rgba(12,31,45,0.75)'
+    },
+    forest: {
+        colorBackground: '#1a2f1f', colorSurface: '#2d3d34', colorSurfaceRaised: '#3d4f46',
+        colorSurfaceOverlay: 'rgba(61,79,70,0.97)', colorPrimary: '#10b981', colorPrimaryHover: '#34d399',
+        colorPrimaryActive: '#059669', colorPrimaryText: '#ffffff', colorSecondary: '#047857',
+        colorAccent: '#8b5cf6', colorAccentDim: 'rgba(139,92,246,0.18)', colorSuccess: '#6ee7b7',
+        colorWarning: '#fbbf24', colorDanger: '#f87171', colorInfo: '#8b5cf6', colorDisabled: '#4b5563',
+        colorDisabledText: '#9ca3af', colorText: '#ecfdf5', colorTextMuted: '#a7f3d0',
+        colorTextInverse: '#1a2f1f', colorBorder: 'rgba(16,185,129,0.20)', colorBorderFocus: '#6ee7b7',
+        colorKbFocusActive: '#fbbf24', colorShadow: 'rgba(0,0,0,0.50)', colorScrollTrack: 'rgba(16,185,129,0.08)',
+        colorScrollThumb: 'rgba(139,92,246,0.25)', colorScrollThumbHover: 'rgba(139,92,246,0.40)',
+        colorGhostBg: '#1a3a2f', colorGhostBorder: '#2d6a5a',
+        modalOverlayColor: 'rgba(26,47,31,0.75)'
+    }
+};
