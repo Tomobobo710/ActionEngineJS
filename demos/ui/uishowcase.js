@@ -4,7 +4,7 @@
  * Parent visibility cascades to children automatically
  ******************************************************************************/
 
-const DEMO = { WIDTH: 800, HEIGHT: 600, BG: '#0d0d1a', PANEL: { x: 12, y: 56, w: 776, h: 532 } };
+const DEMO = { WIDTH: 800, HEIGHT: 600, PANEL: { x: 12, y: 56, w: 776, h: 532 } };
 
 class Game {
     static WIDTH = DEMO.WIDTH;
@@ -23,11 +23,15 @@ class Game {
         this.frameCount = 0;
         this._bgTime = 0;
 
-        const theme = new ActionUITheme({
-            colorBackground: '#0d0d1a', colorSurface: '#131326', colorSurfaceRaised: '#1a1a3a',
-            colorPrimary: '#7c6aff', colorPrimaryHover: '#9d8fff', colorAccent: '#00e5cc', colorSuccess: '#00c896',
-        });
-        this.ui = new ActionUI(canvases, input, theme);
+        this.ui = new ActionUI(canvases, input);
+        
+        // Demonstrate ALL available theme color properties that can be overridden
+        // These values match the dark preset exactly, but exposing them shows what's available
+        this.ui.setThemeOverride([
+            { colorBackground: '#1a1a2e' }, { colorSurface: '#16213e' }, { colorSurfaceRaised: '#0f3460' }, { colorSurfaceOverlay: 'rgba(15,52,96,0.97)' }, { colorPrimary: '#7c6aff' }, { colorPrimaryHover: '#ff6b81' }, { colorPrimaryActive: '#c73652' }, { colorPrimaryText: '#ffffff' }, { colorSecondary: '#533483' }, { colorAccent: '#00d4ff' }, 
+            { colorAccentDim: 'rgba(0,212,255,0.18)' }, { colorSuccess: '#2ecc71' }, { colorWarning: '#f39c12' }, { colorDanger: '#e74c3c' }, { colorInfo: '#3498db' }, { colorDisabled: '#4a4a6a' }, { colorDisabledText: '#7a7a9a' }, { colorText: '#e8e8f0' }, { colorTextMuted: '#9898b8' }, { colorTextInverse: '#1a1a2e' },
+            { colorBorder: 'rgba(255,255,255,0.12)' }, { colorBorderFocus: '#00d4ff' }, { colorKbFocusActive: '#f0c040' }, { colorShadow: 'rgba(0,0,0,0.55)' },            { colorScrollTrack: 'rgba(255,255,255,0.06)' }, { colorScrollThumb: 'rgba(255,255,255,0.22)' }, { colorScrollThumbHover: 'rgba(255,255,255,0.40)' }, { colorGhostBg: 'rgba(255,255,255,0.06)' }, { colorGhostBorder: 'rgba(255,255,255,0.12)' }, { modalOverlayColor: 'rgba(0,0,0,0.72)' },
+        ]);
 
         this._setupAudio();
         this._buildHeader();
@@ -51,16 +55,14 @@ class Game {
 
     _buildHeader() {
         const t = this.ui.theme;
-        this.ui.makeLabel({ text: 'ActionUI', x: 20, y: 8, width: 300, height: 40, fontSize: t.fontSizeXl, fontWeight: t.fontWeightBold, color: t.colorPrimary, shadow: true });
-        this.ui.makeLabel({ text: 'Component Gallery', x: 130, y: 18, width: 240, height: 24, fontSize: t.fontSizeSm, color: t.colorTextMuted });
+        this.ui.makeLabel({ text: 'ActionUI', x: 20, y: 8, width: 300, height: 40, fontSize: t.fontSizeXl, fontWeight: t.fontWeightBold, color: 'primary', shadow: true });
+        this.ui.makeLabel({ text: 'Component Gallery', x: 110, y: 17, width: 240, height: 24, fontSize: t.fontSizeSm, color: 'muted' });
         this.tabBar = this.ui.makeTabBar({
-            x: 250, y: 10, width: 450, height: 34,
+            x: 250, y: 10, width: 450, height: 34, zIndex: 100,
             tabs: [{ label: 'Controls', id: 'controls' }, { label: 'Inputs', id: 'inputs' }, { label: 'Display', id: 'display' }, { label: 'Feedback', id: 'feedback' }, { label: 'Windows', id: 'windows' }, { label: 'Themes', id: 'themes' }, { label: 'Console', id: 'console' }],
             selected: 0, onChange: (id, tabBar) => { this._playClick(); const idx = this.tabBar.tabs.findIndex(t => t.id === id); this._switchTab(idx); }
         });
         this.ui.makeSeparator({ x: 0, y: 52, width: 800, height: 1 });
-        this.ui.makeBadge({ x: 100, y: 12, count: 1, color: 'success', size: 18, tooltip: 'v1.0' });
-        
         // Debug panel on debug layer
         this.debugPanelVisible = false;
         this.debugPanel = new ActionUIPanel({
@@ -71,12 +73,12 @@ class Game {
         this.debugPanel.addChild(new ActionUILabel({
             text: 'This panel renders on the "debug" layer!',
             x: 20, y: 110, width: 240, height: 30,
-            fontSize: t.fontSizeSm, color: t.colorTextMuted, wrap: true, layer: 'debug'
+            fontSize: t.fontSizeSm, color: 'muted', wrap: true, layer: 'debug'
         }));
         this.debugPanel.addChild(new ActionUILabel({
             text: 'Use layer property on any component to control which canvas it draws to: "gui", "debug", or "game"',
             x: 20, y: 140, width: 240, height: 40,
-            fontSize: t.fontSizeSm, color: t.colorAccent, wrap: true, layer: 'debug'
+            fontSize: t.fontSizeSm, color: 'accent', wrap: true, layer: 'debug'
         }));
         this.debugPanel.addChild(new ActionUIButton({
             text: 'Close', x: 20, y: 185, width: 240, height: 24,
@@ -115,7 +117,7 @@ class Game {
         this._tabPanels.push(panel);
 
         let cy = y + 46;
-        this._child(panel, new ActionUILabel({ text: 'Button Variants', x: x + pad, y: cy, width: halfW, height: 18, fontSize: t.fontSizeSm, fontWeight: t.fontWeightMedium, color: t.colorTextMuted, uppercase: true }));
+        this._child(panel, new ActionUILabel({ text: 'Button Variants', x: x + pad, y: cy, width: halfW, height: 18, fontSize: t.fontSizeSm, fontWeight: t.fontWeightMedium, color: 'muted', uppercase: true }));
         cy += 22;
         [{ text: 'Primary', variant: 'primary' }, { text: 'Secondary', variant: 'secondary' }, { text: 'Ghost', variant: 'ghost' }, { text: 'Danger', variant: 'danger' }, { text: 'Success', variant: 'success' }].forEach(({ text, variant }) => {
             this._child(panel, new ActionUIButton({ x: x + pad, y: cy, width: halfW, height: 32, text, variant, tooltip: `${variant} button`, onClick: () => { this._playClick(); this.ui.notify(`Clicked: ${text}`, variant === 'danger' ? 'danger' : 'success'); } }));
@@ -125,7 +127,7 @@ class Game {
 
         const rx = x + pad + halfW + 10;
         cy = y + 46;
-        this._child(panel, new ActionUILabel({ text: 'Icon Buttons', x: rx, y: cy, width: halfW, height: 18, fontSize: t.fontSizeSm, fontWeight: t.fontWeightMedium, color: t.colorTextMuted, uppercase: true }));
+        this._child(panel, new ActionUILabel({ text: 'Icon Buttons', x: rx, y: cy, width: halfW, height: 18, fontSize: t.fontSizeSm, fontWeight: t.fontWeightMedium, color: 'muted', uppercase: true }));
         cy += 22;
         const icons = ['play','pause','refresh','trash','settings','search','menu','volume'];
         const ibSize = 34, cols = 4;
@@ -162,25 +164,23 @@ class Game {
         this._tabPanels.push(panel);
 
         let cy = y + 46;
-        this._child(panel, new ActionUILabel({ text: 'Text Fields', x: x + pad, y: cy, width: halfW, height: 16, fontSize: t.fontSizeSm, fontWeight: t.fontWeightMedium, color: t.colorTextMuted, uppercase: true }));
-        cy += 20;
+        this._child(panel, new ActionUILabel({ text: 'Text Fields', x: x + pad, y: cy, width: halfW, height: 16, fontSize: t.fontSizeSm, fontWeight: t.fontWeightMedium, color: 'muted', uppercase: true }));
+        cy += 38;
         this._child(panel, new ActionUITextInput({ x: x + pad, y: cy, width: halfW, height: 34, placeholder: 'Enter your name…', label: 'Name', tooltip: 'Press Action1 with gamepad to open on-screen keyboard' }));
-        cy += 52;
+        cy += 55;
         this._child(panel, new ActionUITextInput({ x: x + pad, y: cy, width: halfW, height: 34, placeholder: 'Search…', label: 'Search', tooltip: 'Press Action1 with gamepad to open on-screen keyboard' }));
-        cy += 52;
+        cy += 55;
         this._child(panel, new ActionUITextInput({ x: x + pad, y: cy, width: halfW, height: 34, placeholder: '••••••••', label: 'Password', password: true, tooltip: 'Press Action1 with gamepad to open on-screen keyboard' }));
-        cy += 52;
-
+        cy += 55;
         const rx = x + pad + halfW + 10;
         cy = y + 46;
-        this._child(panel, new ActionUILabel({ text: 'Sliders', x: rx, y: cy, width: halfW, height: 16, fontSize: t.fontSizeSm, fontWeight: t.fontWeightMedium, color: t.colorTextMuted, uppercase: true }));
+        this._child(panel, new ActionUILabel({ text: 'Sliders', x: rx, y: cy, width: halfW, height: 16, fontSize: t.fontSizeSm, fontWeight: t.fontWeightMedium, color: 'muted', uppercase: true }));
         cy += 20;
         this.volumeSlider = this._child(panel, new ActionUISlider({ x: rx, y: cy, width: halfW, height: 34, min: 0, max: 100, value: 70, label: 'Volume', color: 'primary', onChange: (value, slider) => { this._playSlide(); this.audio.setVolume(value / 100); } }));
         cy += 42;
         this._child(panel, new ActionUISlider({ x: rx, y: cy, width: halfW, height: 34, min: 0, max: 10, value: 5, step: 1, label: 'Level', color: 'accent' }));
         cy += 42;
         this._child(panel, new ActionUISlider({ x: rx, y: cy, width: halfW, height: 34, min: 0, max: 1, value: 0.35, label: 'Opacity', color: 'success' }));
-
         cy = y + 310;
         this._child(panel, new ActionUISeparator({ x: x + pad, y: cy, width: w - pad * 2, height: 1, label: 'Progress' }));
         cy += 18;
@@ -190,7 +190,6 @@ class Game {
         this._child(panel, new ActionUIProgressBar({ x: x + pad + (w - pad * 2 - 10) / 2 + 10, y: cy, width: (w - pad * 2 - 10) / 2, height: 10, value: 0.82, color: 'warning', animated: true }));
         cy += 24;
         this._child(panel, new ActionUIProgressBar({ x: x + pad, y: cy, width: (w - pad * 2 - 10) / 2, height: 10, value: 0.18, color: 'danger', animated: true }));
-
         const by = y + 380;
         this._child(panel, new ActionUISeparator({ x: rx, y: by, width: halfW, height: 1, label: 'Steppers' }));
         const sy = by + 18;
@@ -207,7 +206,7 @@ class Game {
         this._tabPanels.push(panel);
 
         let cy = y + 46;
-        this._child(panel, new ActionUILabel({ text: 'Avatars', x: x + pad, y: cy, width: halfW, height: 16, fontSize: t.fontSizeSm, fontWeight: t.fontWeightMedium, color: t.colorTextMuted, uppercase: true }));
+        this._child(panel, new ActionUILabel({ text: 'Avatars', x: x + pad, y: cy, width: halfW, height: 16, fontSize: t.fontSizeSm, fontWeight: t.fontWeightMedium, color: 'muted', uppercase: true }));
         cy += 20;
         [{ name: 'Alice Morgan', status: 'online' }, { name: 'Bob Chen', status: 'away' }, { name: 'Carlos Diaz', status: 'offline' }, { name: 'Dana Lee', status: 'online' }].forEach(({ name, status }, i) => {
             this._child(panel, new ActionUIAvatarDisplay({ x: x + pad + i * 52, y: cy, size: 42, name, status, tooltip: name, onClick: () => { this._playClick(); this.ui.notify(`Hello, ${name}!`, 'info'); } }));
@@ -234,16 +233,14 @@ class Game {
             this._child(panel, new ActionUIBadge({ x: rx + i * 42, y: cy, count, size: 24, color: ['danger','warning','info','success','primary'][i], tooltip: `${count} notification${count!==1?'s':''}` }));
         });
         cy += 44;
-
         const sy = y + 260;
-        const halfPanelW = Math.floor((w - pad * 2 - 10) / 2);
-
+        const halfPanelW = Math.floor((w - pad * 2) / 2);
         // Left scroll panel
         this._child(panel, new ActionUISeparator({ x: x + pad, y: sy, width: halfPanelW, height: 1, label: 'Scroll Panel A' }));
         const spyA = sy + 18;
         const scrollPanelA = this._child(panel, new ActionUIScrollPanel({ x: x + pad, y: spyA, width: halfPanelW, height: 200, itemHeight: 28, padding: 4 }));
         ['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon', 'Zeta', 'Eta', 'Theta', 'Iota', 'Kappa'].forEach((name, i) => {
-            const btn = new ActionUIButton({ x: 4, y: 4 + i * 28, width: halfPanelW - 28, height: 24, text: name, variant: i % 2 === 0 ? 'ghost' : 'secondary', fontSize: 11, onClick: () => { this._playClick(); this.ui.notify(name, 'info'); } });
+            const btn = new ActionUIButton({ x: 4, y: 4 + i * 28, width: halfPanelW - 35, height: 24, text: name, variant: i % 2 === 0 ? 'ghost' : 'secondary', fontSize: 11, opacity: i % 2 === 0 ? 0.9 : 1, onClick: () => { this._playClick(); this.ui.notify(name, 'info'); } });
             scrollPanelA.addChild(btn);
             btn._parent = panel;
         });
@@ -253,7 +250,7 @@ class Game {
         const spyB = sy + 18;
         const scrollPanelB = this._child(panel, new ActionUIScrollPanel({ x: x + pad + halfPanelW + 10, y: spyB, width: halfPanelW, height: 200, itemHeight: 28, padding: 4 }));
         ['Lambda', 'Mu', 'Nu', 'Xi', 'Omicron', 'Pi', 'Rho', 'Sigma', 'Tau', 'Upsilon'].forEach((name, i) => {
-            const btn = new ActionUIButton({ x: 4, y: 4 + i * 28, width: halfPanelW - 28, height: 24, text: name, variant: i % 2 === 0 ? 'ghost' : 'secondary', fontSize: 11, onClick: () => { this._playClick(); this.ui.notify(name, 'info'); } });
+            const btn = new ActionUIButton({ x: 4, y: 4 + i * 28, width: halfPanelW - 35, height: 24, text: name, variant: i % 2 === 0 ? 'ghost' : 'secondary', fontSize: 11, opacity: i % 2 === 0 ? 0.9 : 1, onClick: () => { this._playClick(); this.ui.notify(name, 'info'); } });
             scrollPanelB.addChild(btn);
             btn._parent = panel;
         });
@@ -266,43 +263,38 @@ class Game {
         const panel = new ActionUIPanel({ x, y, width: w, height: h, title: 'Windows & Dialogs', shadow: true });
         this.ui.add(panel);
         this._tabPanels.push(panel);
-
         let cy = y + 46;
-        this._child(panel, new ActionUILabel({ text: 'Draggable & Resizable Windows', x: x + pad, y: cy, width: w - pad * 2, height: 16, fontSize: t.fontSizeSm, fontWeight: t.fontWeightMedium, color: t.colorTextMuted, uppercase: true }));
+        this._child(panel, new ActionUILabel({ text: 'Draggable & Resizable Windows', x: x + pad, y: cy, width: w - pad * 2, height: 16, fontSize: t.fontSizeSm, fontWeight: t.fontWeightMedium, color: 'muted', uppercase: true }));
         cy += 24;
-
         // Example window 1 - draggable, resizable
         this._child(panel, new ActionUIButton({ x: x + pad, y: cy, width: 120, height: 32, text: 'Open Window 1', variant: 'primary', onClick: () => {
             this._playClick();
             const win = new ActionUIWindow({ x: 150, y: 150, width: 320, height: 240, title: 'Window 1', resizable: true });
-            win.addChild(new ActionUILabel({ text: 'This is a draggable, resizable window!\n\nDrag by title bar. Resize from bottom-right corner. Click X to close.', x: 0, y: 0, width: 300, height: 100, fontSize: t.fontSizeSm, color: t.colorTextMuted, wrap: true }));
+            win.addChild(new ActionUILabel({ text: 'This is a draggable, resizable window!\n\nDrag by title bar. Resize from bottom-right corner. Click X to close.', x: 0, y: 0, width: 300, height: 100, fontSize: t.fontSizeSm, color: 'muted', wrap: true }));
             win.onClose = () => this.ui.remove(win);
             this.ui.add(win);
         }}));
-
         cy += 42;
         this._child(panel, new ActionUIButton({ x: x + pad, y: cy, width: 120, height: 32, text: 'Open Window 2', variant: 'secondary', onClick: () => {
             this._playClick();
             const win = new ActionUIWindow({ x: 500, y: 200, width: 280, height: 200, title: 'Settings', resizable: true });
-            win.addChild(new ActionUILabel({ text: 'Settings', x: 0, y: 0, width: 260, height: 20, fontSize: t.fontSizeSm, color: t.colorText, fontWeight: t.fontWeightMedium }));
+            win.addChild(new ActionUILabel({ text: 'Settings', x: 0, y: 0, width: 260, height: 20, fontSize: t.fontSizeSm, color: 'text', fontWeight: t.fontWeightMedium }));
             win.addChild(new ActionUIToggleSwitch({ x: 0, y: 30, label: 'Option 1', checked: true, onChange: () => this._playToggle() }));
             win.addChild(new ActionUIToggleSwitch({ x: 0, y: 62, label: 'Option 2', checked: false, onChange: () => this._playToggle() }));
             win.addChild(new ActionUIButton({ text: 'Save', x: 0, y: 110, width: 260, height: 32, variant: 'success', onClick: () => { this.ui.notify('Settings saved!', 'success'); } }));
             win.onClose = () => this.ui.remove(win);
             this.ui.add(win);
         }}));
-
         cy += 42;
         this._child(panel, new ActionUIButton({ x: x + pad, y: cy, width: 120, height: 32, text: 'Open Window 3', variant: 'accent', onClick: () => {
             this._playClick();
             const win = new ActionUIWindow({ x: 100, y: 300, width: 300, height: 180, title: 'Info', resizable: false });
-            win.addChild(new ActionUILabel({ text: 'Non-resizable Window\n\nThis window cannot be resized, only dragged and closed.', x: 0, y: 0, width: 280, height: 100, fontSize: t.fontSizeSm, color: t.colorTextMuted, wrap: true }));
+            win.addChild(new ActionUILabel({ text: 'Non-resizable Window\n\nThis window cannot be resized, only dragged and closed.', x: 0, y: 0, width: 280, height: 100, fontSize: t.fontSizeSm, color: 'muted', wrap: true }));
             win.onClose = () => this.ui.remove(win);
             this.ui.add(win);
         }}));
-
         cy += 60;
-        this._child(panel, new ActionUILabel({ text: 'Try dragging windows by their title bar. Resizable windows can be dragged from bottom-right corner.', x: x + pad, y: cy, width: w - pad * 2, height: 80, fontSize: t.fontSizeSm, color: t.colorTextMuted, wrap: true }));
+        this._child(panel, new ActionUILabel({ text: 'Try dragging windows by their title bar. Resizable windows can be dragged from bottom-right corner.', x: x + pad, y: cy, width: w - pad * 2, height: 80, fontSize: t.fontSizeSm, color: 'muted', wrap: true }));
     }
 
     _buildThemesPanel() {
@@ -320,10 +312,9 @@ class Game {
             text: 'Select a theme to change the UI appearance',
             x: x + pad, y: cy, width: halfW, height: 16,
             fontSize: t.fontSizeSm, fontWeight: t.fontWeightMedium,
-            color: t.colorTextMuted,
+            color: 'muted',
         }));
-        cy += 24;
-
+        cy += 36;
         this._child(panel, new ActionUIDropdown({
             x: x + pad, y: cy, width: halfW, height: 34,
             label: 'Theme',
@@ -335,16 +326,30 @@ class Game {
                 { label: 'Classic Light', value: 'light' },
             ],
             selected: 0,
-            onChange: (value, dropdown) => { this._playClick(); this.ui.notify(`Theme: ${value}`, 'info'); }
+            onChange: (value, dropdown) => { this._playClick(); this.ui.setTheme(value); this.ui.notify(`Theme: ${value}`, 'success'); }
         }));
         cy += 52;
-
         this._child(panel, new ActionUISeparator({ x: x + pad, y: cy, width: halfW, height: 1, label: 'Color Palette' }));
-        cy += 18;
-
+        cy += 10;
+        this._child(panel, new ActionUILabel({ text: 'Primary', x: x + pad, y: cy, width: halfW, height: 16, fontSize: t.fontSizeSm, fontWeight: t.fontWeightMedium, color: 'muted', uppercase: true }));
+        cy += 20;
         [{ color: '#7c6aff', label: 'Primary' }, { color: '#e94560', label: 'Red' }, { color: '#00e5cc', label: 'Teal' }, { color: '#f39c12', label: 'Amber' }, { color: '#00c896', label: 'Green' }].forEach(({ color, label }, i) => {
-            this._child(panel, new ActionUIColorSwatch({ x: x + pad + i * 44, y: cy, size: 36, color, label, tooltip: label, onClick: () => { this._playClick(); this.ui.notify(`Color: ${color}`, 'info'); } }));
+            this._child(panel, new ActionUIColorSwatch({ x: x + pad + i * 44, y: cy, size: 36, color, label, tooltip: label, onClick: () => { this._playClick(); this.ui.setThemeOverride('colorPrimary', color); this.ui.notify(`Primary override: ${color}`, 'info'); } }));
         });
+        cy += 58;
+        this._child(panel, new ActionUILabel({ text: 'Secondary', x: x + pad, y: cy, width: halfW, height: 16, fontSize: t.fontSizeSm, fontWeight: t.fontWeightMedium, color: 'muted', uppercase: true }));
+        cy += 20;
+        [{ color: '#7c3aed', label: 'Purple' }, { color: '#06b6d4', label: 'Cyan' }, { color: '#f59e0b', label: 'Orange' }, { color: '#8b5cf6', label: 'Violet' }, { color: '#ec4899', label: 'Pink' }].forEach(({ color, label }, i) => {
+            this._child(panel, new ActionUIColorSwatch({ x: x + pad + i * 44, y: cy, size: 36, color, label, tooltip: label, onClick: () => { this._playClick(); this.ui.setThemeOverride('colorSecondary', color); this.ui.notify(`Secondary override: ${color}`, 'info'); } }));
+        });
+        cy += 58;
+        this._child(panel, new ActionUISeparator({ x: x + pad, y: cy, width: halfW, height: 1, label: 'Custom Overrides' }));
+        cy += 18;
+        this._child(panel, new ActionUITextInput({ x: x + pad, y: cy, width: halfW - 120, height: 34, placeholder: '#ff0000', label: 'Primary Color', value: '', onSubmit: (val) => { if (val.match(/^#[0-9a-f]{6}$/i)) { this._playClick(); this.ui.setThemeOverride('colorPrimary', val); this.ui.notify(`Override: ${val}`, 'success'); } else this.ui.notify('Invalid hex color', 'danger'); } }));
+        this._child(panel, new ActionUIButton({ x: x + pad + halfW - 105, y: cy, width: 100, height: 34, text: 'Clear All', variant: 'ghost', fontSize: 11, onClick: () => { this._playClick(); this.ui.clearThemeOverrides(); this.ui.notify('Overrides cleared', 'info'); } }));
+        cy += 52;
+        this._child(panel, new ActionUITextInput({ x: x + pad, y: cy, width: halfW - 120, height: 34, placeholder: '#533483', label: 'Secondary Color', value: '', onSubmit: (val) => { if (val.match(/^#[0-9a-f]{6}$/i)) { this._playClick(); this.ui.setThemeOverride('colorSecondary', val); this.ui.notify(`Override: ${val}`, 'success'); } else this.ui.notify('Invalid hex color', 'danger'); } }));
+        this._child(panel, new ActionUIButton({ x: x + pad + halfW - 105, y: cy, width: 100, height: 34, text: 'Reset', variant: 'ghost', fontSize: 11, onClick: () => { this._playClick(); this.ui.setThemeOverride('colorSecondary', null); this.ui.notify('Secondary reset', 'info'); } }));
     }
 
     _buildConsolePanel() {
@@ -363,7 +368,7 @@ class Game {
             x: x + pad, y: cy, width: panelW, height: 340,
             itemHeight: 18, padding: 8, maxItems: 50
         }));
-        cy += 350;
+        cy += 360;
 
         // Text input for console
         this.consoleInput = this._child(panel, new ActionUITextInput({
@@ -379,7 +384,6 @@ class Game {
             }
         }));
         cy += 52;
-
         // Clear button
         this._child(panel, new ActionUIButton({
             x: x + pad, y: cy, width: panelW / 2 - 5, height: 32,
@@ -390,7 +394,6 @@ class Game {
                 this.ui.notify('Console cleared', 'info');
             }
         }));
-
         // Add sample message button
         this._child(panel, new ActionUIButton({
             x: x + pad + panelW / 2 + 5, y: cy, width: panelW / 2 - 5, height: 32,
@@ -409,7 +412,6 @@ class Game {
                 this.ui.notify('Message added', 'info');
             }
         }));
-
         // Add initial message
         this.consoleList.addItem('[System] Console initialized');
     }
@@ -424,7 +426,7 @@ class Game {
         this._tabPanels.push(panel);
 
         let cy = y + 46;
-        this._child(panel, new ActionUILabel({ text: 'Notifications', x: x + pad, y: cy, width: halfW, height: 16, fontSize: t.fontSizeSm, fontWeight: t.fontWeightMedium, color: t.colorTextMuted, uppercase: true }));
+        this._child(panel, new ActionUILabel({ text: 'Notifications', x: x + pad, y: cy, width: halfW, height: 16, fontSize: t.fontSizeSm, fontWeight: t.fontWeightMedium, color: 'muted', uppercase: true }));
         cy += 20;
         const notifTypes = ['info', 'success', 'warning', 'danger'];
         const notifW = Math.floor((halfW - 10 * 3) / 4);
@@ -432,7 +434,7 @@ class Game {
             this._child(panel, new ActionUIButton({ x: x + pad + i * (notifW + 10), y: cy, width: notifW, height: 32, text: type.charAt(0).toUpperCase() + type.slice(1), variant: type === 'info' ? 'ghost' : type === 'success' ? 'success' : type === 'danger' ? 'danger' : 'ghost', fontSize: 11, onClick: () => { this._playNotify(); this.ui.notify(`This is a ${type} toast.`, type); } }));
         });
         cy += 48;
-        this._child(panel, new ActionUILabel({ text: 'Toast notifications appear in the top-right corner and auto-dismiss after a few seconds.', x: x + pad, y: cy, width: halfW, height: 80, fontSize: t.fontSizeSm, color: t.colorTextMuted, wrap: true }));
+        this._child(panel, new ActionUILabel({ text: 'Toast notifications appear in the top-right corner and auto-dismiss after a few seconds.', x: x + pad, y: cy, width: halfW, height: 80, fontSize: t.fontSizeSm, color: 'muted', wrap: true }));
 
         const rx = x + pad + halfW + 10;
         cy = y + 46;
@@ -443,9 +445,9 @@ class Game {
             this.ui.openModal({ title: 'Confirm Action', message: 'Are you sure you want to proceed? This action cannot be undone.', buttons: [{ label: 'Cancel', value: 'cancel', variant: 'ghost' }, { label: 'Confirm', value: 'ok', variant: 'primary' }], onClose: (val) => { this._playClick(); this.ui.notify(val === 'ok' ? 'Confirmed!' : 'Cancelled.', val === 'ok' ? 'success' : 'warning'); } });
         }}));
         cy += 52;
-        this._child(panel, new ActionUILabel({ text: 'Context Menu', x: rx, y: cy, width: halfW, height: 16, fontSize: t.fontSizeSm, fontWeight: t.fontWeightMedium, color: t.colorTextMuted, uppercase: true }));
+        this._child(panel, new ActionUILabel({ text: 'Context Menu', x: rx, y: cy, width: halfW, height: 16, fontSize: t.fontSizeSm, fontWeight: t.fontWeightMedium, color: 'muted', uppercase: true }));
         cy += 20;
-        this._child(panel, new ActionUILabel({ text: 'Right-click anywhere on the screen to open a context menu with additional options.', x: rx, y: cy, width: halfW, height: 60, fontSize: t.fontSizeSm, color: t.colorTextMuted, wrap: true }));
+        this._child(panel, new ActionUILabel({ text: 'Right-click anywhere on the screen to open a context menu with additional options.', x: rx, y: cy, width: halfW, height: 60, fontSize: t.fontSizeSm, color: 'muted', wrap: true }));
         cy += 70;
         this._child(panel, new ActionUISeparator({ x: rx, y: cy, width: halfW, height: 1, label: 'Quick Actions' }));
         cy += 18;
@@ -500,11 +502,11 @@ class Game {
     _drawBackground() {
         const ctx = this.gameCtx;
         const w = DEMO.WIDTH, h = DEMO.HEIGHT;
-        ctx.fillStyle = DEMO.BG;
+        ctx.fillStyle = this.ui.theme.colorBackground;
         ctx.fillRect(0, 0, w, h);
         ctx.save();
-        ctx.strokeStyle = 'rgba(124,106,255,0.04)';
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = this.ui.theme.colorBorder;
+        ctx.lineWidth = 2;
         const gridSize = 40;
         const offX = (this._bgTime * 8) % gridSize;
         const offY = (this._bgTime * 4) % gridSize;
