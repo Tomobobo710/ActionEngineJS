@@ -12,7 +12,7 @@ class ActionUI {
          this.input    = input;
          this._currentThemePreset = 'dark';
          this._themeOverrides = {};
-         this.theme = this._buildTheme();
+         this._buildTheme();
 
          // Canvas contexts keyed by layer
          this._ctxMap  = {
