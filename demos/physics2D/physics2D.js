@@ -62,13 +62,17 @@ class Game {
         this.maxLogLines = 15;
         this.playerBody = null;
         this.contactListView = null;
-
         // ActionUI setup
-        const theme = new ActionUITheme({
-            colorBackground: '#050510', colorSurface: '#0a0a1a', colorSurfaceRaised: '#0f0f2a',
-            colorPrimary: '#4682be', colorPrimaryHover: '#5a9fd4', colorAccent: '#00d4ff', colorSuccess: '#00c896',
+        this.ui = new ActionUI(canvases, input);
+        this.ui.setThemeOverride({
+            colorBackground: '#050510',
+            colorSurface: '#0a0a1a',
+            colorSurfaceRaised: '#0f0f2a',
+            colorPrimary: '#4682be',
+            colorPrimaryHover: '#5a9fd4',
+            colorAccent: '#00d4ff',
+            colorSuccess: '#00c896',
         });
-        this.ui = new ActionUI(canvases, input, theme);
 
         // Setup
         this.setupAudio();
