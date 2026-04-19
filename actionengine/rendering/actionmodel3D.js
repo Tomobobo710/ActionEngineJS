@@ -303,19 +303,6 @@ class ActionModel3D {
     }
 
     /**
-     * Get all triangles flattened WITHOUT transforms (local space)
-     * Used for characters and objects that manage their own transforms
-     * @returns {Triangle[]} All triangles from all objects in local space
-     */
-    getAllTrianglesLocal() {
-        const allTriangles = [];
-        for (const obj of this.objects) {
-            allTriangles.push(...obj.triangles);
-        }
-        return allTriangles;
-    }
-
-    /**
      * Get all triangles flattened with transforms applied
      * Creates transformed copies so each instance appears in the correct position
      * @returns {Triangle[]} All triangles from all objects with transforms applied

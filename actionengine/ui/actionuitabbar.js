@@ -85,40 +85,4 @@ class ActionUITabBar extends ActionUIComponent {
         this._restoreOpacity(ctx);
         ctx.restore();
     }
-
-    draw(ctx) {
-        if (!this.visible) return;
-        const t  = this.theme;
-        const tw = this.width / this.tabs.length;
-        const r  = t.radiusSm;
-
-        ctx.save();
-        this._applyOpacity(ctx);
-
-        // Background
-        ActionUIDrawUtils.fillRoundRect(ctx, this.x, this.y, this.width, this.height, r, t.colorSurface);
-        ActionUIDrawUtils.strokeRoundRect(ctx, this.x, this.y, this.width, this.height, r, t.colorBorder, 1);
-
-        // Animated indicator
-        const indH = 3;
-        ActionUIDrawUtils.fillRoundRect(ctx,
-            this._indicX + 4, this.y + this.height - indH - 2,
-            this._indicW - 8, indH, indH / 2, t.colorPrimary
-        );
-
-        // Tab labels
-        this.tabs.forEach((tab, i) => {
-            const tx0 = this.x + i * tw;
-            const sel = i === this.selected;
-            const col = sel ? t.colorPrimary : t.colorTextMuted;
-            const fw  = sel ? t.fontWeightBold : t.fontWeightNormal;
-            ActionUIDrawUtils.text(ctx, tab.label,
-                tx0 + tw / 2, this.y + this.height / 2,
-                t.font(t.fontSizeMd, fw), col, 'center', 'middle'
-            );
-        });
-
-        this._restoreOpacity(ctx);
-        ctx.restore();
-    }
 }
