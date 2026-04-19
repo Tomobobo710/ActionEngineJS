@@ -7,85 +7,146 @@ const files = [
     // 3rd party
     'actionengine/3rdparty/goblin/goblin.js',
     
-    // Math
-    'actionengine/math/geometry/triangle.js',
-    'actionengine/math/geometry/triangleutils.js',
-    'actionengine/math/geometry/geometrybuilder.js',
-    'actionengine/math/geometry/glbloader.js',
-    'actionengine/math/geometry/glbexporter.js',
-    'actionengine/math/geometry/modelcodegenerator.js',
+    // Math & Transformation
     'actionengine/math/vector2.js',
     'actionengine/math/vector3.js',
     'actionengine/math/matrix4.js',
     'actionengine/math/quaternion.js',
-    'actionengine/math/mathutils.js',
-    'actionengine/math/viewfrustum.js',
+    'actionengine/math/transform.js',
     
-    // Rendering
-    'actionengine/display/graphics/renderableobject.js',
-    'actionengine/display/graphics/actionmodel3D.js',
-    'actionengine/display/graphics/actionsprite3D.js',
-    'actionengine/display/graphics/renderers/actionrenderer2D.js',
-    'actionengine/display/graphics/renderers/actionrenderer3D/actionrenderer3D.js',
-    'actionengine/display/graphics/renderers/actionrenderer3D/objectrenderer3D.js',
-    'actionengine/display/graphics/renderers/actionrenderer3D/weatherrenderer3D.js',
-    'actionengine/display/graphics/renderers/actionrenderer3D/waterrenderer3D.js',
-    'actionengine/display/graphics/renderers/actionrenderer3D/sunrenderer3D.js',
-    'actionengine/display/graphics/renderers/actionrenderer3D/spriterenderer3D.js',
-    'actionengine/display/graphics/renderers/actionrenderer3D/debugrenderer3D.js',
-    'actionengine/display/graphics/renderers/actionrenderer3D/canvasmanager3D.js',
+    // Geometry & Resources
+    'actionengine/geometry/triangle.js',
+    'actionengine/geometry/triangleutils.js',
+    'actionengine/geometry/geometrybuilder.js',
+    'actionengine/geometry/glbloader.js',
+    'actionengine/geometry/glbexporter.js',
+    'actionengine/geometry/modelcodegenerator.js',
+    'actionengine/geometry/modelregistry.js',
+    'actionengine/geometry/actionmodelpackageloader.js',
     
-    // Lighting
-    'actionengine/display/graphics/lighting/lightingconstants.js',
-    'actionengine/display/graphics/lighting/actionlight.js',
-    'actionengine/display/graphics/lighting/actiondirectionalshadowlight.js',
-    'actionengine/display/graphics/lighting/actionomnidirectionalshadowlight.js',
-    'actionengine/display/graphics/lighting/lightmanager.js',
+    // ActionUI Library
+    'actionengine/ui/actionuitheme.js',
+    'actionengine/ui/actionuicomponent.js',
+    'actionengine/ui/actionuiiconrenderer.js',
+    'actionengine/ui/actionuipanel.js',
+    'actionengine/ui/actionuilabel.js',
+    'actionengine/ui/actionuibutton.js',
+    'actionengine/ui/actionuicheckbox.js',
+    'actionengine/ui/actionuiradiogroup.js',
+    'actionengine/ui/actionuislider.js',
+    'actionengine/ui/actionuiprogressbar.js',
+    'actionengine/ui/actionuitextinput.js',
+    'actionengine/ui/actionuitoggleswitch.js',
+    'actionengine/ui/actionuinumberstepper.js',
+    'actionengine/ui/actionuidropdown.js',
+    'actionengine/ui/actionuitooltip.js',
+    'actionengine/ui/actionuimodal.js',
+    'actionengine/ui/actionuinotification.js',
+    'actionengine/ui/actionuitabbar.js',
+    'actionengine/ui/actionuiseparator.js',
+    'actionengine/ui/actionuibadge.js',
+    'actionengine/ui/actionuicontextmenu.js',
+    'actionengine/ui/actionuiscrollablearea.js',
+    'actionengine/ui/actionuiscrollpanel.js',
+    'actionengine/ui/actionuicolorswatch.js',
+    'actionengine/ui/actionuispinner.js',
+    'actionengine/ui/actionuiavatardisplay.js',
+    'actionengine/ui/actionuigrid.js',
+    'actionengine/ui/actionuiwindow.js',
+    'actionengine/ui/actionuionscreenkeyboard.js',
+    'actionengine/ui/actionuilistview.js',
+    'actionengine/ui/actionui.js',
     
-    // Debug
-    'actionengine/debug/basedebugpanel.js',
+    // Rendering: Core & Objects
+    'actionengine/display/canvasmanager.js',
+    'actionengine/rendering/renderableobject.js',
+    'actionengine/rendering/actionmodel3D.js',
+    'actionengine/rendering/actionsprite3D.js',
     
-    // Textures
-    'actionengine/display/graphics/texture/proceduraltexture.js',
-    'actionengine/display/graphics/texture/texturemanager.js',
-    'actionengine/display/graphics/texture/textureregistry.js',
+    // Rendering: Lighting & Textures
+    'actionengine/rendering/texture/texturemanager.js',
+    'actionengine/rendering/texture/textureset.js',
+    'actionengine/rendering/lighting/lightingconstants.js',
+    'actionengine/rendering/lighting/actionlight.js',
+    'actionengine/rendering/lighting/lightmanager.js',
+    'actionengine/rendering/lighting/actiondirectionalshadowlight.js',
+    'actionengine/rendering/lighting/actionomnidirectionalshadowlight.js',
     
-    // GL Shaders
-    'actionengine/display/gl/programmanager.js',
-    'actionengine/display/gl/shaders/objectshader.js',
-    'actionengine/display/gl/shaders/lineshader.js',
-    'actionengine/display/gl/shaders/spriteshader.js',
-    'actionengine/display/gl/shaders/shadowshader.js',
-    'actionengine/display/gl/shaders/watershader.js',
-    'actionengine/display/gl/shaders/particleshader.js',
+    // Rendering: Specialized Renderers (2D)
+    'actionengine/rendering/renderers/actionrenderer2D/cpuvertexskinning.js',
+    'actionengine/rendering/renderers/actionrenderer2D/actionrenderer2D.js',
     
-    // Physics
-    'actionengine/math/physics/actionphysicsworld3D.js',
-    'actionengine/math/physics/actionphysicsobject3D.js',
-    'actionengine/math/physics/shapes/actionphysicsplane3D.js',
-    'actionengine/math/physics/shapes/actionphysicsbox3D.js',
-    'actionengine/math/physics/shapes/actionphysicssphere3D.js',
-    'actionengine/math/physics/shapes/actionphysicscapsule3D.js',
-    'actionengine/math/physics/shapes/actionphysicscone3D.js',
-    'actionengine/math/physics/shapes/actionphysicscylinder3D.js',
-    'actionengine/math/physics/shapes/actionphysicscompoundshape3D.js',
-    'actionengine/math/physics/shapes/actionphysicsconvexshape3D.js',
-    'actionengine/math/physics/shapes/actionphysicsmesh3D.js',
-    'actionengine/math/physics/actionraycast.js',
-    'actionengine/math/physics/actionphysics.js',
+    // Rendering: Specialized Renderers (3D WebGL)
+    'actionengine/rendering/renderers/actionrenderer3D/glstatemanager.js',
+    'actionengine/rendering/renderers/actionrenderer3D/canvasmanager3D.js',
+    'actionengine/rendering/renderers/actionrenderer3D/actionrenderer3D.js',
+    'actionengine/rendering/renderers/actionrenderer3D/objectrenderer3D.js',
+    'actionengine/rendering/renderers/actionrenderer3D/transparentobjectrenderer3D.js',
+    'actionengine/rendering/renderers/actionrenderer3D/shadowrenderer3d.js',
+    'actionengine/rendering/renderers/actionrenderer3D/spriteRenderer3D.js',
+    'actionengine/rendering/renderers/actionrenderer3D/weatherrenderer3D.js',
+    'actionengine/rendering/renderers/actionrenderer3D/waterrenderer3D.js',
+    'actionengine/rendering/renderers/actionrenderer3D/sunrenderer3D.js',
+    'actionengine/rendering/renderers/actionrenderer3D/debugrenderer3D.js',
     
-    // Audio
+    // GPU Pipeline (WebGL GLSL)
+    'actionengine/gl/uniformbuffermanager.js',
+    'actionengine/gl/programmanager.js',
+    'actionengine/gl/shaders/objectshader.js',
+    'actionengine/gl/shaders/lineshader.js',
+    'actionengine/gl/shaders/spriteshader.js',
+    'actionengine/gl/shaders/shadowshader.js',
+    'actionengine/gl/shaders/watershader.js',
+    'actionengine/gl/shaders/particleshader.js',
+    
+    // Physics 3D
+    'actionengine/physics/3D/actionraycast3D.js',
+    'actionengine/physics/3D/actionrigidbody3D.js',
+    'actionengine/physics/3D/physicsshapebuilder3D.js',
+    'actionengine/physics/3D/actionphysicsworld3D.js',
+    'actionengine/physics/3D/actionphysicsobject3D.js',
+    'actionengine/physics/3D/shapes/actionphysicsplane3D.js',
+    'actionengine/physics/3D/shapes/actionphysicsbox3D.js',
+    'actionengine/physics/3D/shapes/actionphysicssphere3D.js',
+    'actionengine/physics/3D/shapes/actionphysicscapsule3D.js',
+    'actionengine/physics/3D/shapes/actionphysicscone3D.js',
+    'actionengine/physics/3D/shapes/actionphysicscylinder3D.js',
+    'actionengine/physics/3D/shapes/actionphysicsmesh3D.js',
+    'actionengine/physics/3D/shapes/actionphysicscompoundshape3D.js',
+    'actionengine/physics/3D/shapes/actionphysicsconvexshape3D.js',
+    
+    // Physics 2D
+    'actionengine/physics/2D/physicsconstants2D.js',
+    'actionengine/physics/2D/actionaabb2D.js',
+    'actionengine/physics/2D/actionshape2D.js',
+    'actionengine/physics/2D/actioncircleshape2D.js',
+    'actionengine/physics/2D/actionboxshape2D.js',
+    'actionengine/physics/2D/actionrigidbody2D.js',
+    'actionengine/physics/2D/actionmanifold2D.js',
+    'actionengine/physics/2D/actionnarrowphase2D.js',
+    'actionengine/physics/2D/actioncontactsolver2D.js',
+    'actionengine/physics/2D/actionbroadphase2D.js',
+    'actionengine/physics/2D/actionphysicsworld2D.js',
+    
+    // Audio System
+    'actionengine/sound/audiomanager.js',
+    'actionengine/sound/soundfont/soundfont.js',
     'actionengine/sound/soundfont/actionreverb.js',
     'actionengine/sound/soundfont/actionparser.js',
     'actionengine/sound/soundfont/actionsoundfont.js',
-    'actionengine/sound/soundfont/soundfont.js',
-    'actionengine/sound/audiomanager.js',
     
-    // Input
+    // Input & Controls
     'actionengine/input/inputhandler.js',
     'actionengine/input/actionscrollablearea.js',
     
-    // Networking
+    // Camera & Character
+    'actionengine/camera/actioncamera.js',
+    'actionengine/camera/viewfrustum.js',
+    'actionengine/camera/cameracollisionhandler.js',
+    'actionengine/character/actioncharacter.js',
+    'actionengine/character/actioncharacter3D.js',
+    
+    // Networking (P2P)
     'actionengine/network/p2p/ActionNetPeer.js',
     'actionengine/network/p2p/ActionNetTrackerClient.js',
     'actionengine/network/p2p/DataConnection.js',
@@ -94,18 +155,12 @@ const files = [
     'actionengine/network/client/ActionNetManagerGUI.js',
     'actionengine/network/client/ActionNetManagerP2P.js',
     
-    // Camera
-    'actionengine/camera/actioncamera.js',
-    'actionengine/camera/cameracollisionhandler.js',
+    // Diagnostics & Utilities
+    'actionengine/util/actionzip.js',
+    'actionengine/debug/basedebugpanel.js',
+    'actionengine/debug/lightingdebugpanel.js',
     
-    // Canvas system
-    'actionengine/display/canvasmanager.js',
-    
-    // Character
-    'actionengine/character/actioncharacter.js',
-    'actionengine/character/actioncharacter3D.js',
-    
-    // Core
+    // Application Bootstrap
     'actionengine/core/app.js'
 ];
 
