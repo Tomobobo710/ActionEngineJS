@@ -746,8 +746,43 @@ class ActionNetManagerP2P {
             this.log(`Game data channel error with ${peerId}`, "error");
         };
 
-        // Note: onmessage is set up by NetworkSession to handle sync messages
-        // Don't set it here as it would overwrite NetworkSession's handler
+        // Set up message handler for this peer's data channel
+        channel.onmessage = (event) => {
+            try {
+                const message = JSON.parse(event.data);
+
+                // Attach sender's peerId to message
+                message.fromPeerId = peerId;
+
+                // Route sync messages directly to SyncSystem
+                if (message.type === "syncUpdate") {
+                    // Pass both message and sender's peerId for host relay logic
+                    this.emit("syncUpdate", message, peerId);
+                }
+                // Route custom messages to the message handler
+                else if (message.type) {
+                    // HOST RELAY: If this is a host and message targets a specific peer, relay it
+                    if (this.isHost && message.targetPeerId && message.targetPeerId !== this.peerId) {
+                        const targetPeerData = this.peerConnections.get(message.targetPeerId);
+                        if (targetPeerData && targetPeerData.channel && targetPeerData.channel.readyState === "open") {
+                            try {
+                                targetPeerData.channel.send(JSON.stringify(message));
+                                this.log(`Host relayed ${message.type} from ${peerId} to ${message.targetPeerId}`);
+                            } catch (relayError) {
+                                this.log(
+                                    `Error relaying message to ${message.targetPeerId}: ${relayError.message}`,
+                                    "error"
+                                );
+                            }
+                        }
+                    }
+
+                    this.emit("message", message);
+                }
+            } catch (error) {
+                this.log(`Error parsing message from ${peerId}: ${error.message}`, "error");
+            }
+        };
     }
 
     /**
@@ -1522,17 +1557,40 @@ class ActionNetManagerP2P {
     /**
      * Send message through game data channel
      */
-    send(message) {
-        if (!this.dataChannel || this.dataChannel.readyState !== "open") {
-            return false;
+    send(message, targetPeerId = null) {
+        // If target specified, send only to that peer
+        if (targetPeerId) {
+            const peerData = this.peerConnections.get(targetPeerId);
+            if (!peerData || !peerData.channel || peerData.channel.readyState !== "open") {
+                this.log(`Cannot send to ${targetPeerId}: channel not open`, "warn");
+                return false;
+            }
+
+            try {
+                peerData.channel.send(JSON.stringify(message));
+                return true;
+            } catch (error) {
+                this.log(`Error sending message to ${targetPeerId}: ${error.message}`, "error");
+                return false;
+            }
         }
 
-        try {
-            this.dataChannel.send(JSON.stringify(message));
-            return true;
-        } catch (error) {
-            this.log(`Error sending message: ${error.message}`, "error");
-            return false;
+        // No target: send to all connected peers
+        let sentCount = 0;
+        for (const [peerId, peerData] of this.peerConnections) {
+            const channel = peerData.channel;
+            if (!channel || channel.readyState !== "open") {
+                continue;
+            }
+
+            try {
+                channel.send(JSON.stringify(message));
+                sentCount++;
+            } catch (error) {
+                this.log(`Error sending message to ${peerId}: ${error.message}`, "error");
+            }
         }
+
+        return sentCount > 0;
     }
 }
