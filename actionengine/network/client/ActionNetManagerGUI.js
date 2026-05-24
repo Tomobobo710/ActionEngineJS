@@ -342,6 +342,14 @@ class ActionNetManagerGUI {
         this.networkManager.on("userList", (users) => {
             // Update connected users if needed
         });
+
+        this.networkManager.on("userJoined", (user) => {
+            this.emit("userJoined", user);
+        });
+
+        this.networkManager.on("userLeft", (user) => {
+            this.emit("userLeft", user);
+        });
     }
 
     /**
