@@ -250,41 +250,7 @@ class ActionNetManagerP2P {
 
             // Handle peer disconnection (refresh, browser close, etc.)
             this.tracker.on("peer-disconnected", (data) => {
-                const peerId = data.id;
-                this.log(`Peer disconnected: ${peerId}`);
-
-                const peerData = this.peerConnections.get(peerId);
-                if (peerData) {
-                    if (peerData.channel) {
-                        peerData.channel.close();
-                    }
-                    if (peerData.pc) {
-                        peerData.pc.close();
-                    }
-                    this.peerConnections.delete(peerId);
-                }
-
-                // Clean up discovered room
-                this.removeDiscoveredRoom(peerId);
-
-                // If this was the active game connection, handle disconnect
-                if (this.currentRoomPeerId === peerId) {
-                    this.dataChannel = null;
-                    this.emit("leftRoom", peerId);
-
-                    // Guest: host disconnected
-                    if (!this.isHost) {
-                        this.emit("hostLeft", { peerId: peerId });
-                    } else {
-                        // Host: guest disconnected - remove from user list
-                        this.removeUser(peerId);
-                        this.emit("guestLeft", { peerId: peerId });
-                    }
-                } else if (this.isHost && this.isInRoom()) {
-                    // Host in a room: a guest (not current connection) disconnected
-                    this.removeUser(peerId);
-                    this.emit("guestLeft", { peerId: peerId });
-                }
+                this.handlePeerDisconnect(data.id);
             });
 
             // Handle tracker errors
@@ -573,6 +539,20 @@ class ActionNetManagerP2P {
                 this.log(`Game data channel received from ${peerId}`);
                 peerData.channel = evt.channel;
                 this.setupGameDataChannel(peerId, evt.channel);
+            };
+
+            peerData.pc.onconnectionstatechange = () => {
+                this.log(`Connection state with ${peerId}: ${peerData.pc?.connectionState}`);
+                if (peerData.pc && (peerData.pc.connectionState === "disconnected" || peerData.pc.connectionState === "failed")) {
+                    this.handlePeerDisconnect(peerId);
+                }
+            };
+
+            peerData.pc.oniceconnectionstatechange = () => {
+                this.log(`ICE connection state with ${peerId}: ${peerData.pc?.iceConnectionState}`);
+                if (peerData.pc && (peerData.pc.iceConnectionState === "disconnected" || peerData.pc.iceConnectionState === "failed")) {
+                    this.handlePeerDisconnect(peerId);
+                }
             };
         }
 
@@ -879,6 +859,46 @@ class ActionNetManagerP2P {
     }
 
     /**
+     * Handle peer disconnection cleanup and notifications
+     */
+    handlePeerDisconnect(peerId) {
+        const peerData = this.peerConnections.get(peerId);
+        if (!peerData) return; // Already cleaned up
+
+        this.log(`Handling disconnect for peer: ${peerId}`);
+
+        if (peerData.channel) {
+            peerData.channel.close();
+        }
+        if (peerData.pc) {
+            peerData.pc.close();
+        }
+        this.peerConnections.delete(peerId);
+
+        // Clean up discovered room
+        this.removeDiscoveredRoom(peerId);
+
+        // If this was the active game connection, handle disconnect
+        if (this.currentRoomPeerId === peerId) {
+            this.dataChannel = null;
+            this.emit("leftRoom", peerId);
+
+            // Guest: host disconnected
+            if (!this.isHost) {
+                this.emit("hostLeft", { peerId: peerId });
+            } else {
+                // Host: guest disconnected - remove from user list
+                this.removeUser(peerId);
+                this.emit("guestLeft", { peerId: peerId });
+            }
+        } else if (this.isHost && this.isInRoom()) {
+            // Host in a room: a guest (not current connection) disconnected
+            this.removeUser(peerId);
+            this.emit("guestLeft", { peerId: peerId });
+        }
+    }
+
+    /**
      * Get connected users
      */
     getConnectedUsers() {
@@ -949,6 +969,16 @@ class ActionNetManagerP2P {
 
         pc.onconnectionstatechange = () => {
             this.log(`Connection state with ${hostPeerId}: ${pc.connectionState}`);
+            if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
+                this.handlePeerDisconnect(hostPeerId);
+            }
+        };
+
+        pc.oniceconnectionstatechange = () => {
+            this.log(`ICE connection state with ${hostPeerId}: ${pc.iceConnectionState}`);
+            if (pc.iceConnectionState === "disconnected" || pc.iceConnectionState === "failed") {
+                this.handlePeerDisconnect(hostPeerId);
+            }
         };
 
         // Send join request through signaling channel
