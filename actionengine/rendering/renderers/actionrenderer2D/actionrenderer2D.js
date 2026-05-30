@@ -61,6 +61,9 @@ class ActionRenderer2D {
 		// Cache for animated character triangles
 		// Maps character objects to their computed skinned triangles
 		this.skinnedTriangleCache = new Map();
+
+		// 2D sprites (ActionSprite2D instances)
+		this._sprites = [];
 	}
 
 	/**
@@ -141,6 +144,16 @@ class ActionRenderer2D {
 	}
 
 	render(camera, renderablePhysicsObjects, showDebugPanel, character) {
+		const hasSprites = this._sprites.length > 0;
+
+		// Sprite-only path (called with null camera)
+		if (!camera) {
+			if (!hasSprites) return;
+			this.ctx.clearRect(0, 0, this.width, this.height);
+			this.renderSprites();
+			return;
+		}
+
 		// Reset triangle pool for this frame
 		this.resetTrianglePool();
 		// Reset viewZs and projectedVerts pools
@@ -173,7 +186,12 @@ class ActionRenderer2D {
 		const frameTime = performance.now();
 
 		// Pass view to collectTriangles, include character for CPU skinning
-		const { nearTriangles, farTriangles } = this.collectTriangles(camera, renderablePhysicsObjects, view, character);
+		const { nearTriangles, farTriangles } = this.collectTriangles(
+			camera,
+			renderablePhysicsObjects,
+			view,
+			character
+		);
 
 		// Render far triangles first (back to front) WITHOUT depth testing
 		farTriangles.sort((a, b) => b.depth - a.depth);
@@ -194,6 +212,9 @@ class ActionRenderer2D {
 		if (showDebugPanel) {
 			this.renderDebugOverlays(character, camera, view); // Pass view here too
 		}
+
+		// Render 2D sprites on top
+		this.renderSprites();
 	}
 
 	clearBuffers() {
@@ -209,7 +230,6 @@ class ActionRenderer2D {
 		const farTriangles = [];
 
 		const processTriangle = (triangle, worldTransform, parentObject) => {
-
 			// Transform vertices from local-space to world-space if transform provided
 			let vertices = triangle.vertices;
 			let normal = triangle.normal;
@@ -282,7 +302,7 @@ class ActionRenderer2D {
 		for (const physicsObject of physicsObjects) {
 			// Skip character object - it's rendered separately with CPU vertex skinning
 			if (physicsObject === character) continue;
-			
+
 			// Transform vertices on-the-fly during collection
 			// No need to pre-allocate world-space triangle objects
 			for (const triangle of physicsObject.triangles) {
@@ -344,7 +364,12 @@ class ActionRenderer2D {
 		// Cache texture-related values
 		// Check for either direct texture reference OR material-based texture from TextureSet
 		const hasDirectTexture = triangle.texture && triangle.uvs;
-		const hasMaterialTexture = triangle.material && triangle.material.useTexture && triangle.uvs && triangle.parentObject && triangle.parentObject._textureSet;
+		const hasMaterialTexture =
+			triangle.material &&
+			triangle.material.useTexture &&
+			triangle.uvs &&
+			triangle.parentObject &&
+			triangle.parentObject._textureSet;
 		const hasTexture = hasDirectTexture || hasMaterialTexture;
 		const imageData = this.imageData.data;
 		let oneOverW, uvOverW;
@@ -370,7 +395,12 @@ class ActionRenderer2D {
 			if (triangle.texture) {
 				textureWidth = triangle.texture.width;
 				textureHeight = triangle.texture.height;
-			} else if (triangle.material && triangle.material.useTexture && triangle.parentObject && triangle.parentObject._textureSet) {
+			} else if (
+				triangle.material &&
+				triangle.material.useTexture &&
+				triangle.parentObject &&
+				triangle.parentObject._textureSet
+			) {
 				const textureSet = triangle.parentObject._textureSet;
 				const textureIndex = triangle.material.textureIndex;
 				if (textureSet.textures && textureSet.textures[textureIndex]) {
@@ -433,17 +463,23 @@ class ActionRenderer2D {
 						u = bary.w1 * triangle.uvs[0].u + bary.w2 * triangle.uvs[1].u + bary.w3 * triangle.uvs[2].u;
 						v = bary.w1 * triangle.uvs[0].v + bary.w2 * triangle.uvs[1].v + bary.w3 * triangle.uvs[2].v;
 					}
-					
+
 					// Get texture from either direct reference or parent object's TextureSet
 					let textureToSample = triangle.texture;
-					if (!textureToSample && triangle.material && triangle.material.useTexture && triangle.parentObject && triangle.parentObject._textureSet) {
+					if (
+						!textureToSample &&
+						triangle.material &&
+						triangle.material.useTexture &&
+						triangle.parentObject &&
+						triangle.parentObject._textureSet
+					) {
 						const textureSet = triangle.parentObject._textureSet;
 						const textureIndex = triangle.material.textureIndex;
 						if (textureSet.textures && textureSet.textures[textureIndex]) {
 							textureToSample = textureSet.textures[textureIndex];
 						}
 					}
-					
+
 					if (textureToSample) {
 						const texel = textureToSample.getPixel(
 							Math.floor(u * textureWidth),
@@ -532,5 +568,117 @@ class ActionRenderer2D {
 			this.ctx.lineTo(projectedEnd.x, projectedEnd.y);
 			this.ctx.stroke();
 		}
+	}
+
+	/**
+	 * Add a sprite to be rendered
+	 */
+	addSprite(sprite) {
+		if (!this._sprites.includes(sprite)) {
+			this._sprites.push(sprite);
+		}
+		return this;
+	}
+
+	/**
+	 * Remove a sprite
+	 */
+	removeSprite(sprite) {
+		const idx = this._sprites.indexOf(sprite);
+		if (idx !== -1) {
+			this._sprites.splice(idx, 1);
+		}
+		return this;
+	}
+
+	/**
+	 * Clear all sprites
+	 */
+	clearSprites() {
+		this._sprites.length = 0;
+		return this;
+	}
+
+	/**
+	 * Clear the canvas
+	 */
+	clear() {
+		this.ctx.clearRect(0, 0, this.width, this.height);
+		return this;
+	}
+
+	/**
+	 * Render all sprites sorted by z-order
+	 */
+	renderSprites() {
+		if (this._sprites.length === 0) return;
+
+		// Sort by z (lower z first, higher z on top)
+		const sorted = this._sprites.slice().sort((a, b) => a.z - b.z);
+
+		for (const sprite of sorted) {
+			this._drawSprite(sprite);
+		}
+	}
+
+	/**
+	 * Draw a single sprite with rotation, tint, alpha, flip
+	 */
+	_drawSprite(sprite) {
+		const ctx = this.ctx;
+		const img = sprite.image;
+		if (!img) return;
+
+		const sx = sprite.x;
+		const sy = sprite.y;
+		const sw = sprite.width;
+		const sh = sprite.height;
+		const ox = sprite.originX;
+		const oy = sprite.originY;
+		const rot = sprite.rotation;
+		const tint = sprite.tint;
+		const flipX = sprite.flipX;
+		const flipY = sprite.flipY;
+
+		// JPEGs don't support alpha — use alpha only for PNG/canvas images
+		let alpha = sprite.alpha;
+		if (img instanceof HTMLImageElement && img.src.toLowerCase().endsWith(".jpg")) {
+			alpha = 1;
+		}
+
+		// If no tint, no rotation, full alpha, no flip — fast path
+		if (tint.r === 255 && tint.g === 255 && tint.b === 255 && rot === 0 && alpha === 1 && !flipX && !flipY) {
+			ctx.globalAlpha = 1;
+			ctx.drawImage(img, sx - sw * ox, sy - sh * oy, sw, sh);
+			return;
+		}
+
+		ctx.save();
+
+		// Position and origin
+		const cx = sx;
+		const cy = sy;
+		ctx.translate(cx, cy);
+		ctx.rotate(rot);
+
+		// Flip
+		const scaleX = flipX ? -1 : 1;
+		const scaleY = flipY ? -1 : 1;
+		ctx.scale(scaleX, scaleY);
+
+		// Alpha
+		ctx.globalAlpha = alpha;
+
+		// Draw image offset by origin
+		ctx.drawImage(img, -sw * ox, -sh * oy, sw, sh);
+
+		// Apply tint via composite
+		if (tint.r !== 255 || tint.g !== 255 || tint.b !== 255) {
+			ctx.globalCompositeOperation = "source-atop";
+			ctx.fillStyle = `rgb(${tint.r},${tint.g},${tint.b})`;
+			ctx.fillRect(-sw * ox, -sh * oy, sw, sh);
+		}
+
+		ctx.restore();
 	}
 }

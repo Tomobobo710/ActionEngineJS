@@ -62,6 +62,7 @@ const files = [
     'actionengine/rendering/renderableobject.js',
     'actionengine/rendering/actionmodel3D.js',
     'actionengine/rendering/actionsprite3D.js',
+    'actionengine/rendering/actionsprite2d.js',
     
     // Rendering: Lighting & Textures
     'actionengine/rendering/texture/texturemanager.js',
