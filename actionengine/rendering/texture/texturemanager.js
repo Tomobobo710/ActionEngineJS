@@ -75,9 +75,8 @@ class TextureManager {
     createTextureArray(images, startIndex, count) {
         const gl = this.gl;
 
-        // Use a fixed safe size for 3D array textures (1024 is safe for most WebGL2 implementations)
-        const width = 1024;
-        const height = 1024;
+        // Calculate optimal uniform texture size based on actual image dimensions and GPU limits
+        const { width, height, effectiveCount } = this._calculateOptimalTextureSize(images, count, gl);
 
         // Always create/recreate the texture array (replaces previous model's textures)
         this.textureArray = gl.createTexture();
@@ -85,20 +84,18 @@ class TextureManager {
         gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.textureArray);
 
         // Allocate storage for textures
-        if (true) {
-            gl.texImage3D(
-                gl.TEXTURE_2D_ARRAY,
-                0, // mip level
-                gl.RGBA, // internal format
-                width,
-                height,
-                count, // Exact count for this model's textures
-                0, // border
-                gl.RGBA,
-                gl.UNSIGNED_BYTE,
-                null // data
-            );
-        }
+        gl.texImage3D(
+            gl.TEXTURE_2D_ARRAY,
+            0, // mip level
+            gl.RGBA, // internal format
+            width,
+            height,
+            effectiveCount,
+            0, // border
+            gl.RGBA,
+            gl.UNSIGNED_BYTE,
+            null // data
+        );
 
         // Set texture parameters
         gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
@@ -107,8 +104,10 @@ class TextureManager {
         gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_T, gl.REPEAT);
 
         // Upload each image as a layer (resize to match array dimensions if needed)
-        for (let i = 0; i < count; i++) {
+        const maxUpload = Math.min(count, effectiveCount);
+        for (let i = 0; i < maxUpload; i++) {
             const img = images[i];
+            if (!img) continue;
 
             // Create a canvas with the standardized size
             const canvas = document.createElement("canvas");
@@ -141,5 +140,57 @@ class TextureManager {
 
         // Mark as ready after all textures are uploaded
         this.textureArrayReady = true;
+    }
+
+    /**
+     * Probe the GPU to find the largest uniform texture size that the driver
+     * accepts for a TEXTURE_2D_ARRAY with the given layer count.
+     * Uses gl.getError() after texImage3D — the only spec-compliant way to
+     * handle the unqueryable per-allocation limit enforced by ANGLE 148+.
+     * @private
+     */
+    _calculateOptimalTextureSize(images, count, gl) {
+        let maxDim = 0;
+        let validCount = 0;
+        for (const img of images) {
+            if (img) {
+                maxDim = Math.max(maxDim, img.width, img.height);
+                validCount++;
+            }
+        }
+        if (maxDim === 0) maxDim = 1024;
+        if (validCount === 0) validCount = count;
+
+        const gpuMaxSize = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+        const gpuMaxLayers = gl.getParameter(gl.MAX_ARRAY_TEXTURE_LAYERS);
+        const effectiveCount = Math.min(validCount, gpuMaxLayers);
+
+        // Clear any pending GL errors before probing
+        while (gl.getError() !== gl.NO_ERROR);
+
+        let dim = Math.min(maxDim, gpuMaxSize);
+
+        // Probe: try the allocation and halve on INVALID_OPERATION
+        while (dim >= 1) {
+            const probe = gl.createTexture();
+            gl.bindTexture(gl.TEXTURE_2D_ARRAY, probe);
+            gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.RGBA, dim, dim, effectiveCount, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+            const err = gl.getError();
+            gl.deleteTexture(probe);
+
+            if (err === gl.NO_ERROR) break;
+            if (dim <= 16) { dim = 16; break; }
+            dim >>= 1;
+        }
+
+        gl.bindTexture(gl.TEXTURE_2D_ARRAY, null);
+
+        console.log(
+            `[TextureManager] Array: ${effectiveCount} layers at ${dim}x${dim}` +
+            ` (${(dim * dim * effectiveCount * 4 / (1024*1024)).toFixed(0)} MB)` +
+            ` | actual max dim: ${maxDim}, GPU max size: ${gpuMaxSize}, max layers: ${gpuMaxLayers}`
+        );
+
+        return { width: dim, height: dim, effectiveCount };
     }
 }
