@@ -46,37 +46,35 @@ class ActionCharacter extends RenderableObject {
         // Character follows camera orientation by default
         this.followCameraRotation = true;
 
-        // Get the character body from the controller
-        this.body = this.controller.body;
+        // Wrap the controller's backend body in the engine's physics wrapper so this character
+        // touches physics through the SAME contract as everything else (ActionRigidBody3D) — no
+        // raw Goblin body on the public surface. (The Goblin.CharacterController itself still
+        // drives motion; this hides the body, the part that was leaking the backend.)
+        this.body = new ActionRigidBody3D(this.controller.body);
 
         if (position) {
-            this.body.position.set(position.x, position.y, position.z);
+            this.body.position = new Vector3(position.x, position.y, position.z);
         } else {
-            this.body.position.set(0, 500, 0);
+            this.body.position = new Vector3(0, 500, 0);
         }
 
-        // Add debug tracking
-        this.body.debugName = `CharacterBody_${Date.now()}`;
-        this.body.createdAt = Date.now();
-
-        // Get the character body from the controller
-        this.body = this.controller.body;
+        this.body.name = `CharacterBody_${Date.now()}`;
 
         // Fine tune physics properties if needed
-        this.body.linear_damping = 0.01;
-        this.body.angular_damping = 0;
+        this.body.linearDamping = 0.01;
+        this.body.angularDamping = 0;
         this.body.friction = 0;
         this.body.restitution = 0.2;
         const worldGravity = game.physicsWorld.getWorld().gravity;
         const gravityMultiplier = 1;
-        this.body.setGravity(
+        this.body.setGravity(new Vector3(
             worldGravity.x * gravityMultiplier,
             worldGravity.y * gravityMultiplier,
             worldGravity.z * gravityMultiplier
-        );
+        ));
         this.characterVisualYOffset = 0.75;
-        // Add character body to physics world
-        this.game.physicsWorld.getWorld().addRigidBody(this.body);
+        // Add character body to physics world (the world's add takes the backend body).
+        this.game.physicsWorld.getWorld().addRigidBody(this.body.goblinBody);
 
         // Initial visual update to populate triangles
         this.updateVisual();
