@@ -293,11 +293,13 @@ class BaseDebugPanel {
         Object.entries(sliders).forEach(([name, slider], index) => {
             const sliderY = this.panelY + startY + index * 40;
 
-            // Draw label
+            // Draw label. Discrete (options) sliders have a "<" button at panelX+130, so their
+            // labels must end LEFT of it or they get clipped; continuous sliders can use the full
+            // width up to the track at panelX+160.
             this.ctx.fillStyle = "#ffffff";
             this.ctx.font = "14px Arial";
             this.ctx.textAlign = "right";
-            this.ctx.fillText(name, this.panelX + 150, sliderY + 10);
+            this.ctx.fillText(name, this.panelX + (slider.options ? 122 : 150), sliderY + 10);
 
             // For sliders with discrete options
             if (slider.options) {
