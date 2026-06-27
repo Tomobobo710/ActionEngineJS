@@ -26,7 +26,9 @@ class ActionDirectionalShadowLight extends ActionLight {
 
         // Shadow map settings from constants
         this.shadowMapSize = this.constants.SHADOW_MAP.SIZE.value;
-        this.shadowBias = this.constants.SHADOW_MAP.BIAS.value;
+        this.shadowBias = 0;
+        this.shadowSlopeBias = 0;
+        this.shadowNormalOffset = 0;
 
         // For tracking direction changes
         this._lastDirection = undefined;
@@ -35,6 +37,24 @@ class ActionDirectionalShadowLight extends ActionLight {
         this.lightProjectionMatrix = Matrix4.create();
         this.lightViewMatrix = Matrix4.create();
         this.lightSpaceMatrix = Matrix4.create();
+
+        // --- Cascaded Shadow Maps (CSM) state. Parallel to the single-map fields above; populated only
+        // when CSM is enabled. Storage is ONE depth TEXTURE_2D_ARRAY of `maxCascades` layers (all the
+        // same shadowMapSize) plus one FBO per layer. cascadeCount is the live 1..max count actually in
+        // use this frame; the upper layers of the array just sit unused. ---
+        this.csmEnabled = false;
+        this.maxCascades = (this.constants.AUTO_SHADOW.CSM && this.constants.AUTO_SHADOW.CSM.MAX) || 4;
+        this.cascadeCount = 0;
+        this.cascadeArrayTexture = null; // TEXTURE_2D_ARRAY depth, created lazily on first CSM use
+        this.cascadeFramebuffers = []; // one FBO per layer (framebufferTextureLayer)
+        this._cascadeMapSize = 0; // size the array was last allocated at (for resize detection)
+        this.cascadeMatrices = new Float32Array(16 * this.maxCascades); // packed light-space matrices
+        this.cascadeSplits = new Float32Array(this.maxCascades); // far view-distance of each cascade
+        this.cascadeBias = new Float32Array(this.maxCascades); // per-cascade flat bias (geometry-derived)
+        this.cascadeSlopeBias = new Float32Array(this.maxCascades); // per-cascade slope bias base
+        this.cascadeNormalOffset = new Float32Array(this.maxCascades); // per-cascade world normal offset
+        this._tmpProj = Matrix4.create(); // scratch for per-cascade matrix build
+        this._tmpView = Matrix4.create();
 
         // Initialize shadow map resources and shader program
         if (this.castsShadows) {
@@ -91,11 +111,7 @@ class ActionDirectionalShadowLight extends ActionLight {
             changed = true;
         }
 
-        // If any properties changed and shadows are enabled,
-        // update the light space matrix
-        if (changed && this.castsShadows) {
-            this.updateLightSpaceMatrix();
-        }
+        // Light space matrix is updated each frame by the renderer via updateLightSpaceMatrix(fit)
 
         return changed;
     }
@@ -104,11 +120,6 @@ class ActionDirectionalShadowLight extends ActionLight {
      * Update properties from global lighting constants
      */
     syncWithConstants() {
-        // Update position from constants
-        this.position.x = this.constants.LIGHT_POSITION.x;
-        this.position.y = this.constants.LIGHT_POSITION.y;
-        this.position.z = this.constants.LIGHT_POSITION.z;
-
         // Update direction from constants
         this.direction.x = this.constants.LIGHT_DIRECTION.x;
         this.direction.y = this.constants.LIGHT_DIRECTION.y;
@@ -125,13 +136,6 @@ class ActionDirectionalShadowLight extends ActionLight {
             }
         }
 
-        // Update bias value
-        this.shadowBias = this.constants.SHADOW_MAP.BIAS.value;
-
-        // Recalculate light space matrix with updated frustum bounds
-        if (this.castsShadows) {
-            this.updateLightSpaceMatrix();
-        }
     }
 
     /**
@@ -374,64 +378,179 @@ class ActionDirectionalShadowLight extends ActionLight {
      * This creates the view and projection matrices needed for shadow mapping
      * @param {Object} sceneBounds - Optional scene bounding box (min, max vectors) for automatic fitting
      */
-    updateLightSpaceMatrix(sceneBounds) {
-        // Default scene bounds if not provided
-        if (!sceneBounds) {
-            sceneBounds = {
-                min: new Vector3(
-                    this.constants.SHADOW_PROJECTION.LEFT.value,
-                    this.constants.SHADOW_PROJECTION.BOTTOM.value,
-                    this.constants.SHADOW_PROJECTION.NEAR.value
-                ),
-                max: new Vector3(
-                    this.constants.SHADOW_PROJECTION.RIGHT.value,
-                    this.constants.SHADOW_PROJECTION.TOP.value,
-                    this.constants.SHADOW_PROJECTION.FAR.value
-                )
-            };
-        }
+    updateLightSpaceMatrix(fit) {
+        // Two paths:
+        //  - fit provided (from ActionShadowFit, when SHADOW_PROJECTION.AUTO_FIT is on): use the
+        //    fitted ortho box + camera-tracking eye. `fit.eye` is the shadow camera position; it is
+        //    deliberately NOT written back to this.position, which stays the visual sun location.
+        //  - no fit: the original behaviour — static SHADOW_PROJECTION constants, eye at this.position.
+        let left, right, bottom, top, near, far, eyeArr, upVector;
 
-        // Automatically fit shadow frustum to scene if enabled
-        if (this.constants.SHADOW_PROJECTION.AUTO_FIT) {
-            // Auto-fit logic would go here
-            // For now, we'll use the constants directly
-        }
+        // Remember the fit (or lack of one) so the frustum visualizer can draw the box actually in use.
+        this._lastFit = fit || null;
 
-        // For directional light, use orthographic projection
-        const left = this.constants.SHADOW_PROJECTION.LEFT.value;
-        const right = this.constants.SHADOW_PROJECTION.RIGHT.value;
-        const bottom = this.constants.SHADOW_PROJECTION.BOTTOM.value;
-        const top = this.constants.SHADOW_PROJECTION.TOP.value;
-        const near = this.constants.SHADOW_PROJECTION.NEAR.value;
-        const far = this.constants.SHADOW_PROJECTION.FAR.value;
+        left = fit.left;
+        right = fit.right;
+        bottom = fit.bottom;
+        top = fit.top;
+        near = fit.near;
+        far = fit.far;
+        eyeArr = fit.eye.toArray();
+        upVector = fit.up.toArray();
 
         // Create light projection matrix (orthographic for directional light)
         Matrix4.ortho(this.lightProjectionMatrix, left, right, bottom, top, near, far);
 
-        // Create light view matrix - looking from light position toward center
-        const lightTarget = new Vector3(0, 0, 0);
+        // Light view: look from the eye along the light direction (target a fixed step ahead)
+        const target = [
+            eyeArr[0] + this.direction.x * 100.0,
+            eyeArr[1] + this.direction.y * 100.0,
+            eyeArr[2] + this.direction.z * 100.0
+        ];
 
-        // Use a fixed distance value
-        const fixedDistance = 100.0;
-
-        // Calculate target position based on light direction
-        lightTarget.x = this.position.x + this.direction.x * fixedDistance;
-        lightTarget.y = this.position.y + this.direction.y * fixedDistance;
-        lightTarget.z = this.position.z + this.direction.z * fixedDistance;
-
-        // Choose an appropriate up vector that avoids collinearity with light direction
-        let upVector = [0, 1, 0]; // Default up vector
-
-        // Check if light direction is too closely aligned with the default up vector
-        if (Math.abs(this.direction.y) > 0.99) {
-            // If pointing almost straight up/down, use Z axis as up vector instead
-            upVector = [0, 0, 1];
-        }
-
-        Matrix4.lookAt(this.lightViewMatrix, this.position.toArray(), lightTarget.toArray(), upVector);
+        Matrix4.lookAt(this.lightViewMatrix, eyeArr, target, upVector);
 
         // Combine into light space matrix
         Matrix4.multiply(this.lightSpaceMatrix, this.lightProjectionMatrix, this.lightViewMatrix);
+    }
+
+    /**
+     * Allocate (or reallocate) the cascade depth texture array + per-layer framebuffers. Called lazily
+     * the first time CSM is used and whenever the shadow map size changes. One DEPTH_COMPONENT32F
+     * TEXTURE_2D_ARRAY of `maxCascades` layers, plus one FBO per layer via framebufferTextureLayer.
+     */
+    setupCascadeMap() {
+        const gl = this.gl;
+        const size = this.shadowMapSize;
+        if (this.cascadeArrayTexture && this._cascadeMapSize === size) {
+            return; // already allocated at the right size
+        }
+
+        // Tear down any previous allocation
+        if (this.cascadeFramebuffers.length) {
+            for (const fb of this.cascadeFramebuffers) gl.deleteFramebuffer(fb);
+            this.cascadeFramebuffers.length = 0;
+        }
+        if (this.cascadeArrayTexture) {
+            gl.deleteTexture(this.cascadeArrayTexture);
+            this.cascadeArrayTexture = null;
+        }
+
+        // Depth texture array — one layer per cascade, all the same resolution (a texture array
+        // requires uniform layer dimensions, which is why every cascade shares one map size).
+        this.cascadeArrayTexture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.cascadeArrayTexture);
+        gl.texImage3D(
+            gl.TEXTURE_2D_ARRAY,
+            0,
+            gl.DEPTH_COMPONENT32F,
+            size,
+            size,
+            this.maxCascades,
+            0,
+            gl.DEPTH_COMPONENT,
+            gl.FLOAT,
+            null
+        );
+        gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+        // One framebuffer per layer so each cascade pass renders into its own slice.
+        for (let i = 0; i < this.maxCascades; i++) {
+            const fb = gl.createFramebuffer();
+            gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+            gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, this.cascadeArrayTexture, 0, i);
+            const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+            if (status !== gl.FRAMEBUFFER_COMPLETE) {
+                console.error(`[ActionDirectionalShadowLight] Cascade framebuffer ${i} incomplete: ${status}`);
+            }
+            this.cascadeFramebuffers.push(fb);
+        }
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        this._cascadeMapSize = size;
+    }
+
+    /**
+     * Build a light-space matrix (ortho projection × lookAt) from a single ActionShadowFit slice spec
+     * into `outMat` (may be a Float32Array subarray view into cascadeMatrices).
+     * @param {Object} fit - a fit spec from ActionShadowFit (left/right/bottom/top/near/far/eye/up)
+     * @param {Float32Array} outMat - 16-float destination
+     */
+    _buildLightSpaceMatrix(fit, outMat) {
+        Matrix4.ortho(this._tmpProj, fit.left, fit.right, fit.bottom, fit.top, fit.near, fit.far);
+        const eye = fit.eye.toArray();
+        const target = [
+            eye[0] + this.direction.x * 100.0,
+            eye[1] + this.direction.y * 100.0,
+            eye[2] + this.direction.z * 100.0
+        ];
+        Matrix4.lookAt(this._tmpView, eye, target, fit.up.toArray());
+        Matrix4.multiply(outMat, this._tmpProj, this._tmpView);
+    }
+
+    /**
+     * Consume a fitCascades() result: build each cascade's light-space matrix and stash the per-cascade
+     * split distance + geometry-derived biases (each cascade auto-derives its own from its own slice).
+     * @param {{cascades:Array, splits:Float32Array}} fitResult
+     */
+    updateCascades(fitResult) {
+        if (!fitResult || !fitResult.cascades || fitResult.cascades.length === 0) return;
+        this.setupCascadeMap();
+
+        const cascades = fitResult.cascades;
+        const count = Math.min(cascades.length, this.maxCascades);
+        this.cascadeCount = count;
+        const normalSlack = this.constants.AUTO_SHADOW.NORMAL_SLACK_TEXELS;
+
+        for (let i = 0; i < count; i++) {
+            const fit = cascades[i];
+            this._buildLightSpaceMatrix(fit, this.cascadeMatrices.subarray(i * 16, i * 16 + 16));
+            this.cascadeSplits[i] = fitResult.splits[i];
+            this.cascadeBias[i] = fit.bias;
+            this.cascadeSlopeBias[i] = fit.slopeBias;
+            this.cascadeNormalOffset[i] = fit.texel * normalSlack;
+        }
+        // Park unused upper slots at a huge split so the shader's "first cascade whose split > depth"
+        // selection never lands on a stale cascade.
+        for (let i = count; i < this.maxCascades; i++) {
+            this.cascadeSplits[i] = 1e20;
+        }
+        this._lastFit = null; // CSM owns the frustum; clear the single-map visualizer record
+    }
+
+    /**
+     * Begin a single cascade's shadow pass: bind that layer's framebuffer and upload its light-space
+     * matrix to the shadow program. Mirrors beginShadowPass() but for one cascade of the array.
+     * @param {number} cascadeIndex
+     */
+    beginCascadePass(cascadeIndex) {
+        const gl = this.gl;
+        this._savedViewport = gl.getParameter(gl.VIEWPORT);
+        this._staticGeometryBound = false;
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.cascadeFramebuffers[cascadeIndex]);
+        gl.viewport(0, 0, this.shadowMapSize, this.shadowMapSize);
+        gl.clear(gl.DEPTH_BUFFER_BIT); // depth-only array — no color attachment to clear
+
+        gl.useProgram(this.shadowProgram);
+        gl.uniformMatrix4fv(
+            this.shadowLocations.lightSpaceMatrix,
+            false,
+            this.cascadeMatrices.subarray(cascadeIndex * 16, cascadeIndex * 16 + 16)
+        );
+        if (this.shadowLocations.shadowMapSize !== null) {
+            gl.uniform1f(this.shadowLocations.shadowMapSize, this.shadowMapSize);
+        }
+    }
+
+    /**
+     * @returns {number} number of cascades active this frame (0 if CSM not in use)
+     */
+    getCascadeCount() {
+        return this.csmEnabled ? this.cascadeCount : 0;
     }
 
     /**
@@ -796,29 +915,46 @@ class ActionDirectionalShadowLight extends ActionLight {
     applyToShader(program, index = 0) {
         const gl = this.gl;
 
-        // Get light uniform locations
-        // For now we just use the standard uniforms, but in the future we'd use arrays
-        // like uDirectionalLights[index].direction, etc.
-        // tbh idk if this is working cause we had wrong names and it doesn't matter
-        // like these were uLightDirection and uLightPosition which don't exist anywhere
-        // else in the codebase but theres no error or known issues here so idk what this
-        // even does
         const lightDirLoc = gl.getUniformLocation(program, "uLightDir");
-        const lightPosLoc = gl.getUniformLocation(program, "uLightPos");
         const lightIntensityLoc = gl.getUniformLocation(program, "uLightIntensity");
         const shadowMapLoc = gl.getUniformLocation(program, "uShadowMap");
         const lightSpaceMatrixLoc = gl.getUniformLocation(program, "uLightSpaceMatrix");
         const shadowsEnabledLoc = gl.getUniformLocation(program, "uShadowsEnabled");
         const shadowBiasLoc = gl.getUniformLocation(program, "uShadowBias");
+        const shadowSlopeBiasLoc = gl.getUniformLocation(program, "uShadowSlopeScaleBias");
+        const shadowNormalOffsetLoc = gl.getUniformLocation(program, "uShadowNormalOffset");
+        // CSM uniforms
+        const csmEnabledLoc = gl.getUniformLocation(program, "uCSMEnabled");
+        const cascadeCountLoc = gl.getUniformLocation(program, "uCascadeCount");
+        const cascadeSplitsLoc = gl.getUniformLocation(program, "uCascadeSplits");
+        const cascadeMatricesLoc = gl.getUniformLocation(program, "uCascadeMatrices");
+        const cascadeBiasLoc = gl.getUniformLocation(program, "uCascadeBias");
+        const cascadeSlopeBiasLoc = gl.getUniformLocation(program, "uCascadeSlopeBias");
+        const cascadeNormalOffsetLoc = gl.getUniformLocation(program, "uCascadeNormalOffset");
+        const cascadeBlendLoc = gl.getUniformLocation(program, "uCascadeBlendTexels");
 
         // Set light direction
         if (lightDirLoc !== null) {
             gl.uniform3f(lightDirLoc, this.direction.x, this.direction.y, this.direction.z);
         }
 
-        // Set light position
-        if (lightPosLoc !== null) {
-            gl.uniform3f(lightPosLoc, this.position.x, this.position.y, this.position.z);
+        // CSM toggle + per-cascade arrays. When CSM is on, the object shader transforms the fragment
+        // into each cascade's light space itself (it picks the cascade by view depth), so it needs the
+        // full matrix/split/bias arrays here. When off, this just writes uCSMEnabled=0 and the single-map
+        // uniforms below drive shadowing.
+        const csmActive = this.csmEnabled && this.cascadeCount > 0;
+        if (csmEnabledLoc !== null) gl.uniform1i(csmEnabledLoc, csmActive ? 1 : 0);
+        if (csmActive) {
+            if (cascadeCountLoc !== null) gl.uniform1i(cascadeCountLoc, this.cascadeCount);
+            if (cascadeSplitsLoc !== null) gl.uniform1fv(cascadeSplitsLoc, this.cascadeSplits);
+            if (cascadeMatricesLoc !== null) gl.uniformMatrix4fv(cascadeMatricesLoc, false, this.cascadeMatrices);
+            if (cascadeBiasLoc !== null) gl.uniform1fv(cascadeBiasLoc, this.cascadeBias);
+            if (cascadeSlopeBiasLoc !== null) gl.uniform1fv(cascadeSlopeBiasLoc, this.cascadeSlopeBias);
+            if (cascadeNormalOffsetLoc !== null) gl.uniform1fv(cascadeNormalOffsetLoc, this.cascadeNormalOffset);
+            if (cascadeBlendLoc !== null) {
+                const blend = this.constants.AUTO_SHADOW.CSM.BLEND_TEXELS.value;
+                gl.uniform1f(cascadeBlendLoc, blend);
+            }
         }
 
         // Set light intensity
@@ -838,9 +974,15 @@ class ActionDirectionalShadowLight extends ActionLight {
                 gl.uniform1i(shadowsEnabledLoc, 1); // 1 = true
             }
 
-            // Set shadow bias
+            // Set shadow bias (flat) and the slope bias base — both geometry-derived from the fit
             if (shadowBiasLoc !== null) {
                 gl.uniform1f(shadowBiasLoc, this.shadowBias);
+            }
+            if (shadowSlopeBiasLoc !== null) {
+                gl.uniform1f(shadowSlopeBiasLoc, this.shadowSlopeBias);
+            }
+            if (shadowNormalOffsetLoc !== null) {
+                gl.uniform1f(shadowNormalOffsetLoc, this.shadowNormalOffset);
             }
         } else if (shadowsEnabledLoc !== null) {
             // Shadows are disabled for this light
@@ -861,7 +1003,6 @@ class ActionDirectionalShadowLight extends ActionLight {
 
         const preset = presets[presetIndex];
         this.shadowMapSize = preset.mapSize;
-        this.shadowBias = preset.bias;
 
         // Recreate shadow map with new settings
         if (this.castsShadows) {

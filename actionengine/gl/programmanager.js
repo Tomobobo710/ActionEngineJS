@@ -22,6 +22,8 @@ class ProgramManager {
         this.shadowUniformLocations = {
             shadowSoftness: null,
             shadowSlopeScaleBias: null,
+            shadowSlopeClamp: null,
+            shadowPcssMax: null,
             pcfSize: null,
             pcfEnabled: null
         };
@@ -57,7 +59,6 @@ class ProgramManager {
             modelPos: "uModelPos",
             modelRotation: "uModelRotation",
             modelScale: "uModelScale",
-            lightPos: "uLightPos",
             lightDir: "uLightDir",
             lightIntensity: "uLightIntensity",
             pointLightIntensity: "uPointLightIntensity",
@@ -481,6 +482,10 @@ class ProgramManager {
             time: gl.getUniformLocation(program, unif.time),
             directionalLightAttenuation: gl.getUniformLocation(program, "uDirectionalLightAttenuation"),
             ambientIntensity: gl.getUniformLocation(program, "uAmbientIntensity"),
+            ambientSkyColor: gl.getUniformLocation(program, "uAmbientSkyColor"),
+            ambientGroundColor: gl.getUniformLocation(program, "uAmbientGroundColor"),
+            exposure: gl.getUniformLocation(program, "uExposure"),
+            tonemapEnabled: gl.getUniformLocation(program, "uTonemapEnabled"),
             shadowDarkness: gl.getUniformLocation(program, "uShadowDarkness"),
 
             // Shadow mapping uniforms
@@ -608,6 +613,8 @@ class ProgramManager {
     _cacheShadowUniformLocations(program) {
         this.shadowUniformLocations.shadowSoftness = this.gl.getUniformLocation(program, "uShadowSoftness");
         this.shadowUniformLocations.shadowSlopeScaleBias = this.gl.getUniformLocation(program, "uShadowSlopeScaleBias");
+        this.shadowUniformLocations.shadowSlopeClamp = this.gl.getUniformLocation(program, "uShadowSlopeClamp");
+        this.shadowUniformLocations.shadowPcssMax = this.gl.getUniformLocation(program, "uShadowPcssMax");
         this.shadowUniformLocations.pcfSize = this.gl.getUniformLocation(program, "uPCFSize");
         this.shadowUniformLocations.pcfEnabled = this.gl.getUniformLocation(program, "uPCFEnabled");
     }

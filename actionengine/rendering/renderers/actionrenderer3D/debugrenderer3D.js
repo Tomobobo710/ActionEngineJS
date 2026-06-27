@@ -64,6 +64,30 @@ class DebugRenderer3D {
         this.drawShadowMapDebug(camera);
     }
 
+    /**
+     * Draw a flat list of caller-supplied line segments ({start:[x,y,z], end:[x,y,z], color:[r,g,b]})
+     * with the line shader. Used for ad-hoc debug overlays like physics AABB wireframes — the caller
+     * computes the geometry; this just batches them through the same line program drawDebugLines uses.
+     */
+    drawSegments(segments, camera, currentTime) {
+        if (!segments || !segments.length) return;
+
+        const currentVariant = this.programManager.getCurrentVariant();
+        const targetVariant = currentVariant === "virtualboy" ? "virtualboy" : "default";
+        if (this._lastLineShaderVariant !== targetVariant) {
+            this.programManager.setLineShaderVariant(targetVariant);
+            this._lastLineShaderVariant = targetVariant;
+        }
+
+        const shader = {
+            program: this.programManager.getLineProgram(),
+            locations: this.programManager.getLineLocations()
+        };
+        for (const s of segments) {
+            this.drawLine(s.start, s.end, camera, shader, currentTime, s.color || [0.2, 1.0, 0.4]);
+        }
+    }
+
     drawTriangleNormal(triangle, camera, lineShader, currentTime) {
         // Calculate triangle center
         const v1 = triangle.vertices[0];
@@ -118,98 +142,102 @@ class DebugRenderer3D {
         }
 
         // Get light position and direction
-        const lightPos = mainLight.getPosition();
         const lightDir = mainLight.getDirection();
 
-        //console.log("Light position:", lightPos);
-        //console.log("Light direction:", lightDir);
-
-        // Get shadow projection parameters from constants
-        const projection = this.constants.SHADOW_PROJECTION;
-
-        // Frustum parameters - make sure these get the actual values, not just property names
-        const left = projection.LEFT.value;
-        const right = projection.RIGHT.value;
-        const bottom = projection.BOTTOM.value;
-        const top = projection.TOP.value;
-        const near = projection.NEAR.value;
-        const far = projection.FAR.value;
-
-        //console.log("Frustum bounds:", { left, right, bottom, top, near, far });
-
-        // Calculate frustum corners in light space
-        const corners = [
-            // Near plane (4 corners)
-            [left, bottom, -near],
-            [right, bottom, -near],
-            [right, top, -near],
-            [left, top, -near],
-
-            // Far plane (4 corners)
-            [left, bottom, -far],
-            [right, bottom, -far],
-            [right, top, -far],
-            [left, top, -far]
+        // CSM mode: draw each cascade box in a distinct color (near=green → far=red).
+        // Single-fit mode: draw the one box in yellow. Either way draw the light-direction arrow.
+        const cascadeColors = [
+            [0.2, 1.0, 0.2],  // c0 - green  (nearest, sharpest)
+            [1.0, 1.0, 0.2],  // c1 - yellow
+            [1.0, 0.5, 0.1],  // c2 - orange
+            [1.0, 0.2, 0.2]   // c3 - red    (farthest)
         ];
 
-        // Create light view matrix
-        const lightViewMatrix = Matrix4.create();
-        const lightTarget = new Vector3(
-            lightPos.x + lightDir.x * 100,
-            lightPos.y + lightDir.y * 100,
-            lightPos.z + lightDir.z * 100
-        );
-
-        // Choose an appropriate up vector that avoids collinearity with light direction
-        // Must match the logic in ActionDirectionalShadowLight.updateLightSpaceMatrix()
-        let upVector = [0, 1, 0]; // Default up vector
-        if (Math.abs(lightDir.y) > 0.99) {
-            // If pointing almost straight up/down, use Z axis as up vector instead
-            upVector = [0, 0, 1];
+        const fitsToRender = [];
+        const colorsToUse  = [];
+        const cas = ActionShadowFit.lastCascades;
+        if (cas && cas.length) {
+            for (let i = 0; i < cas.length; i++) {
+                if (cas[i].eye) {
+                    fitsToRender.push(cas[i]);
+                    colorsToUse.push(cascadeColors[i % cascadeColors.length]);
+                }
+            }
+        } else {
+            const fit = mainLight._lastFit;
+            if (fit) {
+                fitsToRender.push(fit);
+                colorsToUse.push([1.0, 1.0, 0.2]);
+            }
         }
 
-        Matrix4.lookAt(lightViewMatrix, lightPos.toArray(), lightTarget.toArray(), upVector);
+        if (!fitsToRender.length) return;
 
-        // Invert the light view matrix to transform frustum from light space to world space
-        const invLightViewMatrix = Matrix4.create();
-        Matrix4.invert(invLightViewMatrix, lightViewMatrix);
+        for (let f = 0; f < fitsToRender.length; f++) {
+            const fit = fitsToRender[f];
+            const col = colorsToUse[f];
 
-        // Transform corners to world space
-        const worldCorners = corners.map((corner) => {
-            const worldCorner = [0, 0, 0, 1];
-            Matrix4.multiplyVector(worldCorner, invLightViewMatrix, [...corner, 1]);
-            return [worldCorner[0], worldCorner[1], worldCorner[2]];
-        });
+            const left   = fit.left;
+            const right  = fit.right;
+            const bottom = fit.bottom;
+            const top    = fit.top;
+            const near   = fit.near;
+            const far    = fit.far;
 
-        // Draw lines connecting the corners (frustum edges)
-        // Near plane
-        this.drawLine(worldCorners[0], worldCorners[1], camera, lineShader, 0, [1.0, 1.0, 0.2]);
-        this.drawLine(worldCorners[1], worldCorners[2], camera, lineShader, 0, [1.0, 1.0, 0.2]);
-        this.drawLine(worldCorners[2], worldCorners[3], camera, lineShader, 0, [1.0, 1.0, 0.2]);
-        this.drawLine(worldCorners[3], worldCorners[0], camera, lineShader, 0, [1.0, 1.0, 0.2]);
+            const eyeArr  = fit.eye.toArray();
+            const fitUp   = fit.up ? fit.up.toArray() : null;
+            const lightPos = { x: eyeArr[0], y: eyeArr[1], z: eyeArr[2] };
 
-        // Far plane
-        this.drawLine(worldCorners[4], worldCorners[5], camera, lineShader, 0, [1.0, 1.0, 0.2]);
-        this.drawLine(worldCorners[5], worldCorners[6], camera, lineShader, 0, [1.0, 1.0, 0.2]);
-        this.drawLine(worldCorners[6], worldCorners[7], camera, lineShader, 0, [1.0, 1.0, 0.2]);
-        this.drawLine(worldCorners[7], worldCorners[4], camera, lineShader, 0, [1.0, 1.0, 0.2]);
+            const corners = [
+                [left, bottom, -near], [right, bottom, -near],
+                [right, top,   -near], [left, top,    -near],
+                [left, bottom, -far],  [right, bottom, -far],
+                [right, top,   -far],  [left, top,     -far]
+            ];
 
-        // Connecting edges
-        this.drawLine(worldCorners[0], worldCorners[4], camera, lineShader, 0, [1.0, 1.0, 0.2]);
-        this.drawLine(worldCorners[1], worldCorners[5], camera, lineShader, 0, [1.0, 1.0, 0.2]);
-        this.drawLine(worldCorners[2], worldCorners[6], camera, lineShader, 0, [1.0, 1.0, 0.2]);
-        this.drawLine(worldCorners[3], worldCorners[7], camera, lineShader, 0, [1.0, 1.0, 0.2]);
+            const lightViewMatrix = Matrix4.create();
+            const lightTarget = new Vector3(
+                lightPos.x + lightDir.x * 100,
+                lightPos.y + lightDir.y * 100,
+                lightPos.z + lightDir.z * 100
+            );
+            const upVector = fitUp || (Math.abs(lightDir.y) > 0.99 ? [0, 0, 1] : [0, 1, 0]);
+            Matrix4.lookAt(lightViewMatrix, eyeArr, lightTarget.toArray(), upVector);
 
-        // Draw light position and direction
-        const lightPosArray = [lightPos.x, lightPos.y, lightPos.z];
+            const invLightViewMatrix = Matrix4.create();
+            Matrix4.invert(invLightViewMatrix, lightViewMatrix);
+
+            const wc = corners.map((corner) => {
+                const out = [0, 0, 0, 1];
+                Matrix4.multiplyVector(out, invLightViewMatrix, [...corner, 1]);
+                return [out[0], out[1], out[2]];
+            });
+
+            // Near face
+            this.drawLine(wc[0], wc[1], camera, lineShader, 0, col);
+            this.drawLine(wc[1], wc[2], camera, lineShader, 0, col);
+            this.drawLine(wc[2], wc[3], camera, lineShader, 0, col);
+            this.drawLine(wc[3], wc[0], camera, lineShader, 0, col);
+            // Far face
+            this.drawLine(wc[4], wc[5], camera, lineShader, 0, col);
+            this.drawLine(wc[5], wc[6], camera, lineShader, 0, col);
+            this.drawLine(wc[6], wc[7], camera, lineShader, 0, col);
+            this.drawLine(wc[7], wc[4], camera, lineShader, 0, col);
+            // Connecting edges
+            this.drawLine(wc[0], wc[4], camera, lineShader, 0, col);
+            this.drawLine(wc[1], wc[5], camera, lineShader, 0, col);
+            this.drawLine(wc[2], wc[6], camera, lineShader, 0, col);
+            this.drawLine(wc[3], wc[7], camera, lineShader, 0, col);
+        }
+
+        // Light direction arrow from the first fit's eye
+        const refEye = fitsToRender[0].eye.toArray();
         const lightDirEnd = [
-            lightPos.x + lightDir.x * 500,
-            lightPos.y + lightDir.y * 500,
-            lightPos.z + lightDir.z * 500
+            refEye[0] + lightDir.x * 500,
+            refEye[1] + lightDir.y * 500,
+            refEye[2] + lightDir.z * 500
         ];
-
-        // Always draw the light direction line, even if frustum lines are disabled
-        this.drawLine(lightPosArray, lightDirEnd, camera, lineShader, 0, [1.0, 0.8, 0.2]);
+        this.drawLine(refEye, lightDirEnd, camera, lineShader, 0, [1.0, 0.8, 0.2]);
 
         //console.log("Light frustum visualization complete");
     }

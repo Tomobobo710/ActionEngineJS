@@ -21,6 +21,12 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
         // Point light specific properties
         this.radius = 100.0; // Light radius - affects attenuation
 
+        // The shadow cubemap's depth range. A point light contributes NOTHING past its attenuation
+        // radius, so that radius IS the correct far plane — no magic number, no per-scene tuning. This
+        // is the omni equivalent of the directional auto-fit: trivially auto because a point light is
+        // local (there's no infinite frustum to chase, so no range to choose).
+        this._shadowFar = this.radius;
+
         // Enable shadows by default for omnidirectional lights
         this.castsShadows = true;
 
@@ -55,6 +61,8 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
      */
     setRadius(radius) {
         this.radius = radius;
+        this._shadowFar = radius; // far plane tracks the reach, automatically
+        if (this.castsShadows) this.updateLightSpaceMatrices();
     }
 
     /**
@@ -342,7 +350,7 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
         // For point light, use perspective projection with 90-degree FOV for each cube face
         const aspect = 1.0; // Always 1.0 for cubemap faces
         const near = 0.1;
-        const far = 500.0; // Should be large enough for your scene
+        const far = this._shadowFar; // = light radius (auto): the light's reach is the depth range
 
         // Create light projection matrix (perspective for point light)
         Matrix4.perspective(
@@ -429,8 +437,8 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
         // Set light position uniform
         gl.uniform3f(this.shadowLocations.lightPos, this.position.x, this.position.y, this.position.z);
 
-        // Set far plane uniform
-        gl.uniform1f(this.shadowLocations.farPlane, 500.0);
+        // Set far plane uniform (auto = light radius, see _shadowFar)
+        gl.uniform1f(this.shadowLocations.farPlane, this._shadowFar);
 
         // Set debug shadow map uniform if available
         if (this.shadowLocations.debugShadowMap !== null) {
@@ -742,8 +750,13 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
         const lightRadiusLoc = gl.getUniformLocation(program, radiusUniform);
         const shadowMapLoc = gl.getUniformLocation(program, shadowMapUniform);
         const shadowsEnabledLoc = gl.getUniformLocation(program, shadowsEnabledUniform);
-        const shadowBiasLoc = gl.getUniformLocation(program, "uShadowBias");
-        const farPlaneLoc = gl.getUniformLocation(program, "uFarPlane");
+        const shadowBiasLoc = gl.getUniformLocation(program, "uPointShadowBias"); // split from directional
+        // The RECEIVER shader reads uPointShadowFarPlane{index} for the cube-depth normalize, and it
+        // MUST match the far this light rendered its cube map with (= radius). It was writing uFarPlane
+        // (the scene's log-depth far) — far stayed 0 (divide-by-zero → no shadow) AND corrupted
+        // log-depth. Per-light indexed uniform so 4 different radii don't stomp one shared far.
+        const farPlaneUniform = index > 0 ? `uPointShadowFarPlane${index}` : "uPointShadowFarPlane";
+        const farPlaneLoc = gl.getUniformLocation(program, farPlaneUniform);
 
         // Detailed logs commented out to reduce console noise
         /*
@@ -776,14 +789,23 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
 
         // Apply shadow mapping uniforms if shadows are enabled
         if (this.castsShadows) {
-            // Set shadow bias
+            // Auto-derived bias: the cube shader normalizes depth by the far plane, so a 90°-FOV
+            // shadow texel near the far plane spans ~2·far/mapSize in world, i.e. 2/mapSize in
+            // normalized depth — INDEPENDENT of radius. Bias = slack texels × that. Same geometric
+            // story as the directional path, just for a perspective cube. (Caveat: directional and
+            // omni currently share one uShadowBias uniform in the object shader; last writer wins per
+            // draw. Splitting that into uDirShadowBias / uPointShadowBias is a follow-up.)
+            const slack = (typeof lightingConstants !== "undefined" && lightingConstants.AUTO_SHADOW)
+                ? lightingConstants.AUTO_SHADOW.DEPTH_SLACK_TEXELS
+                : 8.0;
+            this.shadowBias = (slack * 2.0) / this.shadowMapSize;
             if (shadowBiasLoc !== null) {
                 gl.uniform1f(shadowBiasLoc, this.shadowBias);
             }
 
-            // Set far plane
+            // Set far plane (auto = light radius)
             if (farPlaneLoc !== null) {
-                gl.uniform1f(farPlaneLoc, 500.0);
+                gl.uniform1f(farPlaneLoc, this._shadowFar);
             }
         }
     }

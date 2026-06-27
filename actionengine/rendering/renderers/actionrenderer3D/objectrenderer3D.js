@@ -121,6 +121,30 @@ class ObjectRenderer3D {
     }
 
     /**
+     * Register an object's mesh in the GPU library WITHOUT enqueueing it for the color pass. The
+     * shadow pass looks meshes up by id (it assumes queue() already baked them), so a shadow-ONLY
+     * caster — e.g. the first-person player body, which should cast/self-shadow but never be drawn
+     * from inside our own head — must still get its mesh registered here. Mirrors the auto-register
+     * half of queue() (mesh bake + geometry-swap refresh); skips the draw-queue push.
+     */
+    ensureMeshRegistered(object) {
+        if (!object) return;
+        const triangles = object.triangles;
+        if (!triangles || triangles.length === 0) return;
+        const meshId = this.getMeshIdForTriangles(triangles, object._stableMeshId);
+        if (!meshId) return;
+        if (!this._meshLibrary.has(meshId)) {
+            this.registerStaticMesh(meshId, triangles, object.isStatic);
+        } else {
+            const lastTriangles = this._lastTriangles.get(meshId);
+            if (lastTriangles !== triangles) {
+                this.updateStaticMesh(meshId, triangles);
+                this._lastTriangles.set(meshId, triangles);
+            }
+        }
+    }
+
+    /**
      * Register a mesh with the renderer for persistent GPU storage.
      */
     registerStaticMesh(meshId, triangles, isStatic = true) {
@@ -725,7 +749,12 @@ class ObjectRenderer3D {
     updateUniformCache(camera) {
         const program = this.programManager.getObjectProgram();
 
+        // ADDITIVE (FPS viewmodel): when a projection override is active we must always
+        // rebuild the cache so the override is applied, never serve a cached projection.
+        const usingProjectionOverride = !!this._projectionOverride;
+
         if (
+            !usingProjectionOverride &&
             this._uniformCache.frame === this._frameCount &&
             this._uniformCache.shaderProgram === program &&
             this._uniformCache.camera === camera
@@ -737,7 +766,13 @@ class ObjectRenderer3D {
         this._uniformCache.shaderProgram = program;
         this._uniformCache.camera = camera;
 
-        Matrix4.perspective(this._uniformCache.matrices.projection, camera.fov, Game.WIDTH / Game.HEIGHT, 0.1, 10000.0);
+        if (usingProjectionOverride) {
+            const src = this._projectionOverride;
+            const dst = this._uniformCache.matrices.projection;
+            for (let i = 0; i < 16; i++) dst[i] = src[i];
+        } else {
+            Matrix4.perspective(this._uniformCache.matrices.projection, camera.fov, Game.WIDTH / Game.HEIGHT, 0.1, 10000.0);
+        }
         Matrix4.lookAt(
             this._uniformCache.matrices.view,
             camera.position.toArray(),
@@ -774,19 +809,20 @@ class ObjectRenderer3D {
         if (locations.farPlane !== -1 && locations.farPlane !== null) {
             gl.uniform1f(locations.farPlane, 10000.0);
         }
-        if (locations.pointShadowFarPlane !== -1 && locations.pointShadowFarPlane !== null) {
-            gl.uniform1f(locations.pointShadowFarPlane, 500.0);
-        }
+        // NOTE: uPointShadowFarPlane{0..3} is set PER-LIGHT by each ActionOmnidirectionalShadowLight
+        // (= its radius, matching the far its cube map was rendered with). Do NOT hardcode it here —
+        // a fixed 500 made the receiver disagree with the per-light cube depth and broke point shadows.
 
         const config = this._uniformCache.lightConfig;
         const mainLightEnabled =
             this.lightManager.isMainDirectionalLightEnabled() && this.lightManager.getMainDirectionalLight() !== null;
 
-        if (mainLightEnabled && locations.shadowsEnabled !== -1 && locations.shadowsEnabled !== null) {
-            gl.uniform1i(locations.shadowsEnabled, 1);
+        if (locations.shadowsEnabled !== -1 && locations.shadowsEnabled !== null) {
+            gl.uniform1i(locations.shadowsEnabled, mainLightEnabled && this.renderer.shadowsEnabled ? 1 : 0);
         }
-        if (locations.lightPos !== -1 && locations.lightPos !== null && mainLightEnabled && config && config.POSITION) {
-            gl.uniform3fv(locations.lightPos, [config.POSITION.x, config.POSITION.y, config.POSITION.z]);
+        const dirLightEnabledLoc = gl.getUniformLocation(this.programManager.getObjectProgram(), "uDirectionalLightEnabled");
+        if (dirLightEnabledLoc !== null) {
+            gl.uniform1i(dirLightEnabledLoc, mainLightEnabled ? 1 : 0);
         }
         if (
             locations.lightDir !== -1 &&
@@ -822,11 +858,8 @@ class ObjectRenderer3D {
         if (locations.ior !== -1 && locations.ior !== null) gl.uniform1f(locations.ior, this._uniformCache.ior);
         if (locations.transmission !== -1 && locations.transmission !== null)
             gl.uniform1f(locations.transmission, this._uniformCache.transmission);
-        if (locations.normalMapStrength !== -1 && locations.normalMapStrength !== null) {
-            const strength =
-                this._uniformCache.normalMapStrength !== undefined ? this._uniformCache.normalMapStrength : 1.0;
-            gl.uniform1f(locations.normalMapStrength, strength);
-        }
+        if (locations.normalMapStrength !== -1 && locations.normalMapStrength !== null)
+            gl.uniform1f(locations.normalMapStrength, lightingConstants.MATERIAL.NORMAL_MAP_STRENGTH.value);
 
         if (locations.directionalLightAttenuation !== -1 && locations.directionalLightAttenuation !== null) {
             gl.uniform1i(
@@ -841,6 +874,23 @@ class ObjectRenderer3D {
                     ? this.lightManager.constants.AMBIENT_INTENSITY
                     : 0.3;
             gl.uniform1f(locations.ambientIntensity, ambientIntensity);
+        }
+
+        // Hemisphere ambient tints + tonemap/exposure (new linear-HDR color pipeline)
+        const C = this.lightManager.constants;
+        if (locations.ambientSkyColor !== -1 && locations.ambientSkyColor !== null) {
+            const s = C.AMBIENT_SKY_COLOR || { r: 0.55, g: 0.65, b: 0.85 };
+            gl.uniform3f(locations.ambientSkyColor, s.r, s.g, s.b);
+        }
+        if (locations.ambientGroundColor !== -1 && locations.ambientGroundColor !== null) {
+            const g2 = C.AMBIENT_GROUND_COLOR || { r: 0.35, g: 0.30, b: 0.25 };
+            gl.uniform3f(locations.ambientGroundColor, g2.r, g2.g, g2.b);
+        }
+        if (locations.exposure !== -1 && locations.exposure !== null) {
+            gl.uniform1f(locations.exposure, C.EXPOSURE !== undefined ? C.EXPOSURE.value : 1.0);
+        }
+        if (locations.tonemapEnabled !== -1 && locations.tonemapEnabled !== null) {
+            gl.uniform1i(locations.tonemapEnabled, C.TONEMAP ? 1 : 0);
         }
 
         if (locations.shadowDarkness !== -1 && locations.shadowDarkness !== null) {
@@ -1045,8 +1095,13 @@ class ObjectRenderer3D {
         if (locs.shadowSoftness !== null) gl.uniform1f(locs.shadowSoftness, constants.SHADOW_FILTERING.SOFTNESS.value);
         if (locs.pcfSize !== null) gl.uniform1i(locs.pcfSize, constants.SHADOW_FILTERING.PCF.SIZE.value);
         if (locs.pcfEnabled !== null) gl.uniform1i(locs.pcfEnabled, constants.SHADOW_FILTERING.PCF.ENABLED ? 1 : 0);
-        if (locs.shadowSlopeScaleBias !== null)
-            gl.uniform1f(locs.shadowSlopeScaleBias, constants.SHADOW_MAP.SLOPE_SCALE_BIAS.value);
+        // NOTE: uShadowSlopeScaleBias (the slope bias BASE) is now uploaded per-frame by the
+        // directional light's applyToShader from the fit (slope slack texels × texel/far), so it's
+        // geometry-derived like the flat bias — not a static constant. Here we only push the clamp.
+        if (locs.shadowSlopeClamp !== null)
+            gl.uniform1f(locs.shadowSlopeClamp, constants.SHADOW_MAP.SLOPE_CLAMP.value);
+        if (locs.shadowPcssMax !== null)
+            gl.uniform1f(locs.shadowPcssMax, constants.SHADOW_FILTERING.PCSS_MAX_TEXELS.value);
     }
 
     drawObject(locations, indexCount, offset = 0) {
@@ -1064,5 +1119,54 @@ class ObjectRenderer3D {
         this._setFrameConstantUniforms(locs, prog, camera);
         this._drawTransparentList(this._transparentQueue, locs, camera);
         this._finalizeFrame();
+    }
+
+    /**
+     * ADDITIVE (FPS viewmodel pass).
+     *
+     * Render a set of objects as a first-person "viewmodel" (e.g. a held weapon) in an
+     * isolated pass AFTER the main scene. The depth buffer is cleared first so the
+     * viewmodel always draws on top of the world (never clips into walls), and a
+     * dedicated projection with a much closer near plane (and optional narrower FOV) is
+     * used so geometry held right in front of the camera doesn't get near-clipped.
+     *
+     * This reuses the normal object shader/lighting path, so viewmodels are lit exactly
+     * like world objects. It is only ever invoked when a caller opts in by passing
+     * viewmodelObjects to ActionRenderer3D.render(); existing scenes are unaffected.
+     *
+     * @param {RenderableObject[]} objects - viewmodel objects (already positioned in world space)
+     * @param {ActionCamera} camera
+     * @param {Object} [options]
+     * @param {number} [options.near=0.05] - near plane for the viewmodel projection
+     * @param {number} [options.far=1000]  - far plane for the viewmodel projection
+     * @param {number} [options.fov]       - override FOV (defaults to camera.fov)
+     */
+    renderViewmodels(objects, camera, options = {}) {
+        if (!objects || objects.length === 0) return;
+        const gl = this.gl;
+
+        const near = options.near !== undefined ? options.near : 0.05;
+        const far = options.far !== undefined ? options.far : 1000.0;
+        const fov = options.fov !== undefined ? options.fov : camera.fov;
+
+        // Start a clean, isolated queue for this pass (the main pass already finalized).
+        this._frameInitialized = false;
+        this._drawQueue = [];
+        const t = this.renderer ? this.renderer.currentTime : 0;
+        for (const obj of objects) this.queue(obj, camera, t);
+
+        // Build the dedicated viewmodel projection and install it as an override.
+        if (!this._viewmodelProjection) this._viewmodelProjection = Matrix4.create();
+        Matrix4.perspective(this._viewmodelProjection, fov, Game.WIDTH / Game.HEIGHT, near, far);
+        this._projectionOverride = this._viewmodelProjection;
+
+        // Clear depth only: keep the rendered color scene, but let the viewmodel own a
+        // fresh depth range so it composites on top of everything.
+        gl.clear(gl.DEPTH_BUFFER_BIT);
+
+        this.drawObjects(camera); // opaque viewmodel triangles
+        this.drawTransparent(camera); // transparent + _finalizeFrame()
+
+        this._projectionOverride = null;
     }
 }

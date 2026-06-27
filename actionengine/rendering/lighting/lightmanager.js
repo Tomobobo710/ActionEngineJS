@@ -66,14 +66,6 @@ class LightManager {
         const mainLight = new ActionDirectionalShadowLight(this.gl, this.programManager, this.objectRenderer);
 
         // Set initial properties from constants
-        mainLight.setPosition(
-            new Vector3(
-                this.constants.LIGHT_POSITION.x,
-                this.constants.LIGHT_POSITION.y,
-                this.constants.LIGHT_POSITION.z
-            )
-        );
-
         mainLight.setDirection(
             new Vector3(
                 this.constants.LIGHT_DIRECTION.x,
@@ -460,6 +452,37 @@ class LightManager {
     }
 
     /**
+     * A shared 1×1×1 depth TEXTURE_2D_ARRAY used to satisfy the `uShadowMapArray` sampler when CSM is
+     * off (no real cascade texture exists). Created once, lazily.
+     * @private
+     */
+    _getDummyShadowMap() {
+        if (this._dummyShadowMap) return this._dummyShadowMap;
+        const gl = this.gl;
+        const tex = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT32F, 1, 1, 0, gl.DEPTH_COMPONENT, gl.FLOAT, null);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.bindTexture(gl.TEXTURE_2D, null);
+        this._dummyShadowMap = tex;
+        return tex;
+    }
+
+    _getDummyCascadeArray() {
+        if (this._dummyCascadeArray) return this._dummyCascadeArray;
+        const gl = this.gl;
+        const tex = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D_ARRAY, tex);
+        gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.DEPTH_COMPONENT32F, 1, 1, 1, 0, gl.DEPTH_COMPONENT, gl.FLOAT, null);
+        gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.bindTexture(gl.TEXTURE_2D_ARRAY, null);
+        this._dummyCascadeArray = tex;
+        return tex;
+    }
+
+    /**
      * Bind shadow textures to shader program
      * @private
      */
@@ -471,24 +494,48 @@ class LightManager {
             locs = this._getUniformLocations(program);
         }
 
-        // Bind directional light shadow map
+        // Bind directional light shadow map — always bind something valid so the sampler unit
+        // never conflicts with a different texture type on the same unit.
         const mainLight = this.getMainDirectionalLight();
-        if (mainLight && mainLight.shadowTexture && locs.shadowMap !== null) {
+        const shadowTex = (mainLight && mainLight.shadowTexture) ? mainLight.shadowTexture : this._getDummyShadowMap();
+        if (locs.shadowMap !== null) {
             glStateManager.bindTextureWithUniform(
                 "directionalShadowMap",
-                mainLight.shadowTexture,
+                shadowTex,
                 "TEXTURE_2D",
                 program,
                 "uShadowMap"
             );
 
-            // Bind light space matrix using cached location
-            if (locs.lightSpaceMatrix !== null) {
+            // Bind light space matrix using cached location. Guard on mainLight: when the sun is
+            // disabled there is no directional light, but we still bound a dummy shadow texture above
+            // to keep the sampler unit valid — so this block runs with mainLight === null. Calling
+            // mainLight.getLightSpaceMatrix() unguarded threw a TypeError that aborted the rest of
+            // applyLightsToShader every frame (caught by the renderer), which is what broke sunless scenes.
+            if (mainLight && locs.lightSpaceMatrix !== null) {
                 const lightSpaceMatrix = mainLight.getLightSpaceMatrix();
                 if (lightSpaceMatrix) {
                     gl.uniformMatrix4fv(locs.lightSpaceMatrix, false, lightSpaceMatrix);
                 }
             }
+        }
+
+        // Bind the CSM cascade depth array. The object shader declares `sampler2DArray uShadowMapArray`
+        // unconditionally, so a valid TEXTURE_2D_ARRAY must always be bound to its unit (an unbound or
+        // wrong-type sampler is a draw-time error on strict drivers) — even when CSM is off. Use the
+        // light's real cascade array when present, else a shared 1×1×1 dummy depth array.
+        const cascadeTex =
+            mainLight && mainLight.cascadeArrayTexture
+                ? mainLight.cascadeArrayTexture
+                : this._getDummyCascadeArray();
+        if (cascadeTex) {
+            glStateManager.bindTextureWithUniform(
+                "directionalCascadeArray",
+                cascadeTex,
+                "TEXTURE_2D_ARRAY",
+                program,
+                "uShadowMapArray"
+            );
         }
 
         // Point shadow map slots — use pre-resolved cached locations
@@ -575,14 +622,6 @@ class LightManager {
         return mainLight ? mainLight.shadowMapSize : this.constants.SHADOW_MAP.SIZE.value;
     }
 
-    /**
-     * Get shadow bias from the main directional light
-     * @returns {number} - The shadow bias
-     */
-    getShadowBias() {
-        const mainLight = this.getMainDirectionalLight();
-        return mainLight ? mainLight.shadowBias : this.constants.SHADOW_MAP.BIAS.value;
-    }
 
     /**
      * Cleanup and dispose of all lights

@@ -60,6 +60,20 @@ class ShadowRenderer3D {
                 continue;
             }
 
+            // CSM: render each cascade into its own array layer. cascadeCount > 0 only when CSM is on
+            // and a fit produced cascades this frame; otherwise fall through to the single-map pass.
+            const cascadeCount = typeof light.getCascadeCount === "function" ? light.getCascadeCount() : 0;
+            if (cascadeCount > 0) {
+                for (let c = 0; c < cascadeCount; c++) {
+                    light.beginCascadePass(c);
+                    for (const object of objects) {
+                        light.renderObjectToShadowMap(object);
+                    }
+                    light.endShadowPass();
+                }
+                continue;
+            }
+
             light.beginShadowPass();
 
             // Render objects to shadow map

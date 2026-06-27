@@ -28,7 +28,7 @@ class ActionRenderer3D {
 
         this.debugRenderer = new DebugRenderer3D(this.gl, this.programManager, this.lightManager, this.glStateManager);
         this.weatherRenderer = new WeatherRenderer3D(this.gl, this.programManager);
-        this.sunRenderer = new SunRenderer3D(this.gl, this.programManager);
+        this._sunSprite = this._createSunSprite();
 
         // ObjectRenderer3D already created above - just update the lightManager reference now
         this.objectRenderer.lightManager = this.lightManager;
@@ -43,6 +43,47 @@ class ActionRenderer3D {
 
         // Shadow settings
         this.shadowsEnabled = true; // Enable shadows by default
+    }
+
+    _createSunSprite() {
+        const size = 64;
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+        g.addColorStop(0.0, "rgba(255, 255, 220, 1.0)");
+        g.addColorStop(0.3, "rgba(255, 230, 100, 0.9)");
+        g.addColorStop(0.7, "rgba(255, 160, 30, 0.4)");
+        g.addColorStop(1.0, "rgba(255, 120, 0, 0.0)");
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, size, size);
+        const base64 = canvas.toDataURL("image/png").split(",")[1];
+        return new ActionSprite3D({
+            base64Data: base64,
+            width: 80,
+            height: 80,
+            billboard: true,
+            position: new Vector3(0, 500, 0)
+        });
+    }
+
+    /**
+     * Apply a lighting/auto-shadow profile to this renderer and re-sync the sun. The engine ships the
+     * mechanism; the GAME owns its profiles (no built-in scene presets). Accepts an ActionLightingProfile
+     * instance or a plain options object.
+     *   renderer3D.applyLightingProfile(new ActionLightingProfile({ ... }));
+     *   renderer3D.applyLightingProfile({ autoFit:true, range:250, ... }); // convenience: wrapped for you
+     * @param {ActionLightingProfile|Object} profile
+     * @returns {boolean} true if applied
+     */
+    applyLightingProfile(profile) {
+        if (typeof ActionLightingProfile === "undefined") {
+            console.warn("[ActionRenderer3D] ActionLightingProfile not loaded — cannot apply lighting profile.");
+            return false;
+        }
+        const p = profile instanceof ActionLightingProfile ? profile : new ActionLightingProfile(profile);
+        return p.applyTo(this);
     }
 
     render(renderData) {
@@ -72,6 +113,62 @@ class ActionRenderer3D {
         }
 
         // No need to update shadow mapping separately - it's now handled by the light manager
+
+        // Auto-fit the directional shadow frustum to the camera (opt-in via SHADOW_PROJECTION.AUTO_FIT).
+        // lightManager.update() already built a light-space matrix from the static constants; when
+        // auto-fit is on we recompute it from the camera frustum and overwrite that result.
+        if (lightingConstants.SHADOW_PROJECTION.AUTO_FIT && camera && this.lightManager.isMainDirectionalLightEnabled()) {
+            const mainLight = this.lightManager.getMainDirectionalLight();
+            if (mainLight && mainLight.castsShadows && typeof ActionShadowFit !== "undefined") {
+                const csm = lightingConstants.AUTO_SHADOW.CSM;
+                const fitOpts = {
+                    distance: lightingConstants.SHADOW_PROJECTION.AUTO_FIT_DISTANCE.value,
+                    near: camera.near || 1, // start the fit slice at the camera's actual near plane
+                    aspect: (this.gl.canvas.width / this.gl.canvas.height) || (Game.WIDTH / Game.HEIGHT), // live canvas, not static constants
+                    mapSize: mainLight.shadowMapSize,
+                    pullback: lightingConstants.SHADOW_PROJECTION.AUTO_FIT_PULLBACK.value,
+                    autoPullback: lightingConstants.SHADOW_PROJECTION.AUTO_PULLBACK,
+                    casters: renderableObjects,
+                    // auto-shadow fit knobs (single source: lightingConstants.AUTO_SHADOW)
+                    depthSlack: lightingConstants.AUTO_SHADOW.DEPTH_SLACK_TEXELS,
+                    slopeSlack: lightingConstants.AUTO_SHADOW.SLOPE_SLACK_TEXELS,
+                    snap: lightingConstants.AUTO_SHADOW.TEXEL_SNAP,
+                    quant: lightingConstants.AUTO_SHADOW.RADIUS_QUANT,
+                    padding: lightingConstants.AUTO_SHADOW.PADDING,
+                    maxPullback: lightingConstants.AUTO_SHADOW.MAX_AUTO_PULLBACK
+                };
+
+                if (csm && csm.ENABLED) {
+                    // CSM path: split [near, distance] into cascades, fit each. The light builds a
+                    // matrix + per-cascade bias for every slice; the shader picks one by view depth.
+                    // CSM has its OWN range (decoupled from the single-map AUTO_FIT_DISTANCE); fall back
+                    // to the single-map distance only if it isn't set.
+                    if (csm.RANGE) fitOpts.distance = csm.RANGE.value;
+                    fitOpts.count = Math.min(csm.COUNT.value, csm.MAX);
+                    fitOpts.lambda = csm.LAMBDA.value;
+                    // Manual split override (Unity-style): fractions of the range where each cascade ends.
+                    fitOpts.manualSplits = csm.MANUAL_SPLITS;
+                    if (csm.SPLITS) fitOpts.splits = csm.SPLITS.map((s) => s.value);
+                    const result = ActionShadowFit.fitCascades(camera, mainLight.getDirection(), fitOpts);
+                    if (result) {
+                        mainLight.csmEnabled = true;
+                        mainLight.updateCascades(result);
+                    } else {
+                        mainLight.csmEnabled = false; // degenerate fit — don't render with stale cascades
+                    }
+                } else {
+                    // Single-map path (CSM off): one fitted box, as before.
+                    mainLight.csmEnabled = false;
+                    const fit = ActionShadowFit.fitDirectional(camera, mainLight.getDirection(), fitOpts);
+                    if (fit) {
+                        mainLight.updateLightSpaceMatrix(fit);
+                        mainLight.shadowBias = fit.bias; // flat bias auto-scaled to the fitted depth range
+                        mainLight.shadowSlopeBias = fit.slopeBias; // slope bias base, same currency
+                        mainLight.shadowNormalOffset = fit.texel * lightingConstants.AUTO_SHADOW.NORMAL_SLACK_TEXELS; // world normal-offset
+                    }
+                }
+            }
+        }
 
         this.currentTime = (performance.now() - this.startTime) / 1000.0;
 
@@ -129,6 +226,19 @@ class ActionRenderer3D {
             }
         }
 
+        // SHADOW-ONLY CASTERS (opt-in). Objects that should cast into the shadow maps but NOT be
+        // drawn in the color pass — e.g. the first-person player model: we want it to self-shadow the
+        // arms/weapon and drop a ground shadow exactly like the third-person body does, without
+        // rendering the body from inside our own head. They're appended to the shadow caster list
+        // only; their triangles are refreshed here since they skip the color-pass queue that
+        // normally does it.
+        const shadowCasters = renderData.shadowCasters && renderData.shadowCasters.length ? renderData.shadowCasters : null;
+        if (shadowCasters) {
+            // Register each caster's mesh in the GPU library so the shadow pass (which looks meshes up
+            // by id) can find it — WITHOUT queuing it for the color pass, so it never draws.
+            for (const o of shadowCasters) this.objectRenderer.ensureMeshRegistered(o);
+        }
+
         // MAIN RENDER PASS
         this.canvasManager.resetToDefaultFramebuffer();
         this.canvasManager.clear();
@@ -142,10 +252,11 @@ class ActionRenderer3D {
         // SHADOW MAP PASS (only if shadows are enabled)
         // Now that objects have been queued and their triangles updated,
         // we can render accurate shadows
-        if (this.shadowsEnabled && nonWaterObjects.length > 0) {
+        if (this.shadowsEnabled && (nonWaterObjects.length > 0 || shadowCasters)) {
             // Render all objects to shadow maps for all lights
-            // ShadowRenderer3D handles GL state setup internally
-            this.shadowRenderer.render(nonWaterObjects);
+            // ShadowRenderer3D handles GL state setup internally. Shadow-only casters ride along here
+            // (cast) but were never queued for color (not drawn).
+            this.shadowRenderer.render(shadowCasters ? nonWaterObjects.concat(shadowCasters) : nonWaterObjects);
 
             // Ensure we're back to the default framebuffer after shadow rendering
             this.canvasManager.resetToDefaultFramebuffer();
@@ -171,23 +282,14 @@ class ActionRenderer3D {
         // Prepare for main rendering with shadows
         // Note: Shadow uniform values are now set in ObjectRenderer3D.setupObjectShader()
         // This eliminates redundant getUniformLocation() calls
-        if (this.shadowsEnabled) {
-            try {
-                const program = this.programManager.getObjectProgram();
-                if (!program) {
-                    console.warn("Cannot setup shadows: shader program not available");
-                    return;
-                }
-
-                // IMPORTANT: Program must be bound before applying lights
-                // applyLightsToShader() calls getUniformLocation() which requires active program
+        try {
+            const program = this.programManager.getObjectProgram();
+            if (program) {
                 this.gl.useProgram(program);
-
-                // Apply all lights' uniforms and shadow textures to the shader
                 this.lightManager.applyLightsToShader(program, this.glStateManager);
-            } catch (error) {
-                console.error("Error setting up shadows:", error);
             }
+        } catch (error) {
+            console.error("Error setting up lights:", error);
         }
 
         // Render objects (shadow uniform values now set internally in ObjectRenderer3D)
@@ -202,6 +304,13 @@ class ActionRenderer3D {
                     obj.constructor.name === "ThirdPersonActionCharacter" || obj.constructor.name === "ActionCharacter"
             );
             this.debugRenderer.drawDebugLines(camera, character, this.currentTime);
+        }
+
+        // Caller-supplied debug segments (e.g. physics AABB wireframes). Drawn with the line shader,
+        // independent of the shadow debug panel so a game can toggle it on its own key.
+        if (camera && renderData.debugLines && renderData.debugLines.length) {
+            this.glStateManager.setupState("debug");
+            this.debugRenderer.drawSegments(renderData.debugLines, camera, this.currentTime);
         }
 
         // Render transparent objects (after debug lines)
@@ -223,12 +332,32 @@ class ActionRenderer3D {
         }
 
         // Draw the sun (only if directional light is enabled)
-        if (this.lightManager.isMainDirectionalLightEnabled()) {
+        if (this.lightManager.isMainDirectionalLightEnabled() && this._sunSprite) {
+            const d = lightingConstants.LIGHT_DIRECTION;
+            const len = Math.sqrt(d.x*d.x + d.y*d.y + d.z*d.z) || 1;
+            // Direction-only: place sun at fixed distance from origin (no camera offset) so it
+            // never clips and has no parallax. View matrix strips translation to match.
+            const SUN_DIST = 500;
+            this._sunSprite.transform.position = new Vector3(
+                (-d.x / len) * SUN_DIST,
+                (-d.y / len) * SUN_DIST,
+                (-d.z / len) * SUN_DIST
+            );
+            this._sunSprite.color = this._cachedVariant === "virtualboy" ? [1, 0, 0] : [1.0, 0.95, 0.6];
+
+            const sunProj = Matrix4.create();
+            Matrix4.perspective(sunProj, camera.fov, Game.WIDTH / Game.HEIGHT, 0.1, 1000.0);
+            const camTarget = camera.target.toArray();
+            const camPos = camera.position.toArray();
+            const sunView = Matrix4.create();
+            Matrix4.lookAt(sunView, [0, 0, 0], [
+                camTarget[0] - camPos[0],
+                camTarget[1] - camPos[1],
+                camTarget[2] - camPos[2]
+            ], camera.up.toArray());
+
             this.glStateManager.setupState("sun");
-            const mainLight = this.lightManager.getMainDirectionalLight();
-            const lightPos = mainLight ? mainLight.getPosition() : new Vector3(0, 5000, 0);
-            const isVirtualBoyMode = this._cachedVariant === "virtualboy";
-            this.sunRenderer.render(camera, lightPos, isVirtualBoyMode);
+            this.spriteRenderer.render([this._sunSprite], camera, sunProj, sunView);
         }
 
         // Render sprites (ActionSprite3D objects - both billboard and non-billboard)
@@ -259,6 +388,16 @@ class ActionRenderer3D {
         if (lightingConstants.DEBUG.VISUALIZE_SHADOW_MAP && camera) {
             this.glStateManager.setupState("shadowMapDebug");
             this.debugRenderer.drawShadowMapDebug(camera);
+        }
+
+        // FPS VIEWMODEL PASS (ADDITIVE / OPT-IN).
+        // Only runs when a caller passes renderData.viewmodelObjects. Draws those objects
+        // on top of the scene with a cleared depth buffer and a closer near plane so a
+        // held weapon never clips into world geometry. Scenes that don't pass viewmodel
+        // objects are completely unaffected.
+        if (camera && renderData.viewmodelObjects && renderData.viewmodelObjects.length > 0) {
+            this.glStateManager.setupState("object");
+            this.objectRenderer.renderViewmodels(renderData.viewmodelObjects, camera, renderData.viewmodelOptions || {});
         }
     }
 

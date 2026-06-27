@@ -32,6 +32,7 @@ class GLStateManager {
             pointShadowMap1: 11,
             pointShadowMap2: 12,
             pointShadowMap3: 13,
+            directionalCascadeArray: 14, // CSM depth TEXTURE_2D_ARRAY (cascaded directional shadows)
             textureArray: 20,
             spriteTexture: 15
         };
@@ -79,6 +80,10 @@ class GLStateManager {
                 blendFunc: { src: "SRC_ALPHA", dst: "ONE_MINUS_SRC_ALPHA" },
                 depthTest: true,
                 depthFunc: "LEQUAL",
+                // depthMask MUST be true here. The sun is the last pass of a sun-lit scene; leaving
+                // depth writes disabled means the NEXT scene's brand-new GLStateManager (which assumes
+                // the WebGL default depthMask=true) desyncs from the actually-false shared GL context,
+                // so its object pass silently skips re-enabling depth writes → broken depth on transition.
                 depthMask: true,
                 cullFace: false
             },
@@ -145,6 +150,14 @@ class GLStateManager {
         // CULL_FACE: disabled by default
         this.gl.disable(this.gl.CULL_FACE);
         this._currentState.cullFace = false;
+
+        // DEPTH WRITE MASK: force it to match our assumed cache. The WebGL context is SHARED across
+        // renderer instances (one per scene), so a previous scene may have left depthMask=false. Our
+        // cache assumes the WebGL default (true); if we don't force GL to agree here, the first
+        // setupState() that wants depthMask:true sees cache===true and skips the gl call, leaving the
+        // context stuck with depth writes OFF → broken depth. Forcing it makes cache and GL consistent.
+        this.gl.depthMask(true);
+        this._currentState.depthMask = true;
     }
 
     setClearColor(r, g, b, a = 1.0) {

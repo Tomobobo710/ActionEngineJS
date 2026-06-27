@@ -157,6 +157,7 @@ class ObjectShader {
     uniform vec4 uModelRotation;
     uniform vec3 uModelScale;
     uniform mat4 uLightSpaceMatrix;  // Added for shadow mapping
+    uniform float uShadowNormalOffset; // world-space normal-offset bias magnitude (texelWorld × normalSlackTexels)
 
     uniform vec3 uLightDir;
     uniform vec3 uCameraPos;
@@ -182,6 +183,7 @@ class ObjectShader {
     out vec2 vTexCoord;
     flat out float vUseTexture;
     out float vFragDepth;    // For logarithmic depth buffer
+    out float vViewDepth;    // Linear view-space depth (forward distance) for CSM cascade selection
     flat out float vNormalMapIndex;
     flat out float vMetallicRoughnessMapIndex;
     flat out float vEmissiveMapIndex;
@@ -225,9 +227,21 @@ class ObjectShader {
         // Calculate view direction
         vViewDir = normalize(uCameraPos - worldPos.xyz);
         
-        // Position in light space for shadow mapping
-        vFragPosLightSpace = uLightSpaceMatrix * worldPos;
-        
+        // Position in light space for shadow mapping, with NORMAL-OFFSET bias: nudge the sampled
+        // position along the surface normal (NOT toward the light) before projecting. This covers the
+        // texel-footprint depth error that causes acne WITHOUT pushing the shadow along the light ray,
+        // so it kills acne without the peter-panning that depth bias causes. The offset is strongest
+        // on grazing surfaces (where acne lives) via sin(angle), zero face-on. Magnitude is world-texel
+        // scaled (uShadowNormalOffset = texelWorld × normalSlackTexels), so it auto-tracks the fit.
+        vec3 nrmW = normalize(worldNormal);
+        float ndlV = clamp(dot(nrmW, normalize(-uLightDir)), 0.0, 1.0);
+        float grazeV = sqrt(max(0.0, 1.0 - ndlV * ndlV));
+        vFragPosLightSpace = uLightSpaceMatrix * vec4(worldPos.xyz + nrmW * (uShadowNormalOffset * grazeV), 1.0);
+
+        // Linear view-space depth (positive forward distance) for CSM cascade selection. View space
+        // looks down -Z, so -(view·worldPos).z is the camera-forward distance the cascade splits use.
+        vViewDepth = -(uViewMatrix * worldPos).z;
+
         // Pass color and texture info to fragment shader
         vColor = aColor;
         vAlpha = aAlpha;
@@ -262,6 +276,47 @@ class ObjectShader {
     _getDefaultFragmentShaderImpl() {
         // Directly include shadow calculation functions for WebGL2
         const shadowFunctions = `
+            // ---- color pipeline (linear <-> sRGB, ACES filmic tonemap) ----
+            vec3 sRGBToLinear(vec3 c) { return pow(max(c, 0.0), vec3(2.2)); }
+            vec3 linearToSRGB(vec3 c) { return pow(max(c, 0.0), vec3(1.0 / 2.2)); }
+            vec3 acesTonemap(vec3 x) {
+                const float a = 2.51; const float b = 0.03;
+                const float c = 2.43; const float d = 0.59; const float e = 0.14;
+                return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
+            }
+
+            // Hemisphere ambient: sky tint above, ground tint below, by surface normal.
+            vec3 hemisphereAmbient(vec3 N) {
+                float t = clamp(N.y * 0.5 + 0.5, 0.0, 1.0);
+                return mix(uAmbientGroundColor, uAmbientSkyColor, t) * uAmbientIntensity;
+            }
+
+            // Point falloff: the original intensity-compatible curve (~1 at center, 0.5 at d=radius)
+            // multiplied by a smooth window so it reaches EXACTLY 0 at the radius instead of trailing
+            // off forever. Keeps existing light intensities working while giving a clean cutoff.
+            // (Pure inverse-square is more physical but needs intensities ~radius², which would make
+            // every point light go dark at these scales — not worth re-authoring every scene.)
+            float pointFalloff(float dist, float radius) {
+                float r2 = max(radius * radius, 1e-4);
+                float d2 = dist * dist;
+                float base = 1.0 / (1.0 + d2 / r2);
+                float win = clamp(1.0 - (d2 * d2) / (r2 * r2), 0.0, 1.0); // 1 - (d/r)^4
+                return base * win * win;
+            }
+
+            // Receiver-plane depth bias (Isidoro 2006): depth gradient per shadow-map UV from screen
+            // derivatives, so each PCF tap knows the receiver's TRUE depth at its offset — removes
+            // slope acne without a global depth bias.
+            vec2 receiverPlaneDepthBias(vec3 projCoords) {
+                vec3 dx = dFdx(projCoords);
+                vec3 dy = dFdy(projCoords);
+                vec2 biasUV = vec2(dy.y * dx.z - dx.y * dy.z,
+                                   dx.x * dy.z - dy.x * dx.z);
+                float det = dx.x * dy.y - dx.y * dy.x;
+                biasUV /= (sign(det) * max(abs(det), 1e-8));
+                return biasUV; // d(depth)/d(uv)
+            }
+
             // Sample from shadow map with hardware-enabled filtering
             float shadowCalculation(vec4 fragPosLightSpace, sampler2D shadowMap) {
                 // Perform perspective divide to get NDC coordinates
@@ -373,53 +428,163 @@ class ObjectShader {
                     return 1.0; // No shadow outside shadow map
                 }
                 
-                // Get current depth value
                 float currentDepth = projCoords.z;
-                
-                // Apply bias with slope-scale adjustment
-                float bias = uShadowBias;
-                
-                // Calculate slope factor based on surface angle relative to light
-                // Surfaces perpendicular to light get more bias to reduce shadow acne on steep angles
-                float slopeFactor = max(0.0, 1.0 - dot(normalize(normal), normalize(lightDir)));
-                bias += slopeFactor * uShadowSlopeScaleBias;
-                
-                // Softness factor for PCF sampling spread (0 = hard, 1 = soft)
-                float softnessFactor = clamp(uShadowSoftness, 0.0, 1.0);
-                
-                // Calculate PCF with explicit shadow map sampling
-                float shadow = 0.0;
+
+                // Flat + slope depth bias (the panel knobs). Receiver-plane handles slope per-tap, so
+                // these stay small — flat covers the flat case, slope is a manual trim on top.
+                float NdotL = max(clamp(dot(normalize(normal), normalize(lightDir)), 0.0, 1.0), 0.05);
+                float slopeTan = min(sqrt(1.0 - NdotL * NdotL) / NdotL, uShadowSlopeClamp);
+                float bias = uShadowBias + slopeTan * uShadowSlopeScaleBias;
+
                 vec2 texelSize = 1.0 / vec2(textureSize(shadowMap, 0));
-                
-                // Determine PCF kernel radius based on uPCFSize
-                int pcfRadius = uPCFSize / 2;
-                float totalSamples = 0.0;
-                
-                // Dynamic PCF sampling using the specified kernel size
-                for(int x = -pcfRadius; x <= pcfRadius; ++x) {
-                    for(int y = -pcfRadius; y <= pcfRadius; ++y) {
-                        // Skip samples outside the kernel radius 
-                        // (needed for non-square kernels like 3x3, 5x5, etc.)
-                        if (abs(x) <= pcfRadius && abs(y) <= pcfRadius) {
-                            // Apply softness factor to sampling coordinates (0 = no spread/hard, 1 = full spread/soft)
-                            vec2 offset = vec2(x, y) * texelSize * mix(0.0, 2.0, softnessFactor);
-                            
-                            // Explicitly sample shadow map with clear texture binding
-                            float pcfDepth = texture(shadowMap, projCoords.xy + offset).r; 
-                            shadow += currentDepth - bias > pcfDepth ? 0.0 : 1.0;
-                            totalSamples += 1.0;
+                vec2 planeBias = receiverPlaneDepthBias(projCoords); // depth slope per UV (auto)
+
+                // PCSS: search for blockers to size the penumbra. uShadowSoftness is the light size
+                // (max filter radius in texels). Penumbra grows with blocker distance, so contact
+                // stays crisp and far shadows go soft — physical contact-hardening, not a flat blur.
+                float lightSizeTexels = mix(1.0, uShadowPcssMax, clamp(uShadowSoftness, 0.0, 1.0));
+                float filterRadius = lightSizeTexels;
+                if (uShadowSoftness > 0.001) {
+                    float avgBlocker = 0.0;
+                    float blockers = 0.0;
+                    for (int sx = -2; sx <= 2; ++sx) {
+                        for (int sy = -2; sy <= 2; ++sy) {
+                            vec2 tap = vec2(sx, sy) * (lightSizeTexels / 2.0);
+                            vec2 o = tap * texelSize;
+                            float d = texture(shadowMap, projCoords.xy + o).r;
+                            float ref = currentDepth + dot(o, planeBias) - bias;
+                            if (d < ref) { avgBlocker += d; blockers += 1.0; }
                         }
                     }
+                    if (blockers < 0.5) {
+                        return 1.0; // nothing between us and the light → fully lit
+                    }
+                    avgBlocker /= blockers;
+                    float penumbra = (currentDepth - avgBlocker) / max(avgBlocker, 1e-4);
+                    filterRadius = clamp(penumbra * lightSizeTexels, 1.0, lightSizeTexels);
                 }
-                
-                // Average samples
+
+                // PCF with the penumbra-sized radius, receiver-plane-corrected per tap.
+                float shadow = 0.0;
+                float totalSamples = 0.0;
+                int pcfRadius = max(1, uPCFSize / 2);
+                for (int x = -pcfRadius; x <= pcfRadius; ++x) {
+                    for (int y = -pcfRadius; y <= pcfRadius; ++y) {
+                        vec2 tap = vec2(x, y) * (filterRadius / float(pcfRadius));
+                        vec2 offset = tap * texelSize;
+                        float pcfDepth = texture(shadowMap, projCoords.xy + offset).r;
+                        float ref = currentDepth + dot(offset, planeBias) - bias;
+                        shadow += ref > pcfDepth ? 0.0 : 1.0;
+                        totalSamples += 1.0;
+                    }
+                }
                 shadow /= max(1.0, totalSamples);
-                
                 return shadow;
+            }
+
+            // ===== Cascaded Shadow Map sampling =====
+            // Project a world position into cascade 'layer' light space, applying that cascade's own
+            // normal-offset bias (strongest on grazing surfaces). Returns [0,1] shadow-map coordinates.
+            vec3 cascadeProj(int layer, vec3 worldPos, vec3 normal, vec3 lightDir) {
+                vec3 nrmW = normalize(normal);
+                float ndl = clamp(dot(nrmW, normalize(-lightDir)), 0.0, 1.0);
+                float graze = sqrt(max(0.0, 1.0 - ndl * ndl));
+                vec4 ls = uCascadeMatrices[layer] * vec4(worldPos + nrmW * (uCascadeNormalOffset[layer] * graze), 1.0);
+                vec3 pc = ls.xyz / ls.w;
+                return pc * 0.5 + 0.5;
+            }
+
+            // PCSS + PCF against one layer of the cascade depth array. Same filtering as the single-map
+            // shadowCalculationPCF, but samples uShadowMapArray at 'layer' and takes the cascade's own
+            // flat/slope bias (each cascade auto-derived its own from its own slice).
+            float sampleCascadeLayer(int layer, vec3 projCoords, vec3 normal, vec3 lightDir, float flatBias, float slopeBase) {
+                if (projCoords.x < 0.0 || projCoords.x > 1.0 ||
+                    projCoords.y < 0.0 || projCoords.y > 1.0 ||
+                    projCoords.z < 0.0 || projCoords.z > 1.0) {
+                    return 1.0; // outside this cascade — caller falls back / leaves lit
+                }
+                float currentDepth = projCoords.z;
+                float NdotL = max(clamp(dot(normalize(normal), normalize(lightDir)), 0.0, 1.0), 0.05);
+                float slopeTan = min(sqrt(1.0 - NdotL * NdotL) / NdotL, uShadowSlopeClamp);
+                float bias = flatBias + slopeTan * slopeBase;
+
+                vec2 texelSize = 1.0 / vec2(textureSize(uShadowMapArray, 0).xy);
+                vec2 planeBias = receiverPlaneDepthBias(projCoords);
+
+                if (!uPCFEnabled) {
+                    float d = texture(uShadowMapArray, vec3(projCoords.xy, float(layer))).r;
+                    return currentDepth - bias > d ? 0.0 : 1.0;
+                }
+
+                // PCSS blocker search → penumbra estimate (contact-hardening), identical to the single map.
+                float lightSizeTexels = mix(1.0, uShadowPcssMax, clamp(uShadowSoftness, 0.0, 1.0));
+                float filterRadius = lightSizeTexels;
+                if (uShadowSoftness > 0.001) {
+                    float avgBlocker = 0.0;
+                    float blockers = 0.0;
+                    for (int sx = -2; sx <= 2; ++sx) {
+                        for (int sy = -2; sy <= 2; ++sy) {
+                            vec2 o = vec2(sx, sy) * (lightSizeTexels / 2.0) * texelSize;
+                            float d = texture(uShadowMapArray, vec3(projCoords.xy + o, float(layer))).r;
+                            float ref = currentDepth + dot(o, planeBias) - bias;
+                            if (d < ref) { avgBlocker += d; blockers += 1.0; }
+                        }
+                    }
+                    if (blockers < 0.5) {
+                        return 1.0;
+                    }
+                    avgBlocker /= blockers;
+                    float penumbra = (currentDepth - avgBlocker) / max(avgBlocker, 1e-4);
+                    filterRadius = clamp(penumbra * lightSizeTexels, 1.0, lightSizeTexels);
+                }
+
+                float shadow = 0.0;
+                float totalSamples = 0.0;
+                int pcfRadius = max(1, uPCFSize / 2);
+                for (int x = -pcfRadius; x <= pcfRadius; ++x) {
+                    for (int y = -pcfRadius; y <= pcfRadius; ++y) {
+                        vec2 offset = vec2(x, y) * (filterRadius / float(pcfRadius)) * texelSize;
+                        float pcfDepth = texture(uShadowMapArray, vec3(projCoords.xy + offset, float(layer))).r;
+                        float ref = currentDepth + dot(offset, planeBias) - bias;
+                        shadow += ref > pcfDepth ? 0.0 : 1.0;
+                        totalSamples += 1.0;
+                    }
+                }
+                return shadow / max(1.0, totalSamples);
+            }
+
+            // Top-level CSM shadow: pick the cascade by view depth, sample it, and dissolve across the
+            // boundary into the next cascade so the resolution step doesn't show as a hard seam.
+            float shadowCSM(vec3 worldPos, vec3 normal, vec3 lightDir, float viewDepth) {
+                // First cascade whose far split still contains this fragment (last one is the catch-all).
+                int layer = uCascadeCount - 1;
+                for (int i = 0; i < MAX_CASCADES; i++) {
+                    if (i >= uCascadeCount) break;
+                    if (viewDepth < uCascadeSplits[i]) { layer = i; break; }
+                }
+
+                vec3 pc = cascadeProj(layer, worldPos, normal, lightDir);
+                float s = sampleCascadeLayer(layer, pc, normal, lightDir, uCascadeBias[layer], uCascadeSlopeBias[layer]);
+
+                // Blend band near this cascade's far edge: width derived from the texel knob as a fraction
+                // of the cascade's view-depth range (so it scales sanely with map size and distance).
+                if (uCascadeBlendTexels > 0.0 && layer < uCascadeCount - 1) {
+                    float prevSplit = layer > 0 ? uCascadeSplits[layer - 1] : 0.0;
+                    float range = max(uCascadeSplits[layer] - prevSplit, 1e-4);
+                    float band = (uCascadeBlendTexels / max(uShadowMapSize, 1.0)) * range;
+                    float t = clamp((uCascadeSplits[layer] - viewDepth) / max(band, 1e-4), 0.0, 1.0);
+                    if (t < 1.0) {
+                        vec3 pcN = cascadeProj(layer + 1, worldPos, normal, lightDir);
+                        float sN = sampleCascadeLayer(layer + 1, pcN, normal, lightDir,
+                                                      uCascadeBias[layer + 1], uCascadeSlopeBias[layer + 1]);
+                        s = mix(sN, s, t);
+                    }
+                }
+                return s;
             }`;
 
         return `#version 300 es
-    precision mediump float;
+    precision highp float;
     precision mediump sampler2DArray;
     
     in vec3 vColor;
@@ -436,6 +601,7 @@ class ObjectShader {
     in vec3 vWorldPos;  // Position in world space
     in vec3 vViewDir;   // Direction to camera
     in float vFragDepth;  // For logarithmic depth
+    in float vViewDepth;  // Linear view-space depth (forward distance) — used for CSM cascade select
     flat in float vNormalMapIndex;
     flat in float vMetallicRoughnessMapIndex;
     flat in float vEmissiveMapIndex;
@@ -447,6 +613,22 @@ class ObjectShader {
     // Always use sampler2D for shadow maps
     uniform sampler2D uShadowMap;
     uniform highp samplerCubeShadow uPointShadowMap;
+
+    // ===== Cascaded Shadow Maps =====
+    // MAX_CASCADES is the compile-time ceiling; it MUST match lightingConstants.AUTO_SHADOW.CSM.MAX.
+    // When uCSMEnabled, the single uShadowMap path is bypassed and the fragment selects one of
+    // uCascadeCount layers of uShadowMapArray by its view depth, transforming itself into that
+    // cascade's light space (so each cascade carries its own matrix + geometry-derived biases).
+    #define MAX_CASCADES 4
+    uniform bool uCSMEnabled;
+    uniform int uCascadeCount;
+    uniform sampler2DArray uShadowMapArray;     // depth array, one layer per cascade
+    uniform mat4 uCascadeMatrices[MAX_CASCADES];
+    uniform float uCascadeSplits[MAX_CASCADES]; // far view-depth covered by each cascade
+    uniform float uCascadeBias[MAX_CASCADES];   // per-cascade flat bias (geometry-derived)
+    uniform float uCascadeSlopeBias[MAX_CASCADES]; // per-cascade slope bias base
+    uniform float uCascadeNormalOffset[MAX_CASCADES]; // per-cascade world normal-offset magnitude
+    uniform float uCascadeBlendTexels;          // dissolve-band width across a cascade boundary
     
     // Light counts
     uniform int uDirectionalLightCount;
@@ -459,10 +641,10 @@ class ObjectShader {
     uniform sampler2D uPointLightData;
     uniform vec2 uPointLightTextureSize;
     
-    // Legacy directional light uniforms (for backward compatibility)
-    uniform vec3 uLightPos;
+    // Directional light uniforms
+    uniform bool uDirectionalLightEnabled;
     uniform vec3 uLightDir;
-    uniform float uLightIntensity; 
+    uniform float uLightIntensity;
     uniform vec3 uLightColor;
     
     // Legacy point light uniforms (for backward compatibility)
@@ -488,14 +670,20 @@ class ObjectShader {
     uniform bool uShadowsEnabled;
     uniform bool uPointShadowsEnabled; // Enable point light shadows
     //uniform int uPointLightCount; // Number of point lights
-    uniform float uShadowBias; // Shadow bias to reduce self-shadowing artifacts
-    uniform float uShadowSlopeScaleBias; // Additional bias based on surface slope relative to light
+    uniform float uShadowBias; // Directional shadow bias (geometry-derived: flat slack texels × texel/far)
+    uniform float uShadowSlopeScaleBias; // Directional SLOPE bias base (slope slack texels × texel/far); multiplied by tan(angle)
+    uniform float uShadowSlopeClamp; // Clamp on tan(angle) so grazing surfaces don't blow the slope bias up
+    uniform float uShadowPcssMax; // PCSS max penumbra width in texels at full softness
+    uniform float uPointShadowBias; // Point-light (cube) shadow bias — separate from directional so they don't stomp each other
     uniform float uShadowMapSize; // Shadow map size for texture calculations
     uniform float uShadowSoftness; // Controls shadow edge softness (0-1)
     uniform int uPCFSize; // Controls PCF kernel size (1, 3, 5, 7, 9)
     uniform bool uPCFEnabled; // Controls whether PCF filtering is enabled
     uniform float uFarPlane; // Far plane for logarithmic depth buffer
-    uniform float uPointShadowFarPlane; // Far plane for point light shadow depth comparison
+    uniform float uPointShadowFarPlane; // Far plane for point light 0 shadow depth comparison (= its radius)
+    uniform float uPointShadowFarPlane1; // per-light: must match the far the cube map was rendered with
+    uniform float uPointShadowFarPlane2;
+    uniform float uPointShadowFarPlane3;
     uniform bool uDirectionalLightAttenuation; // Enable attenuation for directional lights
     uniform float uNormalMapStrength; // Normal map intensity
     
@@ -508,8 +696,12 @@ class ObjectShader {
     
     // Lighting intensity controls
     uniform float uAmbientIntensity;
+    uniform vec3 uAmbientSkyColor;    // hemisphere ambient tint from above
+    uniform vec3 uAmbientGroundColor; // hemisphere ambient tint from below
+    uniform float uExposure;          // pre-tonemap exposure multiplier
+    uniform bool uTonemapEnabled;     // ACES filmic tonemap on output
     uniform float uShadowDarkness;
-    
+
     // Structures to hold light data
     struct DirectionalLight {
         vec3 position;
@@ -609,14 +801,14 @@ class ObjectShader {
         
         // Normalize to [0,1] range using far plane
         currentDepth = currentDepth / farPlane;
-        
-        // Apply bias
-        float bias = uShadowBias;
-        
+
+        // Apply bias (point-light bias, separate uniform from the directional one)
+        float bias = uPointShadowBias;
+
         // Hardware depth comparison (texture params set COMPARE_MODE + COMPARE_FUNC)
         // Returns 1.0 if passes comparison, 0.0 if fails
         float shadow = texture(shadowMap, vec4(fragToLight, currentDepth - bias));
-        
+
         return shadow;
     }
     
@@ -636,9 +828,9 @@ class ObjectShader {
         // Normalize to [0,1] range using far plane
         currentDepth = currentDepth / farPlane;
         
-        // Apply bias from uniform (decoupled from softness)
-        float bias = uShadowBias;
-        
+        // Apply bias from uniform (point-light bias, decoupled from directional + softness)
+        float bias = uPointShadowBias;
+
         // Softness factor for PCF sampling spread (0 = hard, 1 = soft)
         float softnessFactor = clamp(uShadowSoftness, 0.0, 1.0);
         
@@ -703,6 +895,8 @@ class ObjectShader {
         } else {
             baseColor = vec4(vColor, vAlpha);
         }
+        // Linear workflow: decode authored sRGB albedo to linear before any lighting math.
+        baseColor.rgb = sRGBToLinear(baseColor.rgb);
         
         // Sample normal map if available
         vec3 surfaceNormal = normalize(vNormal);
@@ -717,13 +911,13 @@ class ObjectShader {
         vec3 emissiveColor = vec3(0.0);
         int emissiveMapIdx = int(vEmissiveMapIndex);
         if (emissiveMapIdx >= 0) {
-            emissiveColor = texture(uTextureArray, vec3(vTexCoord, emissiveMapIdx)).rgb;
+            emissiveColor = sRGBToLinear(texture(uTextureArray, vec3(vTexCoord, emissiveMapIdx)).rgb);
         }
         
         // Compute PBR lighting
         vec3 N = surfaceNormal;
         vec3 V = normalize(vViewDir);
-        vec3 L = normalize(-uLightDir); // Negate for consistency with shadow mapping
+        vec3 L = normalize(-uLightDir);
         
         // Get material properties
         float roughness = uRoughness;
@@ -771,23 +965,24 @@ class ObjectShader {
         // Diffuse component with metallic
         vec3 kD = (vec3(1.0) - specular) * (1.0 - metallic);
         
-        // Calculate shadow factor
+        // Calculate shadow factor. CSM picks a cascade by view depth and samples the depth array;
+        // otherwise the single fitted map drives it (vFragPosLightSpace was built in the vertex shader).
         float shadow = 1.0;
         if (uShadowsEnabled) {
-            float shadowFactor = shadowCalculationPCF(vFragPosLightSpace, uShadowMap, N, L);
+            float shadowFactor = uCSMEnabled
+                ? shadowCSM(vWorldPos, N, L, vViewDepth)
+                : shadowCalculationPCF(vFragPosLightSpace, uShadowMap, N, L);
             shadow = 1.0 - (1.0 - shadowFactor) * uShadowDarkness;
         }
         
-        // Ambient lighting
-        vec3 ambient = vec3(uAmbientIntensity);
-        
-        // Diffuse lighting with light color
+        // Hemisphere ambient — sky/ground indirect fill. Kept SEPARATE from the shadow term below
+        // (shadow occludes the sun, not the sky), so shadowed areas don't go dead-flat.
+        vec3 ambient = hemisphereAmbient(N);
+
+        // Direct sun diffuse
         vec3 lightColor = length(uLightColor) > 0.0 ? uLightColor : vec3(0.3);
         float diffuse = max(dot(N, L), 0.0);
         vec3 diffuseLighting = lightColor * diffuse * max(uLightIntensity, 1.0);
-        
-        // Combine diffuse and ambient
-        vec3 phongDiffuse = diffuseLighting + ambient;
         
         // Calculate point light contributions
         vec3 pointLightColors = vec3(0.0);
@@ -804,7 +999,7 @@ class ObjectShader {
             
             // Distance attenuation
             float pointDistance = length(vWorldPos - light.position);
-            float pointAttenuation = 1.0 / (1.0 + (pointDistance * pointDistance) / (light.radius * light.radius));
+            float pointAttenuation = pointFalloff(pointDistance, light.radius);
             
             // PBR specular for point light
             vec3 pointSpecular = specularBRDF(N, pointL, V, baseF0, roughness);
@@ -823,19 +1018,19 @@ class ObjectShader {
                         break;
                     case 1:
                         if (uPointShadowsEnabled1) {
-                            float pointShadowFactor = pointShadowCalculationPCF(vFragPos, light.position, uPointShadowMap1, uPointShadowFarPlane);
+                            float pointShadowFactor = pointShadowCalculationPCF(vFragPos, light.position, uPointShadowMap1, uPointShadowFarPlane1);
                             pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
                         }
                         break;
                     case 2:
                         if (uPointShadowsEnabled2) {
-                            float pointShadowFactor = pointShadowCalculationPCF(vFragPos, light.position, uPointShadowMap2, uPointShadowFarPlane);
+                            float pointShadowFactor = pointShadowCalculationPCF(vFragPos, light.position, uPointShadowMap2, uPointShadowFarPlane2);
                             pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
                         }
                         break;
                     case 3:
                         if (uPointShadowsEnabled3) {
-                            float pointShadowFactor = pointShadowCalculationPCF(vFragPos, light.position, uPointShadowMap3, uPointShadowFarPlane);
+                            float pointShadowFactor = pointShadowCalculationPCF(vFragPos, light.position, uPointShadowMap3, uPointShadowFarPlane3);
                             pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
                         }
                         break;
@@ -847,63 +1042,16 @@ class ObjectShader {
                     light.intensity * pointAttenuation * pointShadow * light.color;
         }
         
-        // Legacy point light handling with PBR - only use if no new lights
-        if (uPointLightCount == 0) {
-            // First legacy point light
-            vec3 pointL = normalize(uPointLightPos - vWorldPos);
-            float pointNdotL = max(dot(N, pointL), 0.0);
-            
-            float pointDistance = length(vWorldPos - uPointLightPos);
-            float pointAttenuation = 1.0 / (1.0 + (pointDistance * pointDistance) / (uLightRadius * uLightRadius));
-            
-            vec3 pointSpecular = specularBRDF(N, pointL, V, baseF0, roughness);
-            vec3 pointKD = (vec3(1.0) - pointSpecular) * (1.0 - metallic);
-            
-            float pointShadow = 1.0;
-            if (uPointShadowsEnabled) {
-                float pointShadowFactor = pointShadowCalculationPCF(vFragPos, uPointLightPos, uPointShadowMap, uPointShadowFarPlane);
-                pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
-            }
-            
-            pointLightColors = (pointKD * baseColor.rgb * RECIPROCAL_PI + pointSpecular) * pointNdotL * 
-                    uPointLightIntensity * pointAttenuation * pointShadow * uPointLightColor;
-            
-            // Legacy second point light
-            if (uPointLightCount > 1) {
-                pointL = normalize(uPointLightPos1 - vWorldPos);
-                pointNdotL = max(dot(N, pointL), 0.0);
-                
-                pointDistance = length(vWorldPos - uPointLightPos1);
-                pointAttenuation = 1.0 / (1.0 + (pointDistance * pointDistance) / (uPointLightRadius1 * uPointLightRadius1));
-                
-                pointSpecular = specularBRDF(N, pointL, V, baseF0, roughness);
-                pointKD = (vec3(1.0) - pointSpecular) * (1.0 - metallic);
-                
-                pointShadow = 1.0;
-                if (uPointShadowsEnabled1) {
-                    float pointShadowFactor = pointShadowCalculationPCF(vFragPos, uPointLightPos1, uPointShadowMap1, uPointShadowFarPlane);
-                    pointShadow = 1.0 - (1.0 - pointShadowFactor) * 0.8;
-                }
-                
-                pointLightColors += (pointKD * baseColor.rgb * RECIPROCAL_PI + pointSpecular) * pointNdotL * 
-                        uPointLightIntensity1 * pointAttenuation * pointShadow * uPointLightColor1;
-            }
-        }
         
-        // Calculate directional light contribution with PBR
-        vec3 directionalColor = phongDiffuse * baseColor.rgb;
-        directionalColor += specular;
-        
-        if (uShadowsEnabled) {
-            directionalColor *= shadow;
-        }
-        
-        // Combine lighting contributions
-        vec3 color = directionalColor;
-        
-        // Add point light if present
+        // Direct sun (diffuse + specular), occluded by the shadow term ONLY.
+        vec3 directLit = uDirectionalLightEnabled ? (diffuseLighting * baseColor.rgb + specular) * shadow : vec3(0.0);
+        // Ambient/indirect fill — NOT shadowed (this is the decouple/bug-fix).
+        vec3 ambientLit = ambient * baseColor.rgb;
+        vec3 color = directLit + ambientLit;
+
+        // Add point lights (each already occluded by its own shadow + attenuation)
         if (uPointLightCount > 0) {
-            color = directionalColor + pointLightColors;
+            color += pointLightColors;
         }
         
         // Add emissive
@@ -926,13 +1074,20 @@ class ObjectShader {
         // transmission = 0.0: fully opaque (alpha = 1.0)
         // transmission = 1.0: fully transparent (alpha reduced significantly)
         float finalAlpha = baseColor.a * (1.0 - transmission);
-        
+
         // Apply transmission effect: reduce specular highlights for transparent materials
         if (transmission > 0.0) {
             // For transparent materials, reduce specular contribution
             color *= (1.0 - transmission * 0.3);
         }
-        
+
+        // Linear HDR -> display: exposure, optional ACES filmic tonemap, then sRGB encode.
+        color *= uExposure;
+        if (uTonemapEnabled) {
+            color = acesTonemap(color);
+        }
+        color = linearToSRGB(color);
+
         fragColor = vec4(color, finalAlpha);
         
         // Logarithmic depth buffer encoding
