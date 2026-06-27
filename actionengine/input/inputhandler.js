@@ -1214,6 +1214,25 @@ class ActionInputHandler {
         };
     }
 
+    /**
+     * Like getLockedPointerMovement(), but resets the accumulated delta to zero after
+     * reading. Use this for mouse-look so the same delta isn't applied every frame when
+     * the mouse is momentarily still (mousemove only fires on actual movement). Call
+     * exactly once per frame. Returns {x:0,y:0} when pointer lock is not active.
+     */
+    consumeLockedPointerMovement() {
+        if (!document.pointerLockElement) {
+            return { x: 0, y: 0 };
+        }
+        const out = {
+            x: this.rawState.pointer.movementX,
+            y: this.rawState.pointer.movementY
+        };
+        this.rawState.pointer.movementX = 0;
+        this.rawState.pointer.movementY = 0;
+        return out;
+    }
+
     getCanvasPosition(e) {
         const canvas = document.getElementById("gameCanvas");
         const rect = canvas.getBoundingClientRect();
