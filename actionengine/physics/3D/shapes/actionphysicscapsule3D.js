@@ -25,7 +25,8 @@ class ActionPhysicsCapsule3D extends ActionPhysicsObject3D {
         height = 10,
         mass = 1,
         initialPosition = new Vector3(0, 10, 0),
-        color = "#E94B3C"
+        color = "#E94B3C",
+        options = {}
     ) {
         // Create visual mesh with triangles using single color system
         const triangles = [];
@@ -157,10 +158,10 @@ class ActionPhysicsCapsule3D extends ActionPhysicsObject3D {
         // Keep flat cap edges hard by not smoothing the pole vertices
         ActionPhysicsCapsule3D._computeSmoothVertexNormalsForCapsule(triangles, radialSegments, heightSegments, capSegments);
 
-        super(triangles);
+        super(triangles, options);
 
         const shape = new Goblin.CapsuleShape(radius, height);
-        this.body = new ActionRigidBody3D(shape, mass);
+        this.body = new ActionRigidBody3D(shape, mass, options);
         this.body.position = initialPosition;
 
         this.storeOriginalData();

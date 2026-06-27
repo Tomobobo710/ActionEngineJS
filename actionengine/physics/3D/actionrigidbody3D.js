@@ -8,25 +8,88 @@
  */
 class ActionRigidBody3D {
     /**
+     * Material/behavior defaults applied to every body created from a shape. Single source of truth
+     * — see _applyMaterial(). Tuned so props come to rest by default rather than slide or bounce.
+     */
+    static MATERIAL_DEFAULTS = {
+        friction: 300.0,
+        restitution: 0,
+        linearDamping: 0,
+        angularDamping: 0.9
+    };
+
+    /**
      * Create a rigid body from a shape or wrap an existing body
      * @param {Object} shapeOrBody - Physics shape (box, sphere, mesh) or existing body
      * @param {number} mass - Body mass (default: 1). Use Infinity for static. Ignored if wrapping existing body.
+     * @param {Object} [options] - Material/behavior options (ignored when wrapping an existing body):
+     *   friction, restitution, linearDamping, angularDamping (all defaulted via MATERIAL_DEFAULTS),
+     *   collisionGroups, collisionMask, gravity (Vector3), linearFactor (Vector3), angularFactor
+     *   (Vector3) — the latter five only override the backend default when explicitly provided.
      */
-    constructor(shapeOrBody, mass = 1) {
+    constructor(shapeOrBody, mass = 1, options = {}) {
         if (!shapeOrBody) {
             throw new Error("[ActionRigidBody3D] Physics shape or body is required");
         }
-        
+
         // Check if this is already a body (has _mass property) or a shape
         if (shapeOrBody._mass !== undefined) {
-            // Wrapping existing body
+            // Wrapping existing body — leave its material untouched, it's not ours to redefine
             this._body = shapeOrBody;
         } else {
-            // Creating new body from shape
+            // Creating new body from shape — apply engine material defaults + caller overrides
             this._body = new Goblin.RigidBody(shapeOrBody, mass);
-            this._body.linear_damping = 0.01;
-            this._body.angular_damping = 0.01;
+            this._applyMaterial(options);
         }
+        // Backend → wrapper backref. Physics queries (raycasts, collision results) surface the raw
+        // backend body; this lets a consumer holding one recover its engine wrapper without
+        // reaching into the backend. See ActionRigidBody3D.wrap() and ActionRaycast3D's hit.body.
+        this._body._wrapper = this;
+    }
+
+    /**
+     * Apply material/behavior options to a freshly created body. The four material knobs always
+     * resolve to a value (option → MATERIAL_DEFAULTS); the collision/gravity/factor knobs only
+     * write when the caller provides them, so existing collision filtering and world gravity are
+     * left alone unless a developer opts in.
+     * @private
+     */
+    _applyMaterial(options) {
+        const o = options || {};
+        const d = ActionRigidBody3D.MATERIAL_DEFAULTS;
+
+        // Material / surface feel — always defaulted
+        this._body.friction        = o.friction       !== undefined ? o.friction       : d.friction;
+        this._body.restitution     = o.restitution    !== undefined ? o.restitution    : d.restitution;
+        this._body.linear_damping  = o.linearDamping  !== undefined ? o.linearDamping  : d.linearDamping;
+        this._body.angular_damping = o.angularDamping !== undefined ? o.angularDamping : d.angularDamping;
+
+        // Collision filtering — only when explicitly provided (backend default is 0/0)
+        if (o.collisionGroups !== undefined) this._body.collision_groups = o.collisionGroups;
+        if (o.collisionMask   !== undefined) this._body.collision_mask   = o.collisionMask;
+
+        // Per-body gravity override (Vector3); absent/null means "use world gravity"
+        if (o.gravity) this._body.setGravity(o.gravity.x, o.gravity.y, o.gravity.z);
+
+        // Per-axis movement locks (Vector3 multipliers, e.g. (1,1,1) free, (0,1,0) lock to Y)
+        if (o.linearFactor) {
+            this._body.linear_factor.x = o.linearFactor.x;
+            this._body.linear_factor.y = o.linearFactor.y;
+            this._body.linear_factor.z = o.linearFactor.z;
+        }
+        if (o.angularFactor) {
+            this._body.angular_factor.x = o.angularFactor.x;
+            this._body.angular_factor.y = o.angularFactor.y;
+            this._body.angular_factor.z = o.angularFactor.z;
+        }
+    }
+
+    /**
+     * Recover the engine wrapper for a raw backend body (e.g. a raycast `hit.object`), or null if
+     * that body was never wrapped (raw backend geometry). Keeps query consumers off the backend.
+     */
+    static wrap(backendBody) {
+        return backendBody ? backendBody._wrapper || null : null;
     }
     
     /**
@@ -55,6 +118,15 @@ class ActionRigidBody3D {
     
     get isStatic() {
         return this._body._mass === Infinity;
+    }
+
+    /**
+     * Inverse mass (1/mass; 0 for static/infinite-mass bodies). Useful for mass-weighted impulses
+     * where heavier bodies should yield less — exposed so callers don't reach the backend's cached
+     * inverse-mass field.
+     */
+    get inverseMass() {
+        return this._body._mass_inverted;
     }
     
     set isStatic(value) {
@@ -308,7 +380,21 @@ class ActionRigidBody3D {
     }
     
     // === Body Data ===
-    
+
+    /**
+     * Identity tag for this body. Used by raycasts/queries to recognize and filter bodies
+     * (e.g. ActionRaycast3D's `ignoreObjects` matches on this). This is the public face of the
+     * backend's debug name — set/read identity here instead of reaching the underlying body, so
+     * the physics backend stays hidden.
+     */
+    get name() {
+        return this._body.debugName;
+    }
+
+    set name(value) {
+        this._body.debugName = value;
+    }
+
     /**
      * Get the physics shape
      */

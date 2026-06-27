@@ -1,12 +1,12 @@
 //actionengine/physics/shapes/actionphysicscompoundshape3D.js
 class ActionPhysicsCompoundShape3D extends ActionPhysicsObject3D {
-    constructor(initialPosition = new Vector3(0, 500, 0), mass = 1) {
+    constructor(initialPosition = new Vector3(0, 500, 0), mass = 1, options = {}) {
         // Start with an empty triangle list - we'll add them as child shapes are added
-        super([]);
+        super([], options);
 
         // Create the Goblin compound shape
         this.compoundShape = new Goblin.CompoundShape();
-        this.body = new ActionRigidBody3D(this.compoundShape, mass);
+        this.body = new ActionRigidBody3D(this.compoundShape, mass, options);
         this.body.position = initialPosition;
 
         // Keep track of the child objects

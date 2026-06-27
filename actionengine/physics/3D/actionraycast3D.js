@@ -57,9 +57,12 @@ class ActionRaycast3D {
                 continue;
             }
 
-            // Return formatted hit result
+            // Return formatted hit result. `object` is the raw backend body (kept for back-compat);
+            // `body` is its engine wrapper (ActionRigidBody3D) when the body was wrapped, else null —
+            // prefer `body` so consumers stay off the backend.
             return {
                 object: hit.object,
+                body: ActionRigidBody3D.wrap(hit.object),
                 point: { x: hit.point.x, y: hit.point.y, z: hit.point.z },
                 normal: { x: hit.normal.x, y: hit.normal.y, z: hit.normal.z },
                 distance: hit.t,

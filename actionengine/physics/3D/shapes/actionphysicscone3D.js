@@ -17,7 +17,8 @@ class ActionPhysicsCone3D extends ActionPhysicsObject3D {
         height = 10,
         mass = 1,
         initialPosition = new Vector3(0, 10, 0),
-        color = "#FFA500"
+        color = "#FFA500",
+        options = {}
     ) {
         // Create visual mesh with triangles using single color system
         const triangles = [];
@@ -88,11 +89,11 @@ class ActionPhysicsCone3D extends ActionPhysicsObject3D {
         // Keep the tip pointed and base flat
         ActionPhysicsCone3D._computeSmoothVertexNormalsForCone(triangles, heightSegments);
 
-        super(triangles);
+        super(triangles, options);
 
         // Create physics shape and body - Goblin expects half-height
         const shape = new Goblin.ConeShape(radius, height / 2);
-        this.body = new ActionRigidBody3D(shape, mass);
+        this.body = new ActionRigidBody3D(shape, mass, options);
         this.body.position = initialPosition;
 
         this.storeOriginalData();

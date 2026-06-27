@@ -17,7 +17,8 @@ class ActionPhysicsCylinder3D extends ActionPhysicsObject3D {
         height = 10,
         mass = 1,
         initialPosition = new Vector3(0, 10, 0),
-        color = "#FF0000"
+        color = "#FF0000",
+        options = {}
     ) {
         // Create visual mesh with triangles using single color system
         const triangles = [];
@@ -87,11 +88,11 @@ class ActionPhysicsCylinder3D extends ActionPhysicsObject3D {
         // Keep the flat caps hard-edged
         ActionPhysicsCylinder3D._computeSmoothVertexNormalsForCylinder(triangles, radialSegments, halfHeight);
 
-        super(triangles);
+        super(triangles, options);
 
         // Create physics shape and body
         const shape = new Goblin.CylinderShape(radius, halfHeight);
-        this.body = new ActionRigidBody3D(shape, mass);
+        this.body = new ActionRigidBody3D(shape, mass, options);
         this.body.position = initialPosition;
 
         this.storeOriginalData();

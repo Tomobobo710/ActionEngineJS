@@ -7,7 +7,8 @@ class ActionPhysicsPlane3D extends ActionPhysicsObject3D {
         mass = 0,
         initialPosition = new Vector3(0, 0, 0),
         normalDirection = 1, // 1 = up/positive, -1 = down/negative
-        doubleSided = true // Whether to create back-facing triangles
+        doubleSided = true, // Whether to create back-facing triangles
+        options = {}
     ) {
         // Create visual mesh with triangles
         const segments = 10; // Can be adjusted based on needed detail
@@ -67,10 +68,10 @@ class ActionPhysicsPlane3D extends ActionPhysicsObject3D {
             }
         }
 
-        super(triangles);
+        super(triangles, options);
 
         const shape = new Goblin.PlaneShape(orientation, width / 2, length / 2);
-        this.body = new ActionRigidBody3D(shape, mass);
+        this.body = new ActionRigidBody3D(shape, mass, options);
         this.body.position = initialPosition;
 
         this.storeOriginalData();

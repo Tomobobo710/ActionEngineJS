@@ -5,7 +5,8 @@ class ActionPhysicsMesh3D extends ActionPhysicsObject3D {
         indices, // Array of indices forming triangles (groups of 3)
         mass = 0, // Default to static (0 = immovable)
         initialPosition = new Vector3(0, 0, 0),
-        colors = null // Optional array of colors for each triangle
+        colors = null, // Optional array of colors for each triangle
+        options = {}
     ) {
         // Create triangles from vertices and indices
         const triangles = [];
@@ -27,14 +28,14 @@ class ActionPhysicsMesh3D extends ActionPhysicsObject3D {
             triangles.push(new Triangle(v1, v2, v3, color));
         }
 
-        super(triangles);
+        super(triangles, options);
 
         // Convert vertices to Goblin.Vector3 for the physics engine
         const goblinVertices = vertices.map((v) => new Goblin.Vector3(v.x, v.y, v.z));
 
         // Create physics shape and body
         const shape = new Goblin.MeshShape(goblinVertices, indices);
-        this.body = new ActionRigidBody3D(shape, mass);
+        this.body = new ActionRigidBody3D(shape, mass, options);
         this.body.position = initialPosition;
 
         this.storeOriginalData();

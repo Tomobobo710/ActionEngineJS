@@ -11,7 +11,7 @@
  * @param {string} color - Hex color string like "#FF0000" (default: "#FFFFFF" white)
  */
 class ActionPhysicsSphere3D extends ActionPhysicsObject3D {
-    constructor(radius = 5, mass = 1, initialPosition = new Vector3(0, 500, 0), color = "#FFFFFF") {
+    constructor(radius = 5, mass = 1, initialPosition = new Vector3(0, 500, 0), color = "#FFFFFF", options = {}) {
         // Visual mesh creation with single color system
         const segments = 32;
         const triangles = [];
@@ -66,10 +66,10 @@ class ActionPhysicsSphere3D extends ActionPhysicsObject3D {
         // Compute smooth vertex normals for the sphere before passing to parent
         ActionPhysicsSphere3D._computeSmoothVertexNormalsForSphere(triangles);
 
-        super(triangles);
+        super(triangles, options);
 
         const shape = new Goblin.SphereShape(radius);
-        this.body = new ActionRigidBody3D(shape, mass);
+        this.body = new ActionRigidBody3D(shape, mass, options);
         this.body.position = initialPosition;
 
         // Store original data for visual updates
