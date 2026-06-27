@@ -28,19 +28,12 @@
                 <!--3rd party libs--->
                 <!--Goblin fork of https://github.com/chandlerprall/GoblinPhysics----https://github.com/Tomobobo710/GoblinPhysics-->
                 <script src="actionengine/3rdparty/goblin/goblin.js"></script>
-
-                <!-- ==========================================
-                     ACTION ENGINE CORE MODULES
-                     ========================================== -->
-
-                <!-- Math & Transformation -->
+                <script src="actionengine/3rdparty/goblin/goblin.min.js"></script>
                 <script src="actionengine/math/vector2.js"></script>
                 <script src="actionengine/math/vector3.js"></script>
                 <script src="actionengine/math/matrix4.js"></script>
                 <script src="actionengine/math/quaternion.js"></script>
                 <script src="actionengine/math/transform.js"></script>
-
-                <!-- Geometry & Resources -->
                 <script src="actionengine/geometry/triangle.js"></script>
                 <script src="actionengine/geometry/triangleutils.js"></script>
                 <script src="actionengine/geometry/geometrybuilder.js"></script>
@@ -48,12 +41,8 @@
                 <script src="actionengine/geometry/glbexporter.js"></script>
                 <script src="actionengine/geometry/modelcodegenerator.js"></script>
                 <script src="actionengine/geometry/modelregistry.js"></script>
-                <script src="actionengine/geometry/actionmodelpackageloader.js">
-                        </script
-
-                        				<!--ActionUI Library-->
-                                        <script src="actionengine/ui/actionuitheme.js">
-                </script>
+                <script src="actionengine/geometry/actionmodelpackageloader.js"></script>
+                <script src="actionengine/ui/actionuitheme.js"></script>
                 <script src="actionengine/ui/actionuicomponent.js"></script>
                 <script src="actionengine/ui/actionuiiconrenderer.js"></script>
                 <script src="actionengine/ui/actionuipanel.js"></script>
@@ -84,29 +73,23 @@
                 <script src="actionengine/ui/actionuionscreenkeyboard.js"></script>
                 <script src="actionengine/ui/actionuilistview.js"></script>
                 <script src="actionengine/ui/actionui.js"></script>
-
-                <!-- Rendering: Core & Objects -->
                 <script src="actionengine/display/canvasmanager.js"></script>
                 <script src="actionengine/rendering/renderableobject.js"></script>
                 <script src="actionengine/rendering/actionmodel3D.js"></script>
                 <script src="actionengine/rendering/actionsprite3D.js"></script>
                 <script src="actionengine/rendering/actionsprite2D.js"></script>
-
-                <!-- Rendering: Lighting & Textures -->
                 <script src="actionengine/rendering/texture/texturemanager.js"></script>
                 <script src="actionengine/rendering/texture/textureset.js"></script>
                 <script src="actionengine/rendering/lighting/lightingconstants.js"></script>
+                <script src="actionengine/rendering/lighting/actionshadowfit.js"></script>
                 <script src="actionengine/rendering/lighting/actionlight.js"></script>
                 <script src="actionengine/rendering/lighting/lightmanager.js"></script>
                 <script src="actionengine/rendering/lighting/actiondirectionalshadowlight.js"></script>
                 <script src="actionengine/rendering/lighting/actionomnidirectionalshadowlight.js"></script>
-
-                <!-- Rendering: Specialized Renderers -->
-                <!-- 2D Software Renderer -->
+                <script src="actionengine/rendering/lighting/actionlightingprofiles.js"></script>
                 <script src="actionengine/rendering/renderers/actionrenderer2D/cpuvertexskinning.js"></script>
                 <script src="actionengine/rendering/renderers/actionrenderer2D/actionrenderer2D.js"></script>
-                <!-- 3D WebGL Renderer -->
-                <script src="actionengine/rendering/renderers/actionrenderer3D/glstatemanager.js"></script>
+                <script src="actionengine/rendering/renderers/actionrenderer3D/glStateManager.js"></script>
                 <script src="actionengine/rendering/renderers/actionrenderer3D/canvasmanager3D.js"></script>
                 <script src="actionengine/rendering/renderers/actionrenderer3D/actionrenderer3D.js"></script>
                 <script src="actionengine/rendering/renderers/actionrenderer3D/objectrenderer3D.js"></script>
@@ -115,10 +98,7 @@
                 <script src="actionengine/rendering/renderers/actionrenderer3D/spriteRenderer3D.js"></script>
                 <script src="actionengine/rendering/renderers/actionrenderer3D/weatherrenderer3D.js"></script>
                 <script src="actionengine/rendering/renderers/actionrenderer3D/waterrenderer3D.js"></script>
-                <script src="actionengine/rendering/renderers/actionrenderer3D/sunrenderer3D.js"></script>
                 <script src="actionengine/rendering/renderers/actionrenderer3D/debugrenderer3D.js"></script>
-
-                <!-- GPU Pipeline (WebGL GLSL) -->
                 <script src="actionengine/gl/uniformbuffermanager.js"></script>
                 <script src="actionengine/gl/programmanager.js"></script>
                 <script src="actionengine/gl/shaders/objectshader.js"></script>
@@ -127,8 +107,6 @@
                 <script src="actionengine/gl/shaders/shadowshader.js"></script>
                 <script src="actionengine/gl/shaders/watershader.js"></script>
                 <script src="actionengine/gl/shaders/particleshader.js"></script>
-
-                <!---Action Engine Physics - 3D-->
                 <script src="actionengine/physics/3D/actionraycast3D.js"></script>
                 <script src="actionengine/physics/3D/actionrigidbody3D.js"></script>
                 <script src="actionengine/physics/3D/physicsshapebuilder3D.js"></script>
@@ -143,8 +121,6 @@
                 <script src="actionengine/physics/3D/shapes/actionphysicsmesh3D.js"></script>
                 <script src="actionengine/physics/3D/shapes/actionphysicscompoundshape3D.js"></script>
                 <script src="actionengine/physics/3D/shapes/actionphysicsconvexshape3D.js"></script>
-
-                <!---Action Engine Physics - 2D-->
                 <script src="actionengine/physics/2D/physicsconstants2D.js"></script>
                 <script src="actionengine/physics/2D/actionaabb2D.js"></script>
                 <script src="actionengine/physics/2D/actionshape2D.js"></script>
@@ -156,26 +132,19 @@
                 <script src="actionengine/physics/2D/actioncontactsolver2D.js"></script>
                 <script src="actionengine/physics/2D/actionbroadphase2D.js"></script>
                 <script src="actionengine/physics/2D/actionphysicsworld2D.js"></script>
-
-                <!-- Audio System -->
                 <script src="actionengine/sound/audiomanager.js"></script>
                 <script src="actionengine/sound/soundfont/soundfont.js"></script>
                 <script src="actionengine/sound/soundfont/actionreverb.js"></script>
                 <script src="actionengine/sound/soundfont/actionparser.js"></script>
                 <script src="actionengine/sound/soundfont/actionsoundfont.js"></script>
-
-                <!-- Input & Controls -->
                 <script src="actionengine/input/inputhandler.js"></script>
                 <script src="actionengine/input/actionscrollablearea.js"></script>
-
-                <!-- Camera & Character -->
                 <script src="actionengine/camera/actioncamera.js"></script>
                 <script src="actionengine/camera/viewfrustum.js"></script>
                 <script src="actionengine/camera/cameracollisionhandler.js"></script>
                 <script src="actionengine/character/actioncharacter.js"></script>
                 <script src="actionengine/character/actioncharacter3D.js"></script>
-
-                <!-- Networking (P2P) -->
+                <script src="actionengine/character/actionfpscontroller3D.js"></script>
                 <script src="actionengine/network/p2p/ActionNetPeer.js"></script>
                 <script src="actionengine/network/p2p/ActionNetTrackerClient.js"></script>
                 <script src="actionengine/network/p2p/DataConnection.js"></script>
@@ -183,20 +152,17 @@
                 <script src="actionengine/network/client/SyncSystem.js"></script>
                 <script src="actionengine/network/client/ActionNetManagerGUI.js"></script>
                 <script src="actionengine/network/client/ActionNetManagerP2P.js"></script>
-
-                <!-- Diagnostics & Utilities -->
+                <script src="actionengine/network/simulation/ActionSimInputBuffer.js"></script>
+                <script src="actionengine/network/simulation/ActionSimSnapshotBuffer.js"></script>
+                <script src="actionengine/network/simulation/ActionSimP2PTransport.js"></script>
+                <script src="actionengine/network/simulation/ActionSimLoopbackTransport.js"></script>
+                <script src="actionengine/network/simulation/ActionSimServer.js"></script>
+                <script src="actionengine/network/simulation/ActionSimClient.js"></script>
                 <script src="actionengine/util/actionzip.js"></script>
                 <script src="actionengine/debug/basedebugpanel.js"></script>
-                <script src="actionengine/debug/lightingdebugpanel.js"></script>
-
-                <!-- Application Bootstrap -->
+                <script src="actionengine/debug/autoshadowpanel.js"></script>
                 <script src="actionengine/core/app.js"></script>
-                <!-- ========================================== -->
-                <!--------------------------------->
 
-                <!------Game Specific Modules------>
-                <!--Game Bootstrap-->
                 <script src="game.js"></script>
-                <!--------------------------------->
         </body>
 </html>
