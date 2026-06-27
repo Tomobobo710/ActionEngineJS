@@ -26,13 +26,13 @@ class ActionNetManagerGUI {
         maxReconnectDelay: 10000,
         reconnectAttempts: 5,
         pingInterval: 30000,
-        debug: true
+        debug: false
     };
 
     // P2P Network configuration
     static P2P_NETWORK_CONFIG = {
         gameId: "game-id-00000",
-        debug: true
+        debug: false
     };
 
     constructor(canvases, input, audio, configOrPort = 8000, networkConfig = null, syncConfig = null) {
@@ -71,6 +71,7 @@ class ActionNetManagerGUI {
         // Initialize networking based on mode
         if (mode === "p2p") {
             const config = p2pConfig || { ...ActionNetManagerGUI.P2P_NETWORK_CONFIG };
+            this.debug = config.debug || false;
             this.networkManager = new ActionNetManagerP2P(config);
         } else {
             // WebSocket mode (default)
@@ -81,6 +82,7 @@ class ActionNetManagerGUI {
             const hostname = window.location.hostname || "localhost"; // Fallback to localhost for file:// protocol
             config.url = `${protocol}//${hostname}:${port}`;
 
+            this.debug = config.debug || false;
             this.networkManager = new ActionNetManager(config);
         }
 
@@ -136,14 +138,22 @@ class ActionNetManagerGUI {
         this.connectionInProgress = false;
 
         // Create scrollable room list
+        // Center the room list horizontally so it adapts to any resolution (was hardcoded for 800w).
+        // Both the rendered boxes and the scroller's click bounds derive from listAreaX, so centering
+        // here keeps draw and hit-test aligned. Stored for the per-item draw callback below.
+        const roomListW = 300;
+        const roomListX = Math.round((ActionNetManagerGUI.WIDTH - roomListW) / 2);
+        this._roomListX = roomListX;
+        this._roomListW = roomListW;
+
         this.roomScroller = new ActionScrollableArea(
             {
-                listAreaX: 250,
+                listAreaX: roomListX,
                 listAreaY: 380,
-                listAreaWidth: 300,
+                listAreaWidth: roomListW,
                 listAreaHeight: 200,
                 itemHeight: 30,
-                scrollBarX: 552,
+                scrollBarX: roomListX + roomListW + 2,
                 scrollBarY: 400,
                 scrollBarTrackHeight: 160,
                 scrollBarThumbStartY: 400,
@@ -151,9 +161,9 @@ class ActionNetManagerGUI {
                 // Enable clipping for precise bounds control
                 enableClipping: true,
                 clipBounds: {
-                    x: 250,
+                    x: roomListX,
                     y: 380,
-                    width: 300,
+                    width: roomListW,
                     height: 200
                 },
 
@@ -356,40 +366,44 @@ class ActionNetManagerGUI {
      * Initialize UI elements
      */
     initializeUIElements() {
+        // Center buttons horizontally for any resolution (was hardcoded x:280 for 800w).
+        const btnW = 240;
+        const btnX = Math.round((ActionNetManagerGUI.WIDTH - btnW) / 2);
+
         // Login screen elements
         this.connectButton = {
-            x: 280,
+            x: btnX,
             y: 220,
-            width: 240,
+            width: btnW,
             height: 60
         };
 
         this.backButton = {
-            x: 280,
+            x: btnX,
             y: 300,
-            width: 240,
+            width: btnW,
             height: 60
         };
 
         // Lobby screen elements
         this.createRoomButton = {
-            x: 280,
+            x: btnX,
             y: 220,
-            width: 240,
+            width: btnW,
             height: 60
         };
 
         this.changeNameButton = {
-            x: 280,
+            x: btnX,
             y: 140,
-            width: 240,
+            width: btnW,
             height: 60
         };
 
         this.backToLoginButton = {
-            x: 280,
+            x: btnX,
             y: 300,
-            width: 240,
+            width: btnW,
             height: 60
         };
 
@@ -755,14 +769,17 @@ class ActionNetManagerGUI {
                     const isSelected = this.selectedIndex === this.lobbyButtonCount + index;
                     const isHighlighted = isHovered || isSelected;
 
-                    // Draw room button background (matching GUI button style)
+                    // Draw room button background (matching GUI button style). Inset 10px inside the
+                    // centered list area so it tracks any resolution (was hardcoded 260/280 for 800w).
+                    const boxX = this._roomListX + 10;
+                    const boxW = this._roomListW - 20;
                     this.guiCtx.fillStyle = isHighlighted ? "#555555" : "#333333";
-                    this.guiCtx.fillRect(260, y, 280, 30);
+                    this.guiCtx.fillRect(boxX, y, boxW, 30);
 
                     // Draw room button border (matching GUI button style)
                     this.guiCtx.strokeStyle = isSelected ? "#ffffff" : "#888888";
                     this.guiCtx.lineWidth = isSelected ? 3 : 2;
-                    this.guiCtx.strokeRect(260, y, 280, 30);
+                    this.guiCtx.strokeRect(boxX, y, boxW, 30);
 
                     // Draw room name and player count
                     this.guiCtx.fillStyle = "#ffffff";
@@ -1021,7 +1038,7 @@ class ActionNetManagerGUI {
                         // Room selection (index 3+)
                         const roomIndex = this.selectedIndex - this.lobbyButtonCount;
                         if (roomIndex >= 0 && roomIndex < availableRooms.length) {
-                            console.log("✅ Room selected via keyboard/gamepad:", availableRooms[roomIndex]);
+                            if (this.debug) console.log("✅ Room selected via keyboard/gamepad:", availableRooms[roomIndex]);
                             this.emit("buttonPressed");
                             // Support both WebSocket (name) and P2P (peerId) formats
                             this.selectedRoom = availableRooms[roomIndex].peerId || availableRooms[roomIndex].name;
@@ -1073,7 +1090,7 @@ class ActionNetManagerGUI {
 
                         if (isPressed && availableRooms[i]) {
                             this.emit("buttonPressed");
-                            console.log("✅ Room clicked:", availableRooms[i]);
+                            if (this.debug) console.log("✅ Room clicked:", availableRooms[i]);
                             // Support both WebSocket (name) and P2P (peerId) formats
                             this.selectedRoom = availableRooms[i].peerId || availableRooms[i].name;
                             this.joinSelectedRoom();
@@ -1493,7 +1510,7 @@ class ActionNetManagerGUI {
      */
     activateSyncForRoom() {
         if (this.syncSystem && !this.syncSystem.isRunning) {
-            console.log("[ActionNetManagerGUI] Activating SyncSystem for room");
+            if (this.debug) console.log("[ActionNetManagerGUI] Activating SyncSystem for room");
             this.syncSystem.start();
         }
     }
@@ -1504,7 +1521,7 @@ class ActionNetManagerGUI {
      */
     deactivateSyncForRoom() {
         if (this.syncSystem && this.syncSystem.isRunning) {
-            console.log("[ActionNetManagerGUI] Deactivating SyncSystem for room");
+            if (this.debug) console.log("[ActionNetManagerGUI] Deactivating SyncSystem for room");
             this.syncSystem.stop();
             this.syncSystem.clearRemoteData();
         }

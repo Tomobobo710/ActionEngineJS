@@ -46,7 +46,8 @@ class ActionNetManagerP2P {
             numwant: config.numwant || 50,
             announceInterval: config.announceInterval || 5000,
             maxAnnounceInterval: config.maxAnnounceInterval || 120000,
-            backoffMultiplier: config.backoffMultiplier || 1.1
+            backoffMultiplier: config.backoffMultiplier || 1.1,
+            pingInterval: config.pingInterval || 1000 // app-level ping cadence (ms) over the game channel
         };
 
         // State
@@ -75,6 +76,14 @@ class ActionNetManagerP2P {
 
         // Event handlers
         this.handlers = new Map();
+
+        // App-level ping/pong over the GAME data channel (the actual command path), so client
+        // prediction can size its runahead from real RTT to the host. Only a guest pings (the host's
+        // own client talks to its server over a zero-latency loopback, so it needs no measurement).
+        this.rtt = 0; // last measured round-trip to the host, ms
+        this._pingTimer = null;
+        this._pingSeq = 0;
+        this._pingSentAt = new Map(); // seq -> performance.now() when sent (a few may be in flight)
 
         // Connection abort
         this.connectionAbortController = null;
@@ -673,6 +682,7 @@ class ActionNetManagerP2P {
                     peerId: peerId,
                     dataChannel: channel
                 });
+                if (!this.isHost) this.startPing(); // guest: begin measuring RTT to the host
             }
 
             // If host and this is first joiner, set up game sync
@@ -700,6 +710,7 @@ class ActionNetManagerP2P {
 
             if (isActiveChannel) {
                 this.dataChannel = null;
+                this.stopPing(); // measurement is meaningless once the game channel is gone
 
                 // Remove user from list (handles refresh/disconnect)
                 this.removeUser(peerId);
@@ -738,6 +749,20 @@ class ActionNetManagerP2P {
                 if (message.type === "syncUpdate") {
                     // Pass both message and sender's peerId for host relay logic
                     this.emit("syncUpdate", message, peerId);
+                }
+                // App-level ping/pong (RTT for prediction runahead). Handled internally over the
+                // game channel; never surfaced to the game as a "message".
+                else if (message.type === "__ping") {
+                    this.send({ type: "__pong", seq: message.seq }, peerId);
+                    return;
+                } else if (message.type === "__pong") {
+                    const sentAt = this._pingSentAt.get(message.seq);
+                    if (sentAt !== undefined) {
+                        this._pingSentAt.delete(message.seq);
+                        this.rtt = performance.now() - sentAt;
+                        this.emit("rtt", this.rtt);
+                    }
+                    return;
                 }
                 // Route custom messages to the message handler
                 else if (message.type) {
@@ -1582,6 +1607,41 @@ class ActionNetManagerP2P {
      */
     getDiscoveredPeerCount() {
         return this.tracker ? this.tracker.getDiscoveredPeerCount() : 0;
+    }
+
+    /**
+     * Current round-trip time to the host in milliseconds (0 if unmeasured / we are the host).
+     * Measured by the app-level ping/pong below over the game data channel.
+     */
+    getRTT() {
+        return this.rtt;
+    }
+
+    /** Begin periodic pinging of the host (guest only). Idempotent. */
+    startPing() {
+        if (this._pingTimer || this.config.pingInterval <= 0) return;
+        this._pingTimer = setInterval(() => this._sendPing(), this.config.pingInterval);
+        this._sendPing(); // take a first sample immediately rather than waiting a full interval
+    }
+
+    /** Stop pinging and clear the measurement (on disconnect / leave). */
+    stopPing() {
+        if (this._pingTimer) {
+            clearInterval(this._pingTimer);
+            this._pingTimer = null;
+        }
+        this._pingSentAt.clear();
+        this.rtt = 0;
+    }
+
+    _sendPing() {
+        // Only a guest with an open game channel to the host measures RTT.
+        if (this.isHost || !this.currentRoomPeerId) return;
+        const seq = ++this._pingSeq;
+        this._pingSentAt.set(seq, performance.now());
+        // Bound in-flight samples so a stalled link can't grow the map unbounded.
+        while (this._pingSentAt.size > 8) this._pingSentAt.delete(this._pingSentAt.keys().next().value);
+        this.send({ type: "__ping", seq }, this.currentRoomPeerId);
     }
 
     /**
