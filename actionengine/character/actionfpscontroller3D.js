@@ -18,17 +18,19 @@
  * DESIGN SEAMS (for future host-authoritative netcode):
  *   The controller never reads input directly. Gameplay samples an input command and
  *   feeds it in, bracketing a single Goblin world step:
- *       const cmd = ActionFPSController3D.sampleCommand(input);
+ *       const cmd = ActionFPSInput.sample(input);   // engine default sampler (or build it yourself)
  *       controller.beginStep(cmd, dt);     // pre-physics: velocity + assists
  *       physicsWorld.fixed_update(dt);     // ONE world step (all bodies)
  *       controller.endStep(dt);            // post-physics: grounded + step-down
  *   The command struct is pure data, so a host can run remote players' commands through
- *   the exact same path.
+ *   the exact same path. Input mapping (keybinds → command) is policy and lives OUTSIDE this
+ *   class — see ActionFPSInput for the default sampler.
  *
  * EXTENSIBILITY:
- *   Base = standard walking kit. Subclasses override _updateVertical (jump/gravity) and
- *   _getMoveSpeed without touching ground/step/wall logic. See ActionSoldierController3D
- *   and ActionJetpackController3D.
+ *   This base IS the default kit (instantiate it directly). A game adds an alternate kit by
+ *   subclassing and overriding _updateVertical (jump/gravity) and/or _getMoveSpeed without
+ *   touching ground/step/wall logic. Concrete kits are game-side policy, not engine — see the
+ *   reference FPS's fpskits.js (ActionJetpackController3D) for an example.
  *
  * Units: ActionEngine's Goblin world is ~10x scaled (gravity -98.1); defaults are in
  * those units (a ~1.8m human ≈ 18 units tall). Use `scale` to resize the whole character.
@@ -49,7 +51,7 @@ class ActionFPSController3D {
      * @param {number}  options.sprintSpeed - Sprint move speed before scale. Default 115.
      * @param {number}  options.crouchSpeedMult - Multiplier on the active gait while crouched (unitless). Default 0.5.
      * @param {number}  options.sprintDecay - Rate (units/sec) the sprint boost fades after releasing sprint while still moving. Default 100.
-     * @param {number}  options.groundStopDecel- Deceleration (units/sec) when you release all move keys. High = crisp stop, 0 = frictionless drift. Default 100.
+     * @param {number}  options.groundStopDecel- Deceleration (units/sec) when you release all move keys. High = crisp stop, 0 = frictionless drift. Default 800 (a weighty few-frame stop; raise toward Infinity for a dead stop).
      * @param {number}  options.airControl  - 0..1 horizontal steering authority per step while airborne. Default 0.12.
      * @param {number}  options.jumpSpeed   - Jump velocity before scale. Default 46.
      * @param {number}  options.friction    - Body friction. Default 0 (kinematic grounding holds slopes; 0 keeps wall-slides clean).
@@ -103,8 +105,9 @@ class ActionFPSController3D {
         //   very high (~speed/dt, e.g. several thousand) = stops within a frame (crisp, no drift)
         //   moderate                                     = coasts a few frames -> sprint+jump carries into a slide
         //   0                                            = frictionless drift (no stopping force)
-        // Frame-rate independent and clamped (never overshoots past zero). Default 100.
-        this._baseGroundStopDecel = o.groundStopDecel !== undefined ? o.groundStopDecel : 100;
+        // Frame-rate independent and clamped (never overshoots past zero). Default 800 — a weighty
+        // few-frame stop (the FPS feel); use Infinity for an instant dead-stop, lower for more coast.
+        this._baseGroundStopDecel = o.groundStopDecel !== undefined ? o.groundStopDecel : 800;
         this._baseJumpSpeed = o.jumpSpeed !== undefined ? o.jumpSpeed : 46;
         this._baseStepHeight = o.stepHeight !== undefined ? o.stepHeight : 5;
         this._baseStepDownDist = o.stepDownDist !== undefined ? o.stepDownDist : 5;
@@ -140,10 +143,10 @@ class ActionFPSController3D {
         this._coyoteTimer = 0; // counts down from coyoteTime after leaving the ground
         this._jumpBufferTimer = 0; // counts down from jumpBuffer after an unfulfilled jump press
 
-        // Slide. `slideEnabled` is THE opt-in boundary (default off, so other games are unaffected).
-        // Every slide* TUNING value below only takes effect once sliding, so each defaults to the
-        // dialed demo values — a game that just sets `slideEnabled: true` inherits a good slide
-        // without restating the whole list. Speed-like params scale with the character (_applyScale);
+        // Slide. `slideEnabled` defaults ON (matching game.js, the canonical FPS); pass
+        // `slideEnabled: false` to opt OUT. Every slide* TUNING value below only takes effect once
+        // sliding, so each defaults to the dialed demo values — a game inherits a good slide without
+        // restating the whole list. Speed-like params scale with the character (_applyScale);
         // boost/control/slopeAccel are unitless. (The FPS demo restates all of these explicitly as
         // living docs; its game.js controllerTuning is the canonical reference and must match here.)
         this.slideEnabled = o.slideEnabled !== false;
@@ -193,6 +196,31 @@ class ActionFPSController3D {
         this.pitch = o.pitch !== undefined ? o.pitch : 0;
         this.maxPitch = o.maxPitch !== undefined ? o.maxPitch : 1.5;
 
+        // LIVE aim (render-only; set per render frame via aim()). Deliberately SEPARATE from the sim
+        // yaw above: `yaw`/`pitch` are the commanded, networked, reconciliation-rewritten facing
+        // (updated only at the fixed tick), while the live aim is the client's present view direction
+        // (updated every frame). The viewmodel/camera/body are drawn from the live aim so they don't
+        // lag the 60Hz sim yaw between ticks; the simulation never reads it, so movement + netcode are
+        // untouched. Until aim() is called it falls back to the sim yaw (so a game that doesn't drive a
+        // live aim still works). See aim() / getLiveAimDirection().
+        this._liveYaw = this.yaw;
+        this._livePitch = this.pitch;
+        this._liveAimSet = false;
+
+        // RENDER INTERPOLATION (render-only; same client-owned / never-in-sim contract as the live aim
+        // above). The body steps at the 60Hz fixed tick but the screen draws at display refresh, so an
+        // eye read straight off the body snaps between ticks (the stutter / dangling weapon). captureRenderState()
+        // stashes the last two fixed-tick eyes; renderEye(alpha) lerps them for the draw. The controller
+        // owns this so no game re-derives the eye-stash/lerp/teleport-snap dance (and re-derives it WRONG —
+        // a game that forgets the snap smears the eye across a respawn). _renderSnapDist2 is the squared
+        // per-tick eye jump above which we SNAP instead of sliding (teleport/respawn): a normal tick moves
+        // the eye a few units even under knockback; a respawn moves tens. 8² sits safely between.
+        this._prevEye = null;
+        this._currEye = null;
+        const snap = o.renderSnapDist !== undefined ? o.renderSnapDist : 8;
+        this._renderSnapDist2 = snap * snap;
+        this._renderProxy = null; // lazily-built view-source the camera reads the interpolated eye from
+
         // Simulation state.
         this.grounded = false;
         this.groundNormal = new Vector3(0, 1, 0);
@@ -229,6 +257,197 @@ class ActionFPSController3D {
         const spawn = o.position ? o.position.clone() : new Vector3(0, 20, 0);
         this._applyScale(o.scale !== undefined ? o.scale : 1);
         this._buildBody(spawn);
+
+        // ── Character components (batteries included; each toggleable) ────────────
+        // A bare `new ActionFPSController3D(world)` is a COMPLETE first-person character: it moves,
+        // it's armed (default gun + launcher), it has health/death/respawn, it wears a third-person
+        // body, and it can sample its own input. Turn any piece off with the matching option:
+        //   weapons:false  combat:false  model:false  view:false  input:false
+        this._buildComponents(o);
+    }
+
+    // Build the optional weapon / combat / model / view / input components. Each defaults ON. The
+    // components read their owner (aim/world/shooter/body) off THIS controller, so nothing wires them.
+    // The networked + camera seams (weapon.view / weapon.context / combat.hostAuthoritative) are left
+    // at their offline first-person defaults here and injected later by the play context when needed.
+    _buildComponents(o) {
+        // Weapons. `weapons:[...]` supplies a roster; `true`/absent ⇒ engine default roster; `false` ⇒ none.
+        if (o.weapons !== false && typeof ActionFPSWeapon !== "undefined") {
+            this.weapon = new ActionFPSWeapon(this, {
+                roster: Array.isArray(o.weapons) ? o.weapons : undefined,
+                models: o.weaponModels
+            });
+            this.userData = { weapon: this.weapon.weaponSlot }; // round-tripped slot (networked + posed)
+            // Route the controller's LIVE aim into the weapon so the viewmodel/muzzle track the present
+            // view, not the 60Hz sim yaw (the between-tick lag). Falls back to the sim look until aim()
+            // is called. A game can still override weapon.aimProvider, but it shouldn't need to.
+            const self = this;
+            this.weapon.aimProvider = {
+                get yaw() { return self._renderYaw; },
+                get pitch() { return self._renderPitch; },
+                direction() { return self.getLiveAimDirection(); }
+            };
+        } else {
+            this.weapon = null;
+        }
+
+        // Combat. `combat:{...}` tunes it; `true`/absent ⇒ defaults; `false` ⇒ no health/damage.
+        if (o.combat !== false && typeof ActionFPSCombat !== "undefined") {
+            this.combat = new ActionFPSCombat(this, typeof o.combat === "object" ? o.combat : {});
+        } else {
+            this.combat = null;
+        }
+
+        // Grab (gravity-gun pickup/carry/throw of dynamic bodies). `grab:{...}` tunes it (canGrab
+        // predicate + ranges); `true`/absent ⇒ defaults (grab any non-static body); `false` ⇒ none.
+        // The component owns the mechanism + held state; the game drives its lifecycle (toggle/drive/
+        // reconcile) and, in MP, writes through it from the host — same shape as the combat store.
+        if (o.grab !== false && typeof ActionFPSGrabber !== "undefined") {
+            this.grabber = new ActionFPSGrabber(this, typeof o.grab === "object" ? o.grab : {});
+        } else {
+            this.grabber = null;
+        }
+
+        // Third-person body. `false` ⇒ invisible body (first-person-only / viewmodel-only).
+        if (o.model !== false && typeof ActionFPSBodyModel !== "undefined") {
+            const slots = this.weapon ? this.weapon.weaponDefs.length : 2;
+            this.model = new ActionFPSBodyModel(this._color, slots);
+        } else {
+            this.model = null;
+        }
+
+        // First-person camera rig (render-side framing; the game drives it each frame and reads
+        // isFirstPerson). `false` ⇒ no rig (what a remote/AI body wants — driven by state, not a view).
+        if (o.view !== false && typeof ActionFPSCamera !== "undefined") {
+            this.view = new ActionFPSCamera(typeof o.view === "object" ? o.view : undefined);
+            if (this.weapon) {
+                // Tie the weapon's first-person/camera seam to this rig so muzzle + crosshair follow
+                // the actual camera (first-person tip vs. body gun in third-person).
+                const rig = this.view;
+                const self = this;
+                this.weapon.view = {
+                    get isFirstPerson() { return rig.isFirstPerson; },
+                    get cameraPosition() { return self._lastCameraPos || self.getEyePosition(); }
+                };
+            }
+        } else {
+            this.view = null;
+        }
+
+        // Default input sampler. `false` ⇒ command-driven only (you feed commands each tick).
+        this._inputEnabled = o.input !== false;
+        this._bindings = o.bindings || null;
+    }
+
+    // ---- Component convenience API (only meaningful when the component is enabled) ----
+
+    /** Sample a movement command from the engine input system using the default bindings (input:true).
+     *  Returns the pure-data command struct beginStep consumes. Throws if input was disabled. */
+    sampleCommand(input, bindings) {
+        return ActionFPSInput.sample(input, bindings || this._bindings || undefined);
+    }
+
+    /** Switch the equipped weapon slot (no-op without a weapon component). */
+    selectWeapon(slot) {
+        if (!this.weapon) return;
+        this.weapon.selectWeapon(slot);
+        if (this.userData) this.userData.weapon = this.weapon.weaponSlot;
+    }
+
+    /** Reload the active weapon (no-op without a weapon component). */
+    reload() { if (this.weapon) this.weapon.reload(); }
+
+    /**
+     * Drive the owned first-person camera rig (view:true) onto the engine `camera`. The rig frames
+     * along this controller's LIVE aim (from aim()) — you don't thread a look direction through. Pass
+     * the renderer's sub-tick factor `alpha` (0..1) and the camera rides the interpolated eye
+     * (captureRenderState()/renderEye()) for smooth framing between 60Hz physics ticks; omit it (null)
+     * to frame off the live physics eye. Stashes the resulting camera position so the weapon's
+     * third-person muzzle/crosshair follow it. Call once per render frame. No-op (plain eye snap)
+     * without a view rig.
+     */
+    updateCamera(camera, alpha = null, dt = 1 / 60) {
+        if (!this.view) { this.applyToCamera(camera); return; }
+        const viewSource = alpha == null ? this : this._renderViewSource(alpha);
+        this.view.update(viewSource, this.getLiveAimDirection(), dt, camera);
+        this._lastCameraPos = camera.position;
+    }
+
+    /** The first-person viewmodel object to feed the renderer's viewmodel pass (or null). Only render
+     *  it when first-person + alive; getRenderObjects() deliberately excludes it. */
+    get viewmodel() { return this.weapon ? this.weapon.viewmodel : null; }
+
+    /** Fire if able: gates on ammo (dry-click on empty), fires, returns true if a shot left the barrel.
+     *  Damage is resolved by whoever owns authority (offline: the weapon; networked: the host). */
+    tryFire() {
+        if (!this.weapon) return false;
+        if (!this.weapon.canFire()) { this.weapon.fireEmpty(); return false; }
+        this.weapon.fire();
+        return true;
+    }
+
+    // Combat passthroughs (so the HUD reads the character, not a sub-object).
+    get health() { return this.combat ? this.combat.health : null; }
+    get maxHealth() { return this.combat ? this.combat.maxHealth : null; }
+    get dead() { return this.combat ? this.combat.dead : false; }
+
+    /**
+     * Per-RENDER-frame cosmetic + life-cycle tick (NOT the fixed physics step — that's beginStep/
+     * endStep). Decays recoil, ages tracers/rockets/explosions, and (offline) runs the combat respawn
+     * countdown + kill-plane check. dt in seconds. Safe to call with any component disabled.
+     */
+    update(dt) {
+        if (this.weapon) this.weapon.update(dt);
+        if (this.combat) this.combat.update(dt);
+    }
+
+    /**
+     * Render objects for THIS character's third-person body + active cosmetic FX (tracers, rockets,
+     * explosions). The first-person viewmodel is NOT included (the caller renders it in the viewmodel
+     * pass only when first-person + alive). Pass the renderer's sub-tick factor `alpha` (0..1) to pose
+     * the body at the same interpolated position the camera uses (so body + view never disagree between
+     * 60Hz ticks); omit it (null) for the live physics position. (A Vector3 is also accepted as an
+     * explicit eye override.)
+     */
+    getRenderObjects(alpha = null, aim = null) {
+        const renderEye = alpha == null ? null : (typeof alpha === "number" ? this.renderEye(alpha) : alpha);
+        const out = [];
+        // The third-person body is drawn only when actually in third-person — in first-person the eye
+        // sits inside the mesh, so drawing it puts the body's interior in front of the camera (the
+        // "black box"). The first-person viewmodel is the FP representation and is rendered separately.
+        const showBody = this.model && !this.dead && !(this.view && this.view.isFirstPerson);
+        if (showBody) {
+            const s = this.getState();
+            if (this.weapon) s.userData = { ...(s.userData || {}), weapon: this.weapon.weaponSlot };
+            // Optional sub-tick-INTERPOLATED eye: pose the body at the same smoothed position the
+            // camera uses, so the body + its posed weapon track the view between 60Hz physics ticks
+            // instead of snapping. renderEye is the eye; body origin = eye - eyeHeight. Absent ⇒ the
+            // authoritative (last-tick) position.
+            if (renderEye) {
+                s.x = renderEye.x;
+                s.y = renderEye.y - this.eyeHeight;
+                s.z = renderEye.z;
+            }
+            // LIVE aim for the OWN body: the snapshot yaw/pitch only update at the fixed (60Hz) tick,
+            // but the camera orbits on the client's live aim every render frame — so a third-person
+            // body left on the snapshot yaw freezes between ticks while the view keeps turning (the
+            // "dangling weapon"). Default to the controller's live aim (from aim()); an explicit `aim`
+            // arg overrides. Falls back to the networked snapshot yaw (correct for remotes/replay) only
+            // when no live aim has been set.
+            const bodyAim = aim || (this._liveAimSet ? { yaw: this._liveYaw, pitch: this._livePitch } : null);
+            if (bodyAim) {
+                if (bodyAim.yaw !== undefined) s.yaw = bodyAim.yaw;
+                if (bodyAim.pitch !== undefined) s.pitch = bodyAim.pitch;
+            }
+            this.model.setState(s);
+            for (const o of this.model.getRenderObjects()) out.push(o);
+        }
+        if (this.weapon) {
+            const tracer = this.weapon.buildTracerObject();
+            if (tracer) out.push(tracer);
+            for (const fx of this.weapon.buildEffectObjects()) out.push(fx);
+        }
+        return out;
     }
 
     // Resolve scaled dimensions/speeds from the base values.
@@ -397,28 +616,8 @@ class ActionFPSController3D {
     }
 
     // ---- Input command -----------------------------------------------------
-
-    /**
-     * Build a movement command from the engine input system. Pure data; serializable.
-     * @returns {{forward:number, right:number, jumpPressed:boolean, jumpHeld:boolean, sprint:boolean, walk:boolean, crouch:boolean}}
-     */
-    static sampleCommand(input) {
-        let forward = 0;
-        let right = 0;
-        if (input.isKeyPressed("DirUp")) forward += 1;
-        if (input.isKeyPressed("DirDown")) forward -= 1;
-        if (input.isKeyPressed("DirRight")) right += 1;
-        if (input.isKeyPressed("DirLeft")) right -= 1;
-        return {
-            forward,
-            right,
-            jumpPressed: input.isKeyJustPressed("Action1"),
-            jumpHeld: input.isKeyPressed("Action1"),
-            sprint: input.isKeyPressed("Action2"), // Shift
-            walk: input.isKeyPressed("Action6"), // X — held slow-walk gait (overrides run; sprint still wins)
-            crouch: input.isKeyPressed("Action7") // C maps to Action7 in the default keybinds
-        };
-    }
+    // The command STRUCT is the controller's input contract; PRODUCING it from keybinds is
+    // policy and lives in ActionFPSInput (engine default sampler) or game code — not here.
 
     // ---- Look --------------------------------------------------------------
 
@@ -439,6 +638,32 @@ class ActionFPSController3D {
         const cp = Math.cos(this.pitch);
         return new Vector3(Math.sin(this.yaw) * cp, Math.sin(this.pitch), Math.cos(this.yaw) * cp);
     }
+
+    /**
+     * Set the LIVE, client-owned aim — call once per render frame from your mouse-look. Render-only:
+     * this NEVER enters the simulation (it doesn't touch yaw/pitch, the command, movement, or netcode),
+     * it just keeps the viewmodel, camera, and third-person body glued to the present view instead of
+     * the 60Hz sim yaw — fixing the between-tick "dangle" in every mode. The controller routes this one
+     * value to all three internally: the weapon's aimProvider, updateCamera()'s default look, and
+     * getRenderObjects()'s default body aim. You supply the value (mouse→angle is your input); the
+     * controller owns the plumbing.
+     */
+    aim(yaw, pitch) {
+        this._liveYaw = yaw;
+        this._livePitch = pitch;
+        this._liveAimSet = true;
+    }
+
+    /** The live aim's full 3D direction (render-only; from aim()). Falls back to the sim look. */
+    getLiveAimDirection() {
+        if (!this._liveAimSet) return this.getLookDirection();
+        const cp = Math.cos(this._livePitch);
+        return new Vector3(Math.sin(this._liveYaw) * cp, Math.sin(this._livePitch), Math.cos(this._liveYaw) * cp);
+    }
+
+    /** The yaw/pitch the render side should use: the live aim if set, else the sim facing. */
+    get _renderYaw() { return this._liveAimSet ? this._liveYaw : this.yaw; }
+    get _renderPitch() { return this._liveAimSet ? this._livePitch : this.pitch; }
 
     /** Horizontal forward for a given yaw (defaults to current facing). */
     getForwardHorizontal(yaw = this.yaw) {
@@ -476,6 +701,63 @@ class ActionFPSController3D {
      */
     peekViewDisplacementY() {
         return this._viewDisplacementY;
+    }
+
+    /**
+     * Stash this fixed tick's eye for sub-tick render interpolation. Call ONCE per REAL fixed step,
+     * right after the step settles (offline: after endStep; networked: after the session's fixedTick,
+     * once prediction + reconciliation have resolved — NOT inside endStep, which also runs during
+     * resim). Render-only: nothing here touches the body, getState, or the network. A teleport-sized
+     * jump (respawn / kill-plane / hard resync) or an artificial step/crouch eye snap (which the
+     * camera's view-displacement smoother already eases) snaps the interpolation — prev := curr — so
+     * the eye doesn't smear across the discontinuity.
+     */
+    captureRenderState() {
+        const e = this.getEyePosition();
+        let snap = !this._currEye;
+        if (this._currEye) {
+            const dx = e.x - this._currEye.x, dy = e.y - this._currEye.y, dz = e.z - this._currEye.z;
+            if (dx * dx + dy * dy + dz * dz > this._renderSnapDist2) snap = true; // teleport-sized
+        }
+        // Step-up/crouch/scale snaps are already eased by the camera's view-displacement smoother;
+        // interpolating across them too double-counts the jump (dip-and-pop). On any tick the controller
+        // flagged an artificial eye jump, snap and let the smoother own it. Peek (don't consume) — the
+        // camera consumes it during draw.
+        if (Math.abs(this.peekViewDisplacementY()) > 0.01) snap = true;
+        this._prevEye = snap ? e : this._currEye;
+        this._currEye = e;
+    }
+
+    /**
+     * The render-only eye position: the last two captured fixed-tick eyes lerped by the sub-tick factor
+     * `alpha` (0..1, the fraction into the current fixed step the renderer hands action_draw). Falls back
+     * to the live physics eye until two ticks have been captured. updateCamera()/getRenderObjects() use
+     * this internally, so most games never call it directly.
+     */
+    renderEye(alpha) {
+        if (!this._prevEye || !this._currEye) return this.getEyePosition();
+        const a = alpha < 0 ? 0 : alpha > 1 ? 1 : alpha;
+        return new Vector3(
+            this._prevEye.x + (this._currEye.x - this._prevEye.x) * a,
+            this._prevEye.y + (this._currEye.y - this._prevEye.y) * a,
+            this._prevEye.z + (this._currEye.z - this._prevEye.z) * a
+        );
+    }
+
+    /** A controller-shaped view source that reports the sub-tick-INTERPOLATED eye while delegating
+     *  scale / world / self-ignore / view-displacement to the real controller. updateCamera() feeds this
+     *  to the camera rig so the framing smooths between physics ticks without the rig (or getState) ever
+     *  seeing the render-only eye. Cached + mutated in place (one per controller; called every frame). */
+    _renderViewSource(alpha) {
+        const eye = this.renderEye(alpha);
+        const p = this._renderProxy || (this._renderProxy = {});
+        p.scale = this.scale;
+        p.physicsWorld = this.physicsWorld;
+        p.raycastIgnore = this.raycastIgnore;
+        p.getEyePosition = () => eye;
+        p.consumeViewDisplacementY = () => this.consumeViewDisplacementY();
+        p.peekViewDisplacementY = () => this.peekViewDisplacementY();
+        return p;
     }
 
     /** True while a slide is active this tick (stateless predicate; see _updateSlide). Read-only. */
@@ -1393,72 +1675,6 @@ class ActionFPSController3D {
 
     destroy() {
         this.physicsWorld.removeObject(this.object);
-    }
-}
-
-/**
- * ActionSoldierController3D - standard grounded shooter kit (walk + sprint + jump).
- */
-class ActionSoldierController3D extends ActionFPSController3D {
-    constructor(physicsWorld, options = {}) {
-        super(physicsWorld, options);
-    }
-}
-
-/**
- * ActionJetpackController3D - a normal jumper that can thrust in mid-air. From the ground a jump
- * press is an ordinary jump (coyote/buffer inherited from the base kit). Once airborne, HOLDING or
- * PRESSING jump fires the jetpack thrust. A brief "just-jump" window (jetJumpWindow) after the
- * launch suppresses thrust so a tap — or the first instant of a hold — is a clean jump, and only a
- * sustained hold past the window boosts. A fresh mid-air press bypasses the window (instant thrust).
- * Only the vertical hook differs from the base kit.
- */
-class ActionJetpackController3D extends ActionFPSController3D {
-    constructor(physicsWorld, options = {}) {
-        super(physicsWorld, options);
-        const o = options;
-        this.thrust = o.thrust !== undefined ? o.thrust : 220; // upward accel while thrusting (must exceed gravity)
-        this.maxRiseSpeed = o.maxRiseSpeed !== undefined ? o.maxRiseSpeed : 80;
-        this.maxFuel = o.maxFuel !== undefined ? o.maxFuel : 2.5;
-        this.fuel = this.maxFuel;
-        this.fuelRegen = o.fuelRegen !== undefined ? o.fuelRegen : 1.5;
-        // Seconds after a ground jump during which a still-held jump stays "just a jump" and does
-        // NOT thrust. Lets you tap for a plain jump, or hold for jump-then-boost. A fresh mid-air
-        // press skips this window. Default 0.18; set 0 for hold-from-ground = instant thrust.
-        this.jetJumpWindow = o.jetJumpWindow !== undefined ? o.jetJumpWindow : 0.18;
-        this._jetLockout = 0; // counts down the just-jump window
-        this._prevJumpHeld = false; // last tick's jumpHeld (for thrust-on-press while held mid-air)
-    }
-
-    _updateVertical(cmd, dt) {
-        const gb = this.body.linearVelocity; // live backend vector (mutating .x/.y/.z writes through)
-
-        // Ground jump first, via the base kit (inherits coyote time + jump buffer). This clears
-        // `grounded` on the tick we leave the floor; we detect that edge to arm the just-jump window.
-        const wasGrounded = this.grounded;
-        super._updateVertical(cmd, dt);
-        if (wasGrounded && !this.grounded) this._jetLockout = this.jetJumpWindow;
-        if (this._jetLockout > 0) this._jetLockout -= dt;
-
-        const jumpPressed = cmd.jumpPressed || (cmd.jumpHeld && !this._prevJumpHeld);
-        this._prevJumpHeld = !!cmd.jumpHeld;
-
-        if (this.grounded) {
-            this.fuel = Math.min(this.maxFuel, this.fuel + this.fuelRegen * dt);
-            return;
-        }
-
-        // Airborne: a fresh press cancels the just-jump window so thrust fires immediately; a hold
-        // waits out the window. Either way thrust needs fuel.
-        if (jumpPressed) this._jetLockout = 0;
-        if (cmd.jumpHeld && this._jetLockout <= 0 && this.fuel > 0) {
-            this.fuel = Math.max(0, this.fuel - dt);
-            // Suppress re-grounding so the kinematic clamp can't pin us back to the floor while
-            // lifting off. Gravity (airborne) still applies: net rise = (thrust - gravity)·dt.
-            this._groundSuppress = 3;
-            gb.y += this.thrust * dt;
-            if (gb.y > this.maxRiseSpeed) gb.y = this.maxRiseSpeed;
-        }
     }
 }
 
