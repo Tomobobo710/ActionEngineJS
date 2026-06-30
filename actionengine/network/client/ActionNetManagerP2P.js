@@ -321,10 +321,17 @@ class ActionNetManagerP2P {
                 this.handleJoinRequest(peerId, message);
                 break;
             case "offer":
-                this.handleOffer(peerId, message);
+                if (message.flipped && !this.isHost) {
+                    this.handleFlippedOffer(peerId, message);
+                } else {
+                    this.handleOffer(peerId, message);
+                }
                 break;
             case "answer":
                 this.handleAnswer(peerId, message);
+                break;
+            case "retryFlip":
+                this.handleRetryFlip(peerId);
                 break;
             case "ice-candidate":
                 this.handleIceCandidate(peerId, message);
@@ -621,6 +628,217 @@ class ActionNetManagerP2P {
     }
 
     /**
+     * Host received retryFlip — tear down the failed PC, flip roles, send offer.
+     * The guest will receive a flipped offer and respond via handleFlippedOffer.
+     */
+    async handleRetryFlip(peerId) {
+        if (!this.isHost) return;
+
+        const peerData = this.peerConnections.get(peerId);
+        if (!peerData) return;
+
+        this.log(`retryFlip from ${peerId} — flipping WebRTC roles (host becomes initiator)`);
+
+        // Tear down the failed attempt cleanly
+        if (peerData.channel) {
+            peerData.channel.onopen = null;
+            peerData.channel.onclose = null;
+            peerData.channel.onerror = null;
+            peerData.channel.onmessage = null;
+            peerData.channel.close();
+            peerData.channel = null;
+        }
+        if (peerData.pc) {
+            peerData.pc.onicecandidate = null;
+            peerData.pc.ondatachannel = null;
+            peerData.pc.onconnectionstatechange = null;
+            peerData.pc.oniceconnectionstatechange = null;
+            peerData.pc.close();
+            peerData.pc = null;
+        }
+
+        try {
+            const pc = new RTCPeerConnection({ iceServers: this.config.iceServers });
+            peerData.pc = pc;
+
+            pc.onicecandidate = (evt) => {
+                if (evt.candidate) {
+                    this.sendSignalingMessage(peerId, { type: "ice-candidate", candidate: evt.candidate });
+                }
+            };
+
+            pc.onconnectionstatechange = () => {
+                this.log(`[flip] conn state with ${peerId}: ${pc.connectionState}`);
+                if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
+                    this.handlePeerDisconnect(peerId);
+                }
+            };
+
+            pc.oniceconnectionstatechange = () => {
+                if (pc.iceConnectionState === "disconnected" || pc.iceConnectionState === "failed") {
+                    this.handlePeerDisconnect(peerId);
+                }
+            };
+
+            // Host creates the data channel this time
+            const channel = pc.createDataChannel("game", { ordered: true });
+            peerData.channel = channel;
+            this.setupGameDataChannel(peerId, channel);
+
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+
+            if (pc.iceGatheringState !== "complete") {
+                await new Promise((resolve) => {
+                    const gatherTimeout = setTimeout(() => {
+                        pc.removeEventListener("icegatheringstatechange", onGatherChange);
+                        this.log("[flip] ICE gather timeout — sending offer with partial candidates");
+                        resolve();
+                    }, 3000);
+
+                    const onGatherChange = () => {
+                        if (pc.iceGatheringState === "complete") {
+                            clearTimeout(gatherTimeout);
+                            pc.removeEventListener("icegatheringstatechange", onGatherChange);
+                            resolve();
+                        }
+                    };
+
+                    pc.addEventListener("icegatheringstatechange", onGatherChange);
+                });
+            }
+
+            this.sendSignalingMessage(peerId, {
+                type: "offer",
+                sdp: pc.localDescription.sdp,
+                flipped: true
+            });
+        } catch (error) {
+            this.log(`[flip] Error creating flipped offer for ${peerId}: ${error.message}`, "error");
+        }
+    }
+
+    /**
+     * Guest received a flipped offer from the host — respond with ondatachannel instead of creating one.
+     */
+    async handleFlippedOffer(peerId, message) {
+        const peerData = this.peerConnections.get(peerId);
+        if (!peerData) return;
+
+        this.log(`Handling flipped offer from host ${peerId}`);
+
+        const pc = new RTCPeerConnection({ iceServers: this.config.iceServers });
+        peerData.pc = pc;
+
+        pc.onicecandidate = (evt) => {
+            if (evt.candidate) {
+                this.sendSignalingMessage(peerId, { type: "ice-candidate", candidate: evt.candidate });
+            }
+        };
+
+        // Host created the data channel — receive it here
+        pc.ondatachannel = (evt) => {
+            this.log(`[flip] Game data channel received from host ${peerId}`);
+            peerData.channel = evt.channel;
+            this.setupGameDataChannel(peerId, evt.channel);
+        };
+
+        pc.onconnectionstatechange = () => {
+            this.log(`[flip] conn state with ${peerId}: ${pc.connectionState}`);
+            if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
+                this.handlePeerDisconnect(peerId);
+            }
+        };
+
+        pc.oniceconnectionstatechange = () => {
+            if (pc.iceConnectionState === "disconnected" || pc.iceConnectionState === "failed") {
+                this.handlePeerDisconnect(peerId);
+            }
+        };
+
+        try {
+            await pc.setRemoteDescription({ type: "offer", sdp: message.sdp });
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+
+            if (pc.iceGatheringState !== "complete") {
+                await new Promise((resolve) => {
+                    const gatherTimeout = setTimeout(() => {
+                        pc.removeEventListener("icegatheringstatechange", onGatherChange);
+                        this.log("[flip] ICE gather timeout — sending answer with partial candidates");
+                        resolve();
+                    }, 3000);
+
+                    const onGatherChange = () => {
+                        if (pc.iceGatheringState === "complete") {
+                            clearTimeout(gatherTimeout);
+                            pc.removeEventListener("icegatheringstatechange", onGatherChange);
+                            resolve();
+                        }
+                    };
+
+                    pc.addEventListener("icegatheringstatechange", onGatherChange);
+                });
+            }
+
+            this.sendSignalingMessage(peerId, {
+                type: "answer",
+                sdp: pc.localDescription.sdp
+            });
+        } catch (error) {
+            this.log(`[flip] Error handling flipped offer from ${peerId}: ${error.message}`, "error");
+        }
+    }
+
+    /**
+     * Guest side: game channel timed out — clean up, ask host to flip roles, wait for the new channel.
+     */
+    async retryWithRoleFlip(hostPeerId) {
+        const peerData = this.peerConnections.get(hostPeerId);
+        if (!peerData) throw new Error(`No peer connection for ${hostPeerId}`);
+
+        this.log(`Game channel timed out — requesting role flip from host ${hostPeerId}`);
+
+        // Tear down the failed attempt
+        if (peerData.channel) {
+            peerData.channel.onopen = null;
+            peerData.channel.onclose = null;
+            peerData.channel.onerror = null;
+            peerData.channel.onmessage = null;
+            peerData.channel.close();
+            peerData.channel = null;
+        }
+        if (peerData.pc) {
+            peerData.pc.onicecandidate = null;
+            peerData.pc.ondatachannel = null;
+            peerData.pc.onconnectionstatechange = null;
+            peerData.pc.oniceconnectionstatechange = null;
+            peerData.pc.close();
+            peerData.pc = null;
+        }
+
+        this.sendSignalingMessage(hostPeerId, { type: "retryFlip" });
+
+        // Wait for setupGameDataChannel to fire joinedRoom when the flipped channel opens
+        return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                this.off("joinedRoom", onJoined);
+                reject(new Error("Role-flip connection timeout"));
+            }, 15000);
+
+            const onJoined = (data) => {
+                if (data.peerId === hostPeerId) {
+                    clearTimeout(timeout);
+                    this.off("joinedRoom", onJoined);
+                    resolve();
+                }
+            };
+
+            this.on("joinedRoom", onJoined);
+        });
+    }
+
+    /**
      * Handle ICE candidate
      */
     async handleIceCandidate(peerId, message) {
@@ -890,6 +1108,39 @@ class ActionNetManagerP2P {
         const peerData = this.peerConnections.get(peerId);
         if (!peerData) return; // Already cleaned up
 
+        // Layer separation: the game data channel (Layer 2) runs on its own RTCPeerConnection,
+        // independent of the ActionNetPeer signaling channel (Layer 1). A join-time ICE failure
+        // on the game PC must NOT tear down the signaling channel — that channel is exactly what
+        // the role-flip retry needs to renegotiate. Detect "game layer failed but signaling is
+        // still alive AND the game channel never finished opening" and do a Layer-2-only teardown,
+        // preserving the peer entry so retryWithRoleFlip can run.
+        const signalingAlive = !!(peerData.connection && peerData.connection.connected);
+        const everGameConnected = peerData.status === "gameConnected";
+
+        if (signalingAlive && !everGameConnected) {
+            this.log(`Game-layer ICE failed for ${peerId} but signaling is alive — preserving peer for role-flip`);
+            if (peerData.channel) {
+                peerData.channel.onopen = null;
+                peerData.channel.onclose = null;
+                peerData.channel.onerror = null;
+                peerData.channel.onmessage = null;
+                try { peerData.channel.close(); } catch (e) {}
+            }
+            if (peerData.pc) {
+                peerData.pc.onicecandidate = null;
+                peerData.pc.ondatachannel = null;
+                peerData.pc.onconnectionstatechange = null;
+                peerData.pc.oniceconnectionstatechange = null;
+                try { peerData.pc.close(); } catch (e) {}
+            }
+            peerData.pc = null;
+            peerData.channel = null;
+            peerData.status = "signaling";
+            // Keep the entry, keep the discovered room, emit nothing — the GUI's openGameChannel
+            // timeout drives retryWithRoleFlip, which negotiates over the surviving signaling channel.
+            return;
+        }
+
         this.log(`Handling disconnect for peer: ${peerId}`);
 
         if (peerData.channel) {
@@ -906,6 +1157,8 @@ class ActionNetManagerP2P {
         // If this was the active game connection, handle disconnect
         if (this.currentRoomPeerId === peerId) {
             this.dataChannel = null;
+            // Clear room identity so isInRoom() doesn't report a stale true after the room is gone.
+            this.currentRoomPeerId = null;
             this.emit("leftRoom", peerId);
 
             // Guest: host disconnected

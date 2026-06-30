@@ -1257,7 +1257,14 @@ class ActionNetManagerGUI {
             this.joinModalStatus = "establishingConnection";
             this.joinModalStatusSetTime = Date.now();
             await this.delay(500);
-            await this.networkManager.openGameChannel(hostPeerId);
+
+            try {
+                await this.networkManager.openGameChannel(hostPeerId);
+            } catch (channelErr) {
+                // ICE failed — flip WebRTC roles so the CGNAT peer initiates instead
+                this.joinModalStatus = "retryingConnection";
+                await this.networkManager.retryWithRoleFlip(hostPeerId);
+            }
 
             // Step 5: Connected
             this.joinModalStatus = "connected";
@@ -1281,6 +1288,12 @@ class ActionNetManagerGUI {
                     peerData.channel.close();
                     peerData.channel = null;
                 }
+            }
+
+            // Clear stale room identity so isInRoom() doesn't report a stale true after a failed join.
+            if (this.networkManager.currentRoomPeerId === hostPeerId) {
+                this.networkManager.currentRoomPeerId = null;
+                this.networkManager.dataChannel = null;
             }
 
             this.showErrorModal("Cannot Join Room", error.message || "Failed to join the selected room");
@@ -1826,6 +1839,7 @@ class ActionNetManagerGUI {
             offerSent: "Waiting for host...",
             acceptedByHost: "Host accepted",
             establishingConnection: "Establishing connection...",
+            retryingConnection: "Trying alternate route...",
             connected: "Connected!"
         };
 
