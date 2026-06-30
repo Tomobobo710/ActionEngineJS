@@ -17,6 +17,7 @@ const files = [
     // Geometry & Resources
     'actionengine/geometry/triangle.js',
     'actionengine/geometry/triangleutils.js',
+    'actionengine/geometry/actionboxgeometry.js',
     'actionengine/geometry/geometrybuilder.js',
     'actionengine/geometry/glbloader.js',
     'actionengine/geometry/glbexporter.js',
@@ -146,6 +147,15 @@ const files = [
     'actionengine/camera/cameracollisionhandler.js',
     'actionengine/character/actioncharacter.js',
     'actionengine/character/actioncharacter3D.js',
+    'actionengine/character/actionfpsinput.js',
+    'actionengine/character/actionfpsweaponsystem.js',
+    'actionengine/character/actionfpscharactermodel.js',
+    'actionengine/character/actionhitresolver.js',
+    'actionengine/character/actionfpsweapon.js',
+    'actionengine/character/actionfpscombat.js',
+    'actionengine/character/actionfpsgrabber.js',
+    'actionengine/character/actionfpsbodymodel.js',
+    'actionengine/character/actionfpscontroller3D.js',
     
     // Networking (P2P)
     'actionengine/network/p2p/ActionNetPeer.js',
