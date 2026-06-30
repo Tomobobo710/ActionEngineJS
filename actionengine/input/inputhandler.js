@@ -39,6 +39,9 @@ class ActionInputHandler {
                     middle: false
                 }
             },
+            // Scroll-wheel delta accumulated since the last consumeWheel() (reset on consume).
+            // +y = scrolled DOWN, +x = scrolled RIGHT, in normalized pixels.
+            wheel: { x: 0, y: 0 },
             elements: {
                 gui: new Map(),
                 game: new Map(),
@@ -1201,6 +1204,20 @@ class ActionInputHandler {
                 this.rawState.pointer.movementY = e.movementY;
             }
         });
+
+        // Scroll wheel: accumulate a normalized delta. The three canvases are stacked (debug on top),
+        // so - exactly like the mouse listeners above - we attach to ALL of them, otherwise the
+        // topmost layer swallows the wheel and the bottom canvas never sees it. preventDefault stops
+        // the page from scrolling under the cursor. deltaMode is normalized to pixels.
+        const onWheel = (e) => {
+            e.preventDefault();
+            const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 100 : 1;
+            this.rawState.wheel.x += e.deltaX * unit;
+            this.rawState.wheel.y += e.deltaY * unit;
+        };
+        [this.canvases.gameCanvas, this.canvases.guiCanvas, this.canvases.debugCanvas].forEach((cv) => {
+            if (cv) cv.addEventListener("wheel", onWheel, { passive: false });
+        });
     }
 
     getLockedPointerMovement() {
@@ -1231,6 +1248,40 @@ class ActionInputHandler {
         this.rawState.pointer.movementX = 0;
         this.rawState.pointer.movementY = 0;
         return out;
+    }
+
+    /**
+     * Peek the scroll-wheel delta accumulated since the last consumeWheel() WITHOUT resetting it.
+     * { x, y } in normalized pixels; +y = scrolled DOWN, +x = scrolled RIGHT.
+     */
+    getWheelDelta() {
+        return { x: this.rawState.wheel.x, y: this.rawState.wheel.y };
+    }
+
+    /**
+     * Read AND reset the accumulated scroll-wheel delta. Call exactly once per frame so the same
+     * scroll isn't applied twice. Returns { x:0, y:0 } when nothing scrolled this frame.
+     * For a discrete "one notch" control, use Math.sign(consumeWheel().y).
+     */
+    consumeWheel() {
+        const out = { x: this.rawState.wheel.x, y: this.rawState.wheel.y };
+        this.rawState.wheel.x = 0;
+        this.rawState.wheel.y = 0;
+        return out;
+    }
+
+    /**
+     * Like consumeWheel(), but returns whole integer NOTCHES (one notch ~= 100px) and KEEPS the
+     * sub-notch remainder so slow/trackpad scrolling still accumulates. Great for stepping a value
+     * up/down per detent: const s = consumeWheelSteps(); value += s.y;
+     */
+    consumeWheelSteps() {
+        const NOTCH = 100;
+        const sx = Math.trunc(this.rawState.wheel.x / NOTCH);
+        const sy = Math.trunc(this.rawState.wheel.y / NOTCH);
+        this.rawState.wheel.x -= sx * NOTCH;
+        this.rawState.wheel.y -= sy * NOTCH;
+        return { x: sx, y: sy };
     }
 
     getCanvasPosition(e) {
