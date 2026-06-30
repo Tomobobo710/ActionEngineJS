@@ -38,6 +38,27 @@ class Quaternion {
         return new Quaternion(x, y, z, w);
     }
 
+    // Orientation that points a +Z-forward object (mesh, projectile) along a direction vector.
+    // Uses the same Euler convention as fromEuler(0, -pitch, yaw), so a +Z model faces exactly
+    // where it's heading. Returns identity for a near-zero vector.
+    static fromDirection(vx, vy, vz) {
+        const sp = Math.hypot(vx, vy, vz);
+        if (sp < 1e-6) return new Quaternion(0, 0, 0, 1);
+        const yaw = Math.atan2(vx, vz);
+        const pitch = Math.asin(Math.max(-1, Math.min(1, vy / sp)));
+        return Quaternion.fromEuler(0, -pitch, yaw);
+    }
+
+    // Hamilton product a∘b (applies b first, then a). Composes two rotations into one.
+    static multiply(a, b) {
+        return new Quaternion(
+            a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
+            a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+            a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
+            a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z
+        );
+    }
+
     setAxisAngle(axis, angle) {
         const halfAngle = angle * 0.5;
         const s = Math.sin(halfAngle);
