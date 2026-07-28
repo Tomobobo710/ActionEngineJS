@@ -1583,17 +1583,10 @@ class ActionNetManagerP2P {
      */
     async fetchTrackerList() {
         const hardcoded = [
-            "wss://tracker.openwebtorrent.com/",
-            "wss://tracker.btorrent.xyz/",
-            "wss://tracker.fastcast.nz/",
-            "wss://tracker.files.fm:7073/announce",
-            "wss://tracker.sloppyta.co/",
-            "wss://tracker.webtorrent.dev/",
-            "wss://tracker.novage.com.ua/",
-            "wss://tracker.magnetoo.io/",
-            "wss://tracker.ghostchu-services.top:443/announce",
-            "ws://tracker.ghostchu-services.top:80/announce",
-            "ws://tracker.files.fm:7072/announce"
+            "wss://tracker.openwebtorrent.com:443",
+            "wss://tracker.btorrent.xyz:443",
+            "wss://tracker.webtorrent.dev:443",
+			"wss://open.ftorrent.com:443",
         ];
 
         const sources = [
