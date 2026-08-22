@@ -26,6 +26,41 @@ class ActionInputHandler {
         // Raw state - continuously updated by events
         this.rawState = {
             keys: new Map(),
+
+            // ADDITIVE — sub-frame press latches. rawState.keys is a LEVEL ("is it down right
+            // now"), and both capture paths sample that level. So a key pressed AND released
+            // between two captures never existed: keydown set true, keyup set false, and the
+            // capture saw false. That is the engine's long-standing "laggy = dropped inputs"
+            // behaviour — at 144fps the sample window is 6.9ms and a tap rarely fits inside it, but
+            // at 30fps it is 33ms, and during a hitch it is hundreds of ms, so quick taps silently
+            // vanish. Sampling a level can never recover an event that began and ended between
+            // samples.
+            //
+            // These sets record that a press HAPPENED. keydown adds; each capture path ORs its own
+            // latch into the snapshot it builds and then clears ONLY ITS OWN. Two independent
+            // latches because there are two independent consumers (captureKeyState per render
+            // frame, captureFixedKeyState per fixed step) — a single shared latch would let
+            // whichever ran first consume the tap and starve the other.
+            pressedSinceCapture: new Set(),      // consumed by captureKeyState()
+            pressedSinceFixedCapture: new Set(), // consumed by captureFixedKeyState()
+
+            // Same latch, same reasoning, for the non-keyboard inputs. Mouse buttons, registered
+            // UI/GUI elements and gamepad buttons are ALL stored as levels too, so a click or a tap
+            // that starts and ends between captures was dropped exactly like a key tap was. Keys
+            // are latched at the keydown listener; these are latched in _latchEdges(), which is
+            // called from both capture paths and detects a press by comparing raw state against
+            // what was last seen (a press site can be reached from mouse, touch or pointer
+            // handlers, so watching the STATE catches all of them instead of patching ~6 call
+            // sites and hoping none were missed).
+            mouseLatch: { update: { left: false, right: false, middle: false, pointer: false },
+                          fixed:  { left: false, right: false, middle: false, pointer: false } },
+            elementLatch: { update: { gui: new Set(), game: new Set(), debug: new Set() },
+                            fixed:  { gui: new Set(), game: new Set(), debug: new Set() } },
+            uiButtonLatch: { update: new Set(), fixed: new Set() },
+            // Previous raw levels, used only to detect the rising edge inside _latchEdges().
+            _prevRaw: { left: false, right: false, middle: false, pointer: false,
+                        elements: { gui: new Set(), game: new Set(), debug: new Set() },
+                        uiButtons: new Set(), gamepad: new Set() },
             pointer: {
                 x: 0,
                 y: 0,
@@ -161,6 +196,9 @@ class ActionInputHandler {
         this.setupPointerListeners();
         this.setupVirtualButtons();
         this.setupUIButtons();
+        // ADDITIVE: gamepads are poll-only, so sample them faster than the render frame or short
+        // presses are never observed at all (see _startGamepadSampler).
+        this._startGamepadSampler();
         this.setupGamepadListeners();
 
         // Make game canvas focusable
@@ -394,6 +432,16 @@ class ActionInputHandler {
                 // Update raw state immediately
                 this.rawState.keys.set(e.code, true);
 
+                // ADDITIVE: latch the press for BOTH capture paths so a tap that is released
+                // before the next capture is still reported exactly once (see rawState comment).
+                // The browser auto-repeats a held key; e.repeat guards against that re-latching a
+                // press the consumer has already seen, which would make a held key look like a
+                // stream of fresh presses.
+                if (!e.repeat) {
+                    this.rawState.pressedSinceCapture.add(e.code);
+                    this.rawState.pressedSinceFixedCapture.add(e.code);
+                }
+
                 // Conditionally prevent default based on context
                 if (this.shouldPreventDefault(e)) {
                     e.preventDefault();
@@ -443,6 +491,8 @@ class ActionInputHandler {
     captureKeyState() {
         // Poll gamepads first
         this.pollGamepads();
+        // ADDITIVE: detect sub-frame presses on mouse/elements/UI/gamepad before sampling levels.
+        this._latchEdges();
         // Save current as previous - properly preserving Map objects
         // Create deep copies of each component
 
@@ -473,6 +523,13 @@ class ActionInputHandler {
                 this.currentSnapshot.keys.set(key, true);
             }
         }
+        // ADDITIVE: fold in any press that happened AND ended since the last capture, so a
+        // sub-frame tap appears in exactly one snapshot instead of being lost. Clear only this
+        // path's latch — the fixed-update path owns its own and consumes it independently.
+        for (const key of this.rawState.pressedSinceCapture) {
+            this.currentSnapshot.keys.set(key, true);
+        }
+        this.rawState.pressedSinceCapture.clear();
 
         // Capture current mouse state
         this.currentSnapshot.pointer.isDown = this.rawState.pointer.isDown;
@@ -506,12 +563,35 @@ class ActionInputHandler {
                 this.currentSnapshot.uiButtons.set(id, true);
             }
         }
+
+        // ADDITIVE: fold in sub-frame presses (mouse / elements / UI buttons / gamepad) that began
+        // and ended since the last capture, then clear ONLY this path's latches.
+        const ml = this.rawState.mouseLatch.update;
+        if (ml.left) this.currentSnapshot.mouseButtons.left = true;
+        if (ml.right) this.currentSnapshot.mouseButtons.right = true;
+        if (ml.middle) this.currentSnapshot.mouseButtons.middle = true;
+        if (ml.pointer) this.currentSnapshot.pointer.isDown = true;
+        ml.left = ml.right = ml.middle = ml.pointer = false;
+
+        for (const layer of Object.keys(this.rawState.elementLatch.update)) {
+            const set = this.rawState.elementLatch.update[layer];
+            if (!set.size) continue;
+            if (!this.currentSnapshot.elements[layer]) this.currentSnapshot.elements[layer] = new Map();
+            for (const id of set) this.currentSnapshot.elements[layer].set(id, true);
+            set.clear();
+        }
+
+        for (const id of this.rawState.uiButtonLatch.update) this.currentSnapshot.uiButtons.set(id, true);
+        this.rawState.uiButtonLatch.update.clear();
+
     }
 
     // Called by the engine before fixed updates begin
     captureFixedKeyState() {
         // Poll gamepads for fixed update as well
         this.pollGamepads();
+        // ADDITIVE: detect sub-frame presses on mouse/elements/UI/gamepad before sampling levels.
+        this._latchEdges();
         // Save current fixed state as previous fixed state - properly preserving Map objects
 
         // Copy key maps
@@ -543,6 +623,13 @@ class ActionInputHandler {
                 this.currentFixedSnapshot.keys.set(key, true);
             }
         }
+        // ADDITIVE: same sub-frame press latch as captureKeyState(), on this path's OWN set.
+        // This one matters most: it is what a networked command sampler reads, so a tap dropped
+        // here is a command that never reaches the server at all.
+        for (const key of this.rawState.pressedSinceFixedCapture) {
+            this.currentFixedSnapshot.keys.set(key, true);
+        }
+        this.rawState.pressedSinceFixedCapture.clear();
 
         // Capture current mouse state at this fixed frame
         this.currentFixedSnapshot.pointer.isDown = this.rawState.pointer.isDown;
@@ -576,9 +663,168 @@ class ActionInputHandler {
                 this.currentFixedSnapshot.uiButtons.set(id, true);
             }
         }
+
+        // ADDITIVE: same sub-frame press fold as captureKeyState(), on this path's OWN latches.
+        // This is the one a networked command sampler reads — a click dropped here never becomes
+        // a command at all.
+        const fml = this.rawState.mouseLatch.fixed;
+        if (fml.left) this.currentFixedSnapshot.mouseButtons.left = true;
+        if (fml.right) this.currentFixedSnapshot.mouseButtons.right = true;
+        if (fml.middle) this.currentFixedSnapshot.mouseButtons.middle = true;
+        if (fml.pointer) this.currentFixedSnapshot.pointer.isDown = true;
+        fml.left = fml.right = fml.middle = fml.pointer = false;
+
+        for (const layer of Object.keys(this.rawState.elementLatch.fixed)) {
+            const set = this.rawState.elementLatch.fixed[layer];
+            if (!set.size) continue;
+            if (!this.currentFixedSnapshot.elements[layer]) this.currentFixedSnapshot.elements[layer] = new Map();
+            for (const id of set) this.currentFixedSnapshot.elements[layer].set(id, true);
+            set.clear();
+        }
+
+        for (const id of this.rawState.uiButtonLatch.fixed) this.currentFixedSnapshot.uiButtons.set(id, true);
+        this.rawState.uiButtonLatch.fixed.clear();
+
     }
 
     // Helper method to get the right snapshots based on context
+    /**
+     * ADDITIVE — detect rising edges on the non-keyboard inputs and latch them for BOTH capture
+     * paths. Called at the top of captureKeyState() and captureFixedKeyState().
+     *
+     * Why here instead of at the press handlers: mouse/touch/pointer each have their own listeners
+     * that set the same raw levels (~6 sites), so watching the STATE catches every path without
+     * patching each one. Keys are different — they have exactly one keydown listener, and latching
+     * there lets us use `e.repeat` to ignore auto-repeat, which raw state cannot distinguish.
+     *
+     * The edge is detected ONCE (against _prevRaw) and written to BOTH the update and fixed
+     * latches. Each capture path then consumes and clears only its own, so neither starves the
+     * other — the same two-consumer split the keyboard latches use.
+     */
+    /**
+     * ADDITIVE — latch a mouse-button press for both capture paths, at the moment it happens.
+     * Called from every mousedown/pointerdown/touchstart site that sets a raw button level, so a
+     * click that is released before the next capture is still reported exactly once.
+     * @param {number} button 0 left, 1 middle, 2 right
+     */
+    /**
+     * ADDITIVE — latch a registered element's press for both capture paths, at the moment it
+     * happens. Same reasoning as _latchMouseDown: elements are set pressed by the mouse/touch/
+     * pointer handlers, so a tap that is released before the next capture is invisible to any
+     * state comparison done at capture time.
+     */
+    _latchElementDown(id, layer = "gui") {
+        const u = this.rawState.elementLatch.update[layer], f = this.rawState.elementLatch.fixed[layer];
+        if (u) u.add(id);
+        if (f) f.add(id);
+    }
+
+    /** ADDITIVE — same latch for the built-in UI buttons (sound / controls / fullscreen / pause). */
+    _latchUIButtonDown(id) {
+        this.rawState.uiButtonLatch.update.add(id);
+        this.rawState.uiButtonLatch.fixed.add(id);
+    }
+
+    _latchMouseDown(button) {
+        const u = this.rawState.mouseLatch.update, f = this.rawState.mouseLatch.fixed;
+        if (button === 0) { u.left = true; f.left = true; u.pointer = true; f.pointer = true; }
+        else if (button === 1) { u.middle = true; f.middle = true; }
+        else if (button === 2) { u.right = true; f.right = true; }
+    }
+
+    _latchEdges() {
+        const raw = this.rawState;
+        const prev = raw._prevRaw;
+
+        // NOTE: mouse buttons are NOT latched here. State comparison at capture time can only see
+        // a press that is STILL HELD when a capture runs — a click that goes down and up between
+        // two captures reads false at both, so no edge is ever detected. That is precisely the case
+        // we are trying to fix, so mouse presses are latched at the DOWN HANDLERS instead (via
+        // _latchMouseDown), exactly like keydown does for keys. Elements/UI/gamepad below are
+        // level-driven by design (an element stays pressed while held, the gamepad is polled), so
+        // comparison is the right mechanism for them.
+
+        // --- registered elements (gui / game / debug layers) ---
+        for (const layer of Object.keys(raw.elements)) {
+            const seen = new Set();
+            raw.elements[layer].forEach((element, id) => {
+                if (element && element.isPressed) {
+                    seen.add(id);
+                    if (!prev.elements[layer].has(id)) {
+                        raw.elementLatch.update[layer].add(id);
+                        raw.elementLatch.fixed[layer].add(id);
+                    }
+                }
+            });
+            prev.elements[layer] = seen;
+        }
+
+        // --- built-in UI buttons (sound / controls / fullscreen / pause) ---
+        const seenUi = new Set();
+        for (const [id, st] of raw.uiButtons.entries()) {
+            if (st && st.isPressed) {
+                seenUi.add(id);
+                if (!prev.uiButtons.has(id)) { raw.uiButtonLatch.update.add(id); raw.uiButtonLatch.fixed.add(id); }
+            }
+        }
+        prev.uiButtons = seenUi;
+
+        // Gamepad edges are NOT detected here — see _startGamepadSampler(). Detecting them at
+        // capture time would compare two states sampled at capture time, which cannot see a press
+        // that began and ended in between: exactly the flaw that made this approach wrong for mouse
+        // and UI elements.
+    }
+
+    /**
+     * ADDITIVE — sample gamepads on a fast independent timer and latch button edges.
+     *
+     * The Gamepad API is poll-only: the browser fires no per-button events, so a press is only
+     * observable if a poll happens while it is held. pollGamepads() used to be called ONLY from the
+     * two capture functions, i.e. once per render frame — a 200ms window at 5fps. Any button
+     * tapped inside that window was invisible, and no latch could recover it because nothing ever
+     * recorded it.
+     *
+     * The window is our choice, not the browser's. Sampling on a ~4ms timer shrinks it by ~50x at
+     * 5fps, so a normal human tap (~50-100ms) is always caught. Edges found here are latched and
+     * drained by the capture paths exactly like keyboard and mouse presses.
+     *
+     * This is a genuine narrowing, not a guarantee: a press shorter than the sample interval is
+     * still unobservable. That is a hard limit of a poll-only API, not something code can fix.
+     */
+    _startGamepadSampler(intervalMs = 4) {
+        if (this._gamepadSampler) return;
+        // Skip entirely where the API is absent (headless, older browsers) — nothing to sample.
+        if (typeof navigator === "undefined" || typeof navigator.getGamepads !== "function") return;
+        this._gamepadSeen = new Set();
+        this._gamepadSampler = setInterval(() => {
+            let pads;
+            try { pads = navigator.getGamepads(); } catch (e) { return; }
+            if (!pads) return;
+            const seen = new Set();
+            for (let i = 0; i < pads.length; i++) {
+                const pad = pads[i];
+                if (!pad || !pad.buttons) continue;
+                for (let b = 0; b < pad.buttons.length; b++) {
+                    const btn = pad.buttons[b];
+                    if (!btn || !btn.pressed) continue;
+                    const key = `Gamepad${i}_Button${b}`;
+                    seen.add(key);
+                    if (!this._gamepadSeen.has(key)) {
+                        // Rising edge — latch for both consumers, same as a keydown.
+                        this.rawState.pressedSinceCapture.add(key);
+                        this.rawState.pressedSinceFixedCapture.add(key);
+                    }
+                }
+            }
+            this._gamepadSeen = seen;
+        }, intervalMs);
+    }
+
+    /** Stop the gamepad sampler (mirrors _startGamepadSampler; safe to call when never started). */
+    _stopGamepadSampler() {
+        if (this._gamepadSampler) { clearInterval(this._gamepadSampler); this._gamepadSampler = null; }
+    }
+
     getSnapshots() {
         if (this.currentContext === "fixed_update") {
             return {
@@ -711,6 +957,7 @@ class ActionInputHandler {
             const handleStart = (e) => {
                 e.preventDefault();
                 this.rawState.uiButtons.set(id, { isPressed: true });
+                this._latchUIButtonDown(id); // ADDITIVE: survive a sub-frame tap (see _latchEdges)
             };
 
             const handleEnd = (e) => {
@@ -763,17 +1010,19 @@ class ActionInputHandler {
             // Update button-specific state
             if (button === 0) {
                 this.rawState.pointer.buttons.left = true;
+                this._latchMouseDown(0);
                 // Maintain backward compatibility
                 this.rawState.pointer.isDown = true;
                 this.rawState.pointer.downTimestamp = performance.now();
             }
-            if (button === 1) this.rawState.pointer.buttons.middle = true;
-            if (button === 2) this.rawState.pointer.buttons.right = true;
+            if (button === 1) { this.rawState.pointer.buttons.middle = true; this._latchMouseDown(1); }
+            if (button === 2) { this.rawState.pointer.buttons.right = true; this._latchMouseDown(2); }
 
             let handledByDebug = false;
-            this.rawState.elements.debug.forEach((element) => {
+            this.rawState.elements.debug.forEach((element, __id) => {
                 if (element.isHovered) {
                     element.isPressed = true;
+                    this._latchElementDown(__id, 'debug');
                     handledByDebug = true;
                 }
             });
@@ -826,13 +1075,15 @@ class ActionInputHandler {
 
                 // For touch, always treat as left button
                 this.rawState.pointer.buttons.left = true;
+                this._latchMouseDown(0);
                 this.rawState.pointer.isDown = true;
                 this.rawState.pointer.downTimestamp = performance.now();
 
                 let handledByDebug = false;
-                this.rawState.elements.debug.forEach((element) => {
+                this.rawState.elements.debug.forEach((element, __id) => {
                     if (this.isPointInBounds(pos.x, pos.y, element.bounds())) {
                         element.isPressed = true;
+                        this._latchElementDown(__id, 'debug');
                         handledByDebug = true;
                     }
                 });
@@ -934,17 +1185,19 @@ class ActionInputHandler {
             // Update button-specific state
             if (button === 0) {
                 this.rawState.pointer.buttons.left = true;
+                this._latchMouseDown(0);
                 // Maintain backward compatibility
                 this.rawState.pointer.isDown = true;
                 this.rawState.pointer.downTimestamp = performance.now();
             }
-            if (button === 1) this.rawState.pointer.buttons.middle = true;
-            if (button === 2) this.rawState.pointer.buttons.right = true;
+            if (button === 1) { this.rawState.pointer.buttons.middle = true; this._latchMouseDown(1); }
+            if (button === 2) { this.rawState.pointer.buttons.right = true; this._latchMouseDown(2); }
 
             let handledByGui = false;
-            this.rawState.elements.gui.forEach((element) => {
+            this.rawState.elements.gui.forEach((element, __id) => {
                 if (element.isHovered) {
                     element.isPressed = true;
+                    this._latchElementDown(__id, 'gui');
                     handledByGui = true;
                 }
             });
@@ -997,13 +1250,15 @@ class ActionInputHandler {
 
                 // For touch, always treat as left button
                 this.rawState.pointer.buttons.left = true;
+                this._latchMouseDown(0);
                 this.rawState.pointer.isDown = true;
                 this.rawState.pointer.downTimestamp = performance.now();
 
                 let handledByGui = false;
-                this.rawState.elements.gui.forEach((element) => {
+                this.rawState.elements.gui.forEach((element, __id) => {
                     if (this.isPointInBounds(pos.x, pos.y, element.bounds())) {
                         element.isPressed = true;
+                        this._latchElementDown(__id, 'gui');
                         handledByGui = true;
                     }
                 });
@@ -1098,16 +1353,18 @@ class ActionInputHandler {
             // Update button-specific state
             if (button === 0) {
                 this.rawState.pointer.buttons.left = true;
+                this._latchMouseDown(0);
                 // Maintain backward compatibility
                 this.rawState.pointer.isDown = true;
                 this.rawState.pointer.downTimestamp = performance.now();
             }
-            if (button === 1) this.rawState.pointer.buttons.middle = true;
-            if (button === 2) this.rawState.pointer.buttons.right = true;
+            if (button === 1) { this.rawState.pointer.buttons.middle = true; this._latchMouseDown(1); }
+            if (button === 2) { this.rawState.pointer.buttons.right = true; this._latchMouseDown(2); }
 
-            this.rawState.elements.game.forEach((element) => {
+            this.rawState.elements.game.forEach((element, __id) => {
                 if (element.isHovered) {
                     element.isPressed = true;
+                    this._latchElementDown(__id, 'game');
                 }
             });
         });
@@ -1147,12 +1404,14 @@ class ActionInputHandler {
 
                 // For touch, always treat as left button
                 this.rawState.pointer.buttons.left = true;
+                this._latchMouseDown(0);
                 this.rawState.pointer.isDown = true;
                 this.rawState.pointer.downTimestamp = performance.now();
 
-                this.rawState.elements.game.forEach((element) => {
+                this.rawState.elements.game.forEach((element, __id) => {
                     if (this.isPointInBounds(pos.x, pos.y, element.bounds())) {
                         element.isPressed = true;
+                        this._latchElementDown(__id, 'game');
                     }
                 });
             },
