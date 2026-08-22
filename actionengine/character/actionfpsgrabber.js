@@ -24,30 +24,41 @@ class ActionFPSGrabber {
     /**
      * @param {ActionFPSController3D} controller  the owning character (eye/aim/world/self)
      * @param {object} [opts]
-     * @param {number}   [opts.grabRange=50]  raycast reach (pre-scale; ×controller.scale at use)
-     * @param {number}   [opts.holdDist=24]   carry distance in front of the eye (pre-scale)
-     * @param {number}   [opts.maxSpeed=260]  velocity cap on the carry pull (anti-overshoot)
+     * @param {number}   [opts.grabRange=5]   raycast reach (pre-scale; ×controller.scale at use)
+     * @param {number}   [opts.holdDist=2.4]  carry distance in front of the eye (pre-scale)
+     * @param {number}   [opts.maxSpeed=26]   velocity cap on the carry pull (anti-overshoot)
      * @param {number}   [opts.graceTicks=30] ticks a fresh local grab/drop ignores contradicting authority
      * @param {function} [opts.canGrab]       (body)=>bool predicate; default: any non-static body
+     * @param {object}   [opts.view]          { isFirstPerson:bool, cameraPosition:Vector3 } camera seam
+     *                                        (same shape as ActionFPSWeapon.view); absent ⇒ first-person
      */
     constructor(controller, opts = {}) {
         this.controller = controller;
         this.held = null; // id (body name) of the carried prop, or null
         this._grace = 0; // reconcile-ignore countdown (see reconcile())
-        this.grabRange = opts.grabRange !== undefined ? opts.grabRange : 50;
-        this.holdDist = opts.holdDist !== undefined ? opts.holdDist : 24;
-        this.maxSpeed = opts.maxSpeed !== undefined ? opts.maxSpeed : 260;
+        this.grabRange = opts.grabRange !== undefined ? opts.grabRange : 5;
+        this.holdDist = opts.holdDist !== undefined ? opts.holdDist : 2.4;
+        this.maxSpeed = opts.maxSpeed !== undefined ? opts.maxSpeed : 26;
         this.graceTicks = opts.graceTicks !== undefined ? opts.graceTicks : 30;
         this._canGrab = opts.canGrab || ((body) => !!body && !body.isStatic);
+        // Camera seam (view:bool controller option wires this — same shape as ActionFPSWeapon.view):
+        // { isFirstPerson, cameraPosition }. Absent ⇒ first-person, ray starts at the eye.
+        this.view = opts.view || null;
     }
 
     get _world() { return this.controller.physicsWorld; }
     get _scale() { return this.controller.scale || 1; }
+    get _firstPerson() { return this.view ? this.view.isFirstPerson : true; }
 
-    // Aim ray from the controller's eye along its LIVE aim (which falls back to the sim look on a
-    // host-side controller that never gets aim()). dir is a unit vector.
+    // Aim ray along the controller's LIVE aim direction (falls back to the sim look on a host-side
+    // controller that never gets aim()), starting at the EYE in first person or the CAMERA in third
+    // person — matching what the crosshair actually sits over (see ActionFPSWeapon.crosshairCast).
+    // Third person without the camera seam would ray from the body's eye while the crosshair (and
+    // every other aim-driven system: fire, muzzle) reads from the camera — the grab point drifting
+    // off from where the player is actually looking.
     _ray() {
-        return { eye: this.controller.getEyePosition(), dir: this.controller.getLiveAimDirection() };
+        const eye = this._firstPerson ? this.controller.getEyePosition() : this.view.cameraPosition;
+        return { eye, dir: this.controller.getLiveAimDirection() };
     }
 
     // Find a body by name (= prop id) in our world. Cheap (a handful of props).
@@ -71,13 +82,24 @@ class ActionFPSGrabber {
         return hit.body.name || null;
     }
 
-    // World point the held body is pulled toward: out in front of the eye. Distance blends sqrt(scale)
-    // and scale — gentle at small scale, room to grow at large — normalized so 1× == holdDist.
+    // World point the held body is pulled toward: `holdDist` out along the CROSSHAIR ray (same origin
+    // as _ray()/raycast(), so the prop sits exactly on the reticle, not just somewhere in the aim
+    // direction — the camera is offset both back AND sideways/up from the eye in third person
+    // (ActionFPSCamera's shoulder/heightOffset), so re-deriving the hold point from the eye instead of
+    // the camera's own ray leaves it off to the side of the crosshair). The distance is measured from
+    // the PLAYER, not the ray origin: we add back how far the origin already sits from the eye along
+    // this same ray, so third person (camera pulled back) doesn't hold the prop closer to the body than
+    // first person does. Distance blends sqrt(scale) and scale — gentle at small scale, room to grow at
+    // large — normalized so 1× == holdDist.
     _holdPoint() {
-        const { eye, dir } = this._ray();
+        const { eye: origin, dir } = this._ray();
+        const playerEye = this.controller.getEyePosition();
+        // Signed distance from the ray origin to the player's eye, projected onto the aim direction —
+        // 0 in first person (origin == eye), positive in third person (origin sits behind the player).
+        const originSetback = (playerEye.x - origin.x) * dir.x + (playerEye.y - origin.y) * dir.y + (playerEye.z - origin.z) * dir.z;
         const s = this._scale;
-        const d = this.holdDist * (Math.sqrt(s) + s) * 0.5;
-        return new Vector3(eye.x + dir.x * d, eye.y + dir.y * d, eye.z + dir.z * d);
+        const d = originSetback + this.holdDist * (Math.sqrt(s) + s) * 0.5;
+        return new Vector3(origin.x + dir.x * d, origin.y + dir.y * d, origin.z + dir.z * d);
     }
 
     // Velocity-pull a body toward a world point (the carry). Velocity (not position) keeps the solver in

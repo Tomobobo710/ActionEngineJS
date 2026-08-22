@@ -37,7 +37,7 @@ class ActionFPSCombat {
         this.hostAuthoritative = !!opts.hostAuthoritative;
 
         this.health = this.maxHealth;
-        this.dead = false;
+        this._dead = false;
         this._respawnTimer = 0; // seconds remaining while dead (offline self-drive)
         // Remember where we started so a no-spawnPoint respawn returns there.
         const p = controller.body.position;
@@ -45,6 +45,34 @@ class ActionFPSCombat {
     }
 
     get alive() { return !this.dead; }
+
+    /**
+     * `dead` is a property (not a plain field) so every transition point — offline death/respawn,
+     * or a host-authoritative FPSPlayerEntity write (fpscombat.js's _applyDamage/_updateRespawns) —
+     * pulls this character's real body+ghost out of ITS OWN Goblin world on death and re-adds them
+     * on respawn, from one choke point. A dead player must not block or be stood on: removing the
+     * bodies from the world (world.removeRigidBody / addRigidBody — the same primitives destroy()
+     * already uses) is what makes them fully non-solid to every sweep/probe/raycast that world runs,
+     * with no new concept added to the physics engine itself. On the SERVER this is the authoritative
+     * removal; each CLIENT's local player-collision proxy (fpsnet.js's FPSPropReplicator.syncPlayerGhost)
+     * mirrors it independently off the `dead` field carried in the snapshot.
+     */
+    get dead() { return this._dead; }
+    set dead(v) {
+        v = !!v;
+        if (v === this._dead) return;
+        this._dead = v;
+        const goblin = this.controller._goblin;
+        const world = goblin && goblin.world;
+        if (!world) return;
+        if (v) {
+            world.removeRigidBody(goblin.body);
+            if (goblin._ghost) world.removeRigidBody(goblin._ghost);
+        } else {
+            world.addRigidBody(goblin.body);
+            if (goblin._ghost) world.addRigidBody(goblin._ghost);
+        }
+    }
 
     /**
      * Apply `amount` damage from `attackerId` (optional). Clamps at 0 and dies once there. Returns

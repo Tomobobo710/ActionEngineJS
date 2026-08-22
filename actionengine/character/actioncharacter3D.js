@@ -14,8 +14,8 @@ class ActionCharacter3D extends ActionCharacter {
 
         // Create a capsule physics model
         this.characterModel = new ActionPhysicsCapsule3D(
-            2,
-            6,
+            0.2,
+            0.6,
             0, // mass
             new Vector3(0, 0, 0), // position
             "#4488FF" // character color

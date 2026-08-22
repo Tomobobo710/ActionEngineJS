@@ -14,14 +14,17 @@ class ActionCharacter extends RenderableObject {
         // Stable mesh ID for animated characters to reuse GPU buffers across frames
         this._stableMeshId = `character_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-        this.height = 6;
+        this.height = 0.6;
         this.scale = 1;
+
+        // Uniform scale applied to the VISUAL character model only
+        this.characterModelScale = 1;
 
         this.isFirstPerson = false;
         this.firstPersonHeight = this.height * 0.5;
 
         this.basePosition = new Vector3(0, 0, 0); // Ground position
-        this.position = new Vector3(0, 40, 0); // Center position
+        this.position = new Vector3(0, 4, 0); // Center position
 
         this.facingDirection = new Vector3(0, 0, 1);
         this.rotation = 0;
@@ -29,8 +32,8 @@ class ActionCharacter extends RenderableObject {
         this.debugInfo = null;
 
         // Camera properties
-        this.cameraDistance = 40;
-        this.cameraHeight = 10;
+        this.cameraDistance = 4;
+        this.cameraHeight = 1;
         this.cameraPitch = 0;
         this.cameraYaw = 0;
 
@@ -41,7 +44,15 @@ class ActionCharacter extends RenderableObject {
         this.swipeStartY = null;
 
         // Create controller
-        this.controller = new Goblin.CharacterController(this.game.physicsWorld.getWorld());
+        // Meter-scale character (the engine's world is meters now, gravity -9.81). The collision capsule
+        // matches the visual one in ActionCharacter3D; speeds/jump are m/s; rideHeight is a length. The
+        // spring constants (springStrength/springDamping) are frequency-like and scale-invariant, so they
+        // keep their defaults — the suspension balance is preserved because heightError scales with gravity.
+        this.controller = new Goblin.CharacterController(this.game.physicsWorld.getWorld(), {
+            radius: 0.2, height: 0.6,
+            moveSpeed: 5, maxSpeed: 5, jumpForce: 6,
+            rideHeight: 0.4, stoppingThreshold: 0.01
+        });
 
         // Character follows camera orientation by default
         this.followCameraRotation = true;
@@ -55,7 +66,7 @@ class ActionCharacter extends RenderableObject {
         if (position) {
             this.body.position = new Vector3(position.x, position.y, position.z);
         } else {
-            this.body.position = new Vector3(0, 500, 0);
+            this.body.position = new Vector3(0, 50, 0);
         }
 
         this.body.name = `CharacterBody_${Date.now()}`;
@@ -72,7 +83,7 @@ class ActionCharacter extends RenderableObject {
             worldGravity.y * gravityMultiplier,
             worldGravity.z * gravityMultiplier
         ));
-        this.characterVisualYOffset = 0.75;
+        this.characterVisualYOffset = 0.075;
         // Add character body to physics world (the world's add takes the backend body).
         this.game.physicsWorld.getWorld().addRigidBody(this.body.goblinBody);
 
@@ -218,6 +229,8 @@ class ActionCharacter extends RenderableObject {
 
             // Sync with RenderableObject transform for the GPU renderer
             this.transform.position.set(pos.x, pos.y, pos.z);
+            // Visual-only model fit (collider is unchanged). The GPU renderer reads transform.scale.
+            this.transform.scale = this.characterModelScale;
 
             if (this.followCameraRotation) {
                 // Use yaw for character facing
@@ -261,7 +274,7 @@ class ActionCharacter extends RenderableObject {
                         this.camera.position = this.cameraCollisionHandler.adjustCameraPosition(
                             this.position,
                             desiredCameraPosition,
-                            1.6 // Camera collision radius
+                            0.16 // Camera collision radius (meters)
                         );
                     } else {
                         // Fall back to original behavior if no collision handler

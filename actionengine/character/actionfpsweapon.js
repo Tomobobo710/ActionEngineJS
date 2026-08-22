@@ -110,7 +110,7 @@ class ActionFPSWeapon {
         model.addObject("weaponViewmodel" + slot, g.tris, 0, new Vector3(0, 0, 0), new Quaternion(0, 0, 0, 1), new Vector3(1, 1, 1));
         this._weaponModels.push(model);
         const obj = model.objects[0];
-        obj._muzzleZ = g.muzzleZ;
+        obj._muzzle = g.muzzle; // barrel-tip offset in weapon-local space {x,y,z}
         return obj;
     }
 
@@ -120,10 +120,17 @@ class ActionFPSWeapon {
         const worldUp = new Vector3(0, 1, 0);
         const right = worldUp.cross(fwd).normalize();
         const up = fwd.cross(right).normalize();
-        const oz = 5.0 - this.recoil * 2.0;
-        this.viewmodel.transform.position = eye.add(right.mult(-2.4)).add(up.mult(-2.2)).add(fwd.mult(oz));
+        // Tuning offset in VIEW space (+x right, +y up, +z forward along the aim). Zero by default —
+        // the knob for "the held gun sits too low / too far out", kept out of the rest positions so
+        // those stay meaningful.
+        const vo = ActionFPSWeaponSystem.RIG.viewOffset || { x: 0, y: 0, z: 0 };
+        const oz = 0.18 - this.recoil * 0.2 + vo.z;
+        this.viewmodel.transform.position = eye
+            .add(right.mult(-0.12 + vo.x))
+            .add(up.mult(-0.2 + vo.y))
+            .add(fwd.mult(oz));
         this.viewmodel.transform.rotation = Quaternion.fromEuler(0, -this._aimPitch, this._aimYaw);
-        this.viewmodel.transform.scale = new Vector3(3, 3, 3);
+        this.viewmodel.transform.scale = new Vector3(1, 1, 1);
     }
 
     // ---- Muzzle + aim ------------------------------------------------------
@@ -136,7 +143,10 @@ class ActionFPSWeapon {
         if (this._firstPerson) return this.muzzlePoint();
         const ctrl = this.controller;
         const p = ctrl.body.position;
-        return ActionFPSWeaponSystem.bodyWeaponPose(p.x, p.y, p.z, this._aimYaw, this._aimPitch, ctrl.width / 6, this.weaponSlot).muzzle;
+        // Height scale as well as width: `ctrl.height` already reflects crouch, and without it the
+        // muzzle sits where a STANDING player's hand would be.
+        return ActionFPSWeaponSystem.bodyWeaponPose(p.x, p.y, p.z, this._aimYaw, this._aimPitch,
+            ctrl.width / 0.6, this.weaponSlot, ctrl.height / 1.8).muzzle;
     }
 
     /** World-space muzzle tip of the active first-person viewmodel. */
@@ -146,8 +156,16 @@ class ActionFPSWeapon {
         const worldUp = new Vector3(0, 1, 0);
         const right = worldUp.cross(fwd).normalize();
         const up = fwd.cross(right).normalize();
-        const oz = 5.0 - this.recoil * 2.0 + (this.viewmodel._muzzleZ || 3) * 3;
-        return eye.add(right.mult(-2.4)).add(up.mult(-2.2)).add(fwd.mult(oz));
+        // Mirrors updateViewmodel's placement EXACTLY (including viewOffset), then adds the barrel-tip
+        // offset in the same view axes — so the muzzle sits on the drawn gun's barrel rather than at
+        // its grip, and follows the viewmodel wherever it's tuned to.
+        const vo = ActionFPSWeaponSystem.RIG.viewOffset || { x: 0, y: 0, z: 0 };
+        const m = this.viewmodel._muzzle || { x: 0, y: 0, z: 0.3 };
+        const oz = 0.18 - this.recoil * 0.2 + vo.z;
+        return eye
+            .add(right.mult(-0.12 + vo.x + m.x))
+            .add(up.mult(-0.2 + vo.y + m.y))
+            .add(fwd.mult(oz + m.z));
     }
 
     // What the crosshair is over. The crosshair sits at screen center = the CAMERA's center ray, so in
@@ -210,7 +228,7 @@ class ActionFPSWeapon {
         ActionFPSWeaponSystem.emit("impact", { x: tracerEnd.x, y: tracerEnd.y, z: tracerEnd.z, hit: !!hit });
         // Offline: shooting pushes dynamic props (local feedback).
         if (!this._isNetworked && hit && hit.body && !hit.body.isStatic) {
-            hit.body.applyImpulse(new Vector3(dir.x * 60, dir.y * 60 + 8, dir.z * 60));
+            hit.body.applyImpulse(new Vector3(dir.x * 6, dir.y * 6 + 0.8, dir.z * 6));
         }
     }
 
@@ -297,12 +315,17 @@ class ActionFPSWeapon {
         this.spawnExplosion(x, y, z);
         for (const obj of this.controller.physicsWorld.objects) {
             if (!obj || !obj.body || obj.body.isStatic) continue;
+            // Character bodies (the player's own kinematic collider + its solver-side push ghost) get
+            // splash physics through applyKnockback below, not a raw impulse — the kinematic body's
+            // velocity is overwritten by the controller every tick regardless, and an impulse on the
+            // ghost feeds back into the player as knockback via _readGhostKnockback (self-splash).
+            if (obj.body.goblinBody && obj.body.goblinBody.isKinematicCharacter) continue;
             const bp = obj.body.position;
             const ox = bp.x - x, oy = bp.y - y, oz = bp.z - z;
             const d = Math.hypot(ox, oy, oz);
             if (d > def.splashRadius || d < 1e-3) continue;
-            const f = (1 - d / def.splashRadius) * 90;
-            obj.body.applyImpulse(new Vector3((ox / d) * f, (oy / d) * f + 20, (oz / d) * f));
+            const f = (1 - d / def.splashRadius) * 9;
+            obj.body.applyImpulse(new Vector3((ox / d) * f, (oy / d) * f + 2, (oz / d) * f));
         }
         // Rocket-jump the owner via applyKnockback (velocity-integrated; a physics impulse is ignored).
         const ctrl = this.controller;
@@ -326,14 +349,14 @@ class ActionFPSWeapon {
     buildEffectObjects() {
         const out = [];
         for (const r of this.localRockets) {
-            const o = ActionBoxGeometry.build(2, 2, 6, "#ffcf6a", false);
+            const o = ActionBoxGeometry.build(0.2, 0.2, 0.6, "#ffcf6a", false);
             o.transform.position = new Vector3(r.x, r.y, r.z);
             o.transform.rotation = Quaternion.fromDirection(r.vx, r.vy, r.vz);
             out.push(o);
         }
         for (const e of this.explosions) {
             const t = 1 - e.life / e.max;
-            const size = 6 + t * 40;
+            const size = 0.6 + t * 4;
             const o = ActionBoxGeometry.build(size, size, size, t < 0.5 ? "#fff2a0" : "#ff7a2a", false);
             o.transform.position = new Vector3(e.x, e.y, e.z);
             out.push(o);
@@ -345,7 +368,7 @@ class ActionFPSWeapon {
     // normal render path. Single-sided, outward winding (12 tris/beam). Rebuilt each frame.
     buildTracerObject() {
         if (!this.tracers.length) return null;
-        const r = 0.04, color = "#ffe07a";
+        const r = 0.004, color = "#ffe07a";
         const tris = [];
         const quad = (p, q, s, t, ox, oy, oz) => {
             const nx = (q.y - p.y) * (s.z - p.z) - (q.z - p.z) * (s.y - p.y);
@@ -401,12 +424,12 @@ ActionFPSWeapon.DEFAULT_ROSTER = [
         type: "projectile",
         fireCooldownTicks: 18,
         magSize: 4,
-        speed: 380,
+        speed: 38,
         lifeTicks: 1800,
         directDamage: 50,
         splashDamage: 55,
-        splashRadius: 70,
-        knockback: 130,
-        upBias: 70
+        splashRadius: 7,
+        knockback: 13,
+        upBias: 7
     }
 ];
