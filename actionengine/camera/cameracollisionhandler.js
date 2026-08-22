@@ -12,12 +12,12 @@ class CameraCollisionHandler {
      * @param {number} cameraRadius - Radius of the camera's collision sphere
      * @returns {Vector3} The corrected camera position
      */
-    adjustCameraPosition(characterPosition, desiredCameraPosition, cameraRadius = 1.0) {
+    adjustCameraPosition(characterPosition, desiredCameraPosition, cameraRadius = 0.1) {
         try {
             // Get eye level position (higher than feet position)
             const eyePosition = {
                 x: characterPosition.x,
-                y: characterPosition.y + 3.0, // Add approximate eye height
+                y: characterPosition.y + 0.3, // Add approximate eye height (meters)
                 z: characterPosition.z
             };
 

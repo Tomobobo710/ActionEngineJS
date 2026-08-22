@@ -5,18 +5,18 @@
  * BREAKING CHANGE: Previously used two-color checkerboard pattern (color1, color2).
  * Now uses single color system for consistency with other shapes.
  *
- * @param {number} radius - Cone base radius (default: 2)
- * @param {number} height - Cone height (default: 10)
+ * @param {number} radius - Cone base radius (default: 0.2)
+ * @param {number} height - Cone height (default: 1)
  * @param {number} mass - Physics mass (default: 1)
- * @param {Vector3} initialPosition - Starting position (default: 0,10,0)
+ * @param {Vector3} initialPosition - Starting position (default: 0,1,0)
  * @param {string} color - Hex color string like "#FF0000" (default: "#FFA500" orange)
  */
 class ActionPhysicsCone3D extends ActionPhysicsObject3D {
     constructor(
-        radius = 2,
-        height = 10,
+        radius = 0.2,
+        height = 1,
         mass = 1,
-        initialPosition = new Vector3(0, 10, 0),
+        initialPosition = new Vector3(0, 1, 0),
         color = "#FFA500",
         options = {}
     ) {
@@ -100,7 +100,12 @@ class ActionPhysicsCone3D extends ActionPhysicsObject3D {
     }
 
     static _computeSmoothVertexNormalsForCone(triangles, heightSegments) {
-        const positionKey = (v) => `${v.x.toFixed(6)},${v.y.toFixed(6)},${v.z.toFixed(6)}`;
+        // Round rather than toFixed, and add 0 to collapse -0 into 0. A revolved surface generates
+        // its wrap column at theta=0 and theta=2*PI, and Math.sin(2*PI) is -2.449e-16 rather than 0 —
+        // so the two columns differ only in float noise. toFixed(6) formatted those as "0.000000" and
+        // "-0.000000": different STRINGS, so they never averaged and left a visible seam.
+        const q = (n) => Math.round(n * 1e6) / 1e6 + 0;
+        const positionKey = (v) => `${q(v.x)},${q(v.y)},${q(v.z)}`;
         
         // Classify triangles as either "side" or "base/tip"
         // Base triangles all share one center vertex (0, y, 0)

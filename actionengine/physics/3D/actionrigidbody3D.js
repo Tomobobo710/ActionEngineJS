@@ -9,12 +9,22 @@
 class ActionRigidBody3D {
     /**
      * Material/behavior defaults applied to every body created from a shape. Single source of truth
-     * — see _applyMaterial(). Tuned so props come to rest by default rather than slide or bounce.
+     * — see _applyMaterial(). These mirror Goblin's own RigidBody defaults (friction is a Coulomb
+     * coefficient, ~0.5 — NOT 300). A huge friction default applies enormous tangential impulses at
+     * offset contact points, which becomes violent spin once inertia drops at meter scale.
+     *
+     * angularDamping is NOT 0 here (unlike Goblin's own bare default) because friction alone cannot
+     * stop a ROLLING contact — friction opposes sliding velocity at the contact point, and a cylinder
+     * or capsule lying on its round side has essentially zero slide once it's rolling cleanly. With
+     * zero angular damping, any spin picked up on landing (from an off-center impact, an uneven
+     * surface, etc.) never bleeds off, so the object rolls away indefinitely no matter how high
+     * friction is set. A small angularDamping lets rotation decay naturally at rest/low speed without
+     * being noticeable on a fast-spinning object in open air (damping is proportional, not a hard cap).
      */
     static MATERIAL_DEFAULTS = {
-        friction: 300.0,
-        restitution: 0,
-        linearDamping: 0,
+        friction: 3.0,
+        restitution: 0.33,
+        linearDamping: 0.1,
         angularDamping: 0.9
     };
 
@@ -197,7 +207,7 @@ class ActionRigidBody3D {
     set angularDamping(value) {
         this._body.angular_damping = value;
     }
-    
+
     // === Physics Material ===
     
     get friction() {
@@ -512,3 +522,6 @@ class ActionRigidBody3D {
         }
     }
 }
+
+
+

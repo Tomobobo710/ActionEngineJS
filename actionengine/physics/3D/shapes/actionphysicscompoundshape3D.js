@@ -1,6 +1,6 @@
 //actionengine/physics/shapes/actionphysicscompoundshape3D.js
 class ActionPhysicsCompoundShape3D extends ActionPhysicsObject3D {
-    constructor(initialPosition = new Vector3(0, 500, 0), mass = 1, options = {}) {
+    constructor(initialPosition = new Vector3(0, 5, 0), mass = 1, options = {}) {
         // Start with an empty triangle list - we'll add them as child shapes are added
         super([], options);
 
@@ -43,11 +43,29 @@ class ActionPhysicsCompoundShape3D extends ActionPhysicsObject3D {
         // Add the transformed triangles to our collection
         this.allTriangles.push(...transformedTriangles);
 
-        // Update our triangle list
-        this.triangles = this.allTriangles.slice();
+        // Update our triangle list. Also refresh _originalTriangles (the base class's per-frame
+        // updateVisual() unconditionally resets this.triangles = this._originalTriangles, so leaving
+        // it at its construction-time [] would wipe out every child shape's triangles on the next frame.
+        this._originalTriangles = this.allTriangles.slice();
+        this.triangles = this.isVisible ? this._originalTriangles : [];
 
         // Update original data
         this.storeOriginalData();
+
+        // Recompute the body's inertia now that a child exists. The Goblin RigidBody was constructed
+        // around an EMPTY CompoundShape (see constructor), so its inertia tensor was computed with zero
+        // children — CompoundShape.getInertiaTensor did mass/0 over an empty loop and returned an all-zero
+        // tensor, i.e. infinite rotational inertia. That silently locks the compound at its spawn
+        // orientation (zero angular acceleration from any torque). Goblin's own examples avoid this by
+        // building the shape FIRST and the body last; this wrapper builds body-first, so we must refresh
+        // the tensor here after each child is added. Static (mass 0/Infinity) bodies don't rotate anyway.
+        const body = this.body.goblinBody;
+        const mass = this.body.mass;
+        if (body && mass !== 0 && Number.isFinite(mass)) {
+            body.inertiaTensor = this.compoundShape.getInertiaTensor(mass);
+            body.inertiaTensor.invertInto(body.inverseInertiaTensor);
+            if (body.updateDerived) body.updateDerived();
+        }
 
         return this;
     }

@@ -2,8 +2,8 @@
 class ActionPhysicsPlane3D extends ActionPhysicsObject3D {
     constructor(
         orientation = 1,
-        width = 100,
-        length = 100,
+        width = 10,
+        length = 10,
         mass = 0,
         initialPosition = new Vector3(0, 0, 0),
         normalDirection = 1, // 1 = up/positive, -1 = down/negative

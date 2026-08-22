@@ -5,20 +5,20 @@
  * BREAKING CHANGE: Previously used rainbow faces by default.
  * Now uses single green color system for consistency with other shapes.
  *
- * @param {number} width - Box width (default: 10)
- * @param {number} height - Box height (default: 10)
- * @param {number} depth - Box depth (default: 10)
+ * @param {number} width - Box width (default: 1)
+ * @param {number} height - Box height (default: 1)
+ * @param {number} depth - Box depth (default: 1)
  * @param {number} mass - Physics mass (default: 1)
- * @param {Vector3} initialPosition - Starting position (default: 0,500,0)
+ * @param {Vector3} initialPosition - Starting position (default: 0,5,0)
  * @param {string|Array} color - Single hex color "#228B22" or array of 6 colors for faces (default: "#228B22" green)
  */
 class ActionPhysicsBox3D extends ActionPhysicsObject3D {
     constructor(
-        width = 10,
-        height = 10,
-        depth = 10,
+        width = 1,
+        height = 1,
+        depth = 1,
         mass = 1,
-        initialPosition = new Vector3(0, 500, 0),
+        initialPosition = new Vector3(0, 5, 0),
         color = "#228B22",
         options = {}
     ) {

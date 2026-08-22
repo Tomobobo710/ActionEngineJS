@@ -56,8 +56,8 @@ class GeometryBuilder {
         // Determine if normal points away from reference point
         const dotProduct = nx * toCentroidX + ny * toCentroidY + nz * toCentroidZ;
 
-        // Add epsilon tolerance to handle ambiguous cases
-        const epsilon = 1;
+        // Add epsilon tolerance to handle ambiguous cases.
+        const epsilon = 1e-6;
         let finalDotProduct = dotProduct;
 
         if (Math.abs(dotProduct) < epsilon) {
@@ -112,9 +112,10 @@ class GeometryBuilder {
      * @param {Array} indices - Triangle indices [i1,i2,i3, ...]
      * @param {number} mass - Physics mass (0 = static)
      * @param {Vector3} position - World position
+     * @param {Object} [options] - Material/behavior options (friction, restitution, etc.)
      * @returns {ActionPhysicsMesh3D} - Ready-to-use physics object
      */
-    createPhysicsObject(physicsWorld, vertices, normals, colors, indices, mass, position) {
+    createPhysicsObject(physicsWorld, vertices, normals, colors, indices, mass, position, options) {
         // Convert flat vertex array to Vector3 array
         const vector3Vertices = [];
         for (let i = 0; i < vertices.length; i += 3) {
@@ -139,7 +140,8 @@ class GeometryBuilder {
             indices,
             mass,
             position,
-            triangleColors
+            triangleColors,
+            options
         );
 
         // Add to physics world

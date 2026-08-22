@@ -5,13 +5,13 @@
  * BREAKING CHANGE: Previously used black/white checkerboard pattern.
  * Now uses single color system for consistent developer experience.
  *
- * @param {number} radius - Sphere radius (default: 5)
+ * @param {number} radius - Sphere radius (default: 0.5)
  * @param {number} mass - Physics mass (default: 1)
- * @param {Vector3} initialPosition - Starting position (default: 0,500,0)
+ * @param {Vector3} initialPosition - Starting position (default: 0,5,0)
  * @param {string} color - Hex color string like "#FF0000" (default: "#FFFFFF" white)
  */
 class ActionPhysicsSphere3D extends ActionPhysicsObject3D {
-    constructor(radius = 5, mass = 1, initialPosition = new Vector3(0, 500, 0), color = "#FFFFFF", options = {}) {
+    constructor(radius = 0.5, mass = 1, initialPosition = new Vector3(0, 5, 0), color = "#FFFFFF", options = {}) {
         // Visual mesh creation with single color system
         const segments = 32;
         const triangles = [];
@@ -86,7 +86,15 @@ class ActionPhysicsSphere3D extends ActionPhysicsObject3D {
     }
 
     static _computeSmoothVertexNormalsForSphere(triangles) {
-        const positionKey = (v) => `${v.x.toFixed(6)},${v.y.toFixed(6)},${v.z.toFixed(6)}`;
+        // Round rather than toFixed, and add 0 to collapse -0 into 0.
+        //
+        // This is what closes the SEAM. A UV sphere's wrap column is generated at theta=0 and
+        // theta=2*PI, and `Math.sin(2*PI)` is -2.449e-16 rather than 0 — so the two columns sit at
+        // positions that differ only in float noise. `toFixed(6)` formatted those as "0.000000" and
+        // "-0.000000": different STRINGS, so the columns hashed to different keys, never got averaged,
+        // and every sphere in the engine rendered with a visible crease down one side.
+        const q = (n) => Math.round(n * 1e6) / 1e6 + 0;
+        const positionKey = (v) => `${q(v.x)},${q(v.y)},${q(v.z)}`;
         
         // Build map of positions to triangles that share them
         const positionMap = new Map();

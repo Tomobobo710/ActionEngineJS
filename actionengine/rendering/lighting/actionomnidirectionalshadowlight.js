@@ -19,7 +19,7 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
         this.objectRenderer = objectRenderer;
 
         // Point light specific properties
-        this.radius = 100.0; // Light radius - affects attenuation
+        this.radius = 10.0; // Light radius - affects attenuation
 
         // The shadow cubemap's depth range. A point light contributes NOTHING past its attenuation
         // radius, so that radius IS the correct far plane — no magic number, no per-scene tuning. This

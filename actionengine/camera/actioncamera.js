@@ -1,16 +1,16 @@
 //actionengine/camera/actioncamera.js
 class ActionCamera {
     constructor(position, target) {
-        this.position = position || new Vector3(0, 10, -20);
+        this.position = position || new Vector3(0, 1, -2);
         this.target = target || new Vector3();
         this.up = new Vector3(0, 1, 0);
         this.yaw = 0;
         this.pitch = Math.PI / 6;
         this.fov = Math.PI * 0.35;
         this.near = 0;
-        this.far = 10000;
+        this.far = 1000;
         // Add new camera control properties
-        this.movementSpeed = 40;
+        this.movementSpeed = 4;
         this.pitchSpeed = Math.PI;
         this.isDetached = false;
     }

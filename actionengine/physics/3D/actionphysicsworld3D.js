@@ -6,7 +6,7 @@ class ActionPhysicsWorld3D {
         this.solver = new Goblin.IterativeSolver();
         this.world = new Goblin.World(this.broadphase, this.narrowphase, this.solver);
 
-        this.world.gravity = new Goblin.Vector3(0, -98.1, 0);
+        this.world.gravity = new Goblin.Vector3(0, -9.81, 0);
 
         this.objects = new Set();
 

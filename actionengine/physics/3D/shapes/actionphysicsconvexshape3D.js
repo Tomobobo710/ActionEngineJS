@@ -1,6 +1,6 @@
 //actionengine/physics/shapes/actionphysicsconvexshape3D.js
 class ActionPhysicsConvexShape3D extends ActionPhysicsObject3D {
-    constructor(vertices, mass = 1, initialPosition = new Vector3(0, 500, 0), colors = [], options = {}) {
+    constructor(vertices, mass = 1, initialPosition = new Vector3(0, 5, 0), colors = [], options = {}) {
         // Convert input vertices to Goblin.Vector3 for physics
         const goblinVertices = vertices.map((v) => new Goblin.Vector3(v.x, v.y, v.z));
 
