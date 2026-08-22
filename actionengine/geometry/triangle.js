@@ -34,40 +34,20 @@ class Triangle {
         // KHR_materials_transmission - transparency with refraction
         this.transmission = 0.0; // 0-1, factor controlling how much light passes through
 
-        // KHR_materials_volume - absorption and thickness effects
-        this.volume = {
-            thicknessFactor: 0.0,      // 0-1, thickness of the volume
-            attenuationDistance: 1.0,  // Infinity or distance in world units
-            attenuationColor: [1, 1, 1] // RGB, color of absorbed light
-        };
-
-        // KHR_materials_sheen - fabric/cloth materials
-        this.sheen = {
-            colorFactor: [0, 0, 0],    // RGB, sheen color
-            roughnessFactor: 0.0       // 0-1, sheen surface roughness
-        };
-
-        // KHR_materials_clearcoat - clear coat layer
-        this.clearcoat = {
-            factor: 0.0,               // 0-1, clearcoat coverage
-            roughnessFactor: 0.0       // 0-1, clearcoat roughness
-        };
-
-        // KHR_materials_anisotropy - directional roughness
-        this.anisotropy = {
-            strength: 0.0,             // 0-1, anisotropy strength
-            rotation: 0.0              // 0-1, normalized rotation angle
-        };
-
-        // KHR_materials_dispersion - wavelength-dependent refraction
+        // KHR_materials_* extension blocks (volume/sheen/clearcoat/anisotropy/iridescence) are
+        // LAZY — see the prototype accessors below the class. They used to be five object literals
+        // allocated here, per triangle, always. That was 5 of the ~15 heap objects every triangle
+        // costs (10,240 objects on a single seg32 sphere) to hold values that are almost always the
+        // untouched defaults, and that no shader reads — only the GLB exporter/loader,
+        // modelcodegenerator and textureset.js do, all of them null-guarded.
+        //
+        // Reading one now returns a shared frozen default (correct values, zero allocation);
+        // ASSIGNING one — which is what glbloader does for a model that actually carries the
+        // extension — installs a real own-property on that triangle. So behaviour is unchanged and
+        // per-triangle overrides still work; only the untouched-default case stops allocating.
+        //
+        // `dispersion` is a plain number, so it stays a normal field.
         this.dispersion = 0.0;         // Abbe number, typically 20-100
-
-        // KHR_materials_iridescence - thin-film interference
-        this.iridescence = {
-            factor: 0.0,               // 0-1, iridescence strength
-            ior: 1.3,                  // Index of refraction for iridescent layer
-            thickness: 0.0             // Layer thickness in micrometers
-        };
 
         // Material texture map references (from GLTF)
          this.material = null; // Full material object with texture indices:
@@ -114,4 +94,58 @@ class Triangle {
         // Return color for all three vertices
         return [r, g, b, r, g, b, r, g, b];
     }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Lazy KHR_materials_* extension blocks.
+//
+// One shared, DEEPLY FROZEN default per extension, handed out on read. Frozen because callers do
+// `{...triangle.volume}` (textureset.js) and read the nested arrays (glbexporter.js) — without the
+// freeze, one caller mutating a default in place would silently change it for every triangle in
+// the engine. Frozen makes that a loud failure in strict mode instead of a haunting.
+//
+// Writing installs a plain own-property on that triangle, shadowing the accessor, so
+// `triangle.volume = {...}` (glbloader.js:823) behaves exactly as before.
+// ---------------------------------------------------------------------------------------------
+Triangle.DEFAULT_VOLUME = Object.freeze({
+    thicknessFactor: 0.0,
+    attenuationDistance: 1.0,
+    attenuationColor: Object.freeze([1, 1, 1])
+});
+Triangle.DEFAULT_SHEEN = Object.freeze({
+    colorFactor: Object.freeze([0, 0, 0]),
+    roughnessFactor: 0.0
+});
+Triangle.DEFAULT_CLEARCOAT = Object.freeze({ factor: 0.0, roughnessFactor: 0.0 });
+Triangle.DEFAULT_ANISOTROPY = Object.freeze({ strength: 0.0, rotation: 0.0 });
+Triangle.DEFAULT_IRIDESCENCE = Object.freeze({ factor: 0.0, ior: 1.3, thickness: 0.0 });
+
+for (const [prop, dflt] of [
+    ["volume", Triangle.DEFAULT_VOLUME],
+    ["sheen", Triangle.DEFAULT_SHEEN],
+    ["clearcoat", Triangle.DEFAULT_CLEARCOAT],
+    ["anisotropy", Triangle.DEFAULT_ANISOTROPY],
+    ["iridescence", Triangle.DEFAULT_IRIDESCENCE]
+]) {
+    Object.defineProperty(Triangle.prototype, prop, {
+        configurable: true,
+        // Prototype accessors are not own-properties, so an untouched triangle no longer lists
+        // these under Object.keys()/spread the way the old eager fields did. Verified unobservable:
+        // nothing spreads or serializes a whole Triangle (only `{...triangle.volume}` on the
+        // sub-object, which still works). Once written, the own-property IS enumerable, matching
+        // the old shape exactly for any triangle that actually carries an extension.
+        enumerable: true,
+        get() {
+            return dflt;
+        },
+        set(value) {
+            // Shadow the accessor with a real own data property on this instance.
+            Object.defineProperty(this, prop, {
+                value,
+                writable: true,
+                enumerable: true,
+                configurable: true
+            });
+        }
+    });
 }
