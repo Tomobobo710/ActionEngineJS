@@ -92,7 +92,7 @@ class Game {
 
 		// Setup camera - starts in free mode until character is spawned
 		this.camera = new ActionCamera();
-		this.camera.position = new Vector3(0, 15, -30);
+		this.camera.position = new Vector3(0, 1.5, -3);
 		this.camera.target = new Vector3(0, 0, 0);
 		this.camera.isDetached = true; // Set camera to detached mode initially
 
@@ -187,11 +187,11 @@ class Game {
 		this.ground = this.createGround();
 
 		// Demonstrate the new single color system:
-		this.box = this.createBox(5, 5, 5, 1, new Vector3(0, 15, 0), "#FF6B6B"); // Custom red box
-		this.sphere = this.createSphere(3, 1, new Vector3(8, 20, 0)); // Default white sphere
+		this.box = this.createBox(0.5, 0.5, 0.5, 1, new Vector3(0, 1.5, 0), "#FF6B6B"); // Custom red box
+		this.sphere = this.createSphere(0.3, 1, new Vector3(0.8, 2, 0)); // Default white sphere
 
-		// Capsule with custom color (height=8 > 2*radius=3 ✓ valid)
-		this.capsule = this.createCapsule(1.5, 8, 1, new Vector3(-8, 18, 0), "#45B7D1"); // Custom blue capsule
+		// Capsule with custom color (height=0.8 > 2*radius=0.3 ✓ valid)
+		this.capsule = this.createCapsule(0.15, 0.8, 1, new Vector3(-0.8, 1.8, 0), "#45B7D1"); // Custom blue capsule
 
 		this.addMessage("[Game] Created colorful physics objects with new single-color system!");
 	}
@@ -227,7 +227,7 @@ class Game {
 	 * @param {string|Array|null} color - Color option or null for green default
 	 * @returns {ActionPhysicsBox3D} The created box
 	 */
-	createBox(width = 5, height = 5, depth = 5, mass = 1, position = new Vector3(0, 15, 0), color = null) {
+	createBox(width = 0.5, height = 0.5, depth = 0.5, mass = 1, position = new Vector3(0, 1.5, 0), color = null) {
 		// Only pass color if it's not null, let constructor use its green default
 		// This prevents null from overriding the constructor's default behavior
 		const box =
@@ -247,7 +247,7 @@ class Game {
 	 * @param {string|null} color - Hex color like "#FF0000" or null for default white
 	 * @returns {ActionPhysicsSphere3D} The created sphere
 	 */
-	createSphere(radius = 3, mass = 1, position = new Vector3(8, 20, 0), color = null) {
+	createSphere(radius = 0.3, mass = 1, position = new Vector3(0.8, 2, 0), color = null) {
 		// Only pass color if it's not null, let constructor use its default (#FFFFFF)
 		// This prevents null from overriding the constructor's default color
 		const sphere =
@@ -270,7 +270,7 @@ class Game {
 	 * @param {string|null} color - Hex color like "#FF0000" or null for default red
 	 * @returns {ActionPhysicsCapsule3D} The created capsule
 	 */
-	createCapsule(radius = 2, height = 10, mass = 1, position = new Vector3(0, 15, 0), color = null) {
+	createCapsule(radius = 0.2, height = 1, mass = 1, position = new Vector3(0, 1.5, 0), color = null) {
 		// Only pass color if it's not null, let constructor use its default (#E94B3C)
 		// This prevents null from overriding the constructor's default color
 		const capsule =
@@ -291,7 +291,7 @@ class Game {
 	 * @param {string|null} color - Hex color like "#FF0000" or null for default orange
 	 * @returns {ActionPhysicsCone3D} The created cone
 	 */
-	createCone(radius = 2, height = 10, mass = 1, position = new Vector3(0, 15, 0), color = null) {
+	createCone(radius = 0.2, height = 1, mass = 1, position = new Vector3(0, 1.5, 0), color = null) {
 		// Only pass color if it's not null, let constructor use its default (#FFA500)
 		// This prevents null from overriding the constructor's default color
 		const cone =
@@ -312,24 +312,27 @@ class Game {
 	 * @param {string|null} color - Hex color like "#FF0000" or null for default red
 	 * @returns {ActionPhysicsCylinder3D} The created cylinder
 	 */
-	createCylinder(radius = 2, height = 10, mass = 1, position = new Vector3(0, 15, 0), color = null) {
+	createCylinder(radius = 0.2, height = 1, mass = 1, position = new Vector3(0, 1.5, 0), color = null) {
 		// Only pass color if it's not null, let constructor use its default (#FF0000)
 		// This prevents null from overriding the constructor's default color
+		// friction bumped well above the bare 0.5 engine default — at real meter/gravity scale that
+		// default reads as slidy (see Goblin's own stack.html example, which needs friction=2.5 just
+		// to keep boxes from sliding apart under gravity=-9.8, the same gravity this engine now uses).
 		const cylinder =
 			color !== null
-				? new ActionPhysicsCylinder3D(radius, height, mass, position, color)
-				: new ActionPhysicsCylinder3D(radius, height, mass, position);
+				? new ActionPhysicsCylinder3D(radius, height, mass, position, color, { friction: 2.5 })
+				: new ActionPhysicsCylinder3D(radius, height, mass, position, undefined, { friction: 2.5 });
 		this.physicsWorld.addObject(cylinder);
 		return cylinder;
 	}
 
 	// Create a ground plane (actually just a flat box)
-	createGround(size = 100, position = new Vector3(0, 1, 0)) {
+	createGround(size = 10, position = new Vector3(0, 0.1, 0)) {
 		// Simply use our box creation method with a flat box shape
 		// Using 0 mass to make it static (won't move)
 		return this.createBox(
 			size, // width - very wide
-			1, // height - just 1 unit tall
+			0.1, // height - just 0.1 units tall
 			size, // depth - very deep
 			0, // mass - 0 means static object
 			position // position - slightly below zero by default
@@ -355,7 +358,7 @@ class Game {
 	 * @param {Vector3} position - World position to spawn the sailboat
 	 * @returns {ActionPhysicsMesh3D} - The sailboat physics object with mesh collision
 	 */
-	createSailboat(scale = 1, mass = 2, position = new Vector3(0, 15, 0)) {
+	createSailboat(scale = 0.1, mass = 2, position = new Vector3(0, 1.5, 0)) {
 		this.addMessage(`[DEMO] Creating procedural sailboat with GeometryBuilder (scale: ${scale.toFixed(2)})`);
 
 		/******* GEOMETRYBUILDER INITIALIZATION *******/
@@ -581,7 +584,7 @@ class Game {
 	 * @param {Vector3} position - World position to spawn the airplane
 	 * @returns {ActionPhysicsMesh3D} - Complete airplane with accurate mesh collision
 	 */
-	createAirplane(scale = 1, mass = 3, position = new Vector3(0, 15, 0)) {
+	createAirplane(scale = 0.1, mass = 3, position = new Vector3(0, 1.5, 0)) {
 		this.addMessage(
 			`✈️ [DEMO] Creating detailed procedural airplane with GeometryBuilder (scale: ${scale.toFixed(2)})`
 		);
@@ -924,51 +927,51 @@ class Game {
 
 		switch (objectType) {
 			case 0: // Sphere (now with color support!)
-				const sphereRadius = Math.random() * 3 + 1;
+				const sphereRadius = Math.random() * 0.3 + 0.1;
 				const sphereMass = Math.random() * 5 + 1;
 				this.addMessage(`Spawning colorful sphere!`);
 				return this.createSphere(sphereRadius, sphereMass, position, randomColor);
 
 			case 1: // Box
-				const boxWidth = Math.random() * 4 + 2;
-				const boxHeight = Math.random() * 4 + 2;
-				const boxDepth = Math.random() * 4 + 2;
+				const boxWidth = Math.random() * 0.4 + 0.2;
+				const boxHeight = Math.random() * 0.4 + 0.2;
+				const boxDepth = Math.random() * 0.4 + 0.2;
 				const boxMass = Math.random() * 5 + 1;
 				this.addMessage(`Spawning colorful box!`);
 				return this.createBox(boxWidth, boxHeight, boxDepth, boxMass, position, randomColor);
 
 			case 2: // Capsule (now with single color system!)
-				const capsuleRadius = Math.random() * 2 + 1; // 1 to 3
+				const capsuleRadius = Math.random() * 0.2 + 0.1; // 0.1 to 0.3
 				// CRITICAL: Ensure height > 2*radius to avoid physics constraint violation
 				// Formula: height = (2*radius) + extra_height ensures validity
 				// Previous bug: random height could be < 2*radius causing crash
-				const capsuleHeight = capsuleRadius * 2 + Math.random() * 6 + 2; // Always > 2*radius
+				const capsuleHeight = capsuleRadius * 2 + Math.random() * 0.6 + 0.2; // Always > 2*radius
 				const capsuleMass = Math.random() * 3 + 2;
 				this.addMessage(`Spawning colorful capsule!`);
 				return this.createCapsule(capsuleRadius, capsuleHeight, capsuleMass, position, randomColor);
 
 			case 3: // Cone (now with single color!)
-				const coneRadius = Math.random() * 2 + 1; // 1 to 3
-				const coneHeight = Math.random() * 8 + 4; // 4 to 12
+				const coneRadius = Math.random() * 0.2 + 0.1; // 0.1 to 0.3
+				const coneHeight = Math.random() * 0.8 + 0.4; // 0.4 to 1.2
 				const coneMass = Math.random() * 3 + 1; // 1 to 4
 				this.addMessage(`Spawning colorful cone!`);
 				return this.createCone(coneRadius, coneHeight, coneMass, position, randomColor);
 
 			case 4: // Cylinder (now with single color!)
-				const cylinderRadius = Math.random() * 2 + 1; // 1 to 3
-				const cylinderHeight = Math.random() * 8 + 4; // 4 to 12
+				const cylinderRadius = Math.random() * 0.2 + 0.1; // 0.1 to 0.3
+				const cylinderHeight = Math.random() * 0.8 + 0.4; // 0.4 to 1.2
 				const cylinderMass = Math.random() * 3 + 1; // 1 to 4
 				this.addMessage(`Spawning colorful cylinder!`);
 				return this.createCylinder(cylinderRadius, cylinderHeight, cylinderMass, position, randomColor);
 
 			case 5: // Sailboat (GeometryBuilder)
-				const sailboatScale = Math.random() * 0.5 + 0.8; // 0.8 to 1.3 scale
+				const sailboatScale = Math.random() * 0.05 + 0.08; // 0.08 to 0.13 scale
 				const sailboatMass = Math.random() * 3 + 2; // 2-5 mass
 				this.addMessage("Spawning procedural sailboat!");
 				return this.createSailboat(sailboatScale, sailboatMass, position);
 
 			case 6: // Detailed Airplane (GeometryBuilder)
-				const airplaneScale = Math.random() * 0.5 + 0.7; // 0.7 to 1.2 scale
+				const airplaneScale = Math.random() * 0.05 + 0.07; // 0.07 to 0.12 scale
 				const airplaneMass = Math.random() * 4 + 2; // 2-6 mass
 				this.addMessage("Spawning detailed procedural airplane!");
 				return this.createAirplane(airplaneScale, airplaneMass, position);
@@ -1020,12 +1023,12 @@ class Game {
 			this.addMessage("Spawning 3D character");
 
 			// Initialize first/3rd person character controller
-			this.player = new ActionCharacter3D(this.camera, this, new Vector3(0, 40, 0));
+			this.player = new ActionCharacter3D(this.camera, this, new Vector3(0, 4, 0));
 			this.physicsWorld.objects.add(this.player.characterModel);
 
 			// Position the character in a good starting location
 			if (this.player.characterModel && this.player.characterModel.body) {
-				this.player.characterModel.body.position.set(0, 5, 0);
+				this.player.characterModel.body.position.set(0, 0.5, 0);
 			}
 
 			// Connect camera to player
@@ -1347,9 +1350,9 @@ class Game {
 		if (this.input.isKeyJustPressed("Action3")) {
 			this.addMessage("Spawning random physics object");
 			// Random position in the scene
-			const randomX = Math.random() * 40 - 20; // -20 to 20
-			const randomZ = Math.random() * 40 - 20; // -20 to 20
-			const dropHeight = Math.random() * 10 + 20; // 20 to 30
+			const randomX = Math.random() * 4 - 2; // -2 to 2
+			const randomZ = Math.random() * 4 - 2; // -2 to 2
+			const dropHeight = Math.random() * 1 + 2; // 2 to 3
 
 			const randomPos = new Vector3(randomX, dropHeight, randomZ);
 			this.createRandomObject(randomPos);
