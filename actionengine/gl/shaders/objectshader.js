@@ -230,12 +230,17 @@ class ObjectShader {
         // Position in light space for shadow mapping, with NORMAL-OFFSET bias: nudge the sampled
         // position along the surface normal (NOT toward the light) before projecting. This covers the
         // texel-footprint depth error that causes acne WITHOUT pushing the shadow along the light ray,
-        // so it kills acne without the peter-panning that depth bias causes. The offset is strongest
-        // on grazing surfaces (where acne lives) via sin(angle), zero face-on. Magnitude is world-texel
-        // scaled (uShadowNormalOffset = texelWorld × normalSlackTexels), so it auto-tracks the fit.
+        // so it kills acne without the peter-panning that depth bias causes. The offset ramps up as the
+        // surface approaches grazing (sin(angle), zero face-on) and back OFF to zero once the surface is
+        // backfacing (n·l <= 0) — a backfacing fragment is already unlit by the diffuse term, so it needs
+        // no shadow bias at all; without the explicit backface branch below, clamping n·l to >=0 collapses
+        // face-on-away-from-light and true-grazing into the same "0" value, which made grazeV saturate to
+        // its MAXIMUM across the entire backfacing hemisphere instead of ramping down to zero. That
+        // constant max offset near silhouette edges (ramps, cones, cylinders) pushed the shadow-space
+        // sample position across geometry boundaries, which read as crawl independent of any slack slider.
         vec3 nrmW = normalize(worldNormal);
-        float ndlV = clamp(dot(nrmW, normalize(-uLightDir)), 0.0, 1.0);
-        float grazeV = sqrt(max(0.0, 1.0 - ndlV * ndlV));
+        float ndlRawV = dot(nrmW, normalize(-uLightDir));
+        float grazeV = ndlRawV > 0.0 ? sqrt(max(0.0, 1.0 - ndlRawV * ndlRawV)) : 0.0;
         vFragPosLightSpace = uLightSpaceMatrix * vec4(worldPos.xyz + nrmW * (uShadowNormalOffset * grazeV), 1.0);
 
         // Linear view-space depth (positive forward distance) for CSM cascade selection. View space
@@ -313,7 +318,17 @@ class ObjectShader {
                 vec2 biasUV = vec2(dy.y * dx.z - dx.y * dy.z,
                                    dx.x * dy.z - dy.x * dx.z);
                 float det = dx.x * dy.y - dx.y * dy.x;
+                // The 1e-8 floor on |det| only guards against literal divide-by-zero — it does nothing
+                // for a det that's small-but-nonzero (common on ordinary flat surfaces at moderate view
+                // angles, not just degenerate silhouettes), which still blows biasUV up by orders of
+                // magnitude. That unbounded per-fragment, per-frame noise feeds straight into every PCF
+                // tap's reference depth, independent of Flat/Slope/Normal Slack — none of those sliders
+                // can touch it, which is why tuning the Bias tab alone can't kill this crawl. Clamp the
+                // gradient itself to a sane number of texels of depth change per texel of UV offset;
+                // beyond that it's numerical noise, not real surface slope.
                 biasUV /= (sign(det) * max(abs(det), 1e-8));
+                float maxSlope = 8.0; // texels of depth change per texel of UV — generous but bounded
+                biasUV = clamp(biasUV, vec2(-maxSlope), vec2(maxSlope));
                 return biasUV; // d(depth)/d(uv)
             }
 
@@ -432,8 +447,17 @@ class ObjectShader {
 
                 // Flat + slope depth bias (the panel knobs). Receiver-plane handles slope per-tap, so
                 // these stay small — flat covers the flat case, slope is a manual trim on top.
-                float NdotL = max(clamp(dot(normalize(normal), normalize(lightDir)), 0.0, 1.0), 0.05);
-                float slopeTan = min(sqrt(1.0 - NdotL * NdotL) / NdotL, uShadowSlopeClamp);
+                // Backfacing (rawNdotL <= 0) gets ZERO slope bias, not the clamp ceiling: the old
+                // max(clamp(x,0,1), 0.05) floor made backfacing fragments indistinguishable from true
+                // grazing ones, so slopeTan saturated to its max across the whole backfacing hemisphere
+                // instead of ramping down — a constant near-maximum bias smeared across every silhouette
+                // edge (ramps, cones, cylinders), independent of the Slope Slack slider value.
+                float rawNdotL = dot(normalize(normal), normalize(lightDir));
+                float NdotL = max(rawNdotL, 0.05);
+                // uShadowSlopeClamp <= 0 means "no clamp", not "clamp to zero" — min(x, 0.0) would zero
+                // the whole slope term silently (which is why Slope Slack looked dead at Clamp = 0).
+                float rawSlopeTan = sqrt(1.0 - NdotL * NdotL) / NdotL;
+                float slopeTan = rawNdotL > 0.0 ? (uShadowSlopeClamp > 0.0 ? min(rawSlopeTan, uShadowSlopeClamp) : rawSlopeTan) : 0.0;
                 float bias = uShadowBias + slopeTan * uShadowSlopeScaleBias;
 
                 vec2 texelSize = 1.0 / vec2(textureSize(shadowMap, 0));
@@ -486,9 +510,14 @@ class ObjectShader {
             // Project a world position into cascade 'layer' light space, applying that cascade's own
             // normal-offset bias (strongest on grazing surfaces). Returns [0,1] shadow-map coordinates.
             vec3 cascadeProj(int layer, vec3 worldPos, vec3 normal, vec3 lightDir) {
+                // lightDir here is ALREADY "direction toward the light" (callers pass L = normalize(-uLightDir)) —
+                // do NOT negate again. The extra negation flipped the sign of every n·l test in this function,
+                // so it treated light-facing surfaces as backfacing and vice versa: the normal-offset ramp
+                // (meant to be zero on the front face, strongest at grazing) was instead being applied with
+                // the wrong sign across all CSM-rendered geometry, independent of any Bias slider value.
                 vec3 nrmW = normalize(normal);
-                float ndl = clamp(dot(nrmW, normalize(-lightDir)), 0.0, 1.0);
-                float graze = sqrt(max(0.0, 1.0 - ndl * ndl));
+                float ndlRaw = dot(nrmW, normalize(lightDir));
+                float graze = ndlRaw > 0.0 ? sqrt(max(0.0, 1.0 - ndlRaw * ndlRaw)) : 0.0;
                 vec4 ls = uCascadeMatrices[layer] * vec4(worldPos + nrmW * (uCascadeNormalOffset[layer] * graze), 1.0);
                 vec3 pc = ls.xyz / ls.w;
                 return pc * 0.5 + 0.5;
@@ -504,8 +533,11 @@ class ObjectShader {
                     return 1.0; // outside this cascade — caller falls back / leaves lit
                 }
                 float currentDepth = projCoords.z;
-                float NdotL = max(clamp(dot(normalize(normal), normalize(lightDir)), 0.0, 1.0), 0.05);
-                float slopeTan = min(sqrt(1.0 - NdotL * NdotL) / NdotL, uShadowSlopeClamp);
+                float rawNdotL = dot(normalize(normal), normalize(lightDir));
+                float NdotL = max(rawNdotL, 0.05);
+                // uShadowSlopeClamp <= 0 means "no clamp" (see shadowCalculationPCF for why).
+                float rawSlopeTan = sqrt(1.0 - NdotL * NdotL) / NdotL;
+                float slopeTan = rawNdotL > 0.0 ? (uShadowSlopeClamp > 0.0 ? min(rawSlopeTan, uShadowSlopeClamp) : rawSlopeTan) : 0.0;
                 float bias = flatBias + slopeTan * slopeBase;
 
                 vec2 texelSize = 1.0 / vec2(textureSize(uShadowMapArray, 0).xy);

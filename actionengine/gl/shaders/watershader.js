@@ -60,12 +60,12 @@ class WaterShader {
          void main() {
              vec3 pos = aPosition;
              
-             float wave = sin(pos.x * 2.0 + uTime) * 2.0 + 
-                         sin(pos.z * 1.5 + uTime * 0.8) * 1.8;
+             float wave = sin(pos.x * 20.0 + uTime) * 0.2 +
+                         sin(pos.z * 15.0 + uTime * 0.8) * 0.18;
              pos.y += wave;
-             
+
              vec3 normal = aNormal;
-             normal.xz += cos(pos.xz * 2.0 + uTime) * 0.2;
+             normal.xz += cos(pos.xz * 20.0 + uTime) * 0.2;
              normal = normalize(normal);
              
              mat4 modelMatrix = buildModelMatrix(uModelPos, uModelRotation, uModelScale);

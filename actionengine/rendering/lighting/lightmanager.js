@@ -174,7 +174,7 @@ class LightManager {
      * @param {boolean} castsShadows - Whether this light should cast shadows
      * @returns {ActionOmnidirectionalShadowLight} - The created light
      */
-    createPointLight(position, color, intensity, radius = 100.0, castsShadows = false) {
+    createPointLight(position, color, intensity, radius = 10.0, castsShadows = false) {
         // Remove logging to reduce console spam
 
         const light = new ActionOmnidirectionalShadowLight(this.gl, this.programManager, this.objectRenderer);

@@ -236,6 +236,16 @@ class ActionShadowFit {
             // a needle. Without this, small near cascades get the same absolute pullback as far ones
             // and end up disproportionately elongated (5-unit radius, 200-unit pullback).
             pullback = Math.min(pullback, radius * 4);
+            // ALSO cap pullback as a fraction of far (= 2*radius + pullback), not just radius. The flat/
+            // slope bias formula scales off `radius` (via texelWorld = 2*radius/mapSize) but the shader
+            // compares depth over the FULL `far` span — when pullback dominates far (small cascades with
+            // a tall nearby caster can hit ~35%+), texelWorld understates the real depth-per-texel budget
+            // and the bias formula silently starves, which is what forced Flat Slack up and peter-panned
+            // the near cascade specifically. Solving pullback <= maxFrac*far algebraically for the
+            // radius*4 cap already applied above: pullback <= (2*radius*maxFrac) / (1 - maxFrac).
+            const maxPullbackFrac = 0.15;
+            const fracCap = (2 * radius * maxPullbackFrac) / (1 - maxPullbackFrac);
+            pullback = Math.min(pullback, fracCap);
         }
 
         // --- texel-snap the box center in light space (whole-texel steps → no edge crawl) ---
@@ -249,6 +259,15 @@ class ActionShadowFit {
             cy = Math.round(cy / texel) * texel;
         }
         const snappedCenter = lRight.scale(cx).add(lUp.scale(cy)).add(L.scale(cz));
+
+        // Snap pullback to whole-texel steps too — same reasoning as cx/cy above. _autoPullback derives
+        // it from live caster AABBs, so without snapping it drifts continuously every frame any nearby
+        // caster moves (even a hair), shifting the box's depth range (`far`) and therefore every static
+        // fragment's normalized depth by a sub-texel amount each frame — crawl on geometry that never
+        // itself moved. Round UP so the box only ever grows to cover a caster, never shrinks under it.
+        if (opts.snap !== false) {
+            pullback = Math.ceil(pullback / texel) * texel;
+        }
 
         // --- eye sits behind the sphere along -L; near grabs casters between light and slice ---
         const eye = snappedCenter.sub(L.scale(radius + pullback));

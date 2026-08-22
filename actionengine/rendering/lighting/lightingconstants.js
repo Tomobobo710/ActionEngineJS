@@ -88,9 +88,10 @@ class LightingConstants {
                 label: "Shadow Resolution"
             },
             SLOPE_CLAMP: {
-                value: 6.5, // cap on tan(surface angle) so near-grazing surfaces don't blow the slope
-                            // bias up toward infinity.
-                min: 1.0,
+                value: 0.0, // cap on tan(surface angle) so near-grazing surfaces don't blow the slope
+                            // bias up toward infinity. 0 = no clamp (panel allows 0..64; the old min:1.0
+                            // here was stale relative to that and blocked an explicit "uncapped" default).
+                min: 0.0,
                 max: 16.0,
                 step: 0.5
             }
@@ -115,19 +116,19 @@ class LightingConstants {
         this.SHADOW_PROJECTION = {
             AUTO_FIT: true, // Automatically fit shadow frustum to the camera view (see ActionShadowFit)
             AUTO_FIT_DISTANCE: {
-                value: 250, // how far out from the camera shadows are fit (the shadow range)
-                min: 20,
-                max: 5000,
-                step: 10
+                value: 25, // how far out from the camera shadows are fit (the shadow range) — meters
+                min: 2,
+                max: 500,
+                step: 1
             },
             AUTO_PULLBACK: true, // derive pullback from actual caster bounds along the light axis
                                  // (see ActionShadowFit._autoPullback). When true, AUTO_FIT_PULLBACK
                                  // below is ignored — it's the manual override used only when false.
             AUTO_FIT_PULLBACK: {
-                value: 200, // extra depth toward the light so tall off-screen casters still cast in
+                value: 20, // extra depth toward the light so tall off-screen casters still cast in
                 min: 0,
-                max: 5000,
-                step: 10
+                max: 500,
+                step: 1
             },
             DISTANCE_MULTIPLIER: {
                 value: 100, // Multiplier for light target distance
@@ -141,13 +142,13 @@ class LightingConstants {
         // every auto-lighting knob lives in lightingConstants — nothing as a class static elsewhere.
         // The AutoShadowPanel reads/writes these directly (plain numbers, not {value} objects).
         this.AUTO_SHADOW = {
-            DEPTH_SLACK_TEXELS: 6.0, // flat depth-bias slack (texels) — too little = acne, too much = float
-            SLOPE_SLACK_TEXELS: 8.0, // slope-scaled bias slack (texels); negative pulls shadows onto tops/edges
-            NORMAL_SLACK_TEXELS: -2.5, // normal-offset slack (texels) — kills acne without peter-panning
+            DEPTH_SLACK_TEXELS: 2.0, // flat depth-bias slack (texels) — too little = acne, too much = float
+            SLOPE_SLACK_TEXELS: 0.0, // slope-scaled bias slack (texels); negative pulls shadows onto tops/edges
+            NORMAL_SLACK_TEXELS: 3.0, // normal-offset slack (texels) — kills acne without peter-panning
             TEXEL_SNAP: true, // snap box center to whole texels (anti edge-crawl when walking)
             RADIUS_QUANT: 16, // fit-radius quantization 1/N (anti resize-shimmer on zoom)
             PADDING: 0, // extra fit radius (world units) so frustum corners don't clip
-            MAX_AUTO_PULLBACK: 5000, // clamp on auto-derived pullback (one stray tall caster can't blow depth range)
+            MAX_AUTO_PULLBACK: 500, // clamp on auto-derived pullback (one stray tall caster can't blow depth range)
 
             // Cascaded Shadow Maps. When ENABLED, the single fitted box out to AUTO_FIT_DISTANCE is
             // replaced by COUNT cascades, each a tight fit over a sub-slice of [near, AUTO_FIT_DISTANCE].
@@ -161,7 +162,7 @@ class LightingConstants {
                 // CSM's OWN overall range (far edge of the last cascade), DECOUPLED from the single-map
                 // SHADOW_PROJECTION.AUTO_FIT_DISTANCE so the dev can keep the single-map distance small/
                 // crisp while CSM reaches far. Much bigger ceiling — reaching far is the whole point of CSM.
-                RANGE: { value: 500, min: 50, max: 5000, step: 25 },
+                RANGE: { value: 50, min: 5, max: 500, step: 2.5 },
                 COUNT: { value: 3, min: 1, max: 4, step: 1 }, // live cascade count (clamped to MAX)
                 LAMBDA: {
                     value: 0.5, // split blend: 0 = uniform splits (even world spacing, wastes near texels),
