@@ -43,7 +43,7 @@ class Vector3 {
 
     // Distance between two vectors
     static distance(a, b) {
-        return Math.sqrt(Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2) + Math.pow(a.z - b.z, 2));
+        return Scalar.hypot3(a.x - b.x, a.y - b.y, a.z - b.z);
     }
 
     // For distance calculations between points
@@ -91,15 +91,15 @@ class Vector3 {
 
     // For rotation around Y axis (useful for camera orbiting)
     rotateY(angle) {
-        const cos = Math.cos(angle);
-        const sin = Math.sin(angle);
+        const cos = Scalar.cos(angle);
+        const sin = Scalar.sin(angle);
         return new Vector3(this.x * cos + this.z * sin, this.y, -this.x * sin + this.z * cos);
     }
 
     // In-place version to avoid creating a new Vector3
     rotateYInPlace(angle) {
-        const cos = Math.cos(angle);
-        const sin = Math.sin(angle);
+        const cos = Scalar.cos(angle);
+        const sin = Scalar.sin(angle);
         const x = this.x;
         const z = this.z;
         this.x = x * cos + z * sin;
@@ -213,10 +213,14 @@ class Vector3 {
     }
 
     // Static cross product that writes to an output vector (no allocation)
+    // Both operands are read into locals BEFORE any write, so this is safe when `out` is also `a` or
+    // `b`. Writing directly would corrupt components still needed by the next line.
     static crossInto(out, a, b) {
-        out.x = a.y * b.z - a.z * b.y;
-        out.y = a.z * b.x - a.x * b.z;
-        out.z = a.x * b.y - a.y * b.x;
+        const ax = a.x, ay = a.y, az = a.z;
+        const bx = b.x, by = b.y, bz = b.z;
+        out.x = ay * bz - az * by;
+        out.y = az * bx - ax * bz;
+        out.z = ax * by - ay * bx;
         return out;
     }
 
@@ -292,5 +296,109 @@ class Vector3 {
             this.y + (target.y - this.y) * t,
             this.z + (target.z - this.z) * t
         );
+    }
+
+    // ---- in-place / allocation-free forms ----
+    // The physics solver runs these thousands of times per tick and cannot allocate per operation.
+    // The allocating forms above are unchanged. `Into` follows the existing crossInto: write into `out`.
+
+    // out = a + b
+    static addInto(out, a, b) {
+        out.x = a.x + b.x; out.y = a.y + b.y; out.z = a.z + b.z;
+        return out;
+    }
+
+    // out = a - b
+    static subInto(out, a, b) {
+        out.x = a.x - b.x; out.y = a.y - b.y; out.z = a.z - b.z;
+        return out;
+    }
+
+    // out = v * s
+    static scaleInto(out, v, s) {
+        out.x = v.x * s; out.y = v.y * s; out.z = v.z * s;
+        return out;
+    }
+
+    // out = normalized v. A zero vector stays zero rather than becoming NaN.
+    static normalizeInto(out, v) {
+        const lsq = v.x * v.x + v.y * v.y + v.z * v.z;
+        if (lsq === 0) { out.x = 0; out.y = 0; out.z = 0; return out; }
+        const inv = 1 / Math.sqrt(lsq);
+        out.x = v.x * inv; out.y = v.y * inv; out.z = v.z * inv;
+        return out;
+    }
+
+    // this += v * s
+    addScaledInPlace(v, s) {
+        this.x += v.x * s; this.y += v.y * s; this.z += v.z * s;
+        return this;
+    }
+
+    scaleInPlace(s) {
+        this.x *= s; this.y *= s; this.z *= s;
+        return this;
+    }
+
+    // Component-wise product, in place.
+    multiplyInPlace(v) {
+        this.x *= v.x; this.y *= v.y; this.z *= v.z;
+        return this;
+    }
+
+    negateInPlace() {
+        this.x = -this.x; this.y = -this.y; this.z = -this.z;
+        return this;
+    }
+
+    // this = this x v. Caches BOTH operands - v may be this, and v x v must give zero.
+    crossInPlace(v) {
+        const x = this.x, y = this.y, z = this.z;
+        const vx = v.x, vy = v.y, vz = v.z;
+        this.x = y * vz - z * vy;
+        this.y = z * vx - x * vz;
+        this.z = x * vy - y * vx;
+        return this;
+    }
+
+    // A unit vector perpendicular to v. Crosses with the cardinal axis v is LEAST aligned to - a
+    // nearly-parallel axis gives a near-zero vector that normalises into noise.
+    findOrthogonal(v) {
+        const ax = Math.abs(v.x), ay = Math.abs(v.y), az = Math.abs(v.z);
+        if (ax <= ay && ax <= az) { this.x = 0; this.y = -v.z; this.z = v.y; }
+        else if (ay <= az) { this.x = -v.z; this.y = 0; this.z = v.x; }
+        else { this.x = -v.y; this.y = v.x; this.z = 0; }
+        return this.normalizeInPlace();
+    }
+
+    minInPlace(v) {
+        if (v.x < this.x) this.x = v.x;
+        if (v.y < this.y) this.y = v.y;
+        if (v.z < this.z) this.z = v.z;
+        return this;
+    }
+
+    maxInPlace(v) {
+        if (v.x > this.x) this.x = v.x;
+        if (v.y > this.y) this.y = v.y;
+        if (v.z > this.z) this.z = v.z;
+        return this;
+    }
+
+    isFinite() {
+        return Number.isFinite(this.x) && Number.isFinite(this.y) && Number.isFinite(this.z);
+    }
+
+    isZero() {
+        return this.x === 0 && this.y === 0 && this.z === 0;
+    }
+
+    // Exact equality - equals() above uses an epsilon, which is wrong for identity checks.
+    equalsExact(v) {
+        return this.x === v.x && this.y === v.y && this.z === v.z;
+    }
+
+    toString() {
+        return '(' + this.x + ', ' + this.y + ', ' + this.z + ')';
     }
 }

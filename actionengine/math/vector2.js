@@ -11,7 +11,7 @@ class Vector2 {
     }
 
     static fromAngle(angle) {
-        return new Vector2(Math.cos(angle), Math.sin(angle));
+        return new Vector2(Scalar.cos(angle), Scalar.sin(angle));
     }
 
     static fromArray(arr, offset = 0) {
@@ -101,8 +101,8 @@ class Vector2 {
     }
 
     rotate(angle) {
-        const cos = Math.cos(angle);
-        const sin = Math.sin(angle);
+        const cos = Scalar.cos(angle);
+        const sin = Scalar.sin(angle);
         const x = this.x * cos - this.y * sin;
         const y = this.x * sin + this.y * cos;
         this.x = x;
@@ -120,7 +120,7 @@ class Vector2 {
     }
 
     angle() {
-        return Math.atan2(this.y, this.x);
+        return Scalar.atan2(this.y, this.x);
     }
 
     distanceTo(v) {
@@ -223,8 +223,8 @@ class Vector2 {
     }
 
     static rotate(out, v, angle) {
-        const cos = Math.cos(angle);
-        const sin = Math.sin(angle);
+        const cos = Scalar.cos(angle);
+        const sin = Scalar.sin(angle);
         out.x = v.x * cos - v.y * sin;
         out.y = v.x * sin + v.y * cos;
         return out;
@@ -251,7 +251,7 @@ class Vector2 {
     }
 
     static angle(a, b) {
-        return Math.atan2(b.y - a.y, b.x - a.x);
+        return Scalar.atan2(b.y - a.y, b.x - a.x);
     }
 
     // Advanced operations

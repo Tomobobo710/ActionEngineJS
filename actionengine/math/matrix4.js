@@ -1,7 +1,21 @@
 //actionengine/math/matrix4.js
 class Matrix4 {
+    // Float32Array: what a GPU wants, and what rendering should use.
     static create() {
         return new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+    }
+
+    // Float64Array, for callers that cannot afford 32-bit rounding.
+    //
+    // float32 carries ~7 significant digits, so a position in the tens resolves to about 1e-5 - coarser
+    // than the quantities a physics solver works in (contact depths around 1e-3, and corrections an
+    // order of magnitude below that). It also defeats reproducibility, since the rounding compounds
+    // through every transform.
+    //
+    // Every static below is written as plain indexed reads and writes, so all of them operate on either
+    // array type without change.
+    static createPrecise() {
+        return new Float64Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
     }
 
     static identity(out) {
@@ -367,7 +381,7 @@ class Matrix4 {
         return new Vector3(x, y, z).normalize();
     }
     static perspective(out, fovy, aspect, near, far) {
-        const f = 1.0 / Math.tan(fovy / 2);
+        const f = 1.0 / Scalar.tan(fovy / 2);
         out[0] = f / aspect;
         out[1] = 0;
         out[2] = 0;
@@ -443,7 +457,7 @@ class Matrix4 {
             y = axis[1],
             z = axis[2];
 
-        let len = Math.hypot(x, y, z);
+        let len = Scalar.hypot3(x, y, z);
         if (len < 0.000001) {
             return null;
         }
@@ -452,8 +466,8 @@ class Matrix4 {
         y *= len;
         z *= len;
 
-        const s = Math.sin(rad);
-        const c = Math.cos(rad);
+        const s = Scalar.sin(rad);
+        const c = Scalar.cos(rad);
         const t = 1 - c;
 
         const a00 = a[0],
@@ -605,7 +619,7 @@ class Matrix4 {
         z1 = eyey - centery;
         z2 = eyez - centerz;
 
-        len = 1 / Math.hypot(z0, z1, z2);
+        len = 1 / Scalar.hypot3(z0, z1, z2);
         z0 *= len;
         z1 *= len;
         z2 *= len;
@@ -614,7 +628,7 @@ class Matrix4 {
         x0 = upy * z2 - upz * z1;
         x1 = upz * z0 - upx * z2;
         x2 = upx * z1 - upy * z0;
-        len = Math.hypot(x0, x1, x2);
+        len = Scalar.hypot3(x0, x1, x2);
 
         // Handle the case where up and z are colinear (or nearly so)
         if (len < 0.000001) {
@@ -631,7 +645,7 @@ class Matrix4 {
                 x1 = -z0;
                 x2 = 0;
             }
-            len = Math.hypot(x0, x1, x2);
+            len = Scalar.hypot3(x0, x1, x2);
             len = 1 / len;
             x0 *= len;
             x1 *= len;
@@ -648,7 +662,7 @@ class Matrix4 {
         y1 = z2 * x0 - z0 * x2;
         y2 = z0 * x1 - z1 * x0;
 
-        len = Math.hypot(y0, y1, y2);
+        len = Scalar.hypot3(y0, y1, y2);
         if (!len) {
             y0 = 0;
             y1 = 0;
@@ -724,8 +738,8 @@ class Matrix4 {
     }
 
     static rotateX(out, a, rad) {
-        const s = Math.sin(rad);
-        const c = Math.cos(rad);
+        const s = Scalar.sin(rad);
+        const c = Scalar.cos(rad);
         const a10 = a[4];
         const a11 = a[5];
         const a12 = a[6];
@@ -759,8 +773,8 @@ class Matrix4 {
         return out;
     }
     static rotateZ(out, a, rad) {
-        const s = Math.sin(rad);
-        const c = Math.cos(rad);
+        const s = Scalar.sin(rad);
+        const c = Scalar.cos(rad);
         const a00 = a[0];
         const a01 = a[1];
         const a02 = a[2];
@@ -795,8 +809,8 @@ class Matrix4 {
     }
 
     static rotateY(out, a, rad) {
-        const s = Math.sin(rad);
-        const c = Math.cos(rad);
+        const s = Scalar.sin(rad);
+        const c = Scalar.cos(rad);
         const a00 = a[0];
         const a01 = a[1];
         const a02 = a[2];

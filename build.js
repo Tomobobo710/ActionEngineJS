@@ -8,9 +8,11 @@ const files = [
     'actionengine/3rdparty/goblin/goblin.js',
     
     // Math & Transformation
+    'actionengine/math/scalar.js',
     'actionengine/math/vector2.js',
     'actionengine/math/vector3.js',
     'actionengine/math/matrix4.js',
+    'actionengine/math/matrix3.js',
     'actionengine/math/quaternion.js',
     'actionengine/math/transform.js',
     

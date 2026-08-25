@@ -13,7 +13,7 @@ class Transform {
 
     /**
      * Sync transform from a physics body
-     * @param {Goblin.RigidBody} body - Physics body with position and rotation
+     * @param {Object} body - Physics body with position and rotation
      */
     syncFromPhysicsBody(body) {
         if (!body) return;
