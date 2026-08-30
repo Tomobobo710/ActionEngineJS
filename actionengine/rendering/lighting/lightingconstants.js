@@ -183,10 +183,10 @@ class LightingConstants {
                     { value: 0.6, min: 0.01, max: 0.99, step: 0.01 } // cascade 2 ends here (used only at COUNT=4)
                 ],
                 BLEND_TEXELS: {
-                    value: 8, // width of the dissolve band (in far-cascade texels) across a cascade boundary,
-                    min: 0, //  so the resolution step between cascades doesn't show as a hard seam. 0 = hard switch.
-                    max: 64,
-                    step: 1
+                    value: 0, // width of the dissolve band (in far-cascade texels) across a cascade boundary.
+                    min: 0, //  0 = hard switch at the split (default). Raise it to fade the resolution step
+                    max: 64, //  between cascades if a seam shows; shadowCSM reconciles per-cascade bias/normal-
+                    step: 1  //  offset across the band so the fade doesn't itself leave a line.
                 }
             }
         };

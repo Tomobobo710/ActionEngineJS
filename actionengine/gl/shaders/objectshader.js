@@ -509,7 +509,11 @@ class ObjectShader {
             // ===== Cascaded Shadow Map sampling =====
             // Project a world position into cascade 'layer' light space, applying that cascade's own
             // normal-offset bias (strongest on grazing surfaces). Returns [0,1] shadow-map coordinates.
-            vec3 cascadeProj(int layer, vec3 worldPos, vec3 normal, vec3 lightDir) {
+            // normalOffset is passed EXPLICITLY (not read from uCascadeNormalOffset[layer]) so shadowCSM
+            // can cross-fade it across a cascade seam: near the split both the near and far cascade are
+            // projected with the SAME blended offset, so the normal-offset push doesn't step from one
+            // cascade's value to the next mid-blend (that step was a large part of the visible seam line).
+            vec3 cascadeProj(int layer, float normalOffset, vec3 worldPos, vec3 normal, vec3 lightDir) {
                 // lightDir here is ALREADY "direction toward the light" (callers pass L = normalize(-uLightDir)) —
                 // do NOT negate again. The extra negation flipped the sign of every n·l test in this function,
                 // so it treated light-facing surfaces as backfacing and vice versa: the normal-offset ramp
@@ -518,7 +522,7 @@ class ObjectShader {
                 vec3 nrmW = normalize(normal);
                 float ndlRaw = dot(nrmW, normalize(lightDir));
                 float graze = ndlRaw > 0.0 ? sqrt(max(0.0, 1.0 - ndlRaw * ndlRaw)) : 0.0;
-                vec4 ls = uCascadeMatrices[layer] * vec4(worldPos + nrmW * (uCascadeNormalOffset[layer] * graze), 1.0);
+                vec4 ls = uCascadeMatrices[layer] * vec4(worldPos + nrmW * (normalOffset * graze), 1.0);
                 vec3 pc = ls.xyz / ls.w;
                 return pc * 0.5 + 0.5;
             }
@@ -595,24 +599,55 @@ class ObjectShader {
                     if (viewDepth < uCascadeSplits[i]) { layer = i; break; }
                 }
 
-                vec3 pc = cascadeProj(layer, worldPos, normal, lightDir);
-                float s = sampleCascadeLayer(layer, pc, normal, lightDir, uCascadeBias[layer], uCascadeSlopeBias[layer]);
-
-                // Blend band near this cascade's far edge: width derived from the texel knob as a fraction
-                // of the cascade's view-depth range (so it scales sanely with map size and distance).
-                if (uCascadeBlendTexels > 0.0 && layer < uCascadeCount - 1) {
-                    float prevSplit = layer > 0 ? uCascadeSplits[layer - 1] : 0.0;
-                    float range = max(uCascadeSplits[layer] - prevSplit, 1e-4);
-                    float band = (uCascadeBlendTexels / max(uShadowMapSize, 1.0)) * range;
-                    float t = clamp((uCascadeSplits[layer] - viewDepth) / max(band, 1e-4), 0.0, 1.0);
-                    if (t < 1.0) {
-                        vec3 pcN = cascadeProj(layer + 1, worldPos, normal, lightDir);
-                        float sN = sampleCascadeLayer(layer + 1, pcN, normal, lightDir,
-                                                      uCascadeBias[layer + 1], uCascadeSlopeBias[layer + 1]);
-                        s = mix(sN, s, t);
+                // How close are we to THIS cascade's far split, measured in the blend band? blendT=1 at
+                // (or before) the band's near edge — pure cascade loLayer; blendT=0 at the split — a
+                // 50/50 mix with the next cascade. The band is TWO-SIDED about the split: fragments just
+                // past the split (already in the next cascade, selected above) still see blendT>0 here
+                // because their distance to the previous split is within half a band, so they blend back
+                // toward the cascade they just left. Without that there was a hard step at the split.
+                float blendT = 1.0;
+                bool inBand = false;
+                int loLayer = layer;      // the nearer of the two cascades being blended
+                if (uCascadeBlendTexels > 0.0 && uShadowMapSize > 0.0) {
+                    // Which split are we nearer — this cascade's far edge, or the one behind us? Blend
+                    // across whichever is closer, so a fragment just past a split blends back toward the
+                    // cascade it just left (two-sided band).
+                    if (layer > 0 && (uCascadeSplits[layer] - viewDepth) > (viewDepth - uCascadeSplits[layer - 1])) {
+                        loLayer = layer - 1;
+                    }
+                    if (loLayer < uCascadeCount - 1) {
+                        float prevSplit = loLayer > 0 ? uCascadeSplits[loLayer - 1] : 0.0;
+                        float range = max(uCascadeSplits[loLayer] - prevSplit, 1e-4);
+                        float halfBand = 0.5 * (uCascadeBlendTexels / uShadowMapSize) * range;
+                        // signed distance from the split: >0 on the near side (cascade loLayer), <0 past it
+                        float d = uCascadeSplits[loLayer] - viewDepth;
+                        blendT = clamp(0.5 + 0.5 * (d / max(halfBand, 1e-4)), 0.0, 1.0);
+                        inBand = blendT < 1.0;
                     }
                 }
-                return s;
+
+                if (!inBand) {
+                    vec3 pc = cascadeProj(layer, uCascadeNormalOffset[layer], worldPos, normal, lightDir);
+                    return sampleCascadeLayer(layer, pc, normal, lightDir,
+                                              uCascadeBias[layer], uCascadeSlopeBias[layer]);
+                }
+
+                // In the band: sample BOTH neighbouring cascades with the SAME blended bias / slope /
+                // normal-offset, so the only thing that differs between the two samples is the cascade
+                // matrix + resolution. The parameter pop that used to ride the mix is gone; each side
+                // converges to the same contact point at the split, and mix() just fades resolution.
+                int hi = loLayer + 1;
+                float nOff  = mix(uCascadeNormalOffset[hi], uCascadeNormalOffset[loLayer], blendT);
+                float fBias = mix(uCascadeBias[hi],         uCascadeBias[loLayer],         blendT);
+                float sBias = mix(uCascadeSlopeBias[hi],    uCascadeSlopeBias[loLayer],    blendT);
+
+                vec3 pcLo = cascadeProj(loLayer, nOff, worldPos, normal, lightDir);
+                float sLo = sampleCascadeLayer(loLayer, pcLo, normal, lightDir, fBias, sBias);
+
+                vec3 pcHi = cascadeProj(hi, nOff, worldPos, normal, lightDir);
+                float sHi = sampleCascadeLayer(hi, pcHi, normal, lightDir, fBias, sBias);
+
+                return mix(sHi, sLo, blendT);
             }`;
 
         return `#version 300 es

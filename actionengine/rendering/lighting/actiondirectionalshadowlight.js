@@ -932,6 +932,7 @@ class ActionDirectionalShadowLight extends ActionLight {
         const cascadeSlopeBiasLoc = gl.getUniformLocation(program, "uCascadeSlopeBias");
         const cascadeNormalOffsetLoc = gl.getUniformLocation(program, "uCascadeNormalOffset");
         const cascadeBlendLoc = gl.getUniformLocation(program, "uCascadeBlendTexels");
+        const shadowMapSizeLoc = gl.getUniformLocation(program, "uShadowMapSize");
 
         // Set light direction
         if (lightDirLoc !== null) {
@@ -955,6 +956,11 @@ class ActionDirectionalShadowLight extends ActionLight {
                 const blend = this.constants.AUTO_SHADOW.CSM.BLEND_TEXELS.value;
                 gl.uniform1f(cascadeBlendLoc, blend);
             }
+            // The blend-band width (objectshader shadowCSM) is uCascadeBlendTexels / uShadowMapSize —
+            // without this upload uShadowMapSize is 0, the shader clamps it to 1, and the band balloons
+            // to blendTexels * cascadeRange (i.e. the whole cascade), smearing the seam across the
+            // entire slice instead of a thin strip at the split.
+            if (shadowMapSizeLoc !== null) gl.uniform1f(shadowMapSizeLoc, this.shadowMapSize);
         }
 
         // Set light intensity
