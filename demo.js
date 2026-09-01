@@ -154,7 +154,39 @@ class Game {
 		// Create sounds for the demo
 		this.createGameSounds();
 
+		// ActionUI: on-screen gamepad + a toggle button for it.
+		this.setupGamepadUI(canvases);
+
 		console.log("[Demo Game] Initialization completed");
+	}
+
+	/**
+	 * setupGamepadUI()
+	 * Adds an ActionUIGamepad (hidden by default) plus a small button to show/hide it.
+	 * The gamepad feeds the same actions as a physical controller, so once it's on,
+	 * DirUp/etc., Action1, and the right stick all drive the demo.
+	 */
+	setupGamepadUI(canvases) {
+		this.ui = new ActionUI(canvases, this.input);
+		// The demo reads DirUp/Action1/etc. directly for gameplay — don't also let
+		// ActionUI chase a keyboard-nav focus ring on the same presses.
+		this.ui.enableKeyboardNavigation = false;
+
+		this.gamepad = this.ui.makeGamepad();
+		this.gamepad.setVisible(false);
+		this.gamepadVisible = false;
+
+		this.gamepadToggle = this.ui.makeButton({
+			x: Game.WIDTH - 190, y: 10, width: 180, height: 34,
+			text: "Show Gamepad", variant: "secondary",
+			onClick: () => this.toggleGamepad()
+		});
+	}
+
+	toggleGamepad() {
+		this.gamepadVisible = !this.gamepadVisible;
+		this.gamepad.setVisible(this.gamepadVisible);
+		this.gamepadToggle.text = this.gamepadVisible ? "Hide Gamepad" : "Show Gamepad";
 	}
 
 	/******* Fixed Coordinate System *******
@@ -1306,6 +1338,12 @@ class Game {
 	 * including input handling, physics, and game state changes.
 	 */
 	update(deltaTime) {
+		// Drive ActionUI (on-screen gamepad + its toggle button)
+		this.ui.update(deltaTime);
+
+		// Start button also toggles the on-screen gamepad
+		if (this.input.isKeyJustPressed("Action8")) this.toggleGamepad();
+
 		// Handle all common input interactions first
 		this.handleCommonInput();
 
@@ -2345,6 +2383,9 @@ class Game {
 		if (!this.showDebug) {
 			this.drawInstructions();
 		}
+
+		// ActionUI on top of the demo's own GUI drawing
+		this.ui.draw("gui");
 	}
 
 	/**
@@ -2361,7 +2402,7 @@ class Game {
 		if (this.player) {
 			this.guiCtx.fillText("Action1: Jump (when character is on ground)", 10, 40);
 			this.guiCtx.fillText("DirUp/Down/Left/Right: Move character", 10, 60);
-			this.guiCtx.fillText("F9: Toggle debug overlay (switches to 2D mini-game)", 10, 80);
+			this.guiCtx.fillText("Right stick: Look around  |  F9: Debug overlay", 10, 80);
 		} else {
 			this.guiCtx.fillText("Use Arrow Keys to move the free camera", 10, 40);
 			this.guiCtx.fillText("Click the 'Spawn Character' button to create a playable character", 10, 60);
