@@ -9376,8 +9376,12 @@ proto.beginStep = function(command, dt) {
     var wishX = 0;
     var wishZ = 0;
     if (hasInput) {
-        wishX = (dirX / dirLen) * speed;
-        wishZ = (dirZ / dirLen) * speed;
+        // Clamp direction to unit length, not normalize: a full digital diagonal
+        // (dirLen ~= 1.41) still caps at gait speed, but a partial analog stick keeps
+        // its magnitude for a proportional walk.
+        var norm = dirLen > 1 ? 1 / dirLen : 1;
+        wishX = dirX * norm * speed;
+        wishZ = dirZ * norm * speed;
     }
 
     // Stashed for endStep (this same tick, after world.step) to use when it decides this tick's
