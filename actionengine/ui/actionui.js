@@ -10,6 +10,11 @@ class ActionUI {
      */
     constructor(canvases, input) {
          this.input    = input;
+
+         // logical surface size; screen-edge / centered components anchor to these
+         this._width   = canvases.width  ?? 800;
+         this._height  = canvases.height ?? 600;
+
          this._currentThemePreset = 'dark';
          this._themeOverrides = {};
          this._buildTheme();
@@ -47,7 +52,7 @@ class ActionUI {
          // This keeps the internal state aligned with ActionEngine's input pipeline
          this._inputElementId = '__actionui_root__';
          this.input.registerElement(this._inputElementId, {
-             bounds: () => ({ x: 0, y: 0, width: 800, height: 600 })
+             bounds: () => ({ x: 0, y: 0, width: this._width, height: this._height })
          });
 
          // Context menus need global pointer-down to close
@@ -260,7 +265,7 @@ class ActionUI {
         const t     = this.theme;
         const w     = t.notificationWidth;
         const margin = 12;
-        const x      = 800 - w - margin;
+        const x      = this._width - w - margin;
         // Stack from bottom upward
         const slotIdx = this._notifications.length;
         const y       = this._notifSlotY + slotIdx * 64;
@@ -377,6 +382,9 @@ class ActionUI {
 
         // Pointer move
         this._handlePointerMove(ptr.x, ptr.y);
+
+        // The oldest touch rides the pointer path above; route every other finger.
+        this._handleSecondaryTouches();
 
         // Keyboard input for focused component
         this._handleKeyboard();
@@ -516,6 +524,69 @@ class ActionUI {
             if (!comp._isEffectivelyVisible()) continue;
             comp.onPointerMove(px, py);
         }
+    }
+
+    // Down/move/up dispatch for every touch except the primary, keyed by touch id,
+    // with per-id capture so a finger dragged off its component keeps control. No
+    // modal/menu/focus handling here — that's the primary/pointer path's job.
+    _handleSecondaryTouches() {
+        if (!this.input.getTouches) return;
+        const touches = this.input.getTouches();
+        if (!this._touchCapturedBy) this._touchCapturedBy = new Map();
+        if (!this._prevTouchIds)    this._prevTouchIds = new Set();
+        if (!this._lastTouchPos)    this._lastTouchPos = new Map();
+
+        // oldest touch; matches InputHandler._primaryTouch (getTouches keeps insertion order)
+        const primaryId = touches.length ? touches[0].id : null;
+
+        const sorted = [...this._components].sort((a, b) => b.zIndex - a.zIndex);
+        const liveIds = new Set();
+
+        const pick = (x, y) => {
+            for (const comp of sorted) {
+                if (!comp._isEffectivelyVisible() || !comp.enabled) continue;
+                if (comp.containsPoint(x, y)) return comp;
+            }
+            return null;
+        };
+
+        for (const t of touches) {
+            if (t.id === primaryId) continue;
+            liveIds.add(t.id);
+            this._lastTouchPos.set(t.id, { x: t.x, y: t.y });
+            const isNew = !this._prevTouchIds.has(t.id);
+
+            const captured = this._touchCapturedBy.get(t.id);
+            if (captured) {
+                captured.onTouchMove(t.id, t.x, t.y);
+                continue;
+            }
+
+            if (isNew) {
+                const comp = pick(t.x, t.y);
+                if (comp) {
+                    comp.onTouchDown(t.id, t.x, t.y);
+                    if (comp._pointerCaptured || comp._touchCaptured) {
+                        this._touchCapturedBy.set(t.id, comp);
+                    }
+                }
+            } else {
+                const comp = pick(t.x, t.y);
+                if (comp) comp.onTouchMove(t.id, t.x, t.y);
+            }
+        }
+
+        // lifted touches -> onTouchUp on their captor, then release
+        for (const id of this._prevTouchIds) {
+            if (liveIds.has(id) || id === primaryId) continue;
+            const captured = this._touchCapturedBy.get(id);
+            const last = this._lastTouchPos.get(id) || { x: 0, y: 0 };
+            if (captured) captured.onTouchUp(id, last.x, last.y);
+            this._touchCapturedBy.delete(id);
+            this._lastTouchPos.delete(id);
+        }
+
+        this._prevTouchIds = new Set([...liveIds, ...(primaryId != null ? [primaryId] : [])]);
     }
 
     _handleKeyboard() {
@@ -909,6 +980,16 @@ class ActionUI {
     makeIconButton(props)    { const c = new ActionUIIconButton(props);    this.add(c); return c; }
     makeScrollPanel(props)   { const c = new ActionUIScrollPanel(props);   this.add(c); return c; }
     makeGrid(props)          { const c = new ActionUIGrid(props);          this.add(c); return c; }
+    makeVirtualStick(props)  { const c = new ActionUIVirtualStick(props);  this.add(c); return c; }
+    makeTriggerButton(props) { const c = new ActionUITriggerButton(props); this.add(c); return c; }
+    makeGamepad(props)       {
+        const c = new ActionUIGamepad(props);
+        if (props?.width  == null) c.width  = this._width;   // default: full surface
+        if (props?.height == null) c.height = this._height;
+        this.add(c);
+        c._build();   // children need c._ui, set by add()
+        return c;
+    }
     makeOnScreenKeyboard(props) { const c = new ActionUIOnScreenKeyboard(props); return c; }
 
     // ─────────────────────────────────────────────────────────────────────────────

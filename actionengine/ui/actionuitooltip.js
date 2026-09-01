@@ -45,7 +45,8 @@ class ActionUITooltip extends ActionUIComponent {
         const font  = t.font(t.fontSizeSm);
         const tw    = Math.min(ActionUIDrawUtils.textMeasure(ctx, this.text, font).width + padX * 2, t.tooltipMaxWidth);
         const th    = t.fontSizeSm * 1.4 + padY * 2;
-        const tx    = Math.max(4, Math.min(800 - tw - 4, this._tx - tw / 2));
+        const sw    = this._ui ? this._ui._width : 800;
+        const tx    = Math.max(4, Math.min(sw - tw - 4, this._tx - tw / 2));
         const ty    = this._ty - th - 8;
         const r     = t.radiusSm;
 

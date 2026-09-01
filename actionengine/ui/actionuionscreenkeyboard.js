@@ -101,9 +101,15 @@ class ActionUIOnScreenKeyboard extends ActionUIComponent {
         // Calculate total width/height
         this._computeSize();
 
-        // Center on screen (800x600)
-        this.x = (800 - this._totalWidth) / 2;
-        this.y = 600 - this._totalHeight - 20;
+        this._position();  // re-run in open() once _ui gives the real surface size
+    }
+
+    // Center horizontally, anchor near the bottom of the surface (800x600 until _ui is set).
+    _position() {
+        const sw = this._ui ? this._ui._width  : 800;
+        const sh = this._ui ? this._ui._height : 600;
+        this.x = (sw - this._totalWidth) / 2;
+        this.y = sh - this._totalHeight - 20;
     }
 
     _computeSize() {
@@ -180,6 +186,7 @@ class ActionUIOnScreenKeyboard extends ActionUIComponent {
     open() {
         this._showing = true;
         this.visible = true;
+        this._position();
         this._kbRow = 0;
         this._kbCol = 0;
         this._shift = false;

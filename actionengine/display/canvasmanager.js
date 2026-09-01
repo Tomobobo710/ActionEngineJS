@@ -68,7 +68,10 @@ class CanvasManager {
             guiCanvas: this.guiCanvas,
             debugCanvas: this.debugCanvas,
             guiCtx: this.guiCtx,
-            debugCtx: this.debugCtx
+            debugCtx: this.debugCtx,
+            // logical (design-space) size; ActionUI anchors to these instead of assuming 800x600
+            width: this.width,
+            height: this.height
         };
     }
 }

@@ -55,11 +55,15 @@ class Game {
 
     _buildHeader() {
         const t = this.ui.theme;
-        this.ui.makeLabel({ text: 'ActionUI', x: 20, y: 8, width: 300, height: 40, fontSize: t.fontSizeXl, fontWeight: t.fontWeightBold, color: 'primary', shadow: true });
-        this.ui.makeLabel({ text: 'Component Gallery', x: 110, y: 17, width: 240, height: 24, fontSize: t.fontSizeSm, color: 'muted' });
+        this.ui.makeLabel({ text: 'ActionUI', x: 16, y: 8, width: 160, height: 40, fontSize: t.fontSizeXl, fontWeight: t.fontWeightBold, color: 'primary', shadow: true });
         this.tabBar = this.ui.makeTabBar({
-            x: 250, y: 10, width: 450, height: 34, zIndex: 100,
-            tabs: [{ label: 'Controls', id: 'controls' }, { label: 'Inputs', id: 'inputs' }, { label: 'Display', id: 'display' }, { label: 'Feedback', id: 'feedback' }, { label: 'Windows', id: 'windows' }, { label: 'Themes', id: 'themes' }, { label: 'Console', id: 'console' }],
+            x: 150, y: 12, width: 640, height: 32, zIndex: 100,
+            tabs: [
+                { label: 'Controls', id: 'controls' }, { label: 'Inputs', id: 'inputs' },
+                { label: 'Display', id: 'display' }, { label: 'Feedback', id: 'feedback' },
+                { label: 'Windows', id: 'windows' }, { label: 'Themes', id: 'themes' },
+                { label: 'Gamepad', id: 'gamepad' }, { label: 'Console', id: 'console' }
+            ],
             selected: 0, onChange: (id, tabBar) => { this._playClick(); const idx = this.tabBar.tabs.findIndex(t => t.id === id); this._switchTab(idx); }
         });
         this.ui.makeSeparator({ x: 0, y: 52, width: 800, height: 1 });
@@ -94,11 +98,15 @@ class Game {
         this._buildFeedbackPanel();
         this._buildWindowsPanel();
         this._buildThemesPanel();
+        this._buildGamepadPanel();
         this._buildConsolePanel();
     }
 
     _switchTab(index) {
         this._tabPanels.forEach((panel, i) => { panel.visible = (i === index); });
+        // Gamepad tab drives DirUp/Action1/etc. directly — turn ActionUI's keyboard
+        // nav off there so it doesn't also chase a focus ring on the same presses.
+        this.ui.enableKeyboardNavigation = (this.tabBar.tabs[index].id !== 'gamepad');
     }
 
     // Helper: add component to panel (auto-registers with ActionUI)
@@ -352,6 +360,73 @@ class Game {
         this._child(panel, new ActionUIButton({ x: x + pad + halfW - 105, y: cy, width: 100, height: 34, text: 'Reset', variant: 'ghost', fontSize: 11, onClick: () => { this._playClick(); this.ui.setThemeOverride('colorSecondary', null); this.ui.notify('Secondary reset', 'info'); } }));
     }
 
+    _buildGamepadPanel() {
+        const { x, y, w, h } = DEMO.PANEL;
+        const t = this.ui.theme;
+        const pad = 14;
+        const panel = new ActionUIPanel({ x, y, width: w, height: h, title: 'ActionUIGamepad — on-screen controller', shadow: true });
+        this.ui.add(panel);
+        this._tabPanels.push(panel);
+
+        this.gpReadout = this._child(panel, new ActionUILabel({
+            x: x + pad, y: y + h - 44, width: w - pad * 2, height: 36,
+            fontSize: t.fontSizeSm, color: 'accent', align: 'center',
+            text: 'Drag the sticks / hold the buttons — values below. Touch devices: two thumbs at once.'
+        }));
+
+        // Toggles rebuild the pad (simplest way to apply mode changes).
+        this._gpFloating = false;
+        this._gpAnalogTriggers = false;
+        const rebuild = () => {
+            if (this.gamepad) { for (const c of this.gamepad.children) this.ui.remove(c.id); }
+            this.gamepad = this.ui.makeGamepad({
+                x, y: y + 82, width: w, height: h - 140,
+                analogTriggers: this._gpAnalogTriggers,
+                controls: this._gpFloating
+                    ? { leftStick: { mode: 'floating' }, rightStick: { mode: 'floating' } }
+                    : {},
+            });
+            for (const c of this.gamepad.children) c._parent = panel;  // cascade visibility
+        };
+
+        // Two toggle+label groups, centered as a block on the panel.
+        // group = toggle(46) + labelGap(12) + label text; measure text for a true center.
+        const gctx = this.guiCtx;
+        gctx.font = t.font(t.fontSizeSm);
+        const lbl1 = 'Floating sticks', lbl2 = 'Analog L2/R2';
+        const g1 = 46 + 12 + Math.ceil(gctx.measureText(lbl1).width);
+        const g2 = 46 + 12 + Math.ceil(gctx.measureText(lbl2).width);
+        const gap = 48;
+        const bx = x + Math.round((w - (g1 + gap + g2)) / 2);
+        this._child(panel, new ActionUIToggleSwitch({
+            x: bx, y: y + 44, width: 46, height: 24, checked: this._gpFloating,
+            onChange: (v) => { this._playToggle(); this._gpFloating = v; rebuild(); }
+        }));
+        this._child(panel, new ActionUILabel({ text: lbl1, x: bx + 58, y: y + 46, width: g1 - 58, height: 20, fontSize: t.fontSizeSm, color: 'muted' }));
+
+        const bx2 = bx + g1 + gap;
+        this._child(panel, new ActionUIToggleSwitch({
+            x: bx2, y: y + 44, width: 46, height: 24, checked: this._gpAnalogTriggers,
+            onChange: (v) => { this._playToggle(); this._gpAnalogTriggers = v; rebuild(); }
+        }));
+        this._child(panel, new ActionUILabel({ text: lbl2, x: bx2 + 58, y: y + 46, width: g2 - 58, height: 20, fontSize: t.fontSizeSm, color: 'muted' }));
+
+        rebuild();
+        panel.visible = false;
+    }
+
+    _updateGamepadReadout() {
+        if (!this.gpReadout || !this._tabPanels || !this._tabPanels[6] || !this._tabPanels[6].visible) return;
+        const i = this.input;
+        const v = (s) => { const a = i.getVector(s); return `(${a.x.toFixed(2)}, ${a.y.toFixed(2)})`; };
+        const held = ['Action1','Action2','Action3','Action4','Action5','Action6','Action7','Action8','Action9','Action10','Action11','Action12','DirUp','DirDown','DirLeft','DirRight']
+            .filter(a => i.isKeyPressed(a));
+        this.gpReadout.text =
+            `L ${v('leftAnalog')}   R ${v('rightAnalog')}   ` +
+            `LT ${i.getTrigger('leftTrigger').toFixed(2)}   RT ${i.getTrigger('rightTrigger').toFixed(2)}   ` +
+            `held: ${held.length ? held.join(' ') : '—'}`;
+    }
+
     _buildConsolePanel() {
         const { x, y, w, h } = DEMO.PANEL;
         const t = this.ui.theme;
@@ -489,6 +564,7 @@ class Game {
             this.debugPanel.visible = this.debugPanelVisible;
         }
         this.ui.update(dt);
+        this._updateGamepadReadout();
     }
 
     action_draw() {

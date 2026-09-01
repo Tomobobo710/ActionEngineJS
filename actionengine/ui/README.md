@@ -374,6 +374,116 @@ new ActionUIAvatarDisplay({ x, y, size: 40, name: 'John Doe', status: 'online', 
 
 **Properties:** `name`, `color`, `size`, `status` (`'online'`, `'offline'`, `'away'`)
 
+### ActionUIVirtualStick
+On-screen analog thumbstick. Writes a 2D value into an **InputHandler axis slot**
+every frame it is held; read it back with `input.getVector(slot)` — the exact same
+call a physical gamepad stick feeds, so game code never learns the source. A stick
+and a gamepad writing the same slot are summed and clamped.
+
+```js
+ui.makeVirtualStick({
+  x: 40, y: H - 180, width: 140, height: 140,
+  slot: 'leftAnalog',          // matches input.getVector('leftAnalog')
+  mode: 'fixed',               // or 'floating' (base re-centres on touch)
+  deadzone: 0.12,
+  onMove: (x, y, mag) => { /* optional per-frame callback */ }
+});
+
+// elsewhere, in your update:
+const move = input.getVector('leftAnalog');   // { x: -1..1, y: -1..1 }, y down = +
+```
+
+**Properties:** `slot` (default `'leftAnalog'`), `width`/`height` (capture box),
+`baseRadius`, `knobRadius`, `travel`, `deadzone` (fraction of travel), `mode`
+(`'fixed'` | `'floating'`), `hideWhenIdle`, `onMove(x, y, mag, stick)`.
+**Methods:** `getValue()` → `{ x, y, mag }`.
+
+Output convention matches the gamepad: `x` right = +1, `y` **down** = +1. Values
+are analog (0..1 magnitude). Works from mouse / first finger and from any
+additional finger simultaneously (see Multi-Touch below).
+
+### ActionUITriggerButton
+On-screen analog trigger (L2 / R2). A vertical press strip — finger depth = value
+0..1 — written to a **1D InputHandler axis slot** (value in `.y`). Read with
+`input.getTrigger(slot)`. A physical gamepad trigger feeds the same slot. If
+`action` is set, it also holds that action digitally past `threshold` (the
+on-screen mirror of the engine's `digitalTriggerButtons` fallback).
+
+```js
+ui.makeTriggerButton({
+  x: 20, y: 120, width: 56, height: 96,
+  slot: 'leftTrigger',      // input.getTrigger('leftTrigger') -> 0..1
+  action: 'Action11',       // optional digital hold past threshold
+  threshold: 0.5,
+  fillFrom: 'top',          // 'top' = pull down, 'bottom' = push up
+});
+```
+
+**Properties:** `slot` (default `'leftTrigger'`), `action` (null = pure analog),
+`threshold`, `width`/`height`, `label`, `deadzone`, `fillFrom`, `onChange(v, btn)`.
+**Methods:** `getValue()` → 0..1.
+
+### ActionUIGamepad
+The whole controller as one component: two analog sticks, a D-pad, ABXY,
+Select/Start, L1/R1, L2/R2, L3/R3 — laid out for a modern touch screen and scaled
+to the component's bounds. Every control can be **repositioned or omitted**.
+
+```js
+ui.makeGamepad();  // full layout, full-screen
+
+ui.makeGamepad({
+  x: 0, y: 0, width: W, height: H,
+  analogTriggers: true,          // L2/R2 as analog strips (default);
+                                 // false -> momentary buttons on Action11/12
+  controls: {
+    rightStick: false,           // omit
+    l3: false, r3: false,        // omit
+    start: { action: 'Action8', label: 'MENU' },
+    dpad:  { cx: 0.16, cy: 0.60 },   // move (fractions of the box)
+    a:     { action: 'Jump' },       // rebind
+  },
+});
+```
+
+Reading it needs no special API — the parts write the standard slots/actions:
+
+| Control | Feeds | Read with |
+|---|---|---|
+| Left / right stick | `leftAnalog` / `rightAnalog` | `input.getVector('leftAnalog')` |
+| L2 / R2 (analog) | `leftTrigger` / `rightTrigger` | `input.getTrigger('leftTrigger')` |
+| L2 / R2 (digital mode) | `Action11` / `Action12` | `input.isKeyPressed('Action11')` |
+| A B X Y | `Action1`–`Action4` | `input.isKeyPressed('Action1')` |
+| L1 / R1 | `Action5` / `Action6` | `input.isKeyPressed('Action5')` |
+| Select / Start | `Action7` / `Action8` | `input.isKeyPressed('Action7')` |
+| L3 / R3 | `Action9` / `Action10` | `input.isKeyPressed('Action9')` |
+| D-pad | `DirUp/Down/Left/Right` | `input.isKeyPressed('DirUp')` |
+
+Physical gamepads feed the exact same slots/actions, so one code path serves both.
+
+**`controls` entry forms:** omit the key → default control at its default spot;
+`false` → not created; object → override any of `{ cx, cy, size, w, h, action,
+slot, label, accent, shape, mode, deadzone }` (`cx/cy` are the control centre as a
+fraction of the component's width/height).
+**Methods:** `setBounds(x, y, w, h)` — reposition + relayout (e.g. after a
+resolution change).
+
+## Multi-Touch
+
+ActionUI routes every active touch point, not just one. The oldest touch drives the
+normal pointer path (so modals, menus, focus, right-click all behave as before);
+each additional finger is dispatched to `onTouchDown(id, x, y)` /
+`onTouchMove` / `onTouchUp` on the top-most component it lands on, with per-`id`
+capture so a finger that drags off its component keeps controlling it.
+
+Plain components need no changes — the base `onTouch*` handlers forward to
+`onPointer*`, so a button works for whichever finger hits it. Components that must
+track one specific finger (`ActionUIVirtualStick`, `ActionUITriggerButton`,
+`ActionUIGamepadButton`) override `onTouch*` and claim the id. Raw touch points
+are also available from `input.getTouches()` → `[{ id, x, y, startX, startY, layer }]`.
+
+This is what makes `ActionUIGamepad` usable: left thumb on the move stick, right
+thumb on the look stick or face buttons, at the same time.
+
 ## Parent-Child Visibility
 
 Components added via `panel.addChild()` inherit their parent's visibility. When a panel is hidden, all its children are automatically hidden and non-interactive.
@@ -449,4 +559,12 @@ All components inherit from `ActionUIComponent` and share these properties:
 
 ## Canvas Coordinate System
 
-ActionUI uses ActionEngine's fixed 800×600 coordinate system. All positions are in this space regardless of actual canvas resolution.
+ActionUI draws in the game's logical coordinate space — `Game.WIDTH` × `Game.HEIGHT`
+(default 800 × 600 when the game class doesn't set them). All component positions are in
+this space regardless of the actual on-screen (CSS-scaled) canvas size.
+
+Components you position yourself take explicit `x` / `y` in this space. Components that
+anchor to a screen edge or center themselves — modals, the on-screen keyboard, context
+menus, tooltips, and `notify()` toasts — read the logical dimensions from the manager, so
+they land correctly at any resolution or aspect ratio. `CanvasManager.getCanvases()`
+exposes these as `width` / `height`, and `ActionUI` stores them as `_width` / `_height`.

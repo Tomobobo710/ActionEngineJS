@@ -58,6 +58,10 @@ const files = [
     'actionengine/ui/actionuiwindow.js',
     'actionengine/ui/actionuionscreenkeyboard.js',
     'actionengine/ui/actionuilistview.js',
+    'actionengine/ui/actionuivirtualstick.js',
+    'actionengine/ui/actionuitriggerbutton.js',
+    'actionengine/ui/actionuigamepadbutton.js',
+    'actionengine/ui/actionuigamepad.js',
     'actionengine/ui/actionui.js',
     
     // Rendering: Core & Objects

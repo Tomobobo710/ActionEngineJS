@@ -17,6 +17,31 @@ class ActionInputHandler {
         this.gamepadConnected = false;
         this.gamepadKeyboardMirroring = true; // Default: gamepad inputs map to keyboard actions
 
+        // Analog axis layer. A physical stick and an on-screen ActionUIVirtualStick
+        // write the same named slot; getVector(slot) / getAxis(slot) read it without
+        // knowing the source. Sources on one slot are summed, then deadzone'd and
+        // clamped once in _mergeAxes. Slots are captured into the snapshots like keys,
+        // so a value is stable across a fixed step (quantizeAxis before netcode use).
+        this.gamepadStickSlots = new Map([
+            [0, "leftAnalog"],   // left stick, axes 0,1
+            [1, "rightAnalog"]   // right stick, axes 2,3
+        ]);
+        // 1D trigger slots: button.value 0..1 lands in the slot's .y, no deadzone.
+        this.gamepadTriggerSlots = new Map([
+            [6, "leftTrigger"],   // L2
+            [7, "rightTrigger"]   // R2
+        ]);
+        // When true, a physical trigger past the threshold also fires Action11/Action12
+        // (the analog slot is populated either way). ActionUIGamepad toggles this.
+        this.digitalTriggerButtons = true;
+        this.triggerButtonThreshold = 0.5;
+        this.gamepadTriggerDigitalActions = new Map([[6, "Action11"], [7, "Action12"]]);
+
+        // setVirtualAxis writes here (per-frame, drained each capture); setVirtualButton
+        // writes _virtualButtonsHeld (a level).
+        this._virtualAxisInput = new Map();
+        this._virtualButtonsHeld = new Set();
+
         // Raw state - continuously updated by events
         this.rawState = {
             keys: new Map(),
@@ -75,7 +100,11 @@ class ActionInputHandler {
                 game: new Map(),
                 debug: new Map()
             },
+            axes: new Map(),        // slot -> {x,y}, rebuilt each capture by _mergeAxes
+            touches: new Map(),     // Touch.identifier -> {id,x,y,startX,startY,layer,downTimestamp}
         };
+        // true while rawState.pointer is driven by a touch (not a real mouse button)
+        this._pointerOwnedByTouch = false;
 
         // Frame snapshots - updated at frame boundaries
         this.currentSnapshot = {
@@ -97,7 +126,9 @@ class ActionInputHandler {
                 gui: new Map(),
                 game: new Map(),
                 debug: new Map()
-            }
+            },
+            axes: new Map(),
+            touches: new Map()
         };
 
         this.previousSnapshot = {
@@ -119,7 +150,9 @@ class ActionInputHandler {
                 gui: new Map(),
                 game: new Map(),
                 debug: new Map()
-            }
+            },
+            axes: new Map(),
+            touches: new Map()
         };
 
         // Fixed snapshots - updated at fixed timesteps
@@ -142,7 +175,9 @@ class ActionInputHandler {
                 gui: new Map(),
                 game: new Map(),
                 debug: new Map()
-            }
+            },
+            axes: new Map(),
+            touches: new Map()
         };
 
         this.previousFixedSnapshot = {
@@ -164,7 +199,9 @@ class ActionInputHandler {
                 gui: new Map(),
                 game: new Map(),
                 debug: new Map()
-            }
+            },
+            axes: new Map(),
+            touches: new Map()
         };
 
         // Setup keyboard event listeners
@@ -194,24 +231,18 @@ class ActionInputHandler {
         // Button indices follow the W3C Gamepad API standard mapping
         this.gamepadActionMap = new Map([
             // Face buttons (Xbox layout: A=0, B=1, X=2, Y=3)
-            [0, ["Action1"]], // A / Cross - Primary action
-            [1, ["Action2"]], // B / Circle - Secondary action
+            [0, ["Action1"]], // A / Cross
+            [1, ["Action2"]], // B / Circle
             [2, ["Action3"]], // X / Square
             [3, ["Action4"]], // Y / Triangle
 
-            // Shoulder buttons
-            [4, ["Action5"]], // Left Bumper (LB)
-            [5, ["Action6"]], // Right Bumper (RB)
-            [6, ["Action7"]], // Left Trigger (LT) when pressed as button
-            [7, ["Action8"]], // Right Trigger (RT) when pressed as button
-
-            // Menu buttons
-            [8, ["Action7"]], // Back/Select
+            [4, ["Action5"]], // L1
+            [5, ["Action6"]], // R1
+            // buttons 6,7 (L2/R2) are analog triggers — see gamepadTriggerSlots
+            [8, ["Action7"]], // Select
             [9, ["Action8"]], // Start
-
-            // Stick clicks
-            [10, ["Action9"]], // Left stick click (L3)
-            [11, ["Action10"]], // Right stick click (R3)
+            [10, ["Action9"]],  // L3
+            [11, ["Action10"]], // R3
 
             // D-pad
             [12, ["DirUp"]],
@@ -219,15 +250,7 @@ class ActionInputHandler {
             [14, ["DirLeft"]],
             [15, ["DirRight"]]
         ]);
-
-        // Axis mapping for analog sticks
-        // Standard gamepad axes: 0-1 = left stick (x, y), 2-3 = right stick (x, y)
-        this.gamepadAxisMap = new Map([
-            [0, { action: "AxisLeftX", inverted: false }],
-            [1, { action: "AxisLeftY", inverted: false }],
-            [2, { action: "AxisRightX", inverted: false }],
-            [3, { action: "AxisRightY", inverted: false }]
-        ]);
+        // Sticks and triggers -> the axis layer (getVector / getTrigger), not this map.
     }
 
     setupActionMap() {
@@ -240,14 +263,18 @@ class ActionInputHandler {
             ["ArrowDown", ["DirDown"]],
             ["ArrowLeft", ["DirLeft"]],
             ["ArrowRight", ["DirRight"]],
-            ["Space", ["Action1"]], // face button left
-            ["ShiftLeft", ["Action2"]], // face button down
-            ["KeyE", ["Action3"]], // face button right
-            ["KeyQ", ["Action4"]], // face button up
-            ["KeyZ", ["Action5"]], // Left Bumper
-            ["KeyX", ["Action6"]], // Right Bumper
-            ["KeyC", ["Action7"]], // Back Button
-            ["KeyF", ["Action8"]], // Start Button
+            ["Space", ["Action1"]], // A / face button down
+            ["ShiftLeft", ["Action2"]], // B / face button right
+            ["KeyE", ["Action3"]], // X / face button left
+            ["KeyQ", ["Action4"]], // Y / face button up
+            ["KeyZ", ["Action5"]], // L1 (Left Bumper)
+            ["KeyX", ["Action6"]], // R1 (Right Bumper)
+            ["KeyC", ["Action7"]], // Select / Back
+            ["KeyF", ["Action8"]], // Start
+            ["KeyR", ["Action9"]],  // L3
+            ["KeyT", ["Action10"]], // R3
+            ["KeyV", ["Action11"]], // L2 (digital)
+            ["KeyB", ["Action12"]], // R2 (digital)
             ["F9", ["ActionDebugToggle"]],
             ["F3", ["ActionDebugToggle"]],
             ["Tab", ["ActionDebugToggle"]],
@@ -355,48 +382,81 @@ class ActionInputHandler {
                 }
             });
 
-            // Update axis states with deadzone
+            // raw axes — deadzone is applied radially per stick in _mergeAxes
             gamepad.axes.forEach((value, index) => {
-                const processedValue = Math.abs(value) < this.gamepadDeadzone ? 0 : value;
-                state.axes.set(index, processedValue);
+                state.axes.set(index, value);
             });
 
-            // Map analog sticks to directional keys in rawState
-            const leftStick = {
-                x: state.axes.get(0) || 0,
-                y: state.axes.get(1) || 0
-            };
-
-            const threshold = 0.5;
-            const stickUpKey = `Gamepad${i}_StickUp`;
-            const stickDownKey = `Gamepad${i}_StickDown`;
-            const stickLeftKey = `Gamepad${i}_StickLeft`;
-            const stickRightKey = `Gamepad${i}_StickRight`;
-
-            // Update rawState based on stick position
-            if (leftStick.y < -threshold) {
-                this.rawState.keys.set(stickUpKey, true);
-            } else {
-                this.rawState.keys.delete(stickUpKey);
+            // digitalTriggerButtons: past-threshold L2/R2 sets a synthetic key that
+            // isKeyPressed() maps to Action11/Action12. The analog slot is fed in
+            // _mergeAxes regardless.
+            for (const [btnIdx, actionName] of this.gamepadTriggerDigitalActions) {
+                const b = gamepad.buttons[btnIdx];
+                const key = btnIdx === 6 ? `Gamepad${i}_TriggerL` : `Gamepad${i}_TriggerR`;
+                const on = this.digitalTriggerButtons && b && b.value >= this.triggerButtonThreshold;
+                if (on) this.rawState.keys.set(key, true);
+                else    this.rawState.keys.delete(key);
             }
+        }
+    }
 
-            if (leftStick.y > threshold) {
-                this.rawState.keys.set(stickDownKey, true);
-            } else {
-                this.rawState.keys.delete(stickDownKey);
-            }
+    // Rebuild rawState.axes from gamepad sticks + gamepad triggers + drained virtual
+    // input. Called at the top of both capture paths so a value is stable across a
+    // fixed step. Sources on one slot are summed, then: 2D stick slots get a radial
+    // deadzone + unit clamp; 1D trigger slots get clamped to 0..1.
+    _mergeAxes() {
+        const merged = new Map();
+        const triggerSlots = new Set(this.gamepadTriggerSlots.values());
 
-            if (leftStick.x < -threshold) {
-                this.rawState.keys.set(stickLeftKey, true);
-            } else {
-                this.rawState.keys.delete(stickLeftKey);
+        for (const state of this.gamepads.values()) {
+            for (const [stickIndex, slot] of this.gamepadStickSlots) {
+                const x = state.axes.get(stickIndex * 2)     || 0;
+                const y = state.axes.get(stickIndex * 2 + 1) || 0;
+                if (x === 0 && y === 0) continue;
+                const cur = merged.get(slot) || { x: 0, y: 0 };
+                cur.x += x; cur.y += y;
+                merged.set(slot, cur);
             }
+            for (const [btnIndex, slot] of this.gamepadTriggerSlots) {
+                const b = state.buttons.get(btnIndex);
+                const v = b ? b.value : 0;
+                if (v === 0) continue;
+                const cur = merged.get(slot) || { x: 0, y: 0 };
+                cur.y += v;
+                merged.set(slot, cur);
+            }
+        }
 
-            if (leftStick.x > threshold) {
-                this.rawState.keys.set(stickRightKey, true);
-            } else {
-                this.rawState.keys.delete(stickRightKey);
+        for (const [slot, v] of this._virtualAxisInput) {
+            const cur = merged.get(slot) || { x: 0, y: 0 };
+            cur.x += v.x; cur.y += v.y;
+            merged.set(slot, cur);
+        }
+        this._virtualAxisInput.clear();
+
+        const dz = this.gamepadDeadzone;
+        for (const [slot, v] of merged) {
+            if (triggerSlots.has(slot)) {
+                merged.set(slot, { x: 0, y: Math.max(0, Math.min(1, v.y)) });
+                continue;
             }
+            let mag = Math.hypot(v.x, v.y);
+            if (mag < dz) { merged.set(slot, { x: 0, y: 0 }); continue; }
+            if (mag > 1) { v.x /= mag; v.y /= mag; }
+            merged.set(slot, { x: v.x, y: v.y });
+        }
+
+        this.rawState.axes = merged;
+    }
+
+    // Reflect the held virtual-button set into rawState.keys as "Virtual_<action>"
+    // so isKeyPressed / isKeyJustPressed pick it up through the snapshot path.
+    _syncVirtualButtons() {
+        for (const k of this.rawState.keys.keys()) {
+            if (k.startsWith("Virtual_")) this.rawState.keys.delete(k);
+        }
+        for (const action of this._virtualButtonsHeld) {
+            this.rawState.keys.set(`Virtual_${action}`, true);
         }
     }
 
@@ -469,11 +529,15 @@ class ActionInputHandler {
         this.pollGamepads();
         // ADDITIVE: detect sub-frame presses on mouse/elements/UI/gamepad before sampling levels.
         this._latchEdges();
+        this._mergeAxes();
+        this._syncVirtualButtons();
         // Save current as previous - properly preserving Map objects
         // Create deep copies of each component
 
         // Copy key maps
         this.previousSnapshot.keys = new Map(this.currentSnapshot.keys);
+        this.previousSnapshot.axes = new Map(this.currentSnapshot.axes);
+        this.previousSnapshot.touches = new Map(this.currentSnapshot.touches);
 
         // Copy mouse button state
         this.previousSnapshot.mouseButtons.left = this.currentSnapshot.mouseButtons.left;
@@ -503,6 +567,18 @@ class ActionInputHandler {
             this.currentSnapshot.keys.set(key, true);
         }
         this.rawState.pressedSinceCapture.clear();
+
+        // axes + touches — fresh copies so a later _mergeAxes / touch event can't mutate them
+        this.currentSnapshot.axes = new Map();
+        for (const [slot, v] of this.rawState.axes) {
+            this.currentSnapshot.axes.set(slot, { x: v.x, y: v.y });
+        }
+        this.currentSnapshot.touches = new Map();
+        for (const [id, t] of this.rawState.touches) {
+            this.currentSnapshot.touches.set(id, {
+                id: t.id, x: t.x, y: t.y, startX: t.startX, startY: t.startY, layer: t.layer
+            });
+        }
 
         // Capture current mouse state
         this.currentSnapshot.pointer.isDown = this.rawState.pointer.isDown;
@@ -554,10 +630,14 @@ class ActionInputHandler {
         this.pollGamepads();
         // ADDITIVE: detect sub-frame presses on mouse/elements/UI/gamepad before sampling levels.
         this._latchEdges();
+        this._mergeAxes();
+        this._syncVirtualButtons();
         // Save current fixed state as previous fixed state - properly preserving Map objects
 
         // Copy key maps
         this.previousFixedSnapshot.keys = new Map(this.currentFixedSnapshot.keys);
+        this.previousFixedSnapshot.axes = new Map(this.currentFixedSnapshot.axes);
+        this.previousFixedSnapshot.touches = new Map(this.currentFixedSnapshot.touches);
 
         // Copy mouse button state
         this.previousFixedSnapshot.mouseButtons.left = this.currentFixedSnapshot.mouseButtons.left;
@@ -589,6 +669,17 @@ class ActionInputHandler {
             this.currentFixedSnapshot.keys.set(key, true);
         }
         this.rawState.pressedSinceFixedCapture.clear();
+
+        this.currentFixedSnapshot.axes = new Map();
+        for (const [slot, v] of this.rawState.axes) {
+            this.currentFixedSnapshot.axes.set(slot, { x: v.x, y: v.y });
+        }
+        this.currentFixedSnapshot.touches = new Map();
+        for (const [id, t] of this.rawState.touches) {
+            this.currentFixedSnapshot.touches.set(id, {
+                id: t.id, x: t.x, y: t.y, startX: t.startX, startY: t.startY, layer: t.layer
+            });
+        }
 
         // Capture current mouse state at this fixed frame
         this.currentFixedSnapshot.pointer.isDown = this.rawState.pointer.isDown;
@@ -750,6 +841,10 @@ class ActionInputHandler {
             }
             this._gamepadSeen = seen;
         }, intervalMs);
+        // don't keep a headless process alive for this; no-op in browsers
+        if (this._gamepadSampler && typeof this._gamepadSampler.unref === "function") {
+            this._gamepadSampler.unref();
+        }
     }
 
     /** Stop the gamepad sampler (mirrors _startGamepadSampler; safe to call when never started). */
@@ -772,488 +867,11 @@ class ActionInputHandler {
     }
 
     setupPointerListeners() {
-        // DEBUG LAYER
-        this.canvases.debugCanvas.addEventListener("mousemove", (e) => {
-            const pos = this.getCanvasPosition(e);
-            this.rawState.pointer.x = pos.x;
-            this.rawState.pointer.y = pos.y;
-            this.rawState.pointer.movementX = e.movementX || 0;
-            this.rawState.pointer.movementY = e.movementY || 0;
-
-            let handledByDebug = false;
-            this.rawState.elements.debug.forEach((element) => {
-                const wasHovered = element.isHovered;
-                element.isHovered = this.isPointInBounds(pos.x, pos.y, element.bounds());
-
-                if (!wasHovered && element.isHovered) {
-                    element.hoverTimestamp = performance.now();
-                    handledByDebug = true;
-                }
-            });
-
-            if (!handledByDebug) {
-                const newEvent = new MouseEvent("mousemove", e);
-                this.canvases.guiCanvas.dispatchEvent(newEvent);
-            }
-        });
-
-        this.canvases.debugCanvas.addEventListener("mousedown", (e) => {
-            const pos = this.getCanvasPosition(e);
-            this.rawState.pointer.x = pos.x;
-            this.rawState.pointer.y = pos.y;
-
-            // Track the specific button pressed
-            const button = e.button; // 0: left, 1: middle, 2: right
-
-            // Update button-specific state
-            if (button === 0) {
-                this.rawState.pointer.buttons.left = true;
-                this._latchMouseDown(0);
-                // Maintain backward compatibility
-                this.rawState.pointer.isDown = true;
-                this.rawState.pointer.downTimestamp = performance.now();
-            }
-            if (button === 1) { this.rawState.pointer.buttons.middle = true; this._latchMouseDown(1); }
-            if (button === 2) { this.rawState.pointer.buttons.right = true; this._latchMouseDown(2); }
-
-            let handledByDebug = false;
-            this.rawState.elements.debug.forEach((element, __id) => {
-                if (element.isHovered) {
-                    element.isPressed = true;
-                    this._latchElementDown(__id, 'debug');
-                    handledByDebug = true;
-                }
-            });
-
-            if (!handledByDebug) {
-                const newEvent = new MouseEvent("mousedown", e);
-                this.canvases.guiCanvas.dispatchEvent(newEvent);
-            }
-        });
-
-        this.canvases.debugCanvas.addEventListener("mouseup", (e) => {
-            const pos = this.getCanvasPosition(e);
-            this.rawState.pointer.x = pos.x;
-            this.rawState.pointer.y = pos.y;
-
-            // Track the specific button released
-            const button = e.button; // 0: left, 1: middle, 2: right
-
-            // Update button-specific state
-            if (button === 0) {
-                this.rawState.pointer.buttons.left = false;
-                // Maintain backward compatibility
-                this.rawState.pointer.isDown = false;
-                this.rawState.pointer.downTimestamp = null;
-            }
-            if (button === 1) this.rawState.pointer.buttons.middle = false;
-            if (button === 2) this.rawState.pointer.buttons.right = false;
-
-            let handledByDebug = false;
-            this.rawState.elements.debug.forEach((element) => {
-                if (element.isPressed) {
-                    element.isPressed = false;
-                    handledByDebug = true;
-                }
-            });
-
-            if (!handledByDebug) {
-                const newEvent = new MouseEvent("mouseup", e);
-                this.canvases.guiCanvas.dispatchEvent(newEvent);
-            }
-        });
-
-        this.canvases.debugCanvas.addEventListener(
-            "touchstart",
-            (e) => {
-                e.preventDefault();
-                const pos = this.getCanvasPosition(e.touches[0]);
-                this.rawState.pointer.x = pos.x;
-                this.rawState.pointer.y = pos.y;
-
-                // For touch, always treat as left button
-                this.rawState.pointer.buttons.left = true;
-                this._latchMouseDown(0);
-                this.rawState.pointer.isDown = true;
-                this.rawState.pointer.downTimestamp = performance.now();
-
-                let handledByDebug = false;
-                this.rawState.elements.debug.forEach((element, __id) => {
-                    if (this.isPointInBounds(pos.x, pos.y, element.bounds())) {
-                        element.isPressed = true;
-                        this._latchElementDown(__id, 'debug');
-                        handledByDebug = true;
-                    }
-                });
-
-                if (!handledByDebug) {
-                    const newEvent = new TouchEvent("touchstart", e);
-                    this.canvases.guiCanvas.dispatchEvent(newEvent);
-                }
-            },
-            { passive: false }
-        );
-
-        this.canvases.debugCanvas.addEventListener(
-            "touchend",
-            (e) => {
-                e.preventDefault();
-
-                // For touch, always treat as left button
-                this.rawState.pointer.buttons.left = false;
-                this.rawState.pointer.isDown = false;
-                this.rawState.pointer.downTimestamp = null;
-
-                let handledByDebug = false;
-                this.rawState.elements.debug.forEach((element) => {
-                    if (element.isPressed) {
-                        element.isPressed = false;
-                        handledByDebug = true;
-                    }
-                });
-
-                if (!handledByDebug) {
-                    const newEvent = new TouchEvent("touchend", e);
-                    this.canvases.guiCanvas.dispatchEvent(newEvent);
-                }
-            },
-            { passive: false }
-        );
-
-        this.canvases.debugCanvas.addEventListener(
-            "touchmove",
-            (e) => {
-                e.preventDefault();
-                const pos = this.getCanvasPosition(e.touches[0]);
-                this.rawState.pointer.x = pos.x;
-                this.rawState.pointer.y = pos.y;
-
-                let handledByDebug = false;
-                this.rawState.elements.debug.forEach((element) => {
-                    const wasHovered = element.isHovered;
-                    element.isHovered = this.isPointInBounds(pos.x, pos.y, element.bounds());
-
-                    if (!wasHovered && element.isHovered) {
-                        element.hoverTimestamp = performance.now();
-                        handledByDebug = true;
-                    }
-                });
-
-                if (!handledByDebug) {
-                    const newEvent = new TouchEvent("touchmove", e);
-                    this.canvases.guiCanvas.dispatchEvent(newEvent);
-                }
-            },
-            { passive: false }
-        );
-
-        // GUI LAYER
-        this.canvases.guiCanvas.addEventListener("mousemove", (e) => {
-            const pos = this.getCanvasPosition(e);
-            this.rawState.pointer.x = pos.x;
-            this.rawState.pointer.y = pos.y;
-            this.rawState.pointer.movementX = e.movementX || 0;
-            this.rawState.pointer.movementY = e.movementY || 0;
-
-            let handledByGui = false;
-            this.rawState.elements.gui.forEach((element) => {
-                const wasHovered = element.isHovered;
-                element.isHovered = this.isPointInBounds(pos.x, pos.y, element.bounds());
-
-                if (!wasHovered && element.isHovered) {
-                    element.hoverTimestamp = performance.now();
-                    handledByGui = true;
-                }
-            });
-
-            if (!handledByGui) {
-                const newEvent = new MouseEvent("mousemove", e);
-                this.canvases.gameCanvas.dispatchEvent(newEvent);
-            }
-        });
-
-        this.canvases.guiCanvas.addEventListener("mousedown", (e) => {
-            const pos = this.getCanvasPosition(e);
-            this.rawState.pointer.x = pos.x;
-            this.rawState.pointer.y = pos.y;
-
-            // Track the specific button pressed
-            const button = e.button; // 0: left, 1: middle, 2: right
-
-            // Update button-specific state
-            if (button === 0) {
-                this.rawState.pointer.buttons.left = true;
-                this._latchMouseDown(0);
-                // Maintain backward compatibility
-                this.rawState.pointer.isDown = true;
-                this.rawState.pointer.downTimestamp = performance.now();
-            }
-            if (button === 1) { this.rawState.pointer.buttons.middle = true; this._latchMouseDown(1); }
-            if (button === 2) { this.rawState.pointer.buttons.right = true; this._latchMouseDown(2); }
-
-            let handledByGui = false;
-            this.rawState.elements.gui.forEach((element, __id) => {
-                if (element.isHovered) {
-                    element.isPressed = true;
-                    this._latchElementDown(__id, 'gui');
-                    handledByGui = true;
-                }
-            });
-
-            if (!handledByGui) {
-                const newEvent = new MouseEvent("mousedown", e);
-                this.canvases.gameCanvas.dispatchEvent(newEvent);
-            }
-        });
-
-        this.canvases.guiCanvas.addEventListener("mouseup", (e) => {
-            const pos = this.getCanvasPosition(e);
-            this.rawState.pointer.x = pos.x;
-            this.rawState.pointer.y = pos.y;
-
-            // Track the specific button released
-            const button = e.button; // 0: left, 1: middle, 2: right
-
-            // Update button-specific state
-            if (button === 0) {
-                this.rawState.pointer.buttons.left = false;
-                // Maintain backward compatibility
-                this.rawState.pointer.isDown = false;
-                this.rawState.pointer.downTimestamp = null;
-            }
-            if (button === 1) this.rawState.pointer.buttons.middle = false;
-            if (button === 2) this.rawState.pointer.buttons.right = false;
-
-            let handledByGui = false;
-            this.rawState.elements.gui.forEach((element) => {
-                if (element.isPressed) {
-                    element.isPressed = false;
-                    handledByGui = true;
-                }
-            });
-
-            if (!handledByGui) {
-                const newEvent = new MouseEvent("mouseup", e);
-                this.canvases.gameCanvas.dispatchEvent(newEvent);
-            }
-        });
-
-        this.canvases.guiCanvas.addEventListener(
-            "touchstart",
-            (e) => {
-                e.preventDefault();
-                const pos = this.getCanvasPosition(e.touches[0]);
-                this.rawState.pointer.x = pos.x;
-                this.rawState.pointer.y = pos.y;
-
-                // For touch, always treat as left button
-                this.rawState.pointer.buttons.left = true;
-                this._latchMouseDown(0);
-                this.rawState.pointer.isDown = true;
-                this.rawState.pointer.downTimestamp = performance.now();
-
-                let handledByGui = false;
-                this.rawState.elements.gui.forEach((element, __id) => {
-                    if (this.isPointInBounds(pos.x, pos.y, element.bounds())) {
-                        element.isPressed = true;
-                        this._latchElementDown(__id, 'gui');
-                        handledByGui = true;
-                    }
-                });
-
-                if (!handledByGui) {
-                    const newEvent = new TouchEvent("touchstart", e);
-                    this.canvases.gameCanvas.dispatchEvent(newEvent);
-                }
-            },
-            { passive: false }
-        );
-
-        this.canvases.guiCanvas.addEventListener(
-            "touchend",
-            (e) => {
-                e.preventDefault();
-
-                // For touch, always treat as left button
-                this.rawState.pointer.buttons.left = false;
-                this.rawState.pointer.isDown = false;
-                this.rawState.pointer.downTimestamp = null;
-
-                let handledByGui = false;
-                this.rawState.elements.gui.forEach((element) => {
-                    if (element.isPressed) {
-                        element.isPressed = false;
-                        handledByGui = true;
-                    }
-                });
-
-                if (!handledByGui) {
-                    const newEvent = new TouchEvent("touchend", e);
-                    this.canvases.gameCanvas.dispatchEvent(newEvent);
-                }
-            },
-            { passive: false }
-        );
-
-        this.canvases.guiCanvas.addEventListener(
-            "touchmove",
-            (e) => {
-                e.preventDefault();
-                const pos = this.getCanvasPosition(e.touches[0]);
-                this.rawState.pointer.x = pos.x;
-                this.rawState.pointer.y = pos.y;
-
-                let handledByGui = false;
-                this.rawState.elements.gui.forEach((element) => {
-                    const wasHovered = element.isHovered;
-                    element.isHovered = this.isPointInBounds(pos.x, pos.y, element.bounds());
-
-                    if (!wasHovered && element.isHovered) {
-                        element.hoverTimestamp = performance.now();
-                        handledByGui = true;
-                    }
-                });
-
-                if (!handledByGui) {
-                    const newEvent = new TouchEvent("touchmove", e);
-                    this.canvases.gameCanvas.dispatchEvent(newEvent);
-                }
-            },
-            { passive: false }
-        );
-
-        // GAME LAYER
-        this.canvases.gameCanvas.addEventListener("mousemove", (e) => {
-            const pos = this.getCanvasPosition(e);
-            this.rawState.pointer.x = pos.x;
-            this.rawState.pointer.y = pos.y;
-            this.rawState.pointer.movementX = e.movementX || 0;
-            this.rawState.pointer.movementY = e.movementY || 0;
-
-            this.rawState.elements.game.forEach((element) => {
-                const wasHovered = element.isHovered;
-                element.isHovered = this.isPointInBounds(pos.x, pos.y, element.bounds());
-
-                if (!wasHovered && element.isHovered) {
-                    element.hoverTimestamp = performance.now();
-                }
-            });
-        });
-
-        this.canvases.gameCanvas.addEventListener("mousedown", (e) => {
-            const pos = this.getCanvasPosition(e);
-            this.rawState.pointer.x = pos.x;
-            this.rawState.pointer.y = pos.y;
-
-            // Track the specific button pressed
-            const button = e.button; // 0: left, 1: middle, 2: right
-
-            // Update button-specific state
-            if (button === 0) {
-                this.rawState.pointer.buttons.left = true;
-                this._latchMouseDown(0);
-                // Maintain backward compatibility
-                this.rawState.pointer.isDown = true;
-                this.rawState.pointer.downTimestamp = performance.now();
-            }
-            if (button === 1) { this.rawState.pointer.buttons.middle = true; this._latchMouseDown(1); }
-            if (button === 2) { this.rawState.pointer.buttons.right = true; this._latchMouseDown(2); }
-
-            this.rawState.elements.game.forEach((element, __id) => {
-                if (element.isHovered) {
-                    element.isPressed = true;
-                    this._latchElementDown(__id, 'game');
-                }
-            });
-        });
-
-        this.canvases.gameCanvas.addEventListener("mouseup", (e) => {
-            const pos = this.getCanvasPosition(e);
-            this.rawState.pointer.x = pos.x;
-            this.rawState.pointer.y = pos.y;
-
-            // Track the specific button released
-            const button = e.button; // 0: left, 1: middle, 2: right
-
-            // Update button-specific state
-            if (button === 0) {
-                this.rawState.pointer.buttons.left = false;
-                // Maintain backward compatibility
-                this.rawState.pointer.isDown = false;
-                this.rawState.pointer.downTimestamp = null;
-            }
-            if (button === 1) this.rawState.pointer.buttons.middle = false;
-            if (button === 2) this.rawState.pointer.buttons.right = false;
-
-            this.rawState.elements.game.forEach((element) => {
-                if (element.isPressed) {
-                    element.isPressed = false;
-                }
-            });
-        });
-
-        this.canvases.gameCanvas.addEventListener(
-            "touchstart",
-            (e) => {
-                e.preventDefault();
-                const pos = this.getCanvasPosition(e.touches[0]);
-                this.rawState.pointer.x = pos.x;
-                this.rawState.pointer.y = pos.y;
-
-                // For touch, always treat as left button
-                this.rawState.pointer.buttons.left = true;
-                this._latchMouseDown(0);
-                this.rawState.pointer.isDown = true;
-                this.rawState.pointer.downTimestamp = performance.now();
-
-                this.rawState.elements.game.forEach((element, __id) => {
-                    if (this.isPointInBounds(pos.x, pos.y, element.bounds())) {
-                        element.isPressed = true;
-                        this._latchElementDown(__id, 'game');
-                    }
-                });
-            },
-            { passive: false }
-        );
-
-        this.canvases.gameCanvas.addEventListener(
-            "touchend",
-            (e) => {
-                e.preventDefault();
-
-                // For touch, always treat as left button
-                this.rawState.pointer.buttons.left = false;
-                this.rawState.pointer.isDown = false;
-                this.rawState.pointer.downTimestamp = null;
-
-                this.rawState.elements.game.forEach((element) => {
-                    if (element.isPressed) {
-                        element.isPressed = false;
-                    }
-                });
-            },
-            { passive: false }
-        );
-
-        this.canvases.gameCanvas.addEventListener(
-            "touchmove",
-            (e) => {
-                e.preventDefault();
-                const pos = this.getCanvasPosition(e.touches[0]);
-                this.rawState.pointer.x = pos.x;
-                this.rawState.pointer.y = pos.y;
-
-                this.rawState.elements.game.forEach((element) => {
-                    const wasHovered = element.isHovered;
-                    element.isHovered = this.isPointInBounds(pos.x, pos.y, element.bounds());
-
-                    if (!wasHovered && element.isHovered) {
-                        element.hoverTimestamp = performance.now();
-                    }
-                });
-            },
-            { passive: false }
-        );
+        // Canvases stack debug > gui > game; an event unconsumed by one layer is
+        // re-dispatched to the next down (`fallthrough`), null for the bottom.
+        this._setupCanvasPointer("debug", this.canvases.guiCanvas);
+        this._setupCanvasPointer("gui",   this.canvases.gameCanvas);
+        this._setupCanvasPointer("game",  null);
 
         document.addEventListener("mousemove", (e) => {
             if (document.pointerLockElement) {
@@ -1262,10 +880,8 @@ class ActionInputHandler {
             }
         });
 
-        // Scroll wheel: accumulate a normalized delta. The three canvases are stacked (debug on top),
-        // so - exactly like the mouse listeners above - we attach to ALL of them, otherwise the
-        // topmost layer swallows the wheel and the bottom canvas never sees it. preventDefault stops
-        // the page from scrolling under the cursor. deltaMode is normalized to pixels.
+        // Wheel on all three canvases (top layer would otherwise swallow it), delta
+        // normalized to pixels.
         const onWheel = (e) => {
             e.preventDefault();
             const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 100 : 1;
@@ -1275,6 +891,188 @@ class ActionInputHandler {
         [this.canvases.gameCanvas, this.canvases.guiCanvas, this.canvases.debugCanvas].forEach((cv) => {
             if (cv) cv.addEventListener("wheel", onWheel, { passive: false });
         });
+    }
+
+    // Mouse + multi-touch listeners for one canvas layer.
+    _setupCanvasPointer(layer, fallthrough) {
+        const canvas   = this.canvases[`${layer}Canvas`];
+        const elements = this.rawState.elements[layer];
+
+        // re-dispatch to the layer below when this one didn't consume the event
+        const passDown = (e, Ctor, type) => {
+            if (fallthrough) fallthrough.dispatchEvent(new Ctor(type, e));
+        };
+
+        // -- Mouse -------------------------------------------------------------
+        canvas.addEventListener("mousemove", (e) => {
+            const pos = this.getCanvasPosition(e);
+            this.rawState.pointer.x = pos.x;
+            this.rawState.pointer.y = pos.y;
+            this.rawState.pointer.movementX = e.movementX || 0;
+            this.rawState.pointer.movementY = e.movementY || 0;
+
+            let hit = false;
+            elements.forEach((element) => {
+                const wasHovered = element.isHovered;
+                element.isHovered = this.isPointInBounds(pos.x, pos.y, element.bounds());
+                if (!wasHovered && element.isHovered) {
+                    element.hoverTimestamp = performance.now();
+                    hit = true;
+                }
+            });
+            if (!hit) passDown(e, MouseEvent, "mousemove");
+        });
+
+        canvas.addEventListener("mousedown", (e) => {
+            const pos = this.getCanvasPosition(e);
+            this.rawState.pointer.x = pos.x;
+            this.rawState.pointer.y = pos.y;
+
+            const button = e.button; // 0 left, 1 middle, 2 right
+            if (button === 0) {
+                this.rawState.pointer.buttons.left = true;
+                this._latchMouseDown(0);
+                this.rawState.pointer.isDown = true;
+                this.rawState.pointer.downTimestamp = performance.now();
+            }
+            if (button === 1) { this.rawState.pointer.buttons.middle = true; this._latchMouseDown(1); }
+            if (button === 2) { this.rawState.pointer.buttons.right  = true; this._latchMouseDown(2); }
+
+            let hit = false;
+            elements.forEach((element, id) => {
+                if (element.isHovered) {
+                    element.isPressed = true;
+                    this._latchElementDown(id, layer);
+                    hit = true;
+                }
+            });
+            if (!hit) passDown(e, MouseEvent, "mousedown");
+        });
+
+        canvas.addEventListener("mouseup", (e) => {
+            const pos = this.getCanvasPosition(e);
+            this.rawState.pointer.x = pos.x;
+            this.rawState.pointer.y = pos.y;
+
+            const button = e.button;
+            if (button === 0) {
+                this.rawState.pointer.buttons.left = false;
+                this.rawState.pointer.isDown = false;
+                this.rawState.pointer.downTimestamp = null;
+            }
+            if (button === 1) this.rawState.pointer.buttons.middle = false;
+            if (button === 2) this.rawState.pointer.buttons.right  = false;
+
+            let hit = false;
+            elements.forEach((element) => {
+                if (element.isPressed) { element.isPressed = false; hit = true; }
+            });
+            if (!hit) passDown(e, MouseEvent, "mouseup");
+        });
+
+        // -- Touch --------------------------------------------------------------
+        // Every Touch is tracked by identifier in rawState.touches; the oldest also
+        // mirrors into rawState.pointer (_syncPrimaryTouch) for single-pointer code.
+        // Extra touches are only visible via getTouches().
+        canvas.addEventListener("touchstart", (e) => {
+            e.preventDefault();
+            for (const touch of e.changedTouches) {
+                const pos = this.getCanvasPosition(touch);
+                this.rawState.touches.set(touch.identifier, {
+                    id: touch.identifier,
+                    x: pos.x, y: pos.y,
+                    startX: pos.x, startY: pos.y,
+                    layer,
+                    downTimestamp: performance.now()
+                });
+            }
+            this._syncPrimaryTouch();
+
+            const p = this._primaryTouch();
+            if (!p) return;
+            let hit = false;
+            elements.forEach((element, id) => {
+                if (this.isPointInBounds(p.x, p.y, element.bounds())) {
+                    element.isPressed = true;
+                    this._latchElementDown(id, layer);
+                    hit = true;
+                }
+            });
+            if (!hit) passDown(e, TouchEvent, "touchstart");
+        }, { passive: false });
+
+        canvas.addEventListener("touchmove", (e) => {
+            e.preventDefault();
+            for (const touch of e.changedTouches) {
+                const rec = this.rawState.touches.get(touch.identifier);
+                if (!rec) continue;
+                const pos = this.getCanvasPosition(touch);
+                rec.x = pos.x; rec.y = pos.y;
+            }
+            this._syncPrimaryTouch();
+
+            const p = this._primaryTouch();
+            if (!p) return;
+            let hit = false;
+            elements.forEach((element) => {
+                const wasHovered = element.isHovered;
+                element.isHovered = this.isPointInBounds(p.x, p.y, element.bounds());
+                if (!wasHovered && element.isHovered) {
+                    element.hoverTimestamp = performance.now();
+                    hit = true;
+                }
+            });
+            if (!hit) passDown(e, TouchEvent, "touchmove");
+        }, { passive: false });
+
+        const onTouchEnd = (e) => {
+            e.preventDefault();
+            for (const touch of e.changedTouches) {
+                this.rawState.touches.delete(touch.identifier);
+            }
+            this._syncPrimaryTouch();
+
+            let hit = false;
+            elements.forEach((element) => {
+                if (element.isPressed) { element.isPressed = false; hit = true; }
+            });
+            if (!hit) passDown(e, TouchEvent, "touchend");
+        };
+        canvas.addEventListener("touchend", onTouchEnd, { passive: false });
+        canvas.addEventListener("touchcancel", onTouchEnd, { passive: false });
+    }
+
+    /** The oldest still-active touch (lowest downTimestamp), or null. Drives the
+     *  single-pointer back-compat mirror. */
+    // Oldest still-active touch, or null.
+    _primaryTouch() {
+        let best = null;
+        for (const rec of this.rawState.touches.values()) {
+            if (!best || rec.downTimestamp < best.downTimestamp) best = rec;
+        }
+        return best;
+    }
+
+    // Mirror the primary touch into rawState.pointer so single-pointer consumers work.
+    // Only auto-releases what a touch owns — a held mouse button is left alone.
+    _syncPrimaryTouch() {
+        const p = this._primaryTouch();
+        if (p) {
+            this.rawState.pointer.x = p.x;
+            this.rawState.pointer.y = p.y;
+            if (!this.rawState.pointer.isDown) {
+                this.rawState.pointer.buttons.left = true;
+                this.rawState.pointer.isDown = true;
+                this.rawState.pointer.downTimestamp = p.downTimestamp;
+                this._latchMouseDown(0);
+                this._pointerOwnedByTouch = true;
+            }
+        } else if (this._pointerOwnedByTouch) {
+            this.rawState.pointer.buttons.left = false;
+            this.rawState.pointer.isDown = false;
+            this.rawState.pointer.downTimestamp = null;
+            this._pointerOwnedByTouch = false;
+        }
     }
 
     getLockedPointerMovement() {
@@ -1528,6 +1326,63 @@ class ActionInputHandler {
         };
     }
 
+    // ── Analog axis layer — public API ─────────────────────────────────────────
+
+    // Contribute to an axis slot for this frame (drained each capture, so call it
+    // every frame the input is active). Sources on one slot are summed + clamped.
+    setVirtualAxis(slot, x, y) {
+        this._virtualAxisInput.set(slot, { x: x || 0, y: y || 0 });
+    }
+
+    // Held state of an on-screen button bound to an action. A level: true on press,
+    // false on release. isKeyPressed / isKeyJustPressed then report it like a key.
+    setVirtualButton(action, isDown) {
+        if (isDown) this._virtualButtonsHeld.add(action);
+        else        this._virtualButtonsHeld.delete(action);
+    }
+
+    // One component of an axis slot, context-aware. Unknown/idle -> 0.
+    getAxis(slot, axis = "x") {
+        const { current } = this.getSnapshots();
+        const v = current.axes.get(slot);
+        return v ? (v[axis] || 0) : 0;
+    }
+
+    // An axis slot as a fresh {x,y}, context-aware. Unknown/idle -> {x:0,y:0}.
+    getVector(slot) {
+        const { current } = this.getSnapshots();
+        const v = current.axes.get(slot);
+        return v ? { x: v.x, y: v.y } : { x: 0, y: 0 };
+    }
+
+    // A 1D trigger slot as 0..1 (stored in .y). Defaults: "leftTrigger", "rightTrigger".
+    getTrigger(slot) {
+        return this.getAxis(slot, "y");
+    }
+
+    // Remap a gamepad stick (0 left, 1 right) to an axis slot; null to unmap.
+    setGamepadStickSlot(stickIndex, slot) {
+        if (slot == null) this.gamepadStickSlots.delete(stickIndex);
+        else this.gamepadStickSlots.set(stickIndex, slot);
+    }
+
+    // Remap a gamepad trigger (6 = L2, 7 = R2) to a 1D slot; null to unmap.
+    setGamepadTriggerSlot(btnIndex, slot) {
+        if (slot == null) this.gamepadTriggerSlots.delete(btnIndex);
+        else this.gamepadTriggerSlots.set(btnIndex, slot);
+    }
+
+    // Toggle the Action11/Action12 fallback for past-threshold physical triggers.
+    setDigitalTriggers(enabled) {
+        this.digitalTriggerButtons = !!enabled;
+    }
+
+    // Snap to a 1/127 grid. Quantize before putting an axis in a netcode command
+    // AND before predicting with it, or client/server prediction desyncs.
+    static quantizeAxis(v) {
+        return Math.max(-1, Math.min(1, Math.round(v * 127) / 127));
+    }
+
     isGamepadConnected(gamepadIndex = 0) {
         return this.gamepads.has(gamepadIndex);
     }
@@ -1584,6 +1439,8 @@ class ActionInputHandler {
             }
         }
 
+        if (current.keys.has(`Virtual_${action}`)) return true;  // on-screen button held
+
         // Only check gamepad if mirroring is enabled
         if (!this.gamepadKeyboardMirroring) {
             return false;
@@ -1602,21 +1459,15 @@ class ActionInputHandler {
             }
         }
 
-        // Check analog stick as directional input via snapshot system
-        if (action === "DirUp" || action === "DirDown" || action === "DirLeft" || action === "DirRight") {
-            for (const gamepadIndex of this.gamepads.keys()) {
-                let stickKey;
-                if (action === "DirUp") stickKey = `Gamepad${gamepadIndex}_StickUp`;
-                if (action === "DirDown") stickKey = `Gamepad${gamepadIndex}_StickDown`;
-                if (action === "DirLeft") stickKey = `Gamepad${gamepadIndex}_StickLeft`;
-                if (action === "DirRight") stickKey = `Gamepad${gamepadIndex}_StickRight`;
-
-                if (current.keys.has(stickKey)) {
-                    return true;
-                }
+        // digital trigger fallback (see digitalTriggerButtons)
+        if (action === "Action11" || action === "Action12") {
+            const tKey = action === "Action11" ? "_TriggerL" : "_TriggerR";
+            for (const gp of this.gamepads.keys()) {
+                if (current.keys.has(`Gamepad${gp}${tKey}`)) return true;
             }
         }
 
+        // Sticks feed getVector(), not DirUp/etc. Triggers feed getTrigger().
         return false;
     }
 
@@ -1633,6 +1484,11 @@ class ActionInputHandler {
                     return true;
                 }
             }
+        }
+
+        {   // on-screen button edge
+            const vk = `Virtual_${action}`;
+            if (current.keys.has(vk) && !previous.keys.has(vk)) return true;
         }
 
         // Only check gamepad if mirroring is enabled
@@ -1655,6 +1511,15 @@ class ActionInputHandler {
             }
         }
 
+        // digital trigger fallback edge
+        if (action === "Action11" || action === "Action12") {
+            const tKey = action === "Action11" ? "_TriggerL" : "_TriggerR";
+            for (const gp of this.gamepads.keys()) {
+                const k = `Gamepad${gp}${tKey}`;
+                if (current.keys.has(k) && !previous.keys.has(k)) return true;
+            }
+        }
+
         return false;
     }
 
@@ -1665,6 +1530,22 @@ class ActionInputHandler {
             movementX: this.rawState.pointer.movementX,
             movementY: this.rawState.pointer.movementY
         };
+    }
+
+    // Active touch points this frame, context-aware. Each { id, x, y, startX, startY,
+    // layer }; `id` is stable for the life of one touch. The oldest also drives
+    // isPointerDown() / getPointerPosition().
+    getTouches() {
+        const { current } = this.getSnapshots();
+        return Array.from(current.touches.values());
+    }
+
+    getTouchCount() {
+        return this.getSnapshots().current.touches.size;
+    }
+
+    getTouch(id) {
+        return this.getSnapshots().current.touches.get(id) || null;
     }
 
     removeElement(id, layer = "gui") {

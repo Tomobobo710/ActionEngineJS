@@ -75,6 +75,12 @@ class ActionUIComponent {
     onFocus()               { this._focused = true; }
     onBlur()                { this._focused = false; }
 
+    // Per-touch hooks (`id` stable for the life of one touch). Default forwards to
+    // the pointer handlers; components tracking a specific finger override these.
+    onTouchDown(id, px, py) { this.onPointerDown(px, py); }
+    onTouchMove(id, px, py) { this.onPointerMove(px, py); }
+    onTouchUp(id, px, py)   { this.onPointerUp(px, py); }
+
     // Check if this component or any ancestor is invisible
     _isEffectivelyVisible() {
         if (!this.visible) return false;

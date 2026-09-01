@@ -17,26 +17,35 @@ class ActionUIModal extends ActionUIComponent {
         this.zIndex     = 1000;  // Always on top
         this._kbFocus   = 0;  // keyboard focus index
 
-        // Center on screen
-        this.x = (800  - this.width)  / 2;
+        // provisional; _layout() re-centers against the real surface once _ui is set
+        this.x = (800 - this.width)  / 2;
         this.y = (600 - this.height) / 2;
 
-        this._btns = this.buttons.map((b, i) => {
-            const bw  = 100;
-            const gap = 10;
-            const totalW = this.buttons.length * bw + (this.buttons.length - 1) * gap;
-            return new ActionUIButton({
-                text:    b.label,
-                variant: b.variant || 'ghost',
-                width:   bw,
-                height:  34,
-                x:       this.x + (this.width - totalW) / 2 + i * (bw + gap),
-                y:       this.y + this.height - 50,
-                onClick: () => {
-                    this.close();
-                    this.onClose && this.onClose(b.value, this);
-                }
-            });
+        this._btns = this.buttons.map((b, i) => new ActionUIButton({
+            text:    b.label,
+            variant: b.variant || 'ghost',
+            width:   100,
+            height:  34,
+            onClick: () => {
+                this.close();
+                this.onClose && this.onClose(b.value, this);
+            }
+        }));
+        this._layout();
+    }
+
+    // Center the card + button row on the drawing surface (800x600 until _ui is set).
+    _layout() {
+        const sw = this._ui ? this._ui._width  : 800;
+        const sh = this._ui ? this._ui._height : 600;
+        this.x = (sw - this.width)  / 2;
+        this.y = (sh - this.height) / 2;
+
+        const bw = 100, gap = 10;
+        const totalW = this._btns.length * bw + (this._btns.length - 1) * gap;
+        this._btns.forEach((btn, i) => {
+            btn.x = this.x + (this.width - totalW) / 2 + i * (bw + gap);
+            btn.y = this.y + this.height - 50;
         });
     }
 
@@ -45,6 +54,7 @@ class ActionUIModal extends ActionUIComponent {
         this.visible  = true;
         this._kbFocus = 0;
         this._btns.forEach(b => { if (this._ui) b._ui = this._ui; });
+        this._layout();
     }
 
     close() {
@@ -111,9 +121,8 @@ class ActionUIModal extends ActionUIComponent {
 
         ctx.save();
 
-        // Overlay
         ctx.fillStyle = t.withAlpha(t.modalOverlayColor, a * 0.85);
-        ctx.fillRect(0, 0, 800, 600);
+        ctx.fillRect(0, 0, this._ui ? this._ui._width : 800, this._ui ? this._ui._height : 600);
 
         // Card scale in
         ctx.translate(cx, cy);

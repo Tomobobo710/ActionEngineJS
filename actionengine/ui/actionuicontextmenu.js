@@ -16,8 +16,10 @@ class ActionUIContextMenu extends ActionUIComponent {
     }
 
     openAt(x, y) {
-        this.x       = Math.min(x, 800 - this.width - 4);
-        this.y       = Math.min(y, 600 - this._totalHeight() - 4);
+        const sw = this._ui ? this._ui._width  : 800;
+        const sh = this._ui ? this._ui._height : 600;
+        this.x       = Math.min(x, sw - this.width - 4);
+        this.y       = Math.min(y, sh - this._totalHeight() - 4);
         this._open   = true;
         this.visible = true;
         this._hoverI = -1;
