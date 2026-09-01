@@ -275,6 +275,12 @@ class ActionUIGamepad extends ActionUIComponent {
     // Children are registered with ActionUI and draw themselves.
     draw(ctx) {}
 
+    // Show / hide the whole pad (children are separate ActionUI components).
+    setVisible(v) {
+        this.visible = v;
+        for (const c of this.children) c.visible = v;
+    }
+
     // Reposition + relayout (e.g. after a resolution change).
     setBounds(x, y, w, h) {
         this.x = x; this.y = y; this.width = w; this.height = h;
