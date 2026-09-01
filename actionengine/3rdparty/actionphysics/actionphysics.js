@@ -1,4 +1,4 @@
-// ActionPhysics 0.1.0 — built 2026-08-31T10:40:27.605Z
+// ActionPhysics 0.1.0 — built 2026-09-01T12:08:13.914Z
 // ==== src/intro.js ====
 /**
  * ActionPhysics - a deterministic, dependency-free 3D physics engine. Ships as one concatenated
@@ -12111,8 +12111,12 @@ proto.beginStep = function(command, dt) {
     var wishX = 0;
     var wishZ = 0;
     if (hasInput) {
-        wishX = (dirX / dirLen) * speed;
-        wishZ = (dirZ / dirLen) * speed;
+        // Clamp to unit length, not normalize: a full digital diagonal (dirLen ~= 1.41)
+        // still caps at gait speed, but a partial analog stick keeps its magnitude for a
+        // proportional walk.
+        var norm = dirLen > 1 ? 1 / dirLen : 1;
+        wishX = dirX * norm * speed;
+        wishZ = dirZ * norm * speed;
     }
 
     // Stashed for endStep (this same tick, after world.step) to use when it decides this tick's
