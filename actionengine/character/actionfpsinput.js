@@ -14,6 +14,9 @@
  *   3. Total control: build the {forward,right,jumpPressed,...} struct yourself and never
  *                     touch this class.
  *
+ * sampleLook(input, dt) gives the right-stick camera delta on the same terms — a
+ * convenience, the game still owns aim accumulation.
+ *
  * Bindings are DATA (DEFAULT_BINDINGS) so rebinding one action is a merge, not a rewrite.
  */
 class ActionFPSInput {
@@ -31,6 +34,13 @@ class ActionFPSInput {
         if (input.isKeyPressed(b.back)) forward -= 1;
         if (input.isKeyPressed(b.right)) right += 1;
         if (input.isKeyPressed(b.left)) right -= 1;
+        // Left analog stick — additive, kept UN-clamped so the controller can read its
+        // magnitude for walk-vs-run. y up = forward. (Deadzone is applied in the axis layer.)
+        if (input.getVector) {
+            const mv = input.getVector("leftAnalog");
+            forward += -mv.y;
+            right += mv.x;
+        }
         return {
             forward,
             right,
@@ -39,6 +49,33 @@ class ActionFPSInput {
             sprint: input.isKeyPressed(b.sprint), // Shift
             walk: input.isKeyPressed(b.walk), // held slow-walk gait (overrides run; sprint still wins)
             crouch: input.isKeyPressed(b.crouch)
+        };
+    }
+
+    /**
+     * Right-stick camera-look delta for this frame. The game still OWNS the aim: it
+     * accumulates yaw and clamps pitch itself, then calls controller.aim(yaw, pitch).
+     * Mouse-look is separate (it's a clean one-liner and its policy — sensitivity,
+     * invert, pointer-lock — is game-specific).
+     *
+     * @param {Object} input  - engine input system
+     * @param {number} dt     - frame delta in seconds
+     * @param {Object} [opts]
+     *   speed   {number}  rad/sec at full deflection (default 3.2)
+     *   slot    {string}  axis slot to read (default "rightAnalog")
+     *   invertY {boolean} flip the pitch axis (default false)
+     * @returns {{yaw:number, pitch:number}} per-frame deltas (add to your aim; pitch may need clamping)
+     */
+    static sampleLook(input, dt, opts) {
+        if (!input.getVector) return { yaw: 0, pitch: 0 };
+        const speed = opts && opts.speed !== undefined ? opts.speed : 3.2;
+        const slot = (opts && opts.slot) || "rightAnalog";
+        const v = input.getVector(slot);
+        if (v.x === 0 && v.y === 0) return { yaw: 0, pitch: 0 };
+        const s = speed * dt;
+        return {
+            yaw: -v.x * s,
+            pitch: (opts && opts.invertY ? 1 : -1) * v.y * s
         };
     }
 }

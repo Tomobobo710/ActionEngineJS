@@ -86,6 +86,12 @@ class Game {
             this.aimYaw += -m.x * this.lookSensitivity;
             this.aimPitch = Math.max(-this.maxPitch, Math.min(this.maxPitch, this.aimPitch + -m.y * this.lookSensitivity));
         }
+        // Right analog stick — camera look (physical gamepad or on-screen stick).
+        const l = ActionFPSInput.sampleLook(this.input, dt);
+        if (l.yaw || l.pitch) {
+            this.aimYaw += l.yaw;
+            this.aimPitch = Math.max(-this.maxPitch, Math.min(this.maxPitch, this.aimPitch + l.pitch));
+        }
         // Hand the live aim to the character — ONE call. The controller routes it to the viewmodel,
         // camera, and third-person body, so none of them lag the view between physics ticks.
         this.player.aim(this.aimYaw, this.aimPitch);
