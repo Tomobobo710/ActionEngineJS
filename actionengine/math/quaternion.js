@@ -58,7 +58,7 @@ class Quaternion {
         );
     }
 
-    // The axis is normalised here, so a non-unit axis still yields a unit quaternion. Skipping that
+    // The axis is normalized here, so a non-unit axis still yields a unit quaternion. Skipping that
     // scales the whole quaternion by |axis|, and a non-unit quaternion silently scales every vector it
     // rotates. A zero axis gives identity rather than NaN.
     setAxisAngle(axis, angle) {

@@ -2,10 +2,10 @@
 class ActionPhysicsConvexShape3D extends ActionPhysicsObject3D {
     constructor(vertices, mass = 1, initialPosition = new Vector3(0, 5, 0), colors = [], options = {}) {
         // Convert input vertices to Goblin.Vector3 for physics
-        const goblinVertices = vertices.map((v) => new Goblin.Vector3(v.x, v.y, v.z));
+        const goblinVertices = vertices.map((v) => new PhysicsBackend.Vector3(v.x, v.y, v.z));
 
         // Create the Goblin physics shape first, so we can access its faces
-        const goblinShape = new Goblin.ConvexShape(goblinVertices);
+        const goblinShape = new PhysicsBackend.ConvexShape(goblinVertices);
 
         // Default colors if none provided
         const defaultColors = [

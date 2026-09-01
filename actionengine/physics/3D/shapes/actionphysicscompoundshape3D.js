@@ -5,7 +5,7 @@ class ActionPhysicsCompoundShape3D extends ActionPhysicsObject3D {
         super([], options);
 
         // Create the Goblin compound shape
-        this.compoundShape = new Goblin.CompoundShape();
+        this.compoundShape = new PhysicsBackend.CompoundShape();
         this.body = new ActionRigidBody3D(this.compoundShape, mass, options);
         this.body.position = initialPosition;
 
@@ -17,7 +17,7 @@ class ActionPhysicsCompoundShape3D extends ActionPhysicsObject3D {
     }
 
     // Add a child shape to the compound shape
-    addChildShape(physicsObject, position, rotation = new Goblin.Quaternion()) {
+    addChildShape(physicsObject, position, rotation = new PhysicsBackend.Quaternion()) {
         if (!physicsObject || !physicsObject.body || !physicsObject.body.shape) {
             console.error("[ActionPhysicsCompoundShape3D] Cannot add invalid physics object");
             return this;
@@ -25,7 +25,7 @@ class ActionPhysicsCompoundShape3D extends ActionPhysicsObject3D {
 
         // Store the shape with its position and rotation
         const childShape = physicsObject.body.shape;
-        const childPosition = new Goblin.Vector3(position.x, position.y, position.z);
+        const childPosition = new PhysicsBackend.Vector3(position.x, position.y, position.z);
 
         // Add the shape to the compound shape
         this.compoundShape.addChildShape(childShape, childPosition, rotation);
@@ -76,10 +76,10 @@ class ActionPhysicsCompoundShape3D extends ActionPhysicsObject3D {
             // Create new transformed vertices
             const transformedVertices = triangle.vertices.map((vertex) => {
                 // First create a Goblin vector for the vertex
-                const goblinVec = new Goblin.Vector3(vertex.x, vertex.y, vertex.z);
+                const goblinVec = new PhysicsBackend.Vector3(vertex.x, vertex.y, vertex.z);
 
                 // Apply rotation
-                rotation.transformVector3(goblinVec);
+                PhysicsBackend.rotateVectorInPlace(rotation, goblinVec);
 
                 // Apply translation
                 goblinVec.x += position.x;

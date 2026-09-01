@@ -3,8 +3,174 @@
  * ActionModelPackageLoader - Reconstructs ActionModel3D from package data
  * Handles loading meshes, animations, textures from registry
  * Single shared logic for all ActionModelPackage instances
+ *
+ * LOADING MODEL - lazy, on demand:
+ *   A generated ModelIndex.js does NOT load its meshes on page load. It only calls
+ *   registerPackage(name, meshFileInfo, options, baseDir) to record a manifest (cheap - no
+ *   fetches, no ActionModel3D built). The mesh/texture/animation sub-scripts are pulled in
+ *   later, the first time something calls load(name) - e.g. the model viewer selecting that
+ *   model. reconstruct() (which builds physics shapes via PhysicsBackend) therefore runs well
+ *   after the Game constructor has chosen the physics backend, not during page load against
+ *   whatever backend.js auto-resolved.
  */
 class ActionModelPackageLoader {
+    /**
+     * name -> { meshFileInfo, options, baseDir }. Filled by registerPackage() at page load.
+     * @type {Map<string, {meshFileInfo: Array, options: Object, baseDir: string}>}
+     */
+    static #manifests = new Map();
+
+    /**
+     * name -> in-flight Promise<ActionModel3D>. Dedupes concurrent load() calls for the same
+     * package and is cleared once the load settles (success or failure).
+     * @type {Map<string, Promise<Object>>}
+     */
+    static #loadPromises = new Map();
+
+    /**
+     * Record a package manifest. Called by a generated ModelIndex.js on page load. Does no work
+     * beyond storing the manifest - the meshes load on the first load(modelName).
+     * @param {string} modelName
+     * @param {Array} meshFileInfo - [{path: "meshes/object_0.js", name: "object_0"}, ...]
+     * @param {Object} [options] - {hasAnimations, hasTextures}
+     * @param {string} [baseDir] - directory the ModelIndex.js lives in (mesh paths are relative to it)
+     */
+    static registerPackage(modelName, meshFileInfo, options = {}, baseDir = "") {
+        if (typeof modelName !== "string" || !modelName.trim()) {
+            throw new Error("ActionModelPackageLoader.registerPackage: modelName must be a non-empty string");
+        }
+        this.#manifests.set(modelName, {
+            meshFileInfo: meshFileInfo || [],
+            options: options || {},
+            baseDir: baseDir || ""
+        });
+    }
+
+    /**
+     * Names of every registered package manifest (not necessarily loaded yet).
+     * @returns {string[]}
+     */
+    static listPackageNames() {
+        return Array.from(this.#manifests.keys());
+    }
+
+    /**
+     * True if `name` is known - either a registered manifest or an already-reconstructed model.
+     * @param {string} name
+     * @returns {boolean}
+     */
+    static hasPackage(name) {
+        return this.#manifests.has(name) || ModelRegistry.exists(name);
+    }
+
+    /**
+     * Load a package on demand: chainload its mesh/texture/animation sub-scripts, then
+     * reconstruct() the ActionModel3D and register it. Idempotent and concurrency-safe -
+     * repeat calls (or overlapping calls) resolve to the same model without reloading.
+     *
+     * @param {string} modelName
+     * @param {Function} [onProgress] - called with a fraction 0..1 as the package loads. Fires
+     *   across the mesh-script fetches (the bulk of the wait) and once more after reconstruct().
+     *   On a cache hit it is called once with 1. If two callers race, only the FIRST call's
+     *   onProgress is driven (the second shares the in-flight promise); a racing caller that
+     *   passed an onProgress gets it called once with 1 on resolve.
+     * @returns {Promise<Object>} the reconstructed ActionModel3D
+     */
+    static async load(modelName, onProgress = null) {
+        if (ModelRegistry.exists(modelName)) {
+            if (onProgress) onProgress(1);
+            return ModelRegistry.get(modelName);
+        }
+        if (this.#loadPromises.has(modelName)) {
+            const p = this.#loadPromises.get(modelName);
+            if (onProgress) p.then(() => onProgress(1), () => {});
+            return p;
+        }
+
+        const manifest = this.#manifests.get(modelName);
+        if (!manifest) {
+            throw new Error(`ActionModelPackageLoader.load: no package registered as "${modelName}"`);
+        }
+
+        const promise = this.#loadManifest(modelName, manifest, onProgress);
+        this.#loadPromises.set(modelName, promise);
+        try {
+            return await promise;
+        } finally {
+            this.#loadPromises.delete(modelName);
+        }
+    }
+
+    /**
+     * @private
+     * @param {string} modelName
+     * @param {{meshFileInfo: Array, options: Object, baseDir: string}} manifest
+     * @param {Function} [onProgress]
+     * @returns {Promise<Object>}
+     */
+    static async #loadManifest(modelName, manifest, onProgress) {
+        const { meshFileInfo, options, baseDir } = manifest;
+        const t0 = performance.now();
+
+        // Progress budget: one unit per sub-script fetch, plus a lump for reconstruct(). The
+        // fetches are serial and dominate wall time, so the bar crawls smoothly across them;
+        // reconstruct() is a single synchronous call, so it shows as one jump near the end.
+        const scriptUnits = meshFileInfo.length
+            + (options.hasAnimations ? 1 : 0)
+            + (options.hasTextures ? 1 : 0);
+        const reconstructUnits = Math.max(1, Math.round(scriptUnits * 0.25));
+        const totalUnits = scriptUnits + reconstructUnits;
+        let doneUnits = 0;
+        const report = () => { if (onProgress) onProgress(doneUnits / totalUnits); };
+
+        report(); // 0
+
+        // Chainload mesh sub-scripts (each registers its data into ModelRegistry via
+        // registerModule), then optional animations/textures - same order the old generated
+        // ModelIndex.js used.
+        for (const info of meshFileInfo) {
+            await this.#loadScript(baseDir + info.path);
+            doneUnits++;
+            report();
+        }
+        if (options.hasAnimations) {
+            await this.#loadScript(baseDir + "animations.js");
+            doneUnits++;
+            report();
+        }
+        if (options.hasTextures) {
+            await this.#loadScript(baseDir + "textures.js");
+            doneUnits++;
+            report();
+        }
+
+        const model = this.reconstruct(modelName, meshFileInfo, options);
+        doneUnits += reconstructUnits;
+        report(); // 1
+
+        console.log(
+            `ActionModelPackageLoader: lazy-loaded "${modelName}" in ${(performance.now() - t0).toFixed(0)}ms`
+        );
+        return model;
+    }
+
+    /**
+     * Inject a <script> and resolve when it has loaded. Same manual-loader approach the old
+     * generated bootstrap used; lives here now so ModelIndex.js can stay a pure manifest.
+     * @private
+     * @param {string} src
+     * @returns {Promise<void>}
+     */
+    static #loadScript(src) {
+        return new Promise((resolve, reject) => {
+            const script = document.createElement("script");
+            script.src = src;
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error("Failed to load: " + src));
+            document.head.appendChild(script);
+        });
+    }
+
     /**
      * Reconstruct ActionModel3D from registered module data
      * @param {string} modelName - Model name to reconstruct and register

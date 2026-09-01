@@ -70,7 +70,7 @@ class ActionPhysicsPlane3D extends ActionPhysicsObject3D {
 
         super(triangles, options);
 
-        const shape = new Goblin.PlaneShape(orientation, width / 2, length / 2);
+        const shape = new PhysicsBackend.PlaneShape(orientation, width / 2, length / 2);
         this.body = new ActionRigidBody3D(shape, mass, options);
         this.body.position = initialPosition;
 

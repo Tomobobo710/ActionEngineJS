@@ -633,12 +633,12 @@ class GLBLoader {
                                 // Collect for compound shape
                                 physicsShapes.push(physicsData.shape);
                                 physicsShapeTransforms.push({
-                                    position: new Goblin.Vector3(
+                                    position: new PhysicsBackend.Vector3(
                                         worldTranslation.x,
                                         worldTranslation.y,
                                         worldTranslation.z
                                     ),
-                                    rotation: new Goblin.Quaternion(
+                                    rotation: new PhysicsBackend.Quaternion(
                                         worldRotation.x,
                                         worldRotation.y,
                                         worldRotation.z,

@@ -53,11 +53,11 @@ class ActionPhysicsMesh3D extends ActionPhysicsObject3D {
         super(triangles, options);
 
         // Convert (centered) vertices to Goblin.Vector3 for the physics engine
-        const goblinVertices = centeredVertices.map((v) => new Goblin.Vector3(v.x, v.y, v.z));
+        const goblinVertices = centeredVertices.map((v) => new PhysicsBackend.Vector3(v.x, v.y, v.z));
 
         // Create physics shape and body. The shape stays a TRUE concave MeshShape — collision is
         // unchanged and fully concave.
-        const shape = new Goblin.MeshShape(goblinVertices, indices);
+        const shape = new PhysicsBackend.MeshShape(goblinVertices, indices);
         this.body = new ActionRigidBody3D(shape, mass, options);
         this.body.position = new Vector3(initialPosition.x + cx, initialPosition.y + cy, initialPosition.z + cz);
 

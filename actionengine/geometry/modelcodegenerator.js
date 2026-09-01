@@ -719,55 +719,32 @@ class ModelCodeGenerator {
      * @returns {string} JavaScript code
      */
     static generateModelIndex(modelName, meshFileInfo, hasAnimations, hasTextures) {
-        let code = `// ActionModelPackage Bootstrap\n`;
+        // A manifest, not a loader. On page load this only records where the package lives and
+        // what files it has; the meshes/animations/textures are chainloaded later, the first
+        // time ActionModelPackageLoader.load("<modelName>") is called (e.g. the model viewer
+        // selecting this model). Keeping the actual load off page-load avoids paying for big
+        // assets that may never be viewed, and means reconstruct()'s physics-shape building
+        // runs after the app has chosen its physics backend rather than during page load.
+        const meshFileInfoJSON = JSON.stringify(meshFileInfo, null, 4)
+            .split("\n")
+            .join("\n    ");
+
+        let code = `// ActionModelPackage Manifest\n`;
         code += `// Model: ${modelName}\n`;
         code += `// Generated: ${new Date().toISOString()}\n\n`;
-        code += `(async function() {\n`;
-        code += `    // Get current script directory for relative loading\n`;
+        code += `(function () {\n`;
+        code += `    // Directory this ModelIndex.js lives in - mesh paths are resolved relative to it.\n`;
         code += `    const scriptUrl = document.currentScript ? document.currentScript.src : '';\n`;
-        code += `    const scriptDir = scriptUrl.substring(0, scriptUrl.lastIndexOf('/') + 1);\n`;
+        code += `    const baseDir = scriptUrl.substring(0, scriptUrl.lastIndexOf('/') + 1);\n`;
         code += `\n`;
-        code += `    // Load script helper\n`;
-        code += `    function loadScript(path) {\n`;
-        code += `        return new Promise((resolve, reject) => {\n`;
-        code += `            const script = document.createElement('script');\n`;
-        code += `            script.src = scriptDir + path;\n`;
-        code += `            script.onload = resolve;\n`;
-        code += `            script.onerror = () => reject(new Error('Failed to load: ' + script.src));\n`;
-        code += `            document.head.appendChild(script);\n`;
-        code += `        });\n`;
-        code += `    }\n`;
-        code += `    \n`;
-        code += `    try {\n`;
-        code += `        // Chainload all mesh files\n`;
-        meshFileInfo.forEach((info) => {
-            code += `        await loadScript('${info.path}');\n`;
-        });
-        
-        if (hasAnimations) {
-            code += `        await loadScript('animations.js');\n`;
-        }
-        
-        if (hasTextures) {
-            code += `        await loadScript('textures.js');\n`;
-        }
-        
-        code += `        \n`;
-        code += `        // Reconstruct ActionModel3D using ActionModelPackageLoader\n`;
-         
-         const meshFileInfoJSON = JSON.stringify(meshFileInfo, null, 4);
-        
-        code += `        const meshFileInfo = ${meshFileInfoJSON};\n`;
-        code += `        ActionModelPackageLoader.reconstruct("${modelName}", meshFileInfo, {\n`;
-        code += `            hasAnimations: ${hasAnimations},\n`;
-        code += `            hasTextures: ${hasTextures}\n`;
-        code += `        });\n`;
-        code += `    } catch (error) {\n`;
-        code += `        console.error('Failed to load ActionModelPackage: ${modelName}', error);\n`;
-        code += `        throw error;\n`;
-        code += `    }\n`;
+        code += `    const meshFileInfo = ${meshFileInfoJSON};\n`;
+        code += `\n`;
+        code += `    ActionModelPackageLoader.registerPackage("${modelName}", meshFileInfo, {\n`;
+        code += `        hasAnimations: ${hasAnimations},\n`;
+        code += `        hasTextures: ${hasTextures}\n`;
+        code += `    }, baseDir);\n`;
         code += `})();\n`;
-        
+
         return code;
     }
 

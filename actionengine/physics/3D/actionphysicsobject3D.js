@@ -146,7 +146,7 @@ class ActionPhysicsObject3D extends RenderableObject {
             if (!this._lastPosition) this._lastPosition = new Vector3();
             this._lastPosition.set(posX, posY, posZ);
 
-            if (!this._lastRotation) this._lastRotation = new Goblin.Quaternion();
+            if (!this._lastRotation) this._lastRotation = new PhysicsBackend.Quaternion();
             this._lastRotation.x = this.body.rotation.x;
             this._lastRotation.y = this.body.rotation.y;
             this._lastRotation.z = this.body.rotation.z;
@@ -183,8 +183,8 @@ class ActionPhysicsObject3D extends RenderableObject {
      * Rotate a vector by a quaternion
      */
     rotateVector(vector, rotation) {
-        const v = new Goblin.Vector3(vector.x, vector.y, vector.z);
-        rotation.transformVector3(v);
+        const v = new PhysicsBackend.Vector3(vector.x, vector.y, vector.z);
+        PhysicsBackend.rotateVectorInPlace(rotation, v);
         return new Vector3(v.x, v.y, v.z);
     }
 

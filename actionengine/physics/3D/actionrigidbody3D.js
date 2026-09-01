@@ -47,8 +47,11 @@ class ActionRigidBody3D {
             // Wrapping existing body — leave its material untouched, it's not ours to redefine
             this._body = shapeOrBody;
         } else {
-            // Creating new body from shape — apply engine material defaults + caller overrides
-            this._body = new Goblin.RigidBody(shapeOrBody, mass);
+            // Creating new body from shape — apply engine material defaults + caller overrides.
+            // The 3rd arg (kinematic flag) is honored by ActionPhysics and ignored by Goblin, which
+            // has no kinematic body type (there, a scripted mover uses the isKinematicCharacter tag
+            // + a zero collision mask instead).
+            this._body = new PhysicsBackend.RigidBody(shapeOrBody, mass, { kinematic: !!options.kinematic });
             this._applyMaterial(options);
         }
         // Backend → wrapper backref. Physics queries (raycasts, collision results) surface the raw
@@ -116,13 +119,16 @@ class ActionRigidBody3D {
     }
     
     set mass(value) {
+        // Both backends have a `mass` setter on RigidBody.prototype that re-derives the inertia
+        // tensor from the current shape (ActionPhysics also refreshes its inverse, and maps
+        // mass <= 0 to a static body). Goblin's setter does shape.getInertiaTensor(Infinity) for a
+        // static body, which can produce non-finite tensor entries — special-case it so the tensor
+        // stays zero, matching how a static body is meant to behave.
         if (value === Infinity) {
             this._body._mass = Infinity;
             this._body._mass_inverted = 0;
         } else {
-            this._body._mass = value;
-            this._body._mass_inverted = 1 / value;
-            this._body.inertiaTensor = this._body.shape.getInertiaTensor(value);
+            this._body.mass = value;
         }
     }
     
@@ -273,11 +279,17 @@ class ActionRigidBody3D {
     }
     
     /**
-     * Apply an impulse (instant velocity change)
-     * @param {Vector3} impulse - Impulse to apply
+     * Apply an impulse — this wrapper's contract is an INSTANT, MASS-INDEPENDENT velocity change
+     * (a "shove": a gravity-gun, a bullet push, scripted knockback), and all game code is written
+     * to that. The two backends spell it differently:
+     *   Goblin        — applyImpulse IS mass-independent (adds straight to linear_velocity).
+     *   ActionPhysics — applyImpulse is a true impulse (dv = J/m); its mass-independent form is
+     *                   addLinearVelocity.
+     * PhysicsBackend.addVelocity picks the right one per backend — a name map, no scaling math.
+     * @param {Vector3} dv - velocity delta to add
      */
-    applyImpulse(impulse) {
-        this._body.applyImpulse(impulse);
+    applyImpulse(dv) {
+        PhysicsBackend.addVelocity(this._body, dv);
     }
     
     /**
@@ -474,29 +486,45 @@ class ActionRigidBody3D {
     }
     
     // === Contact Callbacks ===
-    
+    //
+    // The two backends emit contact events with different payloads:
+    //   Goblin        - body.emit('contact', otherBody, contactObj)      -> callback(otherBody, contact)
+    //   ActionPhysics - body.emit('contact', { contact, other: body })   -> callback({ contact, other })
+    // These wrappers normalize BOTH to the (otherBody, contact) call shape that game code expects.
+    // `otherBody` is the raw backend RigidBody; use ActionRigidBody3D.wrap(otherBody) for the wrapper.
+
+    _addContactListener(event, callback) {
+        this._body.addListener(event, function (a, b) {
+            if (a && typeof a === 'object' && 'other' in a && 'contact' in a) {
+                callback(a.other, a.contact);   // ActionPhysics shape
+            } else {
+                callback(a, b);                 // Goblin shape (otherBody, contact)
+            }
+        });
+    }
+
     /**
      * Register callback for when this body BEGINS touching another (fires once per contact)
      * @param {Function} callback - Called with (otherBody, contact)
      */
     onContactStart(callback) {
-        this._body.addListener('contactStart', callback);
+        this._addContactListener('contactStart', callback);
     }
-    
+
     /**
      * Register callback for when this body is touching another (fires every frame in contact)
      * @param {Function} callback - Called with (otherBody, contact)
      */
     onContact(callback) {
-        this._body.addListener('contact', callback);
+        this._addContactListener('contact', callback);
     }
-    
+
     /**
      * Register callback for when this body stops touching another
      * @param {Function} callback - Called with (otherBody)
      */
     onContactEnd(callback) {
-        this._body.addListener('endContact', callback);
+        this._addContactListener('endContact', callback);
     }
     
     /**

@@ -362,7 +362,7 @@ class Vector3 {
     }
 
     // A unit vector perpendicular to v. Crosses with the cardinal axis v is LEAST aligned to - a
-    // nearly-parallel axis gives a near-zero vector that normalises into noise.
+    // nearly-parallel axis gives a near-zero vector that normalizes into noise.
     findOrthogonal(v) {
         const ax = Math.abs(v.x), ay = Math.abs(v.y), az = Math.abs(v.z);
         if (ax <= ay && ax <= az) { this.x = 0; this.y = -v.z; this.z = v.y; }

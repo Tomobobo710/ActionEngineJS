@@ -28,8 +28,6 @@
                 <!--3rd party libs--->
                 <!--Goblin fork of https://github.com/chandlerprall/GoblinPhysics----https://github.com/Tomobobo710/GoblinPhysics-->
                 <script src="actionengine/3rdparty/goblin/goblin.js"></script>
-				<!-- Ctx3D -->
-				<script src="actionengine/3rdparty/Ctx3D/ctx3d.js"></script>
 
                 <!-- ==========================================
                      ACTION ENGINE CORE MODULES
@@ -39,10 +37,15 @@
                 <script src="actionengine/math/scalar.js"></script>
                 <script src="actionengine/math/vector2.js"></script>
                 <script src="actionengine/math/vector3.js"></script>
-                <script src="actionengine/math/matrix4.js"></script>
                 <script src="actionengine/math/matrix3.js"></script>
+                <script src="actionengine/math/matrix4.js"></script>
                 <script src="actionengine/math/quaternion.js"></script>
                 <script src="actionengine/math/transform.js"></script>
+
+                <!-- Physics backend: ActionPhysics, loaded AFTER the math above so it adopts these
+                     ActionMath classes (ActionPhysics.usingHostMath === true). Goblin (loaded above)
+                     remains a selectable backend; actionengine/physics/3D/backend.js picks one. -->
+                <script src="actionengine/3rdparty/actionphysics/actionphysics.js"></script>
 
                 <!-- Geometry & Resources -->
                 <script src="actionengine/geometry/triangle.js"></script>
@@ -135,6 +138,7 @@
                 <script src="actionengine/gl/shaders/particleshader.js"></script>
 
                 <!---Action Engine Physics - 3D-->
+                <script src="actionengine/physics/3D/backend.js"></script>
                 <script src="actionengine/physics/3D/actionraycast3D.js"></script>
                 <script src="actionengine/physics/3D/actionrigidbody3D.js"></script>
                 <script src="actionengine/physics/3D/physicsshapebuilder3D.js"></script>

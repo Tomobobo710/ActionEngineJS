@@ -2,7 +2,7 @@
 /**
  * PhysicsShapeBuilder3D - Utility for creating Goblin physics shapes and bodies from mesh geometry
  * 
- * Converts vertex arrays and triangle indices into Goblin.MeshShape objects
+ * Converts vertex arrays and triangle indices into PhysicsBackend.MeshShape objects
  * with corresponding RigidBody wrappers for use in physics simulations.
  */
 class PhysicsShapeBuilder3D {
@@ -11,7 +11,7 @@ class PhysicsShapeBuilder3D {
      * @param {Vector3[]} vertices - Array of Vector3 positions (in local space)
      * @param {number[]} indices - Array of triangle indices (triplets pointing into vertices array)
      * @param {number} mass - Mass for the RigidBody. Use 0 for static objects. Default: 0
-     * @returns {Object} { shape: Goblin.MeshShape, body: Goblin.RigidBody }
+     * @returns {Object} { shape: PhysicsBackend.MeshShape, body: PhysicsBackend.RigidBody }
      */
     static createMeshShape(vertices, indices, mass = 0) {
         if (!vertices || vertices.length === 0) {
@@ -34,15 +34,15 @@ class PhysicsShapeBuilder3D {
         const goblinVertices = [];
         for (let i = 0; i < flatVertices.length; i += 3) {
             goblinVertices.push(
-                new Goblin.Vector3(flatVertices[i], flatVertices[i + 1], flatVertices[i + 2])
+                new PhysicsBackend.Vector3(flatVertices[i], flatVertices[i + 1], flatVertices[i + 2])
             );
         }
 
         // Create the Goblin mesh shape
-        const shape = new Goblin.MeshShape(goblinVertices, indices);
+        const shape = new PhysicsBackend.MeshShape(goblinVertices, indices);
 
         // Create the rigid body
-        const body = new Goblin.RigidBody(shape, mass);
+        const body = new PhysicsBackend.RigidBody(shape, mass);
 
         // Set reasonable damping values
         body.linear_damping = 0.01;
@@ -60,11 +60,11 @@ class PhysicsShapeBuilder3D {
      * @param {number} height - Height of the box
      * @param {number} depth - Depth of the box
      * @param {number} mass - Mass for the RigidBody. Use 0 for static objects. Default: 0
-     * @returns {Object} { shape: Goblin.BoxShape, body: Goblin.RigidBody }
+     * @returns {Object} { shape: PhysicsBackend.BoxShape, body: PhysicsBackend.RigidBody }
      */
     static createBoxShape(width, height, depth, mass = 0) {
-        const shape = new Goblin.BoxShape(width / 2, height / 2, depth / 2);
-        const body = new Goblin.RigidBody(shape, mass);
+        const shape = new PhysicsBackend.BoxShape(width / 2, height / 2, depth / 2);
+        const body = new PhysicsBackend.RigidBody(shape, mass);
 
         body.linear_damping = 0.01;
         body.angular_damping = 0.01;
@@ -79,11 +79,11 @@ class PhysicsShapeBuilder3D {
      * Create a sphere shape
      * @param {number} radius - Radius of the sphere
      * @param {number} mass - Mass for the RigidBody. Use 0 for static objects. Default: 0
-     * @returns {Object} { shape: Goblin.SphereShape, body: Goblin.RigidBody }
+     * @returns {Object} { shape: PhysicsBackend.SphereShape, body: PhysicsBackend.RigidBody }
      */
     static createSphereShape(radius, mass = 0) {
-        const shape = new Goblin.SphereShape(radius);
-        const body = new Goblin.RigidBody(shape, mass);
+        const shape = new PhysicsBackend.SphereShape(radius);
+        const body = new PhysicsBackend.RigidBody(shape, mass);
 
         body.linear_damping = 0.01;
         body.angular_damping = 0.01;
@@ -114,14 +114,14 @@ class PhysicsShapeBuilder3D {
             localVertex.y *= scale.y;
             localVertex.z *= scale.z;
 
-            // Apply rotation
-            const rotatedVertex = rotation.transformVector(localVertex);
+            // Apply rotation (in place; the method name differs between backends - normalized here)
+            PhysicsBackend.rotateVectorInPlace(rotation, localVertex);
 
             // Apply translation
             const worldVertex = new Vector3(
-                rotatedVertex.x + translation.x,
-                rotatedVertex.y + translation.y,
-                rotatedVertex.z + translation.z
+                localVertex.x + translation.x,
+                localVertex.y + translation.y,
+                localVertex.z + translation.z
             );
 
             worldVertices.push(worldVertex);
@@ -143,15 +143,15 @@ class PhysicsShapeBuilder3D {
         }
 
         try {
-            const compoundShape = new Goblin.CompoundShape();
-            const zeroPos = new Goblin.Vector3(0, 0, 0);
-            const identityRot = new Goblin.Quaternion(0, 0, 0, 1);
+            const compoundShape = new PhysicsBackend.CompoundShape();
+            const zeroPos = new PhysicsBackend.Vector3(0, 0, 0);
+            const identityRot = new PhysicsBackend.Quaternion(0, 0, 0, 1);
 
             for (let i = 0; i < physicsShapes.length; i++) {
                 compoundShape.addChildShape(physicsShapes[i], zeroPos, identityRot);
             }
 
-            const compoundBody = new Goblin.RigidBody(compoundShape, 0); // mass=0 for static
+            const compoundBody = new PhysicsBackend.RigidBody(compoundShape, 0); // mass=0 for static
             compoundBody.position.set(0, 0, 0);
             compoundBody.linear_damping = 0.01;
             compoundBody.angular_damping = 0.01;

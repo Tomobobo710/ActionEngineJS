@@ -121,7 +121,7 @@ class ActionPhysicsBox3D extends ActionPhysicsObject3D {
         super(triangles, options);
 
         // Create physics body from shape
-        const shape = new Goblin.BoxShape(width / 2, height / 2, depth / 2);
+        const shape = new PhysicsBackend.BoxShape(width / 2, height / 2, depth / 2);
         this.body = new ActionRigidBody3D(shape, mass, options);
         this.body.position = initialPosition;
 

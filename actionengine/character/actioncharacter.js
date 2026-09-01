@@ -48,7 +48,7 @@ class ActionCharacter extends RenderableObject {
         // matches the visual one in ActionCharacter3D; speeds/jump are m/s; rideHeight is a length. The
         // spring constants (springStrength/springDamping) are frequency-like and scale-invariant, so they
         // keep their defaults — the suspension balance is preserved because heightError scales with gravity.
-        this.controller = new Goblin.CharacterController(this.game.physicsWorld.getWorld(), {
+        this.controller = new PhysicsBackend.CharacterController(this.game.physicsWorld.getWorld(), {
             radius: 0.2, height: 0.6,
             moveSpeed: 5, maxSpeed: 5, jumpForce: 6,
             rideHeight: 0.4, stoppingThreshold: 0.01
@@ -172,7 +172,7 @@ class ActionCharacter extends RenderableObject {
 
         // Get input direction relative to camera
         const viewMatrix = this.camera.getViewMatrix();
-        const moveDir = new Goblin.Vector3();
+        const moveDir = new PhysicsBackend.Vector3();
 
         // Track if we're moving this frame
         let isMovingThisFrame = false;

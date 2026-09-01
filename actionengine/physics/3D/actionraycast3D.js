@@ -32,28 +32,26 @@ class ActionRaycast3D {
             z: end.z
         };
 
-        // Perform the raycast using Goblin physics
-        const intersections = physicsWorld.getWorld().rayIntersect(rayStart, rayEnd);
-
-        if (!intersections || intersections.length === 0) {
-            return null;
-        }
+        // ALL hits along the segment, nearest-first, normalized across backends by PhysicsBackend.
+        // We need every hit (not just the nearest) because the ignore list is applied HERE: a shot
+        // fired from inside the shooter's own collider must skip that body and take the prop behind
+        // it. (ActionPhysics's world.rayIntersect is single-nearest; raycastAll uses its all-hits
+        // form. Goblin already returns the full sorted list.)
+        const hits = PhysicsBackend.raycastAll(physicsWorld, rayStart, rayEnd);
+        if (!hits || hits.length === 0) return null;
 
         // Filter and find the first valid intersection
-        for (let i = 0; i < intersections.length; i++) {
-            const hit = intersections[i];
+        for (let i = 0; i < hits.length; i++) {
+            const hit = hits[i];
 
             // Skip if hit is too close
-            if (hit.t < minDistance) {
+            if (hit.distance < minDistance) {
                 continue;
             }
 
-            // Skip if object is in ignore list
-            if (
-                hit.object &&
-                hit.object.debugName &&
-                ignoreList.some((name) => hit.object.debugName === name || hit.object.debugName.includes(name))
-            ) {
+            // Skip if object is in ignore list (match on the body's debug name / engine name)
+            const nm = hit.backendBody && hit.backendBody.debugName;
+            if (nm && ignoreList.some((name) => nm === name || nm.includes(name))) {
                 continue;
             }
 
@@ -61,11 +59,11 @@ class ActionRaycast3D {
             // `body` is its engine wrapper (ActionRigidBody3D) when the body was wrapped, else null —
             // prefer `body` so consumers stay off the backend.
             return {
-                object: hit.object,
-                body: ActionRigidBody3D.wrap(hit.object),
+                object: hit.backendBody,
+                body: ActionRigidBody3D.wrap(hit.backendBody),
                 point: { x: hit.point.x, y: hit.point.y, z: hit.point.z },
                 normal: { x: hit.normal.x, y: hit.normal.y, z: hit.normal.z },
-                distance: hit.t,
+                distance: hit.distance,
                 rayDirection: this._calculateDirection(rayStart, rayEnd)
             };
         }

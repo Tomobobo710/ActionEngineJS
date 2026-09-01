@@ -1,12 +1,19 @@
 //actionengine/physics/actionphysicsworld3D.js
 class ActionPhysicsWorld3D {
+    /**
+     * @param {number} [fixedTimestep=1/60]
+     *
+     * The physics backend is an app-wide choice, set once at startup (PhysicsBackend.use, driven by
+     * Game.PHYSICS_BACKEND). A world just inherits whatever is active — there is no per-world knob.
+     */
     constructor(fixedTimestep = 1 / 60) {
-        this.broadphase = new Goblin.SAPBroadphase();
-        this.narrowphase = new Goblin.NarrowPhase();
-        this.solver = new Goblin.IterativeSolver();
-        this.world = new Goblin.World(this.broadphase, this.narrowphase, this.solver);
+        const parts = PhysicsBackend.createWorld();
+        this.broadphase = parts.broadphase;
+        this.narrowphase = parts.narrowphase;
+        this.solver = parts.solver;
+        this.world = parts.world;
 
-        this.world.gravity = new Goblin.Vector3(0, -9.81, 0);
+        this.world.gravity = new PhysicsBackend.Vector3(0, -9.81, 0);
 
         this.objects = new Set();
 
@@ -47,13 +54,11 @@ class ActionPhysicsWorld3D {
 
             // Invoke world-level contact listeners
             if (this._contactListeners.length > 0) {
-                let manifold = this.world.narrowphase.contact_manifolds.first;
-                while (manifold) {
+                PhysicsBackend.eachManifold(this.world, (manifold) => {
                     for (let i = 0; i < this._contactListeners.length; i++) {
                         this._contactListeners[i](manifold);
                     }
-                    manifold = manifold.next_manifold;
-                }
+                });
             }
 
             // Update visual state for all objects
@@ -243,14 +248,12 @@ class ActionPhysicsWorld3D {
 
     reset() {
         // nuke it
-        this.broadphase = new Goblin.SAPBroadphase();
-        this.narrowphase = new Goblin.NarrowPhase();
-        this.solver = new Goblin.IterativeSolver();
+        this.broadphase = new PhysicsBackend.SAPBroadphase();
+        this.narrowphase = new PhysicsBackend.NarrowPhase();
+        this.solver = PhysicsBackend.createSolver();
 
-        // Clear all object pools
-        Object.keys(Goblin.ObjectPool.pools).forEach((key) => {
-            Goblin.ObjectPool.pools[key].length = 0;
-        });
+        // Clear the backend's global object pools (no-op on backends that don't have any).
+        PhysicsBackend.clearPools();
 
         if (this.terrainBody) {
             this.world.removeRigidBody(this.terrainBody);

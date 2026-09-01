@@ -82,7 +82,9 @@ class ActionFPSController3D {
         const o = { ...options };
         if (o.position) o.position = { x: o.position.x, y: o.position.y, z: o.position.z };
 
-        this._goblin = new Goblin.FPSCharacterController(world, o);
+        // The backend's bundled FPS controller (Goblin's or ActionPhysics's, per PhysicsBackend).
+        // The field name `_goblin` is historical — it is whichever backend is selected.
+        this._goblin = new PhysicsBackend.FPSCharacterController(world, o);
         this._bindOverridableHooks();
 
         // .body is a live facade over the delegate's raw Goblin body: same contract every other
@@ -356,6 +358,7 @@ class ActionFPSController3D {
     get slideSlopeMin() { return this._goblin.slideSlopeMin; }
     set slideSlopeMin(v) { this._goblin.slideSlopeMin = v; }
     get slideSlopeFriction() { return this._goblin.slideSlopeFriction; }
+    // Goblin's controller only; ActionPhysics's port has no slide-coyote window. Undefined there.
     get slideCoyoteFrames() { return this._goblin.slideCoyoteFrames; }
     set slideCoyoteFrames(v) { this._goblin.slideCoyoteFrames = v; }
 
@@ -532,7 +535,7 @@ class ActionFPSController3D {
      */
     renderEye(alpha) {
         const e = this._goblin.renderEye(alpha);
-        return this._springEye(e.x, e.y, e.z);
+        return this._springEye(e.x, e.y, e.z, alpha);
     }
 
     /**
@@ -550,17 +553,26 @@ class ActionFPSController3D {
      * those and make crouch feel wrong. The 60/144 beat we're fixing is HORIZONTAL (measured: X/Z lurch, Y had
      * zero reversals), so we spring X/Z only and pass Y through untouched for the rig's smoother to own.
      */
-    _springEye(x, y, z) {
+    _springEye(x, y, z, alpha) {
         const C = (typeof FPS_EYE_SMOOTH !== "undefined") ? FPS_EYE_SMOOTH
             : (typeof window !== "undefined" && window.FPS_EYE_SMOOTH);
         if (!C || !C.ENABLED) return new Vector3(x, y, z);
-        // renderEye is called MORE THAN ONCE per frame (camera + third-person body), always with the same
-        // alpha. Integrate the spring only ONCE per frame — key on the frame counter the app bumps — and
-        // return the cached sprung eye for any further calls this frame, or we'd double-step the spring.
-        const frame = ActionFPSController3D._renderFrame || 0;
-        if (this._eyeSmFrame === frame && this._eyeSmOut) return new Vector3(this._eyeSmOut.x, y, this._eyeSmOut.z);
+        // renderEye is called MORE THAN ONCE per real frame (camera + third-person body + viewmodel),
+        // each time with the SAME interpolated eye (x,z) and the SAME alpha. Integrate the spring
+        // exactly ONCE per frame and return the cached sprung eye for the rest, or we double-step it.
+        //
+        // We detect "a new frame" from the render inputs themselves — no counter for the app to bump
+        // (a missed bump silently freezes the view, which is a nasty footgun). A new frame changes at
+        // least one of: the interpolated eye target (x,z — moves every frame the player moves) or
+        // `alpha` (the sub-tick fraction). If BOTH are identical to last call, it's a repeat call
+        // this frame (return cache) OR a genuinely static frame (returning the settled eye is
+        // correct anyway).
+        const same = this._eyeSmOut &&
+            this._eyeSmLastX === x && this._eyeSmLastZ === z && this._eyeSmLastAlpha === alpha;
+        if (same) return new Vector3(this._eyeSmOut.x, y, this._eyeSmOut.z);
+        this._eyeSmLastX = x; this._eyeSmLastZ = z; this._eyeSmLastAlpha = alpha;
         const dt = Math.min(this._renderDt || 1 / 144, 1 / 30);
-        if (!this._eyeSm) { this._eyeSm = { x, z, vx: 0, vz: 0 }; this._eyeSmFrame = frame; this._eyeSmOut = { x, z }; return new Vector3(x, y, z); }
+        if (!this._eyeSm) { this._eyeSm = { x, z, vx: 0, vz: 0 }; this._eyeSmOut = { x, z }; return new Vector3(x, y, z); }
         const s = this._eyeSm;
         const gx = x - s.x, gz = z - s.z;
         // Snap gate scales with the character: a big character's eye moves proportionally farther per frame,
@@ -583,7 +595,6 @@ class ActionFPSController3D {
             s.vx = (s.vx - ax * w) * e; s.vz = (s.vz - az * w) * e;
             s.x = x - (gx + ax) * e;    s.z = z - (gz + az) * e;
         }
-        this._eyeSmFrame = frame;
         this._eyeSmOut = { x: s.x, z: s.z }; // Y not sprung — passed through raw (crouch/step owned by the rig)
         return new Vector3(s.x, y, s.z);
     }
@@ -652,12 +663,14 @@ class ActionFPSController3D {
     }
 
     /** TEMP DEBUG: begin capturing per-tick movement state (see endStep). `seconds` sizes the ring
-     *  buffer (default 20s at 60Hz). Console-driven: _debugStart(20), reproduce, _debugDump(). */
-    _debugStart(seconds) { return this._goblin._debugStart(seconds); }
+     *  buffer (default 20s at 60Hz). Console-driven: _debugStart(20), reproduce, _debugDump().
+     *  Only present on backends that ship this ring-buffer tool (Goblin's controller); a no-op
+     *  elsewhere. */
+    _debugStart(seconds) { return this._goblin._debugStart ? this._goblin._debugStart(seconds) : undefined; }
     /** TEMP DEBUG: label the NEXT captured tick (e.g. the start of one of your sub-tests). */
-    _debugMark(label) { return this._goblin._debugMark(label); }
+    _debugMark(label) { return this._goblin._debugMark ? this._goblin._debugMark(label) : undefined; }
     /** TEMP DEBUG: stop + return the captured ticks as a compact table string (markers inline). */
-    _debugDump() { return this._goblin._debugDump(); }
+    _debugDump() { return this._goblin._debugDump ? this._goblin._debugDump() : undefined; }
 
     // ---- Overridable kit hooks --------------------------------------------
     // The base implementation IS the Goblin delegate's own — called with `this` bound to the
@@ -670,14 +683,14 @@ class ActionFPSController3D {
     // ActionEngine's naming, which the getters above already proxy to the delegate correctly.
 
     _getMoveSpeed(cmd) {
-        return Goblin.FPSCharacterController.prototype._getMoveSpeed.call(this._goblin, cmd);
+        return PhysicsBackend.FPSCharacterController.prototype._getMoveSpeed.call(this._goblin, cmd);
     }
 
     /** Vertical hook. Base = grounded jump only (gravity/landing handled by the solver). A jump
      *  adds platform base velocity's Y component additively, not an overwrite — jumping off a
      *  rising platform flings the player higher than jumpSpeed alone would. */
     _updateVertical(cmd, dt) {
-        Goblin.FPSCharacterController.prototype._updateVertical.call(this._goblin, cmd, dt);
+        PhysicsBackend.FPSCharacterController.prototype._updateVertical.call(this._goblin, cmd, dt);
     }
 
     /**
@@ -691,7 +704,8 @@ class ActionFPSController3D {
 
     _climbableSlopeAhead(start, dx, dz) { return this._goblin._climbableSlopeAhead(start, dx, dz); }
     _probeGroundCandidates(maxSnap) { return this._goblin._probeGroundCandidates(maxSnap); }
-    _probeGround(maxSnap) { return this._goblin._probeGround(maxSnap); }
+    // Some backends (ActionPhysics's port) consolidated to _probeGroundCandidates only.
+    _probeGround(maxSnap) { return this._goblin._probeGround ? this._goblin._probeGround(maxSnap) : this._goblin._probeGroundCandidates(maxSnap); }
     _collideAndSlide(vx, vz, dt) { return this._goblin._collideAndSlide(vx, vz, dt); }
     _sweptCollideAndSlide(opts) { return this._goblin._sweptCollideAndSlide(opts); }
     _ceilingClearanceAt(cx, cz, feetY) { return this._goblin._ceilingClearanceAt(cx, cz, feetY); }
