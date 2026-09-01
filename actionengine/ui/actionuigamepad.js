@@ -191,11 +191,15 @@ class ActionUIGamepad extends ActionUIComponent {
 
         const g = new ActionUIComponent({ x: rc.x, y: rc.y, width: s, height: s });
         g.isInteractive = false;   // pointer/touch only; not a keynav target
+        // Match whatever the physical d-pad currently maps to (Dir* or Dpad*).
+        const dact = (this._ui && this._ui.input.getDpadActions)
+            ? this._ui.input.getDpadActions()
+            : ["DirUp", "DirDown", "DirLeft", "DirRight"];
         g._arms = [
-            { action: 'DirUp',    label: '▲', x: cx - seg / 2,   y: cy - seg * 1.5 },
-            { action: 'DirDown',  label: '▼', x: cx - seg / 2,   y: cy + seg * 0.5 },
-            { action: 'DirLeft',  label: '◀', x: cx - seg * 1.5, y: cy - seg / 2   },
-            { action: 'DirRight', label: '▶', x: cx + seg * 0.5, y: cy - seg / 2   },
+            { action: dact[0], label: '▲', x: cx - seg / 2,   y: cy - seg * 1.5 },
+            { action: dact[1], label: '▼', x: cx - seg / 2,   y: cy + seg * 0.5 },
+            { action: dact[2], label: '◀', x: cx - seg * 1.5, y: cy - seg / 2   },
+            { action: dact[3], label: '▶', x: cx + seg * 0.5, y: cy - seg / 2   },
         ].map(a => ({ ...a, w: seg, h: seg }));
         g._activeId = null;
         g._held = new Set();

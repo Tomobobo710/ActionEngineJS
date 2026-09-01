@@ -243,14 +243,36 @@ class ActionInputHandler {
             [9, ["Action8"]], // Start
             [10, ["Action9"]],  // L3
             [11, ["Action10"]], // R3
-
-            // D-pad
-            [12, ["DirUp"]],
-            [13, ["DirDown"]],
-            [14, ["DirLeft"]],
-            [15, ["DirRight"]]
         ]);
+        // D-pad (buttons 12-15). When dpadMapsToDir is true (default) it feeds the same
+        // DirUp/Down/Left/Right actions as WASD/arrows — zero-config movement on any pad.
+        // Set it false (setDpadMapsToDir) to route the d-pad to its own DpadUp/Down/
+        // Left/Right instead, leaving Dir* as keyboard-only (e.g. so an analog stick owns
+        // movement and the d-pad drives a menu).
+        this.dpadMapsToDir = true;
+        this._applyDpadMapping();
         // Sticks and triggers -> the axis layer (getVector / getTrigger), not this map.
+    }
+
+    /** Action names the d-pad currently maps to, [up, down, left, right]. */
+    getDpadActions() {
+        return this.dpadMapsToDir
+            ? ["DirUp", "DirDown", "DirLeft", "DirRight"]
+            : ["DpadUp", "DpadDown", "DpadLeft", "DpadRight"];
+    }
+
+    /** Route the d-pad to Dir* (true, default) or its own Dpad* actions (false). */
+    setDpadMapsToDir(enabled) {
+        this.dpadMapsToDir = !!enabled;
+        this._applyDpadMapping();
+    }
+
+    _applyDpadMapping() {
+        const [u, d, l, r] = this.getDpadActions();
+        this.gamepadActionMap.set(12, [u]);
+        this.gamepadActionMap.set(13, [d]);
+        this.gamepadActionMap.set(14, [l]);
+        this.gamepadActionMap.set(15, [r]);
     }
 
     setupActionMap() {
@@ -386,6 +408,31 @@ class ActionInputHandler {
             gamepad.axes.forEach((value, index) => {
                 state.axes.set(index, value);
             });
+
+            // D-pad hat decoding. Some pads (Nintendo Switch Pro Controller, many
+            // generic/DirectInput ones) report the D-pad as a single "hat" axis, not
+            // as buttons 12-15. When that extra axis is present we decode it and
+            // synthesize Gamepad{i}_Button12..15 so the normal d-pad path picks it up.
+            // Standard-mapping pads have no such axis — no-op for them.
+            const hatAxis = gamepad.axes.length > 6 ? gamepad.axes[gamepad.axes.length - 1] : null;
+            if (hatAxis !== null) {
+                let hu = false, hd = false, hl = false, hr = false;
+                if (hatAxis >= -1.05 && hatAxis <= 1.05) {
+                    const a = hatAxis;
+                    const near = (t) => Math.abs(a - t) < 0.15;
+                    hu = near(-1)    || near(-0.71) || near(0.71);
+                    hr = near(-0.43) || near(-0.71) || near(-0.14);
+                    hd = near(0.14)  || near(-0.14) || near(0.43);
+                    hl = near(0.71)  || near(1)     || near(0.43);
+                }
+                const setHat = (idx, on) => {
+                    const k = `Gamepad${i}_Button${idx}`;
+                    if (on) this.rawState.keys.set(k, true);
+                    // don't clear a key a real button is also holding
+                    else if (state.buttons.get(idx)?.pressed !== true) this.rawState.keys.delete(k);
+                };
+                setHat(12, hu); setHat(13, hd); setHat(14, hl); setHat(15, hr);
+            }
 
             // digitalTriggerButtons: past-threshold L2/R2 sets a synthetic key that
             // isKeyPressed() maps to Action11/Action12. The analog slot is fed in
