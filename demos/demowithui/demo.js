@@ -1640,20 +1640,6 @@ class Game {
 			this.addMessage("Generic right button check (button 2) JUST pressed");
 		}
 
-		/******* UI CONTROLS *******/
-		// Track UI Controls
-		if (this.input.isUIButtonJustPressed("soundToggle")) {
-			this.addMessage("Sound button toggled");
-		}
-		if (this.input.isUIButtonJustPressed("fullscreenToggle")) {
-			this.addMessage("Fullscreen button toggled");
-		}
-		if (this.input.isUIButtonJustPressed("controlsToggle")) {
-			this.addMessage("Controls button toggled");
-		}
-		if (this.input.isUIButtonJustPressed("pauseButton")) {
-			this.addMessage("Pause button toggled");
-		}
 	}
 
 

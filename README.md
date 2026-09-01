@@ -42,7 +42,6 @@ Action Engine simplifies game creation by handling all the tedious infrastructur
 </head>
 <body>
   <div id="appContainer">
-    <div id="UIControlsContainer"></div>
   </div>
   
   <script src="https://unpkg.com/action-engine-js@latest/dist/action-engine.min.js"></script>
@@ -76,7 +75,6 @@ npm install action-engine-js
 </head>
 <body>
   <div id="appContainer">
-    <div id="UIControlsContainer"></div>
   </div>
   
   <script src="node_modules/action-engine-js/dist/action-engine.min.js"></script>

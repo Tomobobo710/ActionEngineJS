@@ -3,15 +3,9 @@ class ActionInputHandler {
     constructor(audio, canvases) {
         this.audio = audio;
         this.canvases = canvases;
-        this.virtualControls = false;
-        this.isPaused = false;
 
         // Track which context we're in (update or fixed_update)
         this.currentContext = "update";
-
-        // Create containers
-        this.virtualControlsContainer = this.createVirtualControlsContainer();
-        this.uiControlsContainer = document.getElementById("UIControlsContainer");
 
         // Setup action mappings
         this.setupActionMap();
@@ -56,11 +50,10 @@ class ActionInputHandler {
                           fixed:  { left: false, right: false, middle: false, pointer: false } },
             elementLatch: { update: { gui: new Set(), game: new Set(), debug: new Set() },
                             fixed:  { gui: new Set(), game: new Set(), debug: new Set() } },
-            uiButtonLatch: { update: new Set(), fixed: new Set() },
             // Previous raw levels, used only to detect the rising edge inside _latchEdges().
             _prevRaw: { left: false, right: false, middle: false, pointer: false,
                         elements: { gui: new Set(), game: new Set(), debug: new Set() },
-                        uiButtons: new Set(), gamepad: new Set() },
+                        gamepad: new Set() },
             pointer: {
                 x: 0,
                 y: 0,
@@ -82,13 +75,6 @@ class ActionInputHandler {
                 game: new Map(),
                 debug: new Map()
             },
-            uiButtons: new Map([
-                ["soundToggle", { isPressed: false }],
-                ["controlsToggle", { isPressed: false }],
-                ["fullscreenToggle", { isPressed: false }],
-                ["pauseButton", { isPressed: false }]
-            ]),
-            virtualControlsVisible: false
         };
 
         // Frame snapshots - updated at frame boundaries
@@ -111,8 +97,7 @@ class ActionInputHandler {
                 gui: new Map(),
                 game: new Map(),
                 debug: new Map()
-            },
-            uiButtons: new Map()
+            }
         };
 
         this.previousSnapshot = {
@@ -134,8 +119,7 @@ class ActionInputHandler {
                 gui: new Map(),
                 game: new Map(),
                 debug: new Map()
-            },
-            uiButtons: new Map()
+            }
         };
 
         // Fixed snapshots - updated at fixed timesteps
@@ -158,8 +142,7 @@ class ActionInputHandler {
                 gui: new Map(),
                 game: new Map(),
                 debug: new Map()
-            },
-            uiButtons: new Map()
+            }
         };
 
         this.previousFixedSnapshot = {
@@ -181,21 +164,14 @@ class ActionInputHandler {
                 gui: new Map(),
                 game: new Map(),
                 debug: new Map()
-            },
-            uiButtons: new Map()
+            }
         };
 
         // Setup keyboard event listeners
         this.setupEventListeners();
 
-        // Setup UI elements
-        this.createUIControls();
-        this.createVirtualControls();
-
         // Setup input listeners
         this.setupPointerListeners();
-        this.setupVirtualButtons();
-        this.setupUIButtons();
         // ADDITIVE: gamepads are poll-only, so sample them faster than the render frame or short
         // presses are never observed at all (see _startGamepadSampler).
         this._startGamepadSampler();
@@ -513,9 +489,6 @@ class ActionInputHandler {
             this.previousSnapshot.elementsHovered[layer] = new Map(this.currentSnapshot.elementsHovered[layer]);
         }
 
-        // Copy UI button map
-        this.previousSnapshot.uiButtons = new Map(this.currentSnapshot.uiButtons);
-
         // Capture current raw key state
         this.currentSnapshot.keys = new Map();
         for (const [key, isPressed] of this.rawState.keys.entries()) {
@@ -556,15 +529,7 @@ class ActionInputHandler {
             });
         }
 
-        // Capture UI button state
-        this.currentSnapshot.uiButtons = new Map();
-        for (const [id, buttonState] of this.rawState.uiButtons.entries()) {
-            if (buttonState.isPressed) {
-                this.currentSnapshot.uiButtons.set(id, true);
-            }
-        }
-
-        // ADDITIVE: fold in sub-frame presses (mouse / elements / UI buttons / gamepad) that began
+        // ADDITIVE: fold in sub-frame presses (mouse / elements / gamepad) that began
         // and ended since the last capture, then clear ONLY this path's latches.
         const ml = this.rawState.mouseLatch.update;
         if (ml.left) this.currentSnapshot.mouseButtons.left = true;
@@ -580,9 +545,6 @@ class ActionInputHandler {
             for (const id of set) this.currentSnapshot.elements[layer].set(id, true);
             set.clear();
         }
-
-        for (const id of this.rawState.uiButtonLatch.update) this.currentSnapshot.uiButtons.set(id, true);
-        this.rawState.uiButtonLatch.update.clear();
 
     }
 
@@ -612,9 +574,6 @@ class ActionInputHandler {
                 this.currentFixedSnapshot.elementsHovered[layer]
             );
         }
-
-        // Copy UI button map
-        this.previousFixedSnapshot.uiButtons = new Map(this.currentFixedSnapshot.uiButtons);
 
         // Capture current raw key state at this fixed frame
         this.currentFixedSnapshot.keys = new Map();
@@ -656,14 +615,6 @@ class ActionInputHandler {
             });
         }
 
-        // Capture UI button state at this fixed frame
-        this.currentFixedSnapshot.uiButtons = new Map();
-        for (const [id, buttonState] of this.rawState.uiButtons.entries()) {
-            if (buttonState.isPressed) {
-                this.currentFixedSnapshot.uiButtons.set(id, true);
-            }
-        }
-
         // ADDITIVE: same sub-frame press fold as captureKeyState(), on this path's OWN latches.
         // This is the one a networked command sampler reads — a click dropped here never becomes
         // a command at all.
@@ -681,9 +632,6 @@ class ActionInputHandler {
             for (const id of set) this.currentFixedSnapshot.elements[layer].set(id, true);
             set.clear();
         }
-
-        for (const id of this.rawState.uiButtonLatch.fixed) this.currentFixedSnapshot.uiButtons.set(id, true);
-        this.rawState.uiButtonLatch.fixed.clear();
 
     }
 
@@ -719,12 +667,6 @@ class ActionInputHandler {
         if (f) f.add(id);
     }
 
-    /** ADDITIVE — same latch for the built-in UI buttons (sound / controls / fullscreen / pause). */
-    _latchUIButtonDown(id) {
-        this.rawState.uiButtonLatch.update.add(id);
-        this.rawState.uiButtonLatch.fixed.add(id);
-    }
-
     _latchMouseDown(button) {
         const u = this.rawState.mouseLatch.update, f = this.rawState.mouseLatch.fixed;
         if (button === 0) { u.left = true; f.left = true; u.pointer = true; f.pointer = true; }
@@ -758,16 +700,6 @@ class ActionInputHandler {
             });
             prev.elements[layer] = seen;
         }
-
-        // --- built-in UI buttons (sound / controls / fullscreen / pause) ---
-        const seenUi = new Set();
-        for (const [id, st] of raw.uiButtons.entries()) {
-            if (st && st.isPressed) {
-                seenUi.add(id);
-                if (!prev.uiButtons.has(id)) { raw.uiButtonLatch.update.add(id); raw.uiButtonLatch.fixed.add(id); }
-            }
-        }
-        prev.uiButtons = seenUi;
 
         // Gamepad edges are NOT detected here — see _startGamepadSampler(). Detecting them at
         // capture time would compare two states sampled at capture time, which cannot see a press
@@ -837,140 +769,6 @@ class ActionInputHandler {
                 previous: this.previousSnapshot
             };
         }
-    }
-
-    createVirtualControlsContainer() {
-        const container = document.createElement("div");
-        container.id = "virtualControls";
-        container.classList.add("hidden");
-        document.getElementById("appContainer").appendChild(container);
-        return container;
-    }
-
-    createUIControls() {
-        const controlsToggleContainer = document.createElement("div");
-        controlsToggleContainer.id = "controlsToggleContainer";
-        const controlsToggle = document.createElement("button");
-        controlsToggle.id = "controlsToggle";
-        controlsToggle.className = "ui-button";
-        controlsToggle.setAttribute("aria-label", "Toggle Virtual Controls");
-        controlsToggle.textContent = "🖐️";
-        controlsToggleContainer.appendChild(controlsToggle);
-
-        const soundToggleContainer = document.createElement("div");
-        soundToggleContainer.id = "soundToggleContainer";
-        const soundToggle = document.createElement("button");
-        soundToggle.id = "soundToggle";
-        soundToggle.className = "ui-button";
-        soundToggle.setAttribute("aria-label", "Toggle Sound");
-        soundToggle.textContent = "🔊";
-        soundToggleContainer.appendChild(soundToggle);
-
-        const fullscreenToggleContainer = document.createElement("div");
-        fullscreenToggleContainer.id = "fullscreenToggleContainer";
-        const fullscreenToggle = document.createElement("button");
-        fullscreenToggle.id = "fullscreenToggle";
-        fullscreenToggle.className = "ui-button";
-        fullscreenToggle.setAttribute("aria-label", "Toggle Fullscreen");
-        fullscreenToggle.textContent = "↔️";
-        fullscreenToggleContainer.appendChild(fullscreenToggle);
-
-        const pauseButtonContainer = document.createElement("div");
-        pauseButtonContainer.id = "pauseButtonContainer";
-        const pauseButton = document.createElement("button");
-        pauseButton.id = "pauseButton";
-        pauseButton.className = "ui-button";
-        pauseButton.setAttribute("aria-label", "Pause");
-        pauseButton.textContent = "⏸️";
-        pauseButtonContainer.appendChild(pauseButton);
-
-        this.uiControlsContainer.appendChild(controlsToggleContainer);
-        this.uiControlsContainer.appendChild(soundToggleContainer);
-        this.uiControlsContainer.appendChild(fullscreenToggleContainer);
-        this.uiControlsContainer.appendChild(pauseButtonContainer);
-    }
-
-    createVirtualControls() {
-        const buttons = [
-            { id: "dpadUp", class: "dpad-button", key: "KeyW", text: "↑" },
-            { id: "dpadDown", class: "dpad-button", key: "KeyS", text: "↓" },
-            { id: "dpadLeft", class: "dpad-button", key: "KeyA", text: "←" },
-            { id: "dpadRight", class: "dpad-button", key: "KeyD", text: "→" },
-            { id: "button1", class: "action-button", key: "Space", text: "1" },
-            { id: "button2", class: "action-button", key: "ShiftLeft", text: "2" },
-            { id: "button3", class: "action-button", key: "KeyE", text: "3" },
-            { id: "button4", class: "action-button", key: "KeyQ", text: "4" }
-        ];
-
-        buttons.forEach((btn) => {
-            const container = document.createElement("div");
-            container.id = `${btn.id}Container`;
-
-            const button = document.createElement("button");
-            button.id = btn.id;
-            button.className = btn.class;
-            button.dataset.key = btn.key;
-            button.textContent = btn.text;
-
-            container.appendChild(button);
-            this.virtualControlsContainer.appendChild(container);
-        });
-    }
-
-    setupUIButtons() {
-        const buttons = {
-            soundToggle: {
-                element: document.getElementById("soundToggle"),
-                upCallback: () => {
-                    const enabled = this.audio.toggle();
-                    document.getElementById("soundToggle").textContent = enabled ? "🔊" : "🔇";
-                }
-            },
-            controlsToggle: {
-                element: document.getElementById("controlsToggle"),
-                upCallback: () => {
-                    const enabled = this.toggleVirtualControls();
-                    document.getElementById("controlsToggle").textContent = enabled ? "⬆️" : "🖐️";
-                }
-            },
-            fullscreenToggle: {
-                element: document.getElementById("fullscreenToggle"),
-                upCallback: () => {
-                    const willBeEnabled = !document.fullscreenElement;
-                    if (willBeEnabled) {
-                        document.documentElement.requestFullscreen();
-                    } else {
-                        document.exitFullscreen();
-                    }
-                }
-            },
-            pauseButton: {
-                element: document.getElementById("pauseButton"),
-                upCallback: () => {
-                    const isPaused = this.togglePause();
-                    document.getElementById("pauseButton").textContent = isPaused ? "▶️" : "⏸️";
-                }
-            }
-        };
-
-        Object.entries(buttons).forEach(([id, config]) => {
-            const handleStart = (e) => {
-                e.preventDefault();
-                this.rawState.uiButtons.set(id, { isPressed: true });
-                this._latchUIButtonDown(id); // ADDITIVE: survive a sub-frame tap (see _latchEdges)
-            };
-
-            const handleEnd = (e) => {
-                e.preventDefault();
-                this.rawState.uiButtons.set(id, { isPressed: false });
-                config.upCallback();
-            };
-
-            config.element.addEventListener("touchstart", handleStart, { passive: false });
-            config.element.addEventListener("touchend", handleEnd, { passive: false });
-            config.element.addEventListener("mousedown", handleStart);
-            config.element.addEventListener("mouseup", handleEnd);
-        });
     }
 
     setupPointerListeners() {
@@ -1560,30 +1358,6 @@ class ActionInputHandler {
         return x >= bounds.x && x <= bounds.x + bounds.width && y >= bounds.y && y <= bounds.y + bounds.height;
     }
 
-    setupVirtualButtons() {
-        const buttons = document.querySelectorAll(".dpad-button, .action-button");
-
-        buttons.forEach((button) => {
-            const key = button.dataset.key;
-
-            const handleStart = (e) => {
-                e.preventDefault();
-                this.rawState.keys.set(key, true);
-            };
-
-            const handleEnd = (e) => {
-                e.preventDefault();
-                this.rawState.keys.set(key, false);
-            };
-
-            button.addEventListener("touchstart", handleStart, { passive: false });
-            button.addEventListener("touchend", handleEnd, { passive: false });
-            button.addEventListener("mousedown", handleStart);
-            button.addEventListener("mouseup", handleEnd);
-            button.addEventListener("mouseleave", handleEnd);
-        });
-    }
-
     registerElement(id, element, layer = "gui") {
         if (!this.rawState.elements[layer]) {
             console.warn(`[ActionInputHandler] Layer ${layer} doesn't exist, defaulting to gui`);
@@ -1704,34 +1478,6 @@ class ActionInputHandler {
         if (button === 1) return current.mouseButtons.middle && !previous.mouseButtons.middle;
         if (button === 2) return current.mouseButtons.right && !previous.mouseButtons.right;
         return false;
-    }
-
-    // UI Button methods
-    isUIButtonPressed(buttonId) {
-        const { current } = this.getSnapshots();
-        return current.uiButtons.has(buttonId);
-    }
-
-    isUIButtonJustPressed(buttonId) {
-        const { current, previous } = this.getSnapshots();
-
-        const isCurrentlyPressed = current.uiButtons.has(buttonId);
-        const wasPreviouslyPressed = previous.uiButtons.has(buttonId);
-
-        // Button is pressed now but wasn't in the previous frame/fixed frame step
-        return isCurrentlyPressed && !wasPreviouslyPressed;
-    }
-
-    // Game state toggle methods
-    togglePause() {
-        this.isPaused = !this.isPaused;
-        return this.isPaused;
-    }
-
-    toggleVirtualControls() {
-        this.rawState.virtualControlsVisible = !this.rawState.virtualControlsVisible;
-        this.virtualControlsContainer.classList.toggle("hidden", !this.rawState.virtualControlsVisible);
-        return this.rawState.virtualControlsVisible;
     }
 
     // Gamepad Methods - Direct per-gamepad access
