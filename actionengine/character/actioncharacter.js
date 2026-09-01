@@ -170,6 +170,17 @@ class ActionCharacter extends RenderableObject {
             }
         }
 
+        // Right analog stick — camera look (physical gamepad or on-screen stick).
+        if (input.getVector) {
+            const look = input.getVector("rightAnalog");
+            if (look.x !== 0 || look.y !== 0) {
+                const lookSpeed = 2.5 * deltaTime;
+                this.cameraYaw -= look.x * lookSpeed;
+                this.cameraPitch += look.y * lookSpeed * (this.isFirstPerson ? 1 : -1);
+                this.cameraPitch = Math.max(-1.57, Math.min(1.57, this.cameraPitch));
+            }
+        }
+
         // Get input direction relative to camera
         const viewMatrix = this.camera.getViewMatrix();
         const moveDir = new PhysicsBackend.Vector3();
@@ -177,7 +188,7 @@ class ActionCharacter extends RenderableObject {
         // Track if we're moving this frame
         let isMovingThisFrame = false;
 
-        // Get input direction relative to camera
+        // Digital direction keys (WASD / d-pad) — full-speed, camera-relative.
         if (input.isKeyPressed("DirUp")) {
             moveDir.x += viewMatrix.forward.x;
             moveDir.z += viewMatrix.forward.z;
@@ -199,10 +210,20 @@ class ActionCharacter extends RenderableObject {
             isMovingThisFrame = true;
         }
 
-        // Normalize the movement vector if moving diagonally
-        if (moveDir.lengthSquared() > 0) {
-            moveDir.normalize();
+        // Left analog stick — camera-relative, magnitude drives speed (walk vs run).
+        if (input.getVector) {
+            const mv = input.getVector("leftAnalog");
+            if (mv.x !== 0 || mv.y !== 0) {
+                moveDir.x += viewMatrix.right.x * mv.x - viewMatrix.forward.x * mv.y;
+                moveDir.z += viewMatrix.right.z * mv.x - viewMatrix.forward.z * mv.y;
+                isMovingThisFrame = true;
+            }
         }
+
+        // Clamp to unit length so a full digital diagonal (or key + stick) still
+        // caps at run speed, while a partial stick keeps its analog magnitude.
+        const magSq = moveDir.lengthSquared();
+        if (magSq > 1) moveDir.scale(1 / Math.sqrt(magSq));
 
         if (input.isKeyJustPressed("Action1")) {
             this.controller.wishJump();
