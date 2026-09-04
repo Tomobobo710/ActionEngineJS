@@ -56,16 +56,31 @@ class ActionSoundFont {
    */
   async loadSoundFontFromBase64(base64String) {
     const base64 = base64String.split(",")[1] || base64String;
-    const binaryString = atob(base64);
-    const len = binaryString.length;
-    const arrayBuffer = new ArrayBuffer(len);
-    const uint8Array = new Uint8Array(arrayBuffer);
 
-    for (let i = 0; i < len; i++) {
-      uint8Array[i] = binaryString.charCodeAt(i);
+    let uint8Array;
+    if (Uint8Array.fromBase64) {
+      uint8Array = Uint8Array.fromBase64(base64);
+    } else {
+      const binaryString = atob(base64);
+      const len = binaryString.length;
+      uint8Array = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        uint8Array[i] = binaryString.charCodeAt(i);
+      }
     }
 
-    await this.bootSynth(arrayBuffer);
+    await this.bootSynth(uint8Array.buffer);
+  }
+
+  /**
+   * Load a SoundFont chainloaded via SF2Loader (many small chunk .js files
+   * instead of one multi-megabyte script). See sf2loader.js.
+   * @param {string} packageName - name registered by an SF2Index.js, e.g. "TimGM6mb"
+   * @param {Function} [onProgress] - called with a fraction 0..1 as chunks load
+   */
+  async loadSoundFontPackage(packageName, onProgress = null) {
+    const bytes = await SF2Loader.load(packageName, onProgress);
+    await this.bootSynth(bytes.buffer);
   }
 
   /**

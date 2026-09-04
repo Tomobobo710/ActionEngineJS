@@ -198,7 +198,7 @@ class ActionAudioManager {
 
         try {
             this.sf2Player = new SoundFont(this.context); // Pass the context
-            await this.sf2Player.loadSoundFontFromBase64(window.TimGM6mb_BASE64);
+            await this.sf2Player.loadSoundFontPackage("TimGM6mb");
             this.midiReady = true;
         } catch (error) {
             console.error("[AudioManager] Failed to initialize SF2 player:", error);
