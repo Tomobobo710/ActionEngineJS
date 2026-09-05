@@ -959,6 +959,7 @@ class ObjectShader {
         if (vUseTexture > 0.5) {  // Check if this fragment uses texture
             baseColor = texture(uTextureArray, vec3(vTexCoord, vTextureIndex));
             baseColor.a *= vAlpha;  // Apply triangle alpha to textured fragments
+            baseColor.rgb *= vColor;  // per-vertex tint (e.g. baked AO); no-op when vColor is white
         } else {
             baseColor = vec4(vColor, vAlpha);
         }

@@ -205,6 +205,7 @@ class ObjectRenderer3D {
             const r = ((hexColor >> 16) & 255) / 255;
             const g = ((hexColor >> 8) & 255) / 255;
             const b = (hexColor & 255) / 255;
+            const perVertexColor = triangle.vertexColors; // optional [{r,g,b}]x3 override per corner
 
             for (let v = 0; v < 3; v++) {
                 const vert = triangle.vertices[v];
@@ -233,9 +234,15 @@ class ObjectRenderer3D {
                     tangents[off + 2] = 0;
                 }
 
-                colors[off] = r;
-                colors[off + 1] = g;
-                colors[off + 2] = b;
+                if (perVertexColor && perVertexColor[v]) {
+                    colors[off] = perVertexColor[v].r;
+                    colors[off + 1] = perVertexColor[v].g;
+                    colors[off + 2] = perVertexColor[v].b;
+                } else {
+                    colors[off] = r;
+                    colors[off + 1] = g;
+                    colors[off + 2] = b;
+                }
 
                 alphas[baseInd + v] = triAlpha;
             }
@@ -577,12 +584,9 @@ class ObjectRenderer3D {
         const gl = this.gl;
         const count = triangles.length;
 
-        // A MERGED mesh cannot be updated in place: this path writes one vertex record per triangle
-        // corner (count*9 floats) with bufferSubData, but merging shrank those buffers to the
-        // deduplicated size, and the live indices point at merged slots. Writing unmerged data
-        // through them would overflow the buffer AND scramble the index mapping. Rebuild instead —
-        // correctness over speed on what is already the rare geometry-swap path.
-        if (mesh.mergedFrom) {
+        // A merged mesh, or any mesh whose triangle count changed, can't be updated in place via
+        // bufferSubData (buffer is the wrong size / indices point at stale slots) — rebuild instead.
+        if (mesh.mergedFrom || (mesh.count | 0) !== count * 3) {
             for (const b of Object.values(mesh.buffers)) gl.deleteBuffer(b);
             for (const v of mesh.vaos.values()) gl.deleteVertexArray(v);
             for (const v of mesh.shadowVaos.values()) gl.deleteVertexArray(v);
@@ -616,6 +620,7 @@ class ObjectRenderer3D {
             const r = ((hexColor >> 16) & 255) / 255;
             const g = ((hexColor >> 8) & 255) / 255;
             const b = (hexColor & 255) / 255;
+            const perVertexColor = triangle.vertexColors; // see registerStaticMesh()
 
             const triNormal = triangle.normal;
             const triAlpha = triangle.alpha !== undefined ? triangle.alpha : 1.0;
@@ -644,9 +649,15 @@ class ObjectRenderer3D {
                     tangents[off + 2] = 0;
                 }
 
-                colors[off] = r;
-                colors[off + 1] = g;
-                colors[off + 2] = b;
+                if (perVertexColor && perVertexColor[v]) {
+                    colors[off] = perVertexColor[v].r;
+                    colors[off + 1] = perVertexColor[v].g;
+                    colors[off + 2] = perVertexColor[v].b;
+                } else {
+                    colors[off] = r;
+                    colors[off + 1] = g;
+                    colors[off + 2] = b;
+                }
                 alphas[baseInd + v] = triAlpha;
             }
 
