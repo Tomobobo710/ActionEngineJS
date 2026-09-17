@@ -98,6 +98,8 @@ const files = [
     'actionengine/rendering/renderers/actionrenderer3D/debugrenderer3D.js',
     
     // GPU Pipeline (WebGL GLSL)
+    'actionengine/gl/shaderregistry.js',
+    'actionengine/gl/customattributes.js',
     'actionengine/gl/uniformbuffermanager.js',
     'actionengine/gl/programmanager.js',
     'actionengine/gl/shaders/objectshader.js',
