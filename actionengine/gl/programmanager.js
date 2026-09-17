@@ -271,61 +271,48 @@ class ProgramManager {
         }
 
         try {
-            // Remember current variant
-            this.currentVariant = variant;
+            // Compiled-program cache, keyed by variant name: a variant is compiled once and reused
+            // on every later swap back to it (compiling is expensive - unaffordable to redo per
+            // swap, especially if a game ever swaps variants more than once per session/frame).
+            if (!this._objectProgramCache) this._objectProgramCache = new Map();
 
-            // Update the object shader variant
-            this.objectShader.setVariant(variant);
+            let cached = this._objectProgramCache.get(variant);
+            if (!cached) {
+                // Update the object shader variant (also validates the name, falling back to
+                // "default" and logging a warning if unregistered - getVertexShader/getFragmentShader
+                // below then read whatever setVariant actually landed on).
+                this.objectShader.setVariant(variant);
+                const resolvedVariant = this.objectShader.getCurrentVariant();
 
-            // Compile shader program with the current variant
-            const program = this.createShaderProgram(
-                this.objectShader.getVertexShader(),
-                this.objectShader.getFragmentShader(),
-                `object_shader_${variant}`
-            );
+                const program = this.createShaderProgram(
+                    this.objectShader.getVertexShader(),
+                    this.objectShader.getFragmentShader(),
+                    `object_shader_${resolvedVariant}`
+                );
+                cached = { program, locations: this.getStandardShaderLocations(program), variant: resolvedVariant };
+                this._objectProgramCache.set(resolvedVariant, cached);
+                if (resolvedVariant !== variant) this._objectProgramCache.set(variant, cached); // cache the miss too
+            } else {
+                this.objectShader.currentVariant = cached.variant; // keep ObjectShader's own state in sync, no recompile
+            }
 
-            // Get locations for uniforms and attributes
-            const locations = this.getStandardShaderLocations(program);
-
-            // Update stored program and locations
-            this.objectProgram = program;
-            this.objectLocations = locations;
+            this.currentVariant = cached.variant;
+            this.objectProgram = cached.program;
+            this.objectLocations = cached.locations;
 
             // Cache shadow uniform locations for this shader variant
-            this._cacheShadowUniformLocations(program);
+            this._cacheShadowUniformLocations(cached.program);
 
-            console.log(`[ProgramManager] Object shader variant changed to: ${variant}`);
+            console.log(`[ProgramManager] Object shader variant changed to: ${cached.variant}`);
 
-            // Update line shader to match
-            this.handleVariantChange(variant);
-
-            return variant;
+            // Object and line shader variants are independent - switching one never implicitly
+            // switches the other. A game that wants them to match (e.g. a "virtualboy" look across
+            // both) calls setLineShaderVariant itself alongside this call.
+            return cached.variant;
         } catch (e) {
             console.error(`[ProgramManager] Error setting object shader variant: ${e.message}`);
             return this.currentVariant; // Return previous variant on error
         }
-    }
-
-    /**
-     * Cycle to the next shader variant
-     * @param {function} callback - Optional callback for when variant changes
-     * @returns {string} - Name of the new shader variant
-     */
-    cycleVariants(callback) {
-        const variants = ["default", "virtualboy"];
-        const currentIndex = variants.indexOf(this.currentVariant);
-        const nextIndex = (currentIndex + 1) % variants.length;
-        const newVariant = variants[nextIndex];
-
-        // Set the new variant
-        this.setObjectShaderVariant(newVariant);
-
-        // Call the callback if provided
-        if (callback && typeof callback === "function") {
-            callback(newVariant);
-        }
-
-        return newVariant;
     }
 
     /**
@@ -361,75 +348,224 @@ class ProgramManager {
         this.initializeLineShader();
     }
 
-    initializeParticleShader() {
-        const particleShader = new ParticleShader();
-        this.particleProgram = this.createShaderProgram(
-            particleShader.getParticleVertexShader(),
-            particleShader.getParticleFragmentShader(),
-            "particle_shader"
-        );
+    /**
+     * Set the current directional-shadow-pass shader variant. Compiled once per variant and shared
+     * across every ActionDirectionalShadowLight (they previously each compiled their own copy of
+     * the same default shader) - call getShadowDirectionalProgram()/getShadowDirectionalLocations()
+     * to use the active one.
+     * @param {string} variant - A name registered via ShaderRegistry.for('shadow-directional')
+     */
+    setShadowDirectionalVariant(variant) {
+        if (!this._shadowDirectionalCache) this._shadowDirectionalCache = new Map();
 
-        this.particleLocations = {
-            position: this.gl.getAttribLocation(this.particleProgram, "aPosition"),
-            size: this.gl.getAttribLocation(this.particleProgram, "aSize"),
-            color: this.gl.getAttribLocation(this.particleProgram, "aColor"),
-            projectionMatrix: this.gl.getUniformLocation(this.particleProgram, "uProjectionMatrix"),
-            viewMatrix: this.gl.getUniformLocation(this.particleProgram, "uViewMatrix"),
-            farPlane: this.gl.getUniformLocation(this.particleProgram, "uFarPlane")
-        };
+        let cached = this._shadowDirectionalCache.get(variant);
+        if (!cached) {
+            const registered = ShaderRegistry.for('shadow-directional').has(variant) ? variant : 'default';
+            if (registered !== variant) console.warn(`[ProgramManager] Unknown shadow-directional variant: ${variant}, using default`);
+            const entry = ShaderRegistry.for('shadow-directional').get(registered);
+            const shadowShader = new ShadowShader();
+
+            const program = this.createShaderProgram(
+                entry.getVertexShader.call(shadowShader),
+                entry.getFragmentShader.call(shadowShader),
+                `directional_shadow_pass_${registered}`
+            );
+            const locations = {
+                position: this.gl.getAttribLocation(program, "aPosition"),
+                boneIndices: this.gl.getAttribLocation(program, "aBoneIndices"),
+                boneWeights: this.gl.getAttribLocation(program, "aBoneWeights"),
+                lightSpaceMatrix: this.gl.getUniformLocation(program, "uLightSpaceMatrix"),
+                modelPos: this.gl.getUniformLocation(program, "uModelPos"),
+                modelRotation: this.gl.getUniformLocation(program, "uModelRotation"),
+                modelScale: this.gl.getUniformLocation(program, "uModelScale"),
+                debugShadowMap: this.gl.getUniformLocation(program, "uDebugShadowMap"),
+                forceShadowMapTest: this.gl.getUniformLocation(program, "uForceShadowMapTest"),
+                shadowMapSize: this.gl.getUniformLocation(program, "uShadowMapSize")
+            };
+            cached = { program, locations, variant: registered };
+            this._shadowDirectionalCache.set(registered, cached);
+            if (registered !== variant) this._shadowDirectionalCache.set(variant, cached);
+        }
+
+        this._shadowDirectionalCurrent = cached;
+        return cached.variant;
     }
 
-    initializeWaterShader() {
-        const waterShader = new WaterShader();
-        this.waterProgram = this.createShaderProgram(
-            waterShader.getWaterVertexShader(),
-            waterShader.getWaterFragmentShader(),
-            "water_shader"
-        );
+    getShadowDirectionalProgram() {
+        if (!this._shadowDirectionalCurrent) this.setShadowDirectionalVariant('default');
+        return this._shadowDirectionalCurrent.program;
+    }
 
-        // Add null checks
-        if (!this.waterProgram) {
-            console.error("Failed to create water program");
+    getShadowDirectionalLocations() {
+        if (!this._shadowDirectionalCurrent) this.setShadowDirectionalVariant('default');
+        return this._shadowDirectionalCurrent.locations;
+    }
+
+    /**
+     * Set the current omnidirectional (point-light/cubemap) shadow-pass shader variant. Compiled
+     * once per variant and shared across every ActionOmnidirectionalShadowLight.
+     * @param {string} variant - A name registered via ShaderRegistry.for('shadow-omni')
+     */
+    setShadowOmniVariant(variant) {
+        if (!this._shadowOmniCache) this._shadowOmniCache = new Map();
+
+        let cached = this._shadowOmniCache.get(variant);
+        if (!cached) {
+            const registered = ShaderRegistry.for('shadow-omni').has(variant) ? variant : 'default';
+            if (registered !== variant) console.warn(`[ProgramManager] Unknown shadow-omni variant: ${variant}, using default`);
+            const entry = ShaderRegistry.for('shadow-omni').get(registered);
+            const shadowShader = new ShadowShader();
+
+            const program = this.createShaderProgram(
+                entry.getVertexShader.call(shadowShader),
+                entry.getFragmentShader.call(shadowShader),
+                `omni_shadow_pass_${registered}`
+            );
+            const locations = {
+                position: this.gl.getAttribLocation(program, "aPosition"),
+                boneIndices: this.gl.getAttribLocation(program, "aBoneIndices"),
+                boneWeights: this.gl.getAttribLocation(program, "aBoneWeights"),
+                lightSpaceMatrix: this.gl.getUniformLocation(program, "uLightSpaceMatrix"),
+                modelPos: this.gl.getUniformLocation(program, "uModelPos"),
+                modelRotation: this.gl.getUniformLocation(program, "uModelRotation"),
+                modelScale: this.gl.getUniformLocation(program, "uModelScale"),
+                lightPos: this.gl.getUniformLocation(program, "uLightPos"),
+                farPlane: this.gl.getUniformLocation(program, "uFarPlane"),
+                debugShadowMap: this.gl.getUniformLocation(program, "uDebugShadowMap"),
+                forceShadowMapTest: this.gl.getUniformLocation(program, "uForceShadowMapTest"),
+                shadowMapSize: this.gl.getUniformLocation(program, "uShadowMapSize")
+            };
+            cached = { program, locations, variant: registered };
+            this._shadowOmniCache.set(registered, cached);
+            if (registered !== variant) this._shadowOmniCache.set(variant, cached);
+        }
+
+        this._shadowOmniCurrent = cached;
+        return cached.variant;
+    }
+
+    getShadowOmniProgram() {
+        if (!this._shadowOmniCurrent) this.setShadowOmniVariant('default');
+        return this._shadowOmniCurrent.program;
+    }
+
+    getShadowOmniLocations() {
+        if (!this._shadowOmniCurrent) this.setShadowOmniVariant('default');
+        return this._shadowOmniCurrent.locations;
+    }
+
+    initializeParticleShader() {
+        this.particleShader = new ParticleShader();
+        // Compile+cache the default variant through the same path setParticleShaderVariant uses,
+        // so there's exactly one place that ever builds a particle shader program.
+        this.setParticleShaderVariant("default");
+    }
+
+    /**
+     * Set the current particle shader variant
+     * @param {string} variant - The shader variant to use
+     */
+    setParticleShaderVariant(variant) {
+        if (!this.particleShader) {
+            console.warn("[ProgramManager] Particle shader not initialized");
             return;
         }
 
-        this.waterLocations = {
-            position: this.gl.getAttribLocation(this.waterProgram, "aPosition"),
-            normal: this.gl.getAttribLocation(this.waterProgram, "aNormal"),
-            texCoord: this.gl.getAttribLocation(this.waterProgram, "aTexCoord"),
-            projectionMatrix: this.gl.getUniformLocation(this.waterProgram, "uProjectionMatrix"),
-            viewMatrix: this.gl.getUniformLocation(this.waterProgram, "uViewMatrix"),
-            modelPos: this.gl.getUniformLocation(this.waterProgram, "uModelPos"),
-            modelRotation: this.gl.getUniformLocation(this.waterProgram, "uModelRotation"),
-            modelScale: this.gl.getUniformLocation(this.waterProgram, "uModelScale"),
-            time: this.gl.getUniformLocation(this.waterProgram, "uTime"),
-            cameraPos: this.gl.getUniformLocation(this.waterProgram, "uCameraPos"),
-            lightDir: this.gl.getUniformLocation(this.waterProgram, "uLightDir")
-        };
+        if (!this._particleProgramCache) this._particleProgramCache = new Map();
+
+        let cached = this._particleProgramCache.get(variant);
+        if (!cached) {
+            this.particleShader.setVariant(variant);
+            const resolvedVariant = this.particleShader.getCurrentVariant();
+
+            const program = this.createShaderProgram(
+                this.particleShader.getVertexShader(),
+                this.particleShader.getFragmentShader(),
+                `particle_shader_${resolvedVariant}`
+            );
+            const locations = {
+                position: this.gl.getAttribLocation(program, "aPosition"),
+                size: this.gl.getAttribLocation(program, "aSize"),
+                color: this.gl.getAttribLocation(program, "aColor"),
+                projectionMatrix: this.gl.getUniformLocation(program, "uProjectionMatrix"),
+                viewMatrix: this.gl.getUniformLocation(program, "uViewMatrix"),
+                farPlane: this.gl.getUniformLocation(program, "uFarPlane")
+            };
+            cached = { program, locations, variant: resolvedVariant };
+            this._particleProgramCache.set(resolvedVariant, cached);
+            if (resolvedVariant !== variant) this._particleProgramCache.set(variant, cached);
+        } else {
+            this.particleShader.currentVariant = cached.variant;
+        }
+
+        this.particleProgram = cached.program;
+        this.particleLocations = cached.locations;
+    }
+
+    initializeWaterShader() {
+        this.waterShader = new WaterShader();
+        // Compile+cache the default variant through the same path setWaterShaderVariant uses, so
+        // there's exactly one place that ever builds a water shader program.
+        this.setWaterShaderVariant("default");
+    }
+
+    /**
+     * Set the current water shader variant
+     * @param {string} variant - The shader variant to use
+     */
+    setWaterShaderVariant(variant) {
+        if (!this.waterShader) {
+            console.warn("[ProgramManager] Water shader not initialized");
+            return;
+        }
+
+        if (!this._waterProgramCache) this._waterProgramCache = new Map();
+
+        let cached = this._waterProgramCache.get(variant);
+        if (!cached) {
+            this.waterShader.setVariant(variant);
+            const resolvedVariant = this.waterShader.getCurrentVariant();
+
+            const program = this.createShaderProgram(
+                this.waterShader.getVertexShader(),
+                this.waterShader.getFragmentShader(),
+                `water_shader_${resolvedVariant}`
+            );
+            if (!program) {
+                console.error("Failed to create water program");
+                return;
+            }
+            const locations = {
+                position: this.gl.getAttribLocation(program, "aPosition"),
+                normal: this.gl.getAttribLocation(program, "aNormal"),
+                texCoord: this.gl.getAttribLocation(program, "aTexCoord"),
+                projectionMatrix: this.gl.getUniformLocation(program, "uProjectionMatrix"),
+                viewMatrix: this.gl.getUniformLocation(program, "uViewMatrix"),
+                modelPos: this.gl.getUniformLocation(program, "uModelPos"),
+                modelRotation: this.gl.getUniformLocation(program, "uModelRotation"),
+                modelScale: this.gl.getUniformLocation(program, "uModelScale"),
+                time: this.gl.getUniformLocation(program, "uTime"),
+                cameraPos: this.gl.getUniformLocation(program, "uCameraPos"),
+                lightDir: this.gl.getUniformLocation(program, "uLightDir")
+            };
+            cached = { program, locations, variant: resolvedVariant };
+            this._waterProgramCache.set(resolvedVariant, cached);
+            if (resolvedVariant !== variant) this._waterProgramCache.set(variant, cached);
+        } else {
+            this.waterShader.currentVariant = cached.variant;
+        }
+
+        this.waterProgram = cached.program;
+        this.waterLocations = cached.locations;
     }
 
     initializeLineShader() {
         // Create a new LineShader instance
         this.lineShader = new LineShader();
 
-        // Create shader program for the default line shader
-        const lineProgram = this.createShaderProgram(
-            this.lineShader.getVertexShader(),
-            this.lineShader.getFragmentShader(),
-            "line_shader"
-        );
-
-        // Get and store shader locations
-        this.lineLocations = {
-            position: this.gl.getAttribLocation(lineProgram, "aPosition"),
-            projectionMatrix: this.gl.getUniformLocation(lineProgram, "uProjectionMatrix"),
-            viewMatrix: this.gl.getUniformLocation(lineProgram, "uViewMatrix"),
-            color: this.gl.getUniformLocation(lineProgram, "uColor"),
-            time: this.gl.getUniformLocation(lineProgram, "uTime")
-        };
-
-        // Store the program for later use
-        this.lineProgram = lineProgram;
+        // Compile+cache the default variant through the same path setLineShaderVariant uses, so
+        // there's exactly one place that ever builds a line shader program.
+        this.setLineShaderVariant("default");
 
         console.log("[ProgramManager] Line shader initialized");
     }
@@ -545,39 +681,38 @@ class ProgramManager {
             return;
         }
 
-        // Update the line shader variant
-        this.lineShader.setVariant(variant);
+        // Compiled-program cache, keyed by variant name - same reasoning as
+        // setObjectShaderVariant's cache: compiling is too expensive to redo on every swap.
+        if (!this._lineProgramCache) this._lineProgramCache = new Map();
 
-        // Reinitialize the line shader program
-        const newLineProgram = this.createShaderProgram(
-            this.lineShader.getVertexShader(),
-            this.lineShader.getFragmentShader(),
-            `line_shader_${variant}`
-        );
+        let cached = this._lineProgramCache.get(variant);
+        if (!cached) {
+            this.lineShader.setVariant(variant);
+            const resolvedVariant = this.lineShader.getCurrentVariant();
 
-        // Update the program and locations
-        this.lineProgram = newLineProgram;
-        this.lineLocations = {
-            position: this.gl.getAttribLocation(newLineProgram, "aPosition"),
-            projectionMatrix: this.gl.getUniformLocation(newLineProgram, "uProjectionMatrix"),
-            viewMatrix: this.gl.getUniformLocation(newLineProgram, "uViewMatrix"),
-            color: this.gl.getUniformLocation(newLineProgram, "uColor"),
-            time: this.gl.getUniformLocation(newLineProgram, "uTime")
-        };
-
-        console.log(`[ProgramManager] Line shader variant changed to: ${variant}`);
-    }
-
-    /**
-     * Update shaders when variant changes
-     * @param {string} variant - The name of the new variant
-     */
-    handleVariantChange(variant) {
-        if (variant === "virtualboy") {
-            this.setLineShaderVariant("virtualboy");
+            const program = this.createShaderProgram(
+                this.lineShader.getVertexShader(),
+                this.lineShader.getFragmentShader(),
+                `line_shader_${resolvedVariant}`
+            );
+            const locations = {
+                position: this.gl.getAttribLocation(program, "aPosition"),
+                projectionMatrix: this.gl.getUniformLocation(program, "uProjectionMatrix"),
+                viewMatrix: this.gl.getUniformLocation(program, "uViewMatrix"),
+                color: this.gl.getUniformLocation(program, "uColor"),
+                time: this.gl.getUniformLocation(program, "uTime")
+            };
+            cached = { program, locations, variant: resolvedVariant };
+            this._lineProgramCache.set(resolvedVariant, cached);
+            if (resolvedVariant !== variant) this._lineProgramCache.set(variant, cached); // cache the miss too
         } else {
-            this.setLineShaderVariant("default");
+            this.lineShader.currentVariant = cached.variant; // keep LineShader's own state in sync, no recompile
         }
+
+        this.lineProgram = cached.program;
+        this.lineLocations = cached.locations;
+
+        console.log(`[ProgramManager] Line shader variant changed to: ${cached.variant}`);
     }
 
     // Accessor methods

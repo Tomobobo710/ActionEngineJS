@@ -63,6 +63,12 @@ class Triangle {
          // Used for vertex skinning - deforming geometry based on bone transforms
          this.jointData = null; // [[j0,j1,j2,j3], [j0,j1,j2,j3], [j0,j1,j2,j3]]
          this.weightData = null;       // [[w0,w1,w2,w3], [w0,w1,w2,w3], [w0,w1,w2,w3]]
+
+         // Arbitrary game-defined per-triangle values, keyed by name - see CustomAttributeRegistry.
+         // e.g. { wetness: 1.0 }. A value here only reaches the GPU if that name was registered via
+         // CustomAttributeRegistry.define(); unregistered keys are silently ignored (not an error,
+         // since a triangle may be shared/authored before its consumer registers the attribute).
+         this.custom = null;
         }
 
     calculateNormal() {

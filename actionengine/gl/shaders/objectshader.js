@@ -27,17 +27,8 @@ class ObjectShader {
             }
         `;
 
-        // Store references to different object shader variants
-        this.variants = {
-            default: {
-                getVertexShader: this.getDefaultVertexShader,
-                getFragmentShader: this.getDefaultFragmentShader
-            },
-            virtualboy: {
-                getVertexShader: this.getVirtualBoyVertexShader,
-                getFragmentShader: this.getVirtualBoyFragmentShader
-            }
-        };
+        // Built-in variants self-register into ShaderRegistry (see bottom of this file), the same
+        // way a game/mod-registered variant would - looked up there, not on an instance field.
 
         // Current active variant (default to 'default')
         this.currentVariant = "default";
@@ -48,7 +39,7 @@ class ObjectShader {
      * @param {string} variantName - Name of the variant to use
      */
     setVariant(variantName) {
-        if (this.variants[variantName]) {
+        if (ShaderRegistry.for('object').has(variantName)) {
             this.currentVariant = variantName;
             console.log(`[ObjectShader] Set shader variant to: ${variantName}`);
         } else {
@@ -70,7 +61,7 @@ class ObjectShader {
      * @returns {string} - Vertex shader source code
      */
     getVertexShader() {
-        return this.variants[this.currentVariant].getVertexShader.call(this);
+        return ShaderRegistry.for('object').get(this.currentVariant).getVertexShader.call(this);
     }
 
     /**
@@ -78,7 +69,7 @@ class ObjectShader {
      * @returns {string} - Fragment shader source code
      */
     getFragmentShader() {
-        return this.variants[this.currentVariant].getFragmentShader.call(this);
+        return ShaderRegistry.for('object').get(this.currentVariant).getFragmentShader.call(this);
     }
 
     //--------------------------------------------------------------------------
@@ -1274,3 +1265,16 @@ class ObjectShader {
         }`;
     }
 }
+
+// Self-register the built-in variants, same pattern any later variant (engine or game) follows.
+// getVertexShader/getFragmentShader here are called with `this` bound to the ObjectShader instance
+// (see ObjectShader.getVertexShader/getFragmentShader), so they can reference prototype methods
+// directly, exactly as when they lived inline in the constructor's `variants` object.
+ShaderRegistry.for('object').register('default', {
+    getVertexShader: ObjectShader.prototype.getDefaultVertexShader,
+    getFragmentShader: ObjectShader.prototype.getDefaultFragmentShader
+});
+ShaderRegistry.for('object').register('virtualboy', {
+    getVertexShader: ObjectShader.prototype.getVirtualBoyVertexShader,
+    getFragmentShader: ObjectShader.prototype.getVirtualBoyFragmentShader
+});

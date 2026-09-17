@@ -1,5 +1,40 @@
 //actionengine/gl/shaders/watershader.js
 class WaterShader {
+    constructor() {
+        // Built-in variant self-registers into ShaderRegistry.for('water') (see bottom of this
+        // file), the same way a game/mod-registered variant would.
+        this.currentVariant = "default";
+    }
+
+    /**
+     * Set the current water shader variant
+     * @param {string} variantName - Name of the variant to use
+     */
+    setVariant(variantName) {
+        if (ShaderRegistry.for('water').has(variantName)) {
+            this.currentVariant = variantName;
+            console.log(`[WaterShader] Set water shader variant to: ${variantName}`);
+        } else {
+            console.warn(`[WaterShader] Unknown variant: ${variantName}, using default`);
+            this.currentVariant = "default";
+        }
+    }
+
+    /** @returns {string} - Current variant name */
+    getCurrentVariant() {
+        return this.currentVariant;
+    }
+
+    /** @returns {string} - Vertex shader source code for the current variant */
+    getVertexShader() {
+        return ShaderRegistry.for('water').get(this.currentVariant).getVertexShader.call(this);
+    }
+
+    /** @returns {string} - Fragment shader source code for the current variant */
+    getFragmentShader() {
+        return ShaderRegistry.for('water').get(this.currentVariant).getFragmentShader.call(this);
+    }
+
     /**
      * Helper functions for GPU-side matrix construction
      * Matches Matrix4.fromQuat() from matrix4.js to ensure correct orientation
@@ -37,7 +72,7 @@ class WaterShader {
      }`;
     }
 
-    getWaterVertexShader() {
+    getDefaultVertexShader() {
         return `#version 300 es
          in vec3 aPosition;
          in vec3 aNormal;
@@ -81,7 +116,7 @@ class WaterShader {
          }`;
     }
 
-    getWaterFragmentShader() {
+    getDefaultFragmentShader() {
         return `#version 300 es
         precision highp float;
          
@@ -119,3 +154,9 @@ class WaterShader {
          }`;
     }
 }
+
+// Self-register the built-in variant, same pattern any later water-shader variant follows.
+ShaderRegistry.for('water').register('default', {
+    getVertexShader: WaterShader.prototype.getDefaultVertexShader,
+    getFragmentShader: WaterShader.prototype.getDefaultFragmentShader
+});

@@ -342,32 +342,15 @@ class ActionDirectionalShadowLight extends ActionLight {
     }
 
     /**
-     * Set up shadow shader program and get all necessary locations
+     * Set up shadow shader program and get all necessary locations. The program itself is compiled
+     * once and shared across every directional shadow light via ProgramManager's
+     * shadow-directional cache (ShaderRegistry.for('shadow-directional')) - not recompiled per
+     * light instance.
      */
     setupShadowShaderProgram() {
         try {
-            const shadowShader = new ShadowShader();
-
-            // Create shadow map program using directional-specific shaders
-            this.shadowProgram = this.programManager.createShaderProgram(
-                shadowShader.getDirectionalShadowVertexShader(),
-                shadowShader.getDirectionalShadowFragmentShader(),
-                "directional_shadow_pass" // Use distinct name to avoid conflicts
-            );
-
-            // Get attribute and uniform locations
-            this.shadowLocations = {
-                position: this.gl.getAttribLocation(this.shadowProgram, "aPosition"),
-                boneIndices: this.gl.getAttribLocation(this.shadowProgram, "aBoneIndices"),
-                boneWeights: this.gl.getAttribLocation(this.shadowProgram, "aBoneWeights"),
-                lightSpaceMatrix: this.gl.getUniformLocation(this.shadowProgram, "uLightSpaceMatrix"),
-                modelPos: this.gl.getUniformLocation(this.shadowProgram, "uModelPos"),
-                modelRotation: this.gl.getUniformLocation(this.shadowProgram, "uModelRotation"),
-                modelScale: this.gl.getUniformLocation(this.shadowProgram, "uModelScale"),
-                debugShadowMap: this.gl.getUniformLocation(this.shadowProgram, "uDebugShadowMap"),
-                forceShadowMapTest: this.gl.getUniformLocation(this.shadowProgram, "uForceShadowMapTest"),
-                shadowMapSize: this.gl.getUniformLocation(this.shadowProgram, "uShadowMapSize")
-            };
+            this.shadowProgram = this.programManager.getShadowDirectionalProgram();
+            this.shadowLocations = this.programManager.getShadowDirectionalLocations();
         } catch (error) {
             console.error("Error setting up shadow shader program:", error);
         }

@@ -189,6 +189,13 @@ class ObjectRenderer3D {
         const metallicRoughnessMapIndices = new Float32Array(count * 3);
         const emissiveMapIndices = new Float32Array(count * 3);
 
+        // Game-defined custom attributes (CustomAttributeRegistry) - one Float32Array per registered
+        // name, filled from triangle.custom[name] (or that attribute's default). Empty object/loop
+        // when nothing is registered, so this costs nothing for scenes that never use it.
+        const customNames = CustomAttributeRegistry.names();
+        const customArrays = {};
+        for (const name of customNames) customArrays[name] = new Float32Array(count * 3);
+
         let meshHasTextures = false;
         const opaqueIndices = [];
         const transparentIndices = [];
@@ -289,6 +296,13 @@ class ObjectRenderer3D {
                     triangle.material && triangle.material.emissiveMapIndex >= 0
                         ? triangle.material.emissiveMapIndex
                         : -1;
+
+                for (const name of customNames) {
+                    const def = CustomAttributeRegistry.get(name);
+                    const v = triangle.custom && triangle.custom[name] !== undefined
+                        ? triangle.custom[name] : def.defaultValue;
+                    customArrays[name][baseInd + j] = v;
+                }
             }
 
             // Separate into opaque and transparent triangle indices
@@ -380,7 +394,8 @@ class ObjectRenderer3D {
                     textureIndices[v] + "," + useTextureFlags[v] + "," + normalMapIndices[v] + "," +
                     metallicRoughnessMapIndices[v] + "," + emissiveMapIndices[v] + "|" +
                     boneIndices[p4] + "," + boneIndices[p4 + 1] + "," + boneIndices[p4 + 2] + "," + boneIndices[p4 + 3] + "|" +
-                    boneWeights[p4] + "," + boneWeights[p4 + 1] + "," + boneWeights[p4 + 2] + "," + boneWeights[p4 + 3];
+                    boneWeights[p4] + "," + boneWeights[p4 + 1] + "," + boneWeights[p4 + 2] + "," + boneWeights[p4 + 3] +
+                    (customNames.length ? "|" + customNames.map((n) => customArrays[n][v]).join(",") : "");
                 let slot = seen.get(key);
                 if (slot === undefined) {
                     slot = next++;
@@ -402,6 +417,7 @@ class ObjectRenderer3D {
                         boneIndices[d4 + j] = boneIndices[p4 + j];
                         boneWeights[d4 + j] = boneWeights[p4 + j];
                     }
+                    for (const name of customNames) customArrays[name][slot] = customArrays[name][v];
                 }
                 remap[v] = slot;
             }
@@ -430,7 +446,8 @@ class ObjectRenderer3D {
                 emissiveMapIndex: gl.createBuffer(),
                 boneIndices: gl.createBuffer(),
                 boneWeights: gl.createBuffer(),
-                indices: gl.createBuffer()
+                indices: gl.createBuffer(),
+                custom: Object.fromEntries(customNames.map((name) => [name, gl.createBuffer()]))
             },
             vaos: new Map(), // VAO per object shader program (keyed by WebGL program object)
             shadowVaos: new Map(), // VAO per shadow program (keyed by WebGL program object)
@@ -466,6 +483,7 @@ class ObjectRenderer3D {
         upload(mesh.buffers.emissiveMapIndex, sub(emissiveMapIndices, 1));
         upload(mesh.buffers.boneIndices, sub(boneIndices, 4));
         upload(mesh.buffers.boneWeights, sub(boneWeights, 4));
+        for (const name of customNames) upload(mesh.buffers.custom[name], sub(customArrays[name], 1));
 
         // Build reordered index buffer: opaque indices first, then transparent
         const reorderedIndices = new Uint32Array(opaqueIndices.length + transparentIndices.length);
@@ -492,7 +510,7 @@ class ObjectRenderer3D {
      * @param {Object} locs - Attribute location object from programManager
      * @returns {WebGLVertexArrayObject}
      */
-    _buildVAO(mesh, locs) {
+    _buildVAO(mesh, locs, prog) {
         const gl = this.gl;
         const vao = gl.createVertexArray();
         gl.bindVertexArray(vao);
@@ -522,6 +540,18 @@ class ObjectRenderer3D {
         bindAttr(mesh.buffers.emissiveMapIndex, locs.emissiveMapIndex, 1, gl.FLOAT, false);
         bindAttr(mesh.buffers.boneIndices, locs.boneIndices, 4, gl.INT, false);
         bindAttr(mesh.buffers.boneWeights, locs.boneWeights, 4, gl.FLOAT, false);
+
+        // Game-defined custom attributes (CustomAttributeRegistry). Only bound if the ACTIVE program
+        // declares the matching `aCustom_<name>` attribute - bindAttr's loc===-1 guard makes this a
+        // no-op for any program (like default/virtualboy) that doesn't know about a given name, so
+        // adding a new custom attribute never affects shaders that don't use it.
+        if (mesh.buffers.custom && prog) {
+            for (const name of Object.keys(mesh.buffers.custom)) {
+                const def = CustomAttributeRegistry.get(name);
+                const loc = def ? gl.getAttribLocation(prog, def.glName) : -1;
+                bindAttr(mesh.buffers.custom[name], loc, 1, gl.FLOAT, false);
+            }
+        }
 
         // Bind the index buffer inside the VAO so it's also captured
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.buffers.indices);
@@ -587,7 +617,10 @@ class ObjectRenderer3D {
         // A merged mesh, or any mesh whose triangle count changed, can't be updated in place via
         // bufferSubData (buffer is the wrong size / indices point at stale slots) — rebuild instead.
         if (mesh.mergedFrom || (mesh.count | 0) !== count * 3) {
-            for (const b of Object.values(mesh.buffers)) gl.deleteBuffer(b);
+            for (const b of Object.values(mesh.buffers)) {
+                if (b instanceof WebGLBuffer) gl.deleteBuffer(b);
+                else if (b && typeof b === 'object') for (const cb of Object.values(b)) gl.deleteBuffer(cb);
+            }
             for (const v of mesh.vaos.values()) gl.deleteVertexArray(v);
             for (const v of mesh.shadowVaos.values()) gl.deleteVertexArray(v);
             this._meshLibrary.delete(meshId);
@@ -606,6 +639,9 @@ class ObjectRenderer3D {
         const normalMapIndices = new Float32Array(count * 3);
         const metallicRoughnessMapIndices = new Float32Array(count * 3);
         const emissiveMapIndices = new Float32Array(count * 3);
+        const customNames = CustomAttributeRegistry.names();
+        const customArrays = {};
+        for (const name of customNames) customArrays[name] = new Float32Array(count * 3);
         const opaqueIndices = [];
         const transparentIndices = [];
 
@@ -692,6 +728,13 @@ class ObjectRenderer3D {
                     triangle.material && triangle.material.emissiveMapIndex >= 0
                         ? triangle.material.emissiveMapIndex
                         : -1;
+
+                for (const name of customNames) {
+                    const def = CustomAttributeRegistry.get(name);
+                    const v = triangle.custom && triangle.custom[name] !== undefined
+                        ? triangle.custom[name] : def.defaultValue;
+                    customArrays[name][baseInd + j] = v;
+                }
             }
 
             // Separate into opaque and transparent triangle indices
@@ -725,6 +768,11 @@ class ObjectRenderer3D {
         update(mesh.buffers.normalMapIndex, normalMapIndices);
         update(mesh.buffers.metallicRoughnessMapIndex, metallicRoughnessMapIndices);
         update(mesh.buffers.emissiveMapIndex, emissiveMapIndices);
+        if (mesh.buffers.custom) {
+            for (const name of customNames) {
+                if (mesh.buffers.custom[name]) update(mesh.buffers.custom[name], customArrays[name]);
+            }
+        }
 
         // Rebuild reordered index buffer: opaque indices first, then transparent
         const reorderedIndices = new Uint32Array(opaqueIndices.length + transparentIndices.length);
@@ -807,7 +855,7 @@ class ObjectRenderer3D {
             if (mesh.vaos.has(prog)) {
                 vao = mesh.vaos.get(prog);
             } else {
-                vao = this._buildVAO(mesh, locs);
+                vao = this._buildVAO(mesh, locs, prog);
                 mesh.vaos.set(prog, vao);
             }
 
@@ -853,7 +901,7 @@ class ObjectRenderer3D {
             if (mesh.vaos.has(prog)) {
                 vao = mesh.vaos.get(prog);
             } else {
-                vao = this._buildVAO(mesh, locs);
+                vao = this._buildVAO(mesh, locs, prog);
                 mesh.vaos.set(prog, vao);
             }
 
@@ -945,6 +993,9 @@ class ObjectRenderer3D {
         }
         if (locations.farPlane !== -1 && locations.farPlane !== null) {
             gl.uniform1f(locations.farPlane, 10000.0);
+        }
+        if (locations.time !== -1 && locations.time !== null) {
+            gl.uniform1f(locations.time, this.renderer ? this.renderer.currentTime : 0);
         }
         // NOTE: uPointShadowFarPlane{0..3} is set PER-LIGHT by each ActionOmnidirectionalShadowLight
         // (= its radius, matching the far its cube map was rendered with). Do NOT hardcode it here —

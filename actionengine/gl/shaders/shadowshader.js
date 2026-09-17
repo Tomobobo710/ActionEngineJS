@@ -255,18 +255,33 @@ class ShadowShader {
     getOmniShadowFragmentShader() {
         return `#version 300 es
          precision highp float;
-         
+
          in vec3 vFragPos;
          uniform vec3 uLightPos;
          uniform float uFarPlane;
-         
+
          void main() {
              // Get distance between fragment and light source
              float lightDistance = length(vFragPos - uLightPos);
-             
+
              // Normalize to [0,1] range by dividing by far plane
              // gl_FragDepth is automatically written for depth textures
              gl_FragDepth = lightDistance / uFarPlane;
          }`;
     }
 }
+
+// Shadow rendering has two DISTINCT, CONCURRENTLY-USED techniques (a scene can have both a
+// directional light and point lights casting shadows in the same frame), so each gets its own
+// ShaderRegistry namespace - not one shared "shadow" namespace, and not folded into the
+// object/line/sprite/water/particle "one active variant" pattern, which assumes a single choice
+// governs everything drawn that frame. getShadowVertexShader/getShadowFragmentShader (the
+// single-map variant) have no current caller in the engine, so they're left unregistered for now.
+ShaderRegistry.for('shadow-directional').register('default', {
+    getVertexShader: ShadowShader.prototype.getDirectionalShadowVertexShader,
+    getFragmentShader: ShadowShader.prototype.getDirectionalShadowFragmentShader
+});
+ShaderRegistry.for('shadow-omni').register('default', {
+    getVertexShader: ShadowShader.prototype.getOmniShadowVertexShader,
+    getFragmentShader: ShadowShader.prototype.getOmniShadowFragmentShader
+});

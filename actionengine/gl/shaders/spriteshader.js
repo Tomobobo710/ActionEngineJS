@@ -2,7 +2,28 @@
 
 class SpriteShader {
     constructor() {
-        // No variants needed for sprites - keep it simple
+        // Built-in variant self-registers into ShaderRegistry.for('sprite') (see bottom of this
+        // file), the same way a game/mod-registered variant would.
+        this.currentVariant = "default";
+    }
+
+    /**
+     * Set the current sprite shader variant
+     * @param {string} variantName - Name of the variant to use
+     */
+    setVariant(variantName) {
+        if (ShaderRegistry.for('sprite').has(variantName)) {
+            this.currentVariant = variantName;
+            console.log(`[SpriteShader] Set sprite shader variant to: ${variantName}`);
+        } else {
+            console.warn(`[SpriteShader] Unknown variant: ${variantName}, using default`);
+            this.currentVariant = "default";
+        }
+    }
+
+    /** @returns {string} - Current variant name */
+    getCurrentVariant() {
+        return this.currentVariant;
     }
 
     /**
@@ -10,6 +31,14 @@ class SpriteShader {
      * @returns {string} - Vertex shader source code
      */
     getVertexShader() {
+        return ShaderRegistry.for('sprite').get(this.currentVariant).getVertexShader.call(this);
+    }
+
+    /**
+     * Get the built-in default variant's vertex shader
+     * @returns {string} - Vertex shader source code
+     */
+    getDefaultVertexShader() {
         return `#version 300 es
         precision mediump float;
          
@@ -70,10 +99,18 @@ class SpriteShader {
     }
 
     /**
-     * Get billboard fragment shader
+     * Get the current variant's fragment shader
      * @returns {string} - Fragment shader source code
      */
     getFragmentShader() {
+        return ShaderRegistry.for('sprite').get(this.currentVariant).getFragmentShader.call(this);
+    }
+
+    /**
+     * Get the built-in default variant's billboard fragment shader
+     * @returns {string} - Fragment shader source code
+     */
+    getDefaultFragmentShader() {
         return `#version 300 es
         precision mediump float;
          
@@ -106,3 +143,9 @@ class SpriteShader {
          }`;
     }
 }
+
+// Self-register the built-in variant, same pattern any later sprite-shader variant follows.
+ShaderRegistry.for('sprite').register('default', {
+    getVertexShader: SpriteShader.prototype.getDefaultVertexShader,
+    getFragmentShader: SpriteShader.prototype.getDefaultFragmentShader
+});

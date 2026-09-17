@@ -1,7 +1,42 @@
 //actionengine/gl/shaders/particleshader.js
 // game/display/gl/shaders/particleshader.js
 class ParticleShader {
-    getParticleVertexShader() {
+    constructor() {
+        // Built-in variant self-registers into ShaderRegistry.for('particle') (see bottom of this
+        // file), the same way a game/mod-registered variant would.
+        this.currentVariant = "default";
+    }
+
+    /**
+     * Set the current particle shader variant
+     * @param {string} variantName - Name of the variant to use
+     */
+    setVariant(variantName) {
+        if (ShaderRegistry.for('particle').has(variantName)) {
+            this.currentVariant = variantName;
+            console.log(`[ParticleShader] Set particle shader variant to: ${variantName}`);
+        } else {
+            console.warn(`[ParticleShader] Unknown variant: ${variantName}, using default`);
+            this.currentVariant = "default";
+        }
+    }
+
+    /** @returns {string} - Current variant name */
+    getCurrentVariant() {
+        return this.currentVariant;
+    }
+
+    /** @returns {string} - Vertex shader source code for the current variant */
+    getVertexShader() {
+        return ShaderRegistry.for('particle').get(this.currentVariant).getVertexShader.call(this);
+    }
+
+    /** @returns {string} - Fragment shader source code for the current variant */
+    getFragmentShader() {
+        return ShaderRegistry.for('particle').get(this.currentVariant).getFragmentShader.call(this);
+    }
+
+    getDefaultVertexShader() {
         return `#version 300 es
         in vec3 aPosition;
         in float aSize;
@@ -23,7 +58,7 @@ class ParticleShader {
         }`;
     }
 
-    getParticleFragmentShader() {
+    getDefaultFragmentShader() {
         return `#version 300 es
         precision mediump float;
         in vec4 vColor;
@@ -52,3 +87,9 @@ class ParticleShader {
          }`;
     }
 }
+
+// Self-register the built-in variant, same pattern any later particle-shader variant follows.
+ShaderRegistry.for('particle').register('default', {
+    getVertexShader: ParticleShader.prototype.getDefaultVertexShader,
+    getFragmentShader: ParticleShader.prototype.getDefaultFragmentShader
+});

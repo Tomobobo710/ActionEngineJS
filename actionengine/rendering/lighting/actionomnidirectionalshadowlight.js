@@ -309,34 +309,14 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
     }
 
     /**
-     * Set up shadow shader program and get all necessary locations
+     * Set up shadow shader program and get all necessary locations. The program itself is compiled
+     * once and shared across every omnidirectional shadow light via ProgramManager's shadow-omni
+     * cache (ShaderRegistry.for('shadow-omni')) - not recompiled per light instance.
      */
     setupShadowShaderProgram() {
         try {
-            const shadowShader = new ShadowShader();
-
-            // Create shadow map program with a distinct program name
-            this.shadowProgram = this.programManager.createShaderProgram(
-                shadowShader.getOmniShadowVertexShader(),
-                shadowShader.getOmniShadowFragmentShader(),
-                "omnidirectional_shadow_pass" // Distinct name from directional shadows
-            );
-
-            // Get attribute and uniform locations
-            this.shadowLocations = {
-                position: this.gl.getAttribLocation(this.shadowProgram, "aPosition"),
-                boneIndices: this.gl.getAttribLocation(this.shadowProgram, "aBoneIndices"),
-                boneWeights: this.gl.getAttribLocation(this.shadowProgram, "aBoneWeights"),
-                lightSpaceMatrix: this.gl.getUniformLocation(this.shadowProgram, "uLightSpaceMatrix"),
-                modelPos: this.gl.getUniformLocation(this.shadowProgram, "uModelPos"),
-                modelRotation: this.gl.getUniformLocation(this.shadowProgram, "uModelRotation"),
-                modelScale: this.gl.getUniformLocation(this.shadowProgram, "uModelScale"),
-                lightPos: this.gl.getUniformLocation(this.shadowProgram, "uLightPos"),
-                farPlane: this.gl.getUniformLocation(this.shadowProgram, "uFarPlane"),
-                debugShadowMap: this.gl.getUniformLocation(this.shadowProgram, "uDebugShadowMap"),
-                forceShadowMapTest: this.gl.getUniformLocation(this.shadowProgram, "uForceShadowMapTest"),
-                shadowMapSize: this.gl.getUniformLocation(this.shadowProgram, "uShadowMapSize")
-            };
+            this.shadowProgram = this.programManager.getShadowOmniProgram();
+            this.shadowLocations = this.programManager.getShadowOmniLocations();
         } catch (error) {
             console.error("Error setting up shadow shader program:", error);
         }

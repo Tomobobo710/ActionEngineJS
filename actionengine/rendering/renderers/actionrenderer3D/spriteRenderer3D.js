@@ -10,52 +10,66 @@ class SpriteRenderer3D {
         this.spriteShader = new SpriteShader();
         this.program = null;
         this.locations = {};
+        this._programCache = new Map(); // variant name -> {program, locations}
 
         // Quad geometry for billboards
         this.quadBuffer = null;
         this.indexBuffer = null;
 
         // Initialize
-        this._initializeShader();
+        this.setShaderVariant("default");
         this._createQuadGeometry();
     }
 
     /**
-     * Initialize the billboard shader program
-     * @private
+     * Switch the sprite shader variant, compiling (and caching) its program on first use.
+     * @param {string} variant - A name registered via ShaderRegistry.for('sprite').register(...)
      */
-    _initializeShader() {
-        try {
-            this.program = this.programManager.createShaderProgram(
-                this.spriteShader.getVertexShader(),
-                this.spriteShader.getFragmentShader(),
-                "sprite_shader"
-            );
+    setShaderVariant(variant) {
+        let cached = this._programCache.get(variant);
+        if (!cached) {
+            this.spriteShader.setVariant(variant);
+            const resolvedVariant = this.spriteShader.getCurrentVariant();
 
-            // Get attribute and uniform locations
-            this.locations = {
-                // Attributes
-                position: this.gl.getAttribLocation(this.program, "aPosition"),
-                texCoord: this.gl.getAttribLocation(this.program, "aTexCoord"),
+            try {
+                const program = this.programManager.createShaderProgram(
+                    this.spriteShader.getVertexShader(),
+                    this.spriteShader.getFragmentShader(),
+                    `sprite_shader_${resolvedVariant}`
+                );
+                const locations = {
+                    // Attributes
+                    position: this.gl.getAttribLocation(program, "aPosition"),
+                    texCoord: this.gl.getAttribLocation(program, "aTexCoord"),
 
-                // Uniforms
-                projectionMatrix: this.gl.getUniformLocation(this.program, "uProjectionMatrix"),
-                viewMatrix: this.gl.getUniformLocation(this.program, "uViewMatrix"),
-                spritePosition: this.gl.getUniformLocation(this.program, "uSpritePosition"),
-                spriteSize: this.gl.getUniformLocation(this.program, "uSpriteSize"),
-                cameraPosition: this.gl.getUniformLocation(this.program, "uCameraPosition"),
-                cameraRight: this.gl.getUniformLocation(this.program, "uCameraRight"),
-                cameraUp: this.gl.getUniformLocation(this.program, "uCameraUp"),
-                isBillboard: this.gl.getUniformLocation(this.program, "uIsBillboard"),
-                spriteForward: this.gl.getUniformLocation(this.program, "uSpriteForward"),
-                spriteUp: this.gl.getUniformLocation(this.program, "uSpriteUp"),
-                texture: this.gl.getUniformLocation(this.program, "uTexture"),
-                color: this.gl.getUniformLocation(this.program, "uColor"),
-                alpha: this.gl.getUniformLocation(this.program, "uAlpha")
-            };
-        } catch (error) {
-            console.error("[SpriteRenderer3D] Failed to initialize shader:", error);
+                    // Uniforms
+                    projectionMatrix: this.gl.getUniformLocation(program, "uProjectionMatrix"),
+                    viewMatrix: this.gl.getUniformLocation(program, "uViewMatrix"),
+                    spritePosition: this.gl.getUniformLocation(program, "uSpritePosition"),
+                    spriteSize: this.gl.getUniformLocation(program, "uSpriteSize"),
+                    cameraPosition: this.gl.getUniformLocation(program, "uCameraPosition"),
+                    cameraRight: this.gl.getUniformLocation(program, "uCameraRight"),
+                    cameraUp: this.gl.getUniformLocation(program, "uCameraUp"),
+                    isBillboard: this.gl.getUniformLocation(program, "uIsBillboard"),
+                    spriteForward: this.gl.getUniformLocation(program, "uSpriteForward"),
+                    spriteUp: this.gl.getUniformLocation(program, "uSpriteUp"),
+                    texture: this.gl.getUniformLocation(program, "uTexture"),
+                    color: this.gl.getUniformLocation(program, "uColor"),
+                    alpha: this.gl.getUniformLocation(program, "uAlpha")
+                };
+                cached = { program, locations, resolvedVariant };
+                this._programCache.set(resolvedVariant, cached);
+                if (resolvedVariant !== variant) this._programCache.set(variant, cached); // cache the miss too
+            } catch (error) {
+                console.error("[SpriteRenderer3D] Failed to initialize shader:", error);
+                return;
+            }
+        } else {
+            this.spriteShader.currentVariant = cached.resolvedVariant;
         }
+
+        this.program = cached.program;
+        this.locations = cached.locations;
     }
 
     /**

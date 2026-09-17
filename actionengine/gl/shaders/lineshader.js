@@ -2,18 +2,8 @@
 
 class LineShader {
     constructor() {
-        // Store references to different line shader variants
-        this.variants = {
-            default: {
-                getVertexShader: this.getDefaultVertexShader,
-                getFragmentShader: this.getDefaultFragmentShader
-            },
-            virtualboy: {
-                getVertexShader: this.getVirtualBoyVertexShader,
-                getFragmentShader: this.getVirtualBoyFragmentShader
-            }
-            // Additional variants can be added here
-        };
+        // Built-in variants self-register into ShaderRegistry.for('line') (see bottom of this file),
+        // the same way a game/mod-registered variant would - looked up there, not on an instance field.
 
         // Current active variant (default to 'default')
         this.currentVariant = "default";
@@ -24,7 +14,7 @@ class LineShader {
      * @param {string} variantName - Name of the variant to use
      */
     setVariant(variantName) {
-        if (this.variants[variantName]) {
+        if (ShaderRegistry.for('line').has(variantName)) {
             this.currentVariant = variantName;
             console.log(`[LineShader] Set line shader variant to: ${variantName}`);
         } else {
@@ -34,11 +24,19 @@ class LineShader {
     }
 
     /**
+     * Get the current variant name
+     * @returns {string} - Current variant name
+     */
+    getCurrentVariant() {
+        return this.currentVariant;
+    }
+
+    /**
      * Get the current variant's vertex shader
      * @returns {string} - Vertex shader source code
      */
     getVertexShader() {
-        return this.variants[this.currentVariant].getVertexShader.call(this);
+        return ShaderRegistry.for('line').get(this.currentVariant).getVertexShader.call(this);
     }
 
     /**
@@ -46,7 +44,7 @@ class LineShader {
      * @returns {string} - Fragment shader source code
      */
     getFragmentShader() {
-        return this.variants[this.currentVariant].getFragmentShader.call(this);
+        return ShaderRegistry.for('line').get(this.currentVariant).getFragmentShader.call(this);
     }
 
     /**
@@ -135,3 +133,15 @@ class LineShader {
     }`;
     }
 }
+
+// Self-register the built-in variants, same pattern any later line-shader variant (engine or game)
+// follows. getVertexShader/getFragmentShader are called with `this` bound to the LineShader instance
+// (see LineShader.getVertexShader/getFragmentShader).
+ShaderRegistry.for('line').register('default', {
+    getVertexShader: LineShader.prototype.getDefaultVertexShader,
+    getFragmentShader: LineShader.prototype.getDefaultFragmentShader
+});
+ShaderRegistry.for('line').register('virtualboy', {
+    getVertexShader: LineShader.prototype.getVirtualBoyVertexShader,
+    getFragmentShader: LineShader.prototype.getVirtualBoyFragmentShader
+});
