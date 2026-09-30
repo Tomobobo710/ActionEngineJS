@@ -97,15 +97,14 @@ class App {
 
         // --- WebXR (additive, opt-in) ---
         // Set only when actionengine/xr/actionvr.js + actionxr.js are loaded AND the runtime reports
-        // immersive-vr support. Until then everything below runs the ordinary flatscreen path.
+        // immersive-vr support.
         this.vr = null;
 
         // Start the game loop
         console.log("[App] Starting game loop...");
         this.loop();
 
-        // Detect VR and, if available, add an "Enter VR" button. No-op on desktop/no-XR, so the
-        // flatscreen path is completely unchanged.
+        // Detect VR and, if available, add an "Enter VR" button.
         this._setupVR();
     }
 
@@ -137,8 +136,7 @@ class App {
     }
 
     // Advance one frame of simulation (input + update phases) and return the render interpolation
-    // factor (alpha). Shared verbatim by the flatscreen loop and the per-eye XR loop so both consume
-    // simulation time identically — the only thing VR changes is the DRAW, never the update.
+    // factor (alpha).
     _update(now) {
         // Calculate deltaTime (time since last frame in seconds)
         let deltaTime = this.lastTime ? (now - this.lastTime) / 1000 : 0;
@@ -227,9 +225,7 @@ class App {
 
     // ---- WebXR ----
 
-    // Called once from the constructor. Wires up an "Enter VR" button when the engine's XR module is
-    // loaded and the runtime supports immersive-vr. Everything here is guarded so a game that doesn't
-    // ship the xr/ scripts, or a browser without WebXR, behaves exactly as before.
+    // Called once from the constructor. Wires up an "Enter VR" button.
     _setupVR() {
         if (typeof ActionVR === "undefined" || typeof ActionXR === "undefined") return;
         if (!this.game || !this.game.renderer3D) return; // ActionVR drives the 3D renderer
