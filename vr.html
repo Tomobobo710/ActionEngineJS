@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+        <title>ActionEngine VR — Phase 0 Spike</title>
+        <style>
+            html, body { margin:0; padding:0; height:100%; background:#0a0a1e; color:#e8e8f0;
+                font-family: system-ui, sans-serif; overflow:hidden; }
+            #overlay { position:fixed; top:0; left:0; right:0; z-index:10; padding:14px 16px;
+                display:flex; align-items:center; gap:16px;
+                background:linear-gradient(#0a0a1ecc,#0a0a1e00); }
+            #enterVR { font-size:18px; font-weight:600; padding:12px 22px; border:0; border-radius:10px;
+                background:#4D96FF; color:#fff; cursor:pointer; }
+            #enterVR:disabled { background:#333; color:#888; cursor:not-allowed; }
+            #status { font-size:14px; opacity:.9; max-width:60ch; line-height:1.35; }
+            #stage { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; }
+            #gameCanvas { max-width:100vw; max-height:100vh; background:#000; }
+        </style>
+    </head>
+    <body>
+        <div id="overlay">
+            <button id="enterVR">Enter VR</button>
+            <div id="status">Loading engine…</div>
+        </div>
+        <div id="stage"><canvas id="gameCanvas"></canvas></div>
+
+        <script src="actionengine/3rdparty/goblin/goblin.js"></script>
+        <script src="actionengine/math/scalar.js"></script>
+        <script src="actionengine/math/vector2.js"></script>
+        <script src="actionengine/math/vector3.js"></script>
+        <script src="actionengine/math/matrix3.js"></script>
+        <script src="actionengine/math/matrix4.js"></script>
+        <script src="actionengine/math/quaternion.js"></script>
+        <script src="actionengine/math/transform.js"></script>
+        <script src="actionengine/3rdparty/actionphysics/actionphysics.js"></script>
+        <script src="actionengine/geometry/triangle.js"></script>
+        <script src="actionengine/geometry/triangleutils.js"></script>
+        <script src="actionengine/geometry/actionboxgeometry.js"></script>
+        <script src="actionengine/geometry/geometrybuilder.js"></script>
+        <script src="actionengine/geometry/glbloader.js"></script>
+        <script src="actionengine/geometry/glbexporter.js"></script>
+        <script src="actionengine/geometry/glbrigexporter.js"></script>
+        <script src="actionengine/geometry/glbrigloader.js"></script>
+        <script src="actionengine/geometry/modelcodegenerator.js"></script>
+        <script src="actionengine/geometry/modelregistry.js"></script>
+        <script src="actionengine/geometry/actionmodelpackageloader.js"></script>
+        <script src="actionengine/ui/actionuitheme.js"></script>
+        <script src="actionengine/ui/actionuicomponent.js"></script>
+        <script src="actionengine/ui/actionuiiconrenderer.js"></script>
+        <script src="actionengine/ui/actionuipanel.js"></script>
+        <script src="actionengine/ui/actionuilabel.js"></script>
+        <script src="actionengine/ui/actionuibutton.js"></script>
+        <script src="actionengine/ui/actionuicheckbox.js"></script>
+        <script src="actionengine/ui/actionuiradiogroup.js"></script>
+        <script src="actionengine/ui/actionuislider.js"></script>
+        <script src="actionengine/ui/actionuiprogressbar.js"></script>
+        <script src="actionengine/ui/actionuitextinput.js"></script>
+        <script src="actionengine/ui/actionuitoggleswitch.js"></script>
+        <script src="actionengine/ui/actionuinumberstepper.js"></script>
+        <script src="actionengine/ui/actionuidropdown.js"></script>
+        <script src="actionengine/ui/actionuitooltip.js"></script>
+        <script src="actionengine/ui/actionuimodal.js"></script>
+        <script src="actionengine/ui/actionuinotification.js"></script>
+        <script src="actionengine/ui/actionuitabbar.js"></script>
+        <script src="actionengine/ui/actionuiseparator.js"></script>
+        <script src="actionengine/ui/actionuibadge.js"></script>
+        <script src="actionengine/ui/actionuicontextmenu.js"></script>
+        <script src="actionengine/ui/actionuiscrollablearea.js"></script>
+        <script src="actionengine/ui/actionuiscrollpanel.js"></script>
+        <script src="actionengine/ui/actionuicolorswatch.js"></script>
+        <script src="actionengine/ui/actionuispinner.js"></script>
+        <script src="actionengine/ui/actionuiavatardisplay.js"></script>
+        <script src="actionengine/ui/actionuigrid.js"></script>
+        <script src="actionengine/ui/actionuiwindow.js"></script>
+        <script src="actionengine/ui/actionuionscreenkeyboard.js"></script>
+        <script src="actionengine/ui/actionuilistview.js"></script>
+        <script src="actionengine/ui/actionuivirtualstick.js"></script>
+        <script src="actionengine/ui/actionuitriggerbutton.js"></script>
+        <script src="actionengine/ui/actionuigamepadbutton.js"></script>
+        <script src="actionengine/ui/actionuigamepad.js"></script>
+        <script src="actionengine/ui/actionui.js"></script>
+        <script src="actionengine/display/canvasmanager.js"></script>
+        <script src="actionengine/rendering/renderableobject.js"></script>
+        <script src="actionengine/rendering/actionmodel3D.js"></script>
+        <script src="actionengine/rendering/actionsprite3D.js"></script>
+        <script src="actionengine/rendering/actionsprite2D.js"></script>
+        <script src="actionengine/rendering/texture/texturemanager.js"></script>
+        <script src="actionengine/rendering/texture/textureset.js"></script>
+        <script src="actionengine/rendering/lighting/lightingconstants.js"></script>
+        <script src="actionengine/rendering/lighting/actionshadowfit.js"></script>
+        <script src="actionengine/rendering/lighting/actionlight.js"></script>
+        <script src="actionengine/rendering/lighting/lightmanager.js"></script>
+        <script src="actionengine/rendering/lighting/actiondirectionalshadowlight.js"></script>
+        <script src="actionengine/rendering/lighting/actionomnidirectionalshadowlight.js"></script>
+        <script src="actionengine/rendering/lighting/actionlightingprofiles.js"></script>
+        <script src="actionengine/rendering/renderers/actionrenderer2D/cpuvertexskinning.js"></script>
+        <script src="actionengine/rendering/renderers/actionrenderer2D/actionrenderer2D.js"></script>
+        <script src="actionengine/rendering/renderers/actionrenderer3D/glstatemanager.js"></script>
+        <script src="actionengine/rendering/renderers/actionrenderer3D/canvasmanager3D.js"></script>
+        <script src="actionengine/rendering/renderers/actionrenderer3D/actionrenderer3D.js"></script>
+        <script src="actionengine/rendering/renderers/actionrenderer3D/objectrenderer3D.js"></script>
+        <script src="actionengine/rendering/renderers/actionrenderer3D/transparentobjectrenderer3D.js"></script>
+        <script src="actionengine/rendering/renderers/actionrenderer3D/shadowrenderer3d.js"></script>
+        <script src="actionengine/rendering/renderers/actionrenderer3D/spriteRenderer3D.js"></script>
+        <script src="actionengine/rendering/renderers/actionrenderer3D/weatherrenderer3D.js"></script>
+        <script src="actionengine/rendering/renderers/actionrenderer3D/waterrenderer3D.js"></script>
+        <script src="actionengine/rendering/renderers/actionrenderer3D/debugrenderer3D.js"></script>
+        <script src="actionengine/gl/shaderregistry.js"></script>
+        <script src="actionengine/gl/customattributes.js"></script>
+        <script src="actionengine/gl/uniformbuffermanager.js"></script>
+        <script src="actionengine/gl/programmanager.js"></script>
+        <script src="actionengine/gl/shaders/objectshader.js"></script>
+        <script src="actionengine/gl/shaders/lineshader.js"></script>
+        <script src="actionengine/gl/shaders/spriteshader.js"></script>
+        <script src="actionengine/gl/shaders/shadowshader.js"></script>
+        <script src="actionengine/gl/shaders/watershader.js"></script>
+        <script src="actionengine/gl/shaders/particleshader.js"></script>
+        <script src="actionengine/physics/3D/backend.js"></script>
+        <script src="actionengine/physics/3D/actionraycast3D.js"></script>
+        <script src="actionengine/physics/3D/actionrigidbody3D.js"></script>
+        <script src="actionengine/physics/3D/physicsshapebuilder3D.js"></script>
+        <script src="actionengine/physics/3D/actionphysicsworld3D.js"></script>
+        <script src="actionengine/physics/3D/actionphysicsobject3D.js"></script>
+        <script src="actionengine/physics/3D/shapes/actionphysicsplane3D.js"></script>
+        <script src="actionengine/physics/3D/shapes/actionphysicsbox3D.js"></script>
+        <script src="actionengine/physics/3D/shapes/actionphysicssphere3D.js"></script>
+        <script src="actionengine/physics/3D/shapes/actionphysicscapsule3D.js"></script>
+        <script src="actionengine/physics/3D/shapes/actionphysicscone3D.js"></script>
+        <script src="actionengine/physics/3D/shapes/actionphysicscylinder3D.js"></script>
+        <script src="actionengine/physics/3D/shapes/actionphysicsmesh3D.js"></script>
+        <script src="actionengine/physics/3D/shapes/actionphysicscompoundshape3D.js"></script>
+        <script src="actionengine/physics/3D/shapes/actionphysicsconvexshape3D.js"></script>
+        <script src="actionengine/sound/audiomanager.js"></script>
+        <script src="actionengine/sound/soundfont/sf2loader.js"></script>
+        <script src="actionengine/sound/soundfont/timgm6mb/SF2Index.js"></script>
+        <script src="actionengine/sound/soundfont/actionreverb.js"></script>
+        <script src="actionengine/sound/soundfont/actionparser.js"></script>
+        <script src="actionengine/sound/soundfont/actionsoundfont.js"></script>
+        <script src="actionengine/input/inputhandler.js"></script>
+        <script src="actionengine/input/actionscrollablearea.js"></script>
+        <script src="actionengine/camera/actioncamera.js"></script>
+        <script src="actionengine/camera/viewfrustum.js"></script>
+        <script src="actionengine/camera/cameracollisionhandler.js"></script>
+        <script src="actionengine/character/actioncharacter.js"></script>
+        <script src="actionengine/character/actioncharacter3D.js"></script>
+        <script src="actionengine/character/FPSControllerConstants.js"></script>
+        <script src="actionengine/character/actionfpscontroller3D.js"></script>
+        <script src="actionengine/character/actionfpscamera3D.js"></script>
+        <script src="actionengine/character/actionfpsinput.js"></script>
+        <script src="actionengine/character/actionfpsweaponsystem.js"></script>
+        <script src="actionengine/character/actionskeleton.js"></script>
+        <script src="actionengine/character/actionclipsampler.js"></script>
+        <script src="actionengine/character/actionfpscharactermodel.js"></script>
+        <script src="actionengine/character/actionhitresolver.js"></script>
+        <script src="actionengine/character/actionfpsweapon.js"></script>
+        <script src="actionengine/character/actionfpscombat.js"></script>
+        <script src="actionengine/character/actionfpsgrabber.js"></script>
+        <script src="actionengine/character/actionfpsbodymodel.js"></script>
+        <script src="actionengine/network/p2p/ActionNetPeer.js"></script>
+        <script src="actionengine/network/p2p/ActionNetTrackerClient.js"></script>
+        <script src="actionengine/network/p2p/DataConnection.js"></script>
+        <script src="actionengine/network/client/ActionNetManager.js"></script>
+        <script src="actionengine/network/client/SyncSystem.js"></script>
+        <script src="actionengine/network/client/ActionNetManagerGUI.js"></script>
+        <script src="actionengine/network/client/ActionNetManagerP2P.js"></script>
+        <script src="actionengine/network/simulation/ActionSimInputBuffer.js"></script>
+        <script src="actionengine/network/simulation/ActionSimSnapshotBuffer.js"></script>
+        <script src="actionengine/network/simulation/ActionSimP2PTransport.js"></script>
+        <script src="actionengine/network/simulation/ActionSimLoopbackTransport.js"></script>
+        <script src="actionengine/network/simulation/ActionSimServer.js"></script>
+        <script src="actionengine/network/simulation/ActionSimClient.js"></script>
+        <script src="actionengine/util/actionzip.js"></script>
+        <script src="actionengine/debug/basedebugpanel.js"></script>
+        <script src="actionengine/debug/autoshadowpanel.js"></script>
+        <script src="actionengine/xr/actionxr.js"></script>
+        <script src="vr-game.js"></script>
+    </body>
+</html>
