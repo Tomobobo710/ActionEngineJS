@@ -94,15 +94,53 @@ class App {
         this.timestepStats = { droppedTime: 0, shedEvents: 0, maxStepsInFrame: 0 };
 
         this.lastTime = null;
+
+        // --- WebXR (additive, opt-in) ---
+        // Set only when actionengine/xr/actionvr.js + actionxr.js are loaded AND the runtime reports
+        // immersive-vr support. Until then everything below runs the ordinary flatscreen path.
+        this.vr = null;
+
         // Start the game loop
         console.log("[App] Starting game loop...");
         this.loop();
+
+        // Detect VR and, if available, add an "Enter VR" button. No-op on desktop/no-XR, so the
+        // flatscreen path is completely unchanged.
+        this._setupVR();
     }
 
-    // Engine-driven loop
+    // Engine-driven loop (flatscreen). While an immersive session is presenting, the XR session owns
+    // the frame pump (see _frameXR) and this RAF chain is intentionally suspended.
     loop(timestamp) {
-        // Calculate deltaTime (time since last frame in seconds)
+        if (this.vr && this.vr.presenting) return; // XR session drives the frame pump instead
+
         const now = timestamp || performance.now();
+        const alpha = this._update(now);
+
+        // Pre-draw phase
+        if (typeof this.game.action_pre_draw === "function") {
+            this.game.action_pre_draw();
+        }
+
+        // Draw phase
+        if (typeof this.game.action_draw === "function") {
+            this.game.action_draw(alpha);
+        }
+
+        // Post-draw phase
+        if (typeof this.game.action_post_draw === "function") {
+            this.game.action_post_draw();
+        }
+
+        // Schedule the next frame
+        requestAnimationFrame((timestamp) => this.loop(timestamp));
+    }
+
+    // Advance one frame of simulation (input + update phases) and return the render interpolation
+    // factor (alpha). Shared verbatim by the flatscreen loop and the per-eye XR loop so both consume
+    // simulation time identically — the only thing VR changes is the DRAW, never the update.
+    _update(now) {
+        // Calculate deltaTime (time since last frame in seconds)
         let deltaTime = this.lastTime ? (now - this.lastTime) / 1000 : 0;
         this.lastTime = now;
 
@@ -183,25 +221,68 @@ class App {
             this.game.action_post_update(deltaTime);
         }
 
-        // Pre-draw phase
-        if (typeof this.game.action_pre_draw === "function") {
-            this.game.action_pre_draw();
-        }
+        // Interpolation factor for smooth rendering between fixed steps.
+        return this.accumulatedTime / this.fixedTimeStep;
+    }
 
-        // Draw phase
-        if (typeof this.game.action_draw === "function") {
-            // Pass an interpolation factor for smooth rendering between fixed steps
-            const alpha = this.accumulatedTime / this.fixedTimeStep;
-            this.game.action_draw(alpha);
-        }
+    // ---- WebXR ----
 
-        // Post-draw phase
-        if (typeof this.game.action_post_draw === "function") {
-            this.game.action_post_draw();
-        }
+    // Called once from the constructor. Wires up an "Enter VR" button when the engine's XR module is
+    // loaded and the runtime supports immersive-vr. Everything here is guarded so a game that doesn't
+    // ship the xr/ scripts, or a browser without WebXR, behaves exactly as before.
+    _setupVR() {
+        if (typeof ActionVR === "undefined" || typeof ActionXR === "undefined") return;
+        if (!this.game || !this.game.renderer3D) return; // ActionVR drives the 3D renderer
+        ActionXR.isSupported().then((ok) => {
+            if (!ok) return;
+            this.vr = new ActionVR(this);
+            this._addVRButton();
+        }).catch(() => { /* no XR — stay flatscreen */ });
+    }
 
-        // Schedule the next frame
+    _addVRButton() {
+        if (document.getElementById("actionEnterVR")) return;
+        const btn = document.createElement("button");
+        btn.id = "actionEnterVR";
+        btn.textContent = "Enter VR";
+        btn.style.cssText =
+            "position:fixed;left:12px;top:12px;z-index:99999;font:600 15px system-ui,sans-serif;" +
+            "padding:9px 16px;border:0;border-radius:9px;background:#4D96FF;color:#fff;cursor:pointer;";
+        btn.addEventListener("click", async () => {
+            try {
+                btn.disabled = true;
+                await this.vr.enter();
+                btn.style.display = "none";
+            } catch (e) {
+                console.error("[App] Failed to enter VR:", e);
+                btn.disabled = false;
+                btn.textContent = "VR failed — retry";
+            }
+        });
+        document.body.appendChild(btn);
+        this._vrButton = btn;
+    }
+
+    // Called by ActionVR at the start of each immersive session.
+    _onVRStart() {
+        // Drop the stale flatscreen timestamp so the first XR frame doesn't dump a huge delta into
+        // the accumulator.
+        this.lastTime = null;
+    }
+
+    // Called by ActionVR when the immersive session ends — resume the flatscreen loop.
+    _onVREnd() {
+        this.lastTime = null;
+        if (this._vrButton) { this._vrButton.style.display = ""; this._vrButton.disabled = false; }
         requestAnimationFrame((timestamp) => this.loop(timestamp));
+    }
+
+    // Per-frame entry point for the immersive loop, invoked by ActionVR from the XRSession's own
+    // requestAnimationFrame. Runs the SAME update phases as the flat loop, then delegates the draw to
+    // the driver, which renders the scene once per eye.
+    _frameXR(now, driver, pose, layer) {
+        const alpha = this._update(now);
+        driver.renderStereo(alpha, pose, layer);
     }
 }
 

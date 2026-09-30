@@ -958,12 +958,22 @@ class ObjectRenderer3D {
             // clipped away by a near plane sized for a full-scale player.
             Matrix4.perspective(this._uniformCache.matrices.projection, camera.fov, Game.WIDTH / Game.HEIGHT, camera.near || 0.1, 10000.0);
         }
-        Matrix4.lookAt(
-            this._uniformCache.matrices.view,
-            camera.position.toArray(),
-            camera.target.toArray(),
-            camera.up.toArray()
-        );
+        // _viewOverride mirrors _projectionOverride (used by the viewmodel pass): when set, the
+        // caller supplies the exact view matrix instead of us rebuilding it from position/target.
+        // WebXR uses this to feed each eye's world-to-eye matrix (XRView.transform.inverse.matrix)
+        // verbatim, since a stereo view can't be reconstructed from a single lookAt. Null = unchanged.
+        if (this._viewOverride) {
+            const src = this._viewOverride;
+            const dst = this._uniformCache.matrices.view;
+            for (let i = 0; i < 16; i++) dst[i] = src[i];
+        } else {
+            Matrix4.lookAt(
+                this._uniformCache.matrices.view,
+                camera.position.toArray(),
+                camera.target.toArray(),
+                camera.up.toArray()
+            );
+        }
         Matrix4.identity(this._uniformCache.matrices.model);
 
         if (this.lightManager.isMainDirectionalLightEnabled() && this.lightManager.getMainDirectionalLight()) {
