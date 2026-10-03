@@ -24,7 +24,7 @@ class TextureSet {
     }
 
     /**
-     * Load textures from a GLB model
+     * Load textures from a GLB model, or straight from generated canvases (metadata.bitmap skips the PNG detour)
      * @param {Object} model - GLB model with texture data
      * @returns {Promise<void>}
      */
@@ -80,6 +80,20 @@ class TextureSet {
                  }
                  
                  try {
+                     // Generated layers arrive as live canvases, so hand them straight to createImageBitmap. The PNG
+                     // encode/decode detour below exists only because a GLB ships its textures as embedded PNG bytes;
+                     // for pixels we painted ourselves it was pure waste. That path is untouched.
+                     if (metadata.bitmap) {
+                         createImageBitmap(textureData).then(
+                             (bmp) => { loadedImages[i] = bmp; loadedCount++; if (loadedCount === totalCount) resolve(loadedImages); },
+                             (e) => {
+                                 console.error(`Failed to decode texture: ${metadata.name} (index ${i})`, e);
+                                 loadedCount++;
+                                 if (loadedCount === totalCount) resolve(loadedImages);
+                             }
+                         );
+                         return;
+                     }
                      const blob = new Blob([textureData], { type: metadata.mimeType });
                      const url = URL.createObjectURL(blob);
 
@@ -151,6 +165,12 @@ class TextureSet {
         for (let i = 0; i < maxUpload; i++) {
             const img = images[i];
             if (!img) continue;
+            // An ImageBitmap (one of our generated layers) goes straight to the GPU with no scratch canvas. Anything
+            // that needs resizing - a GLB image, or a bitmap the driver made us shrink - still takes the canvas route.
+            if (typeof ImageBitmap !== 'undefined' && img instanceof ImageBitmap && img.width === width && img.height === height) {
+                gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, i, width, height, 1, gl.RGBA, gl.UNSIGNED_BYTE, img);
+                continue;
+            }
             const canvas = document.createElement("canvas");
             canvas.width = width;
             canvas.height = height;
