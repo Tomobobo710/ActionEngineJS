@@ -27,7 +27,8 @@ class ShadowRenderer3D {
         validObjects.length = 0;
         for (let i = 0; i < objects.length; i++) {
             const obj = objects[i];
-            if (obj && obj.triangles && obj.triangles.length > 0) {
+            // castsShadow === false opts an object out (water surfaces, rain: a flat translucent sheet must not shade what it covers)
+            if (obj && obj.castsShadow !== false && obj.triangles && obj.triangles.length > 0) {
                 validObjects.push(obj);
             }
         }

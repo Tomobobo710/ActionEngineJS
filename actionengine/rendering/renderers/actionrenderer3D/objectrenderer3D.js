@@ -822,6 +822,11 @@ class ObjectRenderer3D {
         const locs = this.programManager.getObjectLocations();
         gl.useProgram(prog);
 
+        // Other passes (shadow maps, lights) rebind texture units between our passes, so the "already bound" memory of
+        // setupObjectShader starts empty for each pass.
+        this._boundMaterialTex = null;
+        this._boundTextureArray = null;
+
         this._setFrameConstantUniforms(locs, prog, camera);
 
         // Draw all opaque triangles from all objects first
@@ -1216,13 +1221,16 @@ class ObjectRenderer3D {
         const locs = this.programManager.getObjectLocations();
         const program = currentProgram || this.programManager.getObjectProgram();
 
-        // Bind material properties texture from TextureSet
+        // Bind material properties texture from TextureSet - only when it differs from what the previous object in this
+        // pass bound (hundreds of parts share one TextureSet; re-binding it for each was wasted driver work).
         if (
             textureSet &&
             textureSet.materialPropertiesTexture &&
+            textureSet.materialPropertiesTexture !== this._boundMaterialTex &&
             locs.materialPropertiesTexture !== -1 &&
             locs.materialPropertiesTexture !== null
         ) {
+            this._boundMaterialTex = textureSet.materialPropertiesTexture;
             this.renderer.glStateManager.bindTextureWithUniform(
                 "materialProperties",
                 textureSet.materialPropertiesTexture,
@@ -1232,8 +1240,15 @@ class ObjectRenderer3D {
             );
         }
 
-        // Bind texture array from TextureSet
-        if (textureSet && textureSet.textureArray && locs.textureArray !== -1 && locs.textureArray !== null) {
+        // Bind texture array from TextureSet (same rule)
+        if (
+            textureSet &&
+            textureSet.textureArray &&
+            textureSet.textureArray !== this._boundTextureArray &&
+            locs.textureArray !== -1 &&
+            locs.textureArray !== null
+        ) {
+            this._boundTextureArray = textureSet.textureArray;
             this.renderer.glStateManager.bindTextureWithUniform(
                 "textureArray",
                 textureSet.textureArray,
@@ -1313,6 +1328,8 @@ class ObjectRenderer3D {
         const prog = this.programManager.getObjectProgram();
         const locs = this.programManager.getObjectLocations();
         gl.useProgram(prog);
+        this._boundMaterialTex = null;
+        this._boundTextureArray = null;
         this.updateUniformCache(camera);
         this._setFrameConstantUniforms(locs, prog, camera);
         this._drawTransparentList(this._transparentQueue, locs, camera);

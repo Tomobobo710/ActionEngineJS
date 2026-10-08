@@ -11,6 +11,8 @@ class UniformBufferManager {
         this.ubos = new Map(); // Map of objectId -> UBO info
         this.nextBindingPoint = 0; // Counter for unique binding points
         this.defaultUBO = null; // Default UBO for non-skeletal objects
+        this._blocks = new Map(); // program -> { index, point }: cached "BoneMatrices" block index and current binding point
+        this._defaultBound = false; // is the default UBO currently bound at its binding point
         this.initDefaultUBO();
     }
 
@@ -52,15 +54,34 @@ class UniformBufferManager {
      * Bind the default UBO for non-skeletal objects.
      * @param {WebGLProgram} program - The shader program
      */
+    // The "BoneMatrices" block index of a program never changes, and the binding point it is wired to only changes when an
+    // animated object asks for a different one. Both used to be looked up / re-set on EVERY draw (a getUniformBlockIndex,
+    // uniformBlockBinding and bindBufferBase per object - the dominant per-draw cost with hundreds of objects). They are
+    // now remembered per program and only re-issued when they actually change.
+    _block(program) {
+        let info = this._blocks.get(program);
+        if (!info) {
+            info = { index: this.gl.getUniformBlockIndex(program, "BoneMatrices"), point: -1 };
+            this._blocks.set(program, info);
+        }
+        return info;
+    }
+
     bindDefaultUBO(program) {
         const gl = this.gl;
-        const blockIndex = gl.getUniformBlockIndex(program, "BoneMatrices");
-        if (blockIndex === gl.INVALID_INDEX) {
+        const info = this._block(program);
+        if (info.index === gl.INVALID_INDEX) {
             return;
         }
 
-        gl.uniformBlockBinding(program, blockIndex, this.defaultUBO.bindingPoint);
-        gl.bindBufferBase(gl.UNIFORM_BUFFER, this.defaultUBO.bindingPoint, this.defaultUBO.buffer);
+        if (info.point !== this.defaultUBO.bindingPoint) {
+            gl.uniformBlockBinding(program, info.index, this.defaultUBO.bindingPoint);
+            info.point = this.defaultUBO.bindingPoint;
+        }
+        if (!this._defaultBound) {
+            gl.bindBufferBase(gl.UNIFORM_BUFFER, this.defaultUBO.bindingPoint, this.defaultUBO.buffer);
+            this._defaultBound = true;
+        }
     }
 
     /**
@@ -136,14 +157,17 @@ class UniformBufferManager {
         }
 
         const gl = this.gl;
-        const blockIndex = gl.getUniformBlockIndex(program, "BoneMatrices");
-        if (blockIndex === gl.INVALID_INDEX) {
+        const info = this._block(program);
+        if (info.index === gl.INVALID_INDEX) {
             // Shader doesn't use bone matrices
             return;
         }
 
         // Connect shader uniform block to binding point
-        gl.uniformBlockBinding(program, blockIndex, uboInfo.bindingPoint);
+        if (info.point !== uboInfo.bindingPoint) {
+            gl.uniformBlockBinding(program, info.index, uboInfo.bindingPoint);
+            info.point = uboInfo.bindingPoint;
+        }
     }
 
     /**
