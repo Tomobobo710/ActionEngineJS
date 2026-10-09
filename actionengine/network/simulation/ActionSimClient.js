@@ -62,6 +62,7 @@ class ActionSimClient {
         this.resyncGapMs = opts.resyncGapMs || 500; // real wall-time between ticks ⇒ a freeze (tab background, sleep, stall)
         this.resyncTickGap = opts.resyncTickGap || 64; // server tick leapt past our replay window
         this.resyncErrorDist = opts.resyncErrorDist || 60; // predicted-vs-authoritative position gap (a few player-widths)
+        this.maxResimTicks = opts.maxResimTicks || this.resyncTickGap; // un-acked commands beyond this ⇒ snap instead of resim
         this._lastTickWall = 0; // performance.now() at the previous tick — measures real elapsed time
         this._freezeResync = false; // a freeze was detected; consume it on the next snapshot
 
@@ -234,7 +235,13 @@ class ActionSimClient {
         // what we predicted FOR ack — NOT predicted-present vs authority-past. The latter conflates real
         // error with velocity×latency, so it false-snaps fast/big/distant movers on high-latency links.
         const drift = this._driftAt(ack, authState); // null when unmeasurable (no ack / no record)
-        const desync = forceResync || authState.resync === true || (drift !== null && drift > this.resyncErrorDist);
+        // Replay-depth cap: if more un-acked commands remain than we're willing to resim, give up and
+        // snap. Resim cost is pending.length × stepWorld per snapshot; unbounded, a slow frame grows
+        // pending, which makes the next resim slower — a death spiral. Prediction is a nicety; bail.
+        let unacked = 0;
+        for (const c of this.pending) if (ack === undefined || c.seq > ack) unacked++;
+        const tooDeep = unacked > this.maxResimTicks;
+        const desync = forceResync || tooDeep || authState.resync === true || (drift !== null && drift > this.resyncErrorDist);
         if (desync) {
             this._resync(authState, predStates);
             return;
