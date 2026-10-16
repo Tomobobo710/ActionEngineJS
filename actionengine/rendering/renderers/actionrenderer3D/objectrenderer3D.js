@@ -97,6 +97,8 @@ class ObjectRenderer3D {
             this.stats.objectsTotal = 0;
             this.stats.objectsCulled = 0;
             this.stats.uniformSetCount = 0;
+            this.stats.instancedDraws = 0;
+            this.stats.instancedObjects = 0;
 
             this._drawQueue = [];
             this._frameInitialized = true;
@@ -836,94 +838,254 @@ class ObjectRenderer3D {
         this._transparentQueue = this._drawQueue;
     }
 
-    _drawEntryList(list, locs, camera) {
+    // ================================================================================================================
+    // AUTOMATIC GPU INSTANCING
+    //
+    // Objects that share a mesh (same `triangles` array, which is already how meshes are de-duplicated) and the same TextureSet are
+    // drawn with ONE drawElementsInstanced call instead of one drawElements + uniform upload each. Nothing is asked of the game:
+    // the engine finds the groups itself every frame, in the colour pass, the transparent pass and every shadow pass.
+    //
+    // An object is batched when it is not skeletally animated (no getBoneMatrices) and its scale is uniform. Everything else, and
+    // any shader program that does not declare the uInstanced / uInstanceData uniforms (a custom variant), is drawn one at a time
+    // exactly as before, so this can only ever make a frame cheaper.
+    //
+    // Per-instance data (position + uniform scale, rotation quaternion) is packed into a small float texture once per pass and read
+    // in the vertex shader with gl_InstanceID, so it costs no vertex attribute slots (a shader with 16 attributes can still batch).
+    // ================================================================================================================
+
+    static get INSTANCE_FLOATS() { return 8; }      // (pos.xyz, uniform scale) + rotation quaternion = 2 RGBA32F texels
+    static get INSTANCE_TEX_W() { return 1024; }    // texels per row of the instance-data texture (matches the shader)
+
+    /** Uniform scale of a queued transform, or -1 when it is non-uniform (not batchable). */
+    _uniformScaleOf(scale) {
+        if (scale === undefined || scale === null) return 1;
+        if (typeof scale === "number") return scale;
+        const x = scale.x, y = scale.y, z = scale.z;
+        if (x === undefined) return 1;
+        return x === y && y === z ? x : -1;
+    }
+
+    _canInstanceProgram(locs) {
+        return !!locs && !!locs.instanced && !!locs.instData && !!locs.instBase && this.instancingEnabled !== false;
+    }
+
+    _instanceStore(name) {
+        if (!this._instStores) this._instStores = {};
+        let st = this._instStores[name];
+        if (!st) st = this._instStores[name] = { tex: this.gl.createTexture(), data: new Float32Array(ObjectRenderer3D.INSTANCE_TEX_W * 4), n: 0, texRows: 0 };
+        return st;
+    }
+
+    /** Make room for `count` more instances in the store (keeps what is already packed). */
+    _instReserve(st, count) {
+        const rowFloats = ObjectRenderer3D.INSTANCE_TEX_W * 4;
+        const need = Math.ceil(((st.n + count) * ObjectRenderer3D.INSTANCE_FLOATS) / rowFloats) * rowFloats;
+        if (need > st.data.length) {
+            const grown = new Float32Array(Math.max(need, st.data.length * 2));
+            grown.set(st.data.subarray(0, st.n * ObjectRenderer3D.INSTANCE_FLOATS));
+            st.data = grown;
+        }
+    }
+
+    _instPush(st, pos, rot, uniformScale) {
+        const d = st.data, o = st.n * ObjectRenderer3D.INSTANCE_FLOATS;
+        if (pos) { d[o] = pos.x; d[o + 1] = pos.y; d[o + 2] = pos.z; } else { d[o] = 0; d[o + 1] = 0; d[o + 2] = 0; }
+        d[o + 3] = uniformScale;
+        if (rot) { d[o + 4] = rot.x; d[o + 5] = rot.y; d[o + 6] = rot.z; d[o + 7] = rot.w; } else { d[o + 4] = 0; d[o + 5] = 0; d[o + 6] = 0; d[o + 7] = 1; }
+        st.n++;
+    }
+
+    _instUpload(st) {
+        if (st.n === 0) return;
+        const gl = this.gl, W = ObjectRenderer3D.INSTANCE_TEX_W;
+        const rows = Math.ceil((st.n * 2) / W);
+        const gm = this.renderer.glStateManager;
+        gl.activeTexture(gl.TEXTURE0 + gm.getTextureUnit("instanceData"));
+        gl.bindTexture(gl.TEXTURE_2D, st.tex);
+        if (rows > st.texRows) {
+            // (re)allocate with headroom so a growing crowd does not reallocate every frame
+            const alloc = Math.max(rows, st.texRows * 2, 4);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, W, alloc, 0, gl.RGBA, gl.FLOAT, null);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            st.texRows = alloc;
+        }
+        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, W, rows, gl.RGBA, gl.FLOAT, st.data.subarray(0, rows * W * 4));
+    }
+
+    /** Make the store's texture the one the CURRENT program samples (once per pass; the unit is reserved for it). */
+    _instAttach(locs, st, program) {
+        this.renderer.glStateManager.bindTextureWithUniform("instanceData", st.tex, "TEXTURE_2D", program, "uInstanceData");
+    }
+
+    /** Switch the current program into instanced mode, reading from `firstInstance` of the store. Undo with _instUnbind. */
+    _instBind(locs, firstInstance) {
+        const gl = this.gl;
+        gl.uniform1i(locs.instBase, firstInstance);
+        gl.uniform1i(locs.instanced, 1);
+    }
+
+    _instUnbind(locs) {
+        this.gl.uniform1i(locs.instanced, 0);
+    }
+
+    /**
+     * Draw one pass over the queue (opaque or transparent indices of every mesh), instancing wherever the engine can.
+     */
+    _drawMeshGroups(list, locs, camera, transparentPass) {
         const gl = this.gl;
         const prog = this.programManager.getObjectProgram();
+        const canInstance = this._canInstanceProgram(locs);
 
         // Group entries by meshId so each mesh's VAO is bound only once
         const entriesByMeshId = new Map();
         for (const entry of list) {
-            if (!entriesByMeshId.has(entry.meshId)) {
-                entriesByMeshId.set(entry.meshId, []);
+            if (transparentPass) {
+                const m = this._meshLibrary.get(entry.meshId);
+                if (!m || m.transparentCount === 0) continue;
             }
-            entriesByMeshId.get(entry.meshId).push(entry);
+            let g = entriesByMeshId.get(entry.meshId);
+            if (!g) entriesByMeshId.set(entry.meshId, (g = []));
+            g.push(entry);
         }
 
+        // Plan: per mesh, runs of >= 2 batchable entries sharing a TextureSet become one instanced draw; the rest stay single.
+        const st = canInstance ? this._instanceStore("color") : null;
+        if (st) st.n = 0;
+        const plan = [];
         for (const [meshId, entries] of entriesByMeshId) {
             const mesh = this._meshLibrary.get(meshId);
-            if (!mesh) continue;
+            if (!mesh || entries.length === 0) continue;
+            let singles = entries, runs = null;
+            if (canInstance && entries.length > 1) {
+                const bySet = new Map();
+                singles = [];
+                for (const e of entries) {
+                    const o = e.object;
+                    const us = o && typeof o.getBoneMatrices !== "function" ? this._uniformScaleOf(e.scale) : -1;
+                    if (us < 0) { singles.push(e); continue; }
+                    const key = o._textureSet || null;
+                    let r = bySet.get(key);
+                    if (!r) bySet.set(key, (r = []));
+                    r.push(e);
+                }
+                for (const r of bySet.values()) {
+                    if (r.length < 2) { singles.push(r[0]); continue; }
+                    this._instReserve(st, r.length);
+                    const first = st.n;
+                    for (const e of r) this._instPush(st, e.position, e.rotation, this._uniformScaleOf(e.scale));
+                    (runs || (runs = [])).push({ entries: r, first });
+                }
+            }
+            plan.push({ mesh, singles, runs });
+        }
+        if (st) { this._instUpload(st); if (st.n > 0) this._instAttach(locs, st, prog); }
 
-            if (entries.length === 0) continue;
-
+        for (const { mesh, singles, runs } of plan) {
             // Get or build VAO for this program variant
-            let vao;
-            if (mesh.vaos.has(prog)) {
-                vao = mesh.vaos.get(prog);
-            } else {
+            let vao = mesh.vaos.get(prog);
+            if (!vao) {
                 vao = this._buildVAO(mesh, locs, prog);
                 mesh.vaos.set(prog, vao);
             }
-
-            // ONE call instead of ~26 bindBuffer/vertexAttribPointer/
-            // enableVertexAttribArray calls (13 attributes × 2 calls each)
+            // ONE call instead of ~26 bindBuffer/vertexAttribPointer/enableVertexAttribArray calls
             gl.bindVertexArray(vao);
 
-            // Draw each instance with only per-object uniform updates
-            for (const entry of entries) {
-                this.setupObjectShader(locs, camera, -1, entry.position, entry.rotation, entry.scale, entry.object);
+            const count = transparentPass ? mesh.transparentCount : mesh.opaqueCount;
+            const byteOffset = transparentPass ? mesh.opaqueCount * 4 : 0;   // transparent triangles are packed after the opaque ones (uint32)
 
-                if (mesh.opaqueCount > 0) {
-                    gl.drawElements(gl.TRIANGLES, mesh.opaqueCount, this.indexType, 0);
+            if (count > 0) {
+                for (const entry of singles) {
+                    this.setupObjectShader(locs, camera, -1, entry.position, entry.rotation, entry.scale, entry.object);
+                    gl.drawElements(gl.TRIANGLES, count, this.indexType, byteOffset);
                 }
+                if (runs) {
+                    for (const run of runs) {
+                        const e0 = run.entries[0];
+                        // textures + the default bone UBO are the same for the whole run: set them once
+                        this.setupObjectShader(locs, camera, -1, e0.position, e0.rotation, e0.scale, e0.object);
+                        this._instBind(locs, run.first);
+                        gl.drawElementsInstanced(gl.TRIANGLES, count, this.indexType, byteOffset, run.entries.length);
+                        this._instUnbind(locs);
+                        this.stats.instancedDraws = (this.stats.instancedDraws | 0) + 1;
+                        this.stats.instancedObjects = (this.stats.instancedObjects | 0) + run.entries.length;
+                    }
+                }
+            } else {
+                // nothing to draw for these indices, but keep the bookkeeping identical to the old path
+                for (const entry of singles) this.setupObjectShader(locs, camera, -1, entry.position, entry.rotation, entry.scale, entry.object);
             }
         }
 
         gl.bindVertexArray(null);
     }
 
+    _drawEntryList(list, locs, camera) {
+        this._drawMeshGroups(list, locs, camera, false);
+    }
+
     _drawTransparentList(list, locs, camera) {
+        this._drawMeshGroups(list, locs, camera, true);
+    }
+
+    /**
+     * SHADOW PASSES. Called once per frame by ShadowRenderer3D with every shadow caster: finds the batchable groups (same mesh,
+     * not animated, uniform scale), packs their transforms into one buffer and returns a plan the shadow passes reuse for every
+     * cascade / cube face. `singles` are the casters that still draw one at a time.
+     */
+    planShadowInstancing(objects) {
+        if (this.instancingEnabled === false) return null;
+        const st = this._instanceStore("shadow");
+        st.n = 0;
+        const groups = new Map(), singles = [];
+        for (let i = 0; i < objects.length; i++) {
+            const o = objects[i];
+            const tr = o.transform;
+            const us = typeof o.getBoneMatrices !== "function" ? this._uniformScaleOf(tr ? tr.scale : 1) : -1;
+            if (us < 0) { singles.push(o); continue; }
+            const meshId = this.getMeshIdForTriangles(o.triangles, o._stableMeshId);
+            const mesh = meshId ? this._meshLibrary.get(meshId) : null;
+            if (!mesh) { singles.push(o); continue; }
+            let g = groups.get(meshId);
+            if (!g) groups.set(meshId, (g = []));
+            g.push(o);
+        }
+        const batches = [];
+        for (const [meshId, g] of groups) {
+            if (g.length < 2) { singles.push(g[0]); continue; }
+            this._instReserve(st, g.length);
+            const first = st.n;
+            for (const o of g) {
+                const tr = o.transform;
+                this._instPush(st, tr ? tr.position : null, tr ? tr.rotation : null, this._uniformScaleOf(tr ? tr.scale : 1));
+            }
+            batches.push({ meshId, objects: g, first, count: g.length });
+        }
+        if (batches.length === 0) return null;
+        this._instUpload(st);
+        return { batches, singles, store: st };
+    }
+
+    /**
+     * Draw a shadow plan's batches with the light's CURRENT shadow program. Returns false (drawing nothing) when that program
+     * does not support instancing, so the caller draws the batched objects individually instead.
+     */
+    drawShadowBatches(plan, shadowLocs, shadowProgram) {
+        if (!plan || !this._canInstanceProgram(shadowLocs)) return false;
         const gl = this.gl;
-        const prog = this.programManager.getObjectProgram();
-
-        // Group entries by meshId so each mesh's VAO is bound only once
-        const entriesByMeshId = new Map();
-        for (const entry of list) {
-            const mesh = this._meshLibrary.get(entry.meshId);
-            if (!mesh || mesh.transparentCount === 0) continue;
-
-            if (!entriesByMeshId.has(entry.meshId)) {
-                entriesByMeshId.set(entry.meshId, []);
-            }
-            entriesByMeshId.get(entry.meshId).push(entry);
+        this._instAttach(shadowLocs, plan.store, shadowProgram);
+        for (const batch of plan.batches) {
+            const mesh = this._meshLibrary.get(batch.meshId);
+            if (!mesh) continue;
+            gl.bindVertexArray(this.buildShadowVAO(mesh, shadowLocs, shadowProgram));
+            this._instBind(shadowLocs, batch.first);
+            gl.drawElementsInstanced(gl.TRIANGLES, mesh.count, gl.UNSIGNED_INT, 0, batch.count);
+            this._instUnbind(shadowLocs);
         }
-
-        for (const [meshId, entries] of entriesByMeshId) {
-            const mesh = this._meshLibrary.get(meshId);
-            if (!mesh || mesh.transparentCount === 0) continue;
-
-            // Get or build VAO for this program variant
-            let vao;
-            if (mesh.vaos.has(prog)) {
-                vao = mesh.vaos.get(prog);
-            } else {
-                vao = this._buildVAO(mesh, locs, prog);
-                mesh.vaos.set(prog, vao);
-            }
-
-            // ONE call instead of ~26 bindBuffer/vertexAttribPointer/
-            // enableVertexAttribArray calls
-            gl.bindVertexArray(vao);
-
-            for (const entry of entries) {
-                this.setupObjectShader(locs, camera, -1, entry.position, entry.rotation, entry.scale, entry.object);
-
-                // Transparent triangles are packed after opaque indices in the buffer
-                const transparentOffset = mesh.opaqueCount * 4; // 4 bytes per uint32 index
-                gl.drawElements(gl.TRIANGLES, mesh.transparentCount, this.indexType, transparentOffset);
-            }
-        }
-
         gl.bindVertexArray(null);
+        return true;
     }
 
     _finalizeFrame() {

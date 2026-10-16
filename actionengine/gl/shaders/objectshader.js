@@ -147,6 +147,14 @@ class ObjectShader {
     uniform vec3 uModelPos;
     uniform vec4 uModelRotation;
     uniform vec3 uModelScale;
+        uniform bool uInstanced;      // true only inside an instanced draw; otherwise the uModel* uniforms apply
+        uniform int uInstanceBase;     // first instance of this draw inside uInstanceData
+        uniform highp sampler2D uInstanceData; // GPU instancing: 2 texels per instance = (pos.xyz, uniform scale), rotation quaternion
+        vec4 instFetch(int k) { int t = 2 * (uInstanceBase + gl_InstanceID) + k; return texelFetch(uInstanceData, ivec2(t % 1024, t / 1024), 0); }
+        #define MODEL_POS (uInstanced ? instFetch(0).xyz : uModelPos)
+        #define MODEL_ROT (uInstanced ? instFetch(1) : uModelRotation)
+        #define MODEL_SCALE (uInstanced ? vec3(instFetch(0).w) : uModelScale)
+
     uniform mat4 uLightSpaceMatrix;  // Added for shadow mapping
     uniform float uShadowNormalOffset; // world-space normal-offset bias magnitude (texelWorld × normalSlackTexels)
 
@@ -203,16 +211,16 @@ class ObjectShader {
         }
         
         // Calculate world position from GPU-constructed matrix
-        mat4 modelMatrix = buildModelMatrix(uModelPos, uModelRotation, uModelScale);
+        mat4 modelMatrix = buildModelMatrix(MODEL_POS, MODEL_ROT, MODEL_SCALE);
         vec4 worldPos = modelMatrix * vec4(skinnedPosition, 1.0);
         vWorldPos = worldPos.xyz;
         vFragPos = worldPos.xyz;
         // Transform normal to world space (use 3x3 rotation part for normal)
-        vec3 worldNormal = normalize(quaternionToMatrix(uModelRotation) * skinnedNormal);
+        vec3 worldNormal = normalize(quaternionToMatrix(MODEL_ROT) * skinnedNormal);
         vNormal = worldNormal;
         
         // Transform tangent to world space and calculate bitangent
-        vTangent = quaternionToMatrix(uModelRotation) * aTangent;
+        vTangent = quaternionToMatrix(MODEL_ROT) * aTangent;
         vBitangent = cross(normalize(vNormal), normalize(vTangent));
         
         // Calculate view direction

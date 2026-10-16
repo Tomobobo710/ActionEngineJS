@@ -34,6 +34,7 @@ class GLStateManager {
             pointShadowMap3: 13,
             directionalCascadeArray: 14, // CSM depth TEXTURE_2D_ARRAY (cascaded directional shadows)
             textureArray: 20,
+            instanceData: 21,           // GPU instancing transforms (RGBA32F, 2 texels per instance)
             spriteTexture: 15
         };
 

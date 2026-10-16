@@ -378,6 +378,7 @@ class ProgramManager {
                 modelPos: this.gl.getUniformLocation(program, "uModelPos"),
                 modelRotation: this.gl.getUniformLocation(program, "uModelRotation"),
                 modelScale: this.gl.getUniformLocation(program, "uModelScale"),
+                ...this._instancingLocations(program),
                 debugShadowMap: this.gl.getUniformLocation(program, "uDebugShadowMap"),
                 forceShadowMapTest: this.gl.getUniformLocation(program, "uForceShadowMapTest"),
                 shadowMapSize: this.gl.getUniformLocation(program, "uShadowMapSize")
@@ -429,6 +430,7 @@ class ProgramManager {
                 modelPos: this.gl.getUniformLocation(program, "uModelPos"),
                 modelRotation: this.gl.getUniformLocation(program, "uModelRotation"),
                 modelScale: this.gl.getUniformLocation(program, "uModelScale"),
+                ...this._instancingLocations(program),
                 lightPos: this.gl.getUniformLocation(program, "uLightPos"),
                 farPlane: this.gl.getUniformLocation(program, "uFarPlane"),
                 debugShadowMap: this.gl.getUniformLocation(program, "uDebugShadowMap"),
@@ -571,6 +573,21 @@ class ProgramManager {
     }
 
     /**
+     * Locations for AUTOMATIC GPU INSTANCING. A program that declares these (the built-in object and shadow shaders do) can draw
+     * every object sharing a mesh in ONE drawElementsInstanced call, the per-object transform read from the instance-data
+     * texture (no vertex attribute slots used) instead of uniforms. A program that does not declare them (a custom variant)
+     * reports null and is drawn one object at a time.
+     */
+    _instancingLocations(program) {
+        const gl = this.gl;
+        return {
+            instanced: gl.getUniformLocation(program, "uInstanced"),
+            instBase: gl.getUniformLocation(program, "uInstanceBase"),
+            instData: gl.getUniformLocation(program, "uInstanceData")
+        };
+    }
+
+    /**
      * Get locations for a standard shader
      * @param {WebGLProgram} program - The WebGL program
      * @returns {Object} - Object containing all shader locations
@@ -604,6 +621,7 @@ class ProgramManager {
             modelPos: gl.getUniformLocation(program, unif.modelPos),
             modelRotation: gl.getUniformLocation(program, unif.modelRotation),
             modelScale: gl.getUniformLocation(program, unif.modelScale),
+            ...this._instancingLocations(program),
             lightPos: gl.getUniformLocation(program, unif.lightPos),
             lightDir: gl.getUniformLocation(program, unif.lightDir),
             lightIntensity: gl.getUniformLocation(program, unif.lightIntensity),

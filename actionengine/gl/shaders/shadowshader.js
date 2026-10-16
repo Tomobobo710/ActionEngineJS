@@ -55,6 +55,14 @@ class ShadowShader {
         uniform vec3 uModelPos;
         uniform vec4 uModelRotation;
         uniform vec3 uModelScale;
+        uniform bool uInstanced;      // true only inside an instanced draw; otherwise the uModel* uniforms apply
+        uniform int uInstanceBase;     // first instance of this draw inside uInstanceData
+        uniform highp sampler2D uInstanceData; // GPU instancing: 2 texels per instance = (pos.xyz, uniform scale), rotation quaternion
+        vec4 instFetch(int k) { int t = 2 * (uInstanceBase + gl_InstanceID) + k; return texelFetch(uInstanceData, ivec2(t % 1024, t / 1024), 0); }
+        #define MODEL_POS (uInstanced ? instFetch(0).xyz : uModelPos)
+        #define MODEL_ROT (uInstanced ? instFetch(1) : uModelRotation)
+        #define MODEL_SCALE (uInstanced ? vec3(instFetch(0).w) : uModelScale)
+
         
         // Bone matrices for skeletal animation (max 256 bones)
         layout(std140) uniform BoneMatrices {
@@ -81,7 +89,7 @@ class ShadowShader {
                 }
             }
             
-            mat4 modelMatrix = buildModelMatrix(uModelPos, uModelRotation, uModelScale);
+            mat4 modelMatrix = buildModelMatrix(MODEL_POS, MODEL_ROT, MODEL_SCALE);
             gl_Position = uLightSpaceMatrix * modelMatrix * vec4(skinnedPosition, 1.0);
         }`;
     }
@@ -98,13 +106,21 @@ class ShadowShader {
          uniform vec3 uModelPos;
          uniform vec4 uModelRotation;
          uniform vec3 uModelScale;
+        uniform bool uInstanced;      // true only inside an instanced draw; otherwise the uModel* uniforms apply
+        uniform int uInstanceBase;     // first instance of this draw inside uInstanceData
+        uniform highp sampler2D uInstanceData; // GPU instancing: 2 texels per instance = (pos.xyz, uniform scale), rotation quaternion
+        vec4 instFetch(int k) { int t = 2 * (uInstanceBase + gl_InstanceID) + k; return texelFetch(uInstanceData, ivec2(t % 1024, t / 1024), 0); }
+        #define MODEL_POS (uInstanced ? instFetch(0).xyz : uModelPos)
+        #define MODEL_ROT (uInstanced ? instFetch(1) : uModelRotation)
+        #define MODEL_SCALE (uInstanced ? vec3(instFetch(0).w) : uModelScale)
+
          out vec4 vWorldPos; // For omnidirectional shadows
         uniform vec3 uLightPos; // For omnidirectional shadows
         
         ${this.getMatrixConstructionHelpers()}
         
         void main() {
-            mat4 modelMatrix = buildModelMatrix(uModelPos, uModelRotation, uModelScale);
+            mat4 modelMatrix = buildModelMatrix(MODEL_POS, MODEL_ROT, MODEL_SCALE);
             vec4 worldPos = modelMatrix * vec4(aPosition, 1.0);
             vWorldPos = worldPos;
             gl_Position = uLightSpaceMatrix * worldPos;
@@ -125,6 +141,14 @@ class ShadowShader {
          uniform vec3 uModelPos;
          uniform vec4 uModelRotation;
          uniform vec3 uModelScale;
+        uniform bool uInstanced;      // true only inside an instanced draw; otherwise the uModel* uniforms apply
+        uniform int uInstanceBase;     // first instance of this draw inside uInstanceData
+        uniform highp sampler2D uInstanceData; // GPU instancing: 2 texels per instance = (pos.xyz, uniform scale), rotation quaternion
+        vec4 instFetch(int k) { int t = 2 * (uInstanceBase + gl_InstanceID) + k; return texelFetch(uInstanceData, ivec2(t % 1024, t / 1024), 0); }
+        #define MODEL_POS (uInstanced ? instFetch(0).xyz : uModelPos)
+        #define MODEL_ROT (uInstanced ? instFetch(1) : uModelRotation)
+        #define MODEL_SCALE (uInstanced ? vec3(instFetch(0).w) : uModelScale)
+
          uniform vec3 uLightPos;
          
          // Bone matrices for skeletal animation (max 256 bones)
@@ -154,7 +178,7 @@ class ShadowShader {
                 }
             }
             
-            mat4 modelMatrix = buildModelMatrix(uModelPos, uModelRotation, uModelScale);
+            mat4 modelMatrix = buildModelMatrix(MODEL_POS, MODEL_ROT, MODEL_SCALE);
             vec4 worldPos = modelMatrix * vec4(skinnedPosition, 1.0);
             vFragPos = worldPos.xyz;
             gl_Position = uLightSpaceMatrix * worldPos;

@@ -40,15 +40,40 @@ class ShadowRenderer3D {
         // Set up GL state for shadow rendering (no blending, depth writes enabled)
         this.glStateManager.setupState("shadow");
 
+        // Find the casters that can share one instanced draw (same mesh, not animated) once for the whole frame; every cascade and
+        // cube face below reuses the plan.
+        this._plan = null;
+        const anyLight = this.lightManager.directionalLights[0] || this.lightManager.pointLights[0];
+        const objectRenderer = anyLight && anyLight.objectRenderer;
+        if (objectRenderer && typeof objectRenderer.planShadowInstancing === "function") {
+            this._plan = objectRenderer.planShadowInstancing(validObjects);
+        }
+
         // Render directional light shadow maps
         this._renderDirectionalLightShadows(validObjects);
 
         // Render point light shadow maps
         this._renderPointLightShadows(validObjects);
+        this._plan = null;
 
         // Reset state after shadow rendering
         this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
         this.gl.useProgram(null);
+    }
+
+    /**
+     * Draw every caster into the light's current shadow target: batchable groups as instanced draws (when the light's shadow
+     * program supports it), everything else one object at a time.
+     * @private
+     */
+    _drawCasters(light, objects) {
+        const plan = this._plan;
+        if (plan && light.objectRenderer.drawShadowBatches(plan, light.shadowLocations, light.shadowProgram)) {
+            const singles = plan.singles;
+            for (let i = 0; i < singles.length; i++) light.renderObjectToShadowMap(singles[i]);
+            return;
+        }
+        for (const object of objects) light.renderObjectToShadowMap(object);
     }
 
     /**
@@ -67,9 +92,7 @@ class ShadowRenderer3D {
             if (cascadeCount > 0) {
                 for (let c = 0; c < cascadeCount; c++) {
                     light.beginCascadePass(c);
-                    for (const object of objects) {
-                        light.renderObjectToShadowMap(object);
-                    }
+                    this._drawCasters(light, objects);
                     light.endShadowPass();
                 }
                 continue;
@@ -78,9 +101,7 @@ class ShadowRenderer3D {
             light.beginShadowPass();
 
             // Render objects to shadow map
-            for (const object of objects) {
-                light.renderObjectToShadowMap(object);
-            }
+            this._drawCasters(light, objects);
 
             light.endShadowPass();
         }
@@ -103,9 +124,7 @@ class ShadowRenderer3D {
                 light.beginShadowPass(faceIndex, lightIndex);
 
                 // Render objects to shadow map for this face
-                for (const object of objects) {
-                    light.renderObjectToShadowMap(object);
-                }
+                this._drawCasters(light, objects);
 
                 light.endShadowPass();
             }
