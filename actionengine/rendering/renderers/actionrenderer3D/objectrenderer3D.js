@@ -920,6 +920,24 @@ class ObjectRenderer3D {
         this.renderer.glStateManager.bindTextureWithUniform("instanceData", st.tex, "TEXTURE_2D", program, "uInstanceData");
     }
 
+    /** The instancing uniform on / off for the current program (once around a batch of runs, not per run). */
+    _instMode(locs, on) {
+        this.gl.uniform1i(locs.instanced, on ? 1 : 0);
+    }
+
+    /** Bind a TextureSet's material-property texture and texture array if they are not what this pass already has bound. */
+    _bindMaterialSet(textureSet, locs, program) {
+        if (!textureSet) return;
+        if (textureSet.materialPropertiesTexture && textureSet.materialPropertiesTexture !== this._boundMaterialTex && locs.materialPropertiesTexture !== -1 && locs.materialPropertiesTexture !== null) {
+            this._boundMaterialTex = textureSet.materialPropertiesTexture;
+            this.renderer.glStateManager.bindTextureWithUniform("materialProperties", textureSet.materialPropertiesTexture, "TEXTURE_2D", program, "uMaterialPropertiesTexture");
+        }
+        if (textureSet.textureArray && textureSet.textureArray !== this._boundTextureArray && locs.textureArray !== -1 && locs.textureArray !== null) {
+            this._boundTextureArray = textureSet.textureArray;
+            this.renderer.glStateManager.bindTextureWithUniform("textureArray", textureSet.textureArray, "TEXTURE_2D_ARRAY", program, "uTextureArray");
+        }
+    }
+
     /** Switch the current program into instanced mode, reading from `firstInstance` of the store. Undo with _instUnbind. */
     _instBind(locs, firstInstance) {
         const gl = this.gl;
@@ -983,41 +1001,57 @@ class ObjectRenderer3D {
         }
         if (st) { this._instUpload(st); if (st.n > 0) this._instAttach(locs, st, prog); }
 
-        for (const { mesh, singles, runs } of plan) {
-            // Get or build VAO for this program variant
+        // The program is known for the whole pass: setupObjectShader reads it from here instead of asking the driver per object.
+        this._activeProgram = prog;
+        const vaoOf = (mesh) => {
             let vao = mesh.vaos.get(prog);
-            if (!vao) {
-                vao = this._buildVAO(mesh, locs, prog);
-                mesh.vaos.set(prog, vao);
-            }
+            if (!vao) { vao = this._buildVAO(mesh, locs, prog); mesh.vaos.set(prog, vao); }
+            return vao;
+        };
+        const countOf = (mesh) => (transparentPass ? mesh.transparentCount : mesh.opaqueCount);
+        const offsetOf = (mesh) => (transparentPass ? mesh.opaqueCount * 4 : 0);     // transparent triangles are packed after the opaque ones (uint32)
+
+        // sweep 1: single draws (the instancing uniform is off)
+        let anyRuns = false;
+        for (const { mesh, singles, runs } of plan) {
+            if (runs) anyRuns = true;
+            if (!singles.length) continue;
+            const count = countOf(mesh), byteOffset = offsetOf(mesh);
             // ONE call instead of ~26 bindBuffer/vertexAttribPointer/enableVertexAttribArray calls
-            gl.bindVertexArray(vao);
-
-            const count = transparentPass ? mesh.transparentCount : mesh.opaqueCount;
-            const byteOffset = transparentPass ? mesh.opaqueCount * 4 : 0;   // transparent triangles are packed after the opaque ones (uint32)
-
+            gl.bindVertexArray(vaoOf(mesh));
             if (count > 0) {
                 for (const entry of singles) {
                     this.setupObjectShader(locs, camera, -1, entry.position, entry.rotation, entry.scale, entry.object);
                     gl.drawElements(gl.TRIANGLES, count, this.indexType, byteOffset);
-                }
-                if (runs) {
-                    for (const run of runs) {
-                        const e0 = run.entries[0];
-                        // textures + the default bone UBO are the same for the whole run: set them once
-                        this.setupObjectShader(locs, camera, -1, e0.position, e0.rotation, e0.scale, e0.object);
-                        this._instBind(locs, run.first);
-                        gl.drawElementsInstanced(gl.TRIANGLES, count, this.indexType, byteOffset, run.entries.length);
-                        this._instUnbind(locs);
-                        this.stats.instancedDraws = (this.stats.instancedDraws | 0) + 1;
-                        this.stats.instancedObjects = (this.stats.instancedObjects | 0) + run.entries.length;
-                    }
                 }
             } else {
                 // nothing to draw for these indices, but keep the bookkeeping identical to the old path
                 for (const entry of singles) this.setupObjectShader(locs, camera, -1, entry.position, entry.rotation, entry.scale, entry.object);
             }
         }
+
+        // sweep 2: every instanced run back to back. The instancing uniform goes on ONCE, the default (non-animated) bone block is bound once,
+        // a run only needs its material textures (cached) and where its instances start; none of the per-object transform uniforms.
+        if (anyRuns) {
+            this._instMode(locs, true);
+            this.uboManager.bindDefaultUBO(prog);
+            for (const { mesh, runs } of plan) {
+                if (!runs) continue;
+                const count = countOf(mesh);
+                if (!(count > 0)) continue;
+                const byteOffset = offsetOf(mesh);
+                gl.bindVertexArray(vaoOf(mesh));
+                for (const run of runs) {
+                    this._bindMaterialSet(run.entries[0].object._textureSet, locs, prog);
+                    gl.uniform1i(locs.instBase, run.first);
+                    gl.drawElementsInstanced(gl.TRIANGLES, count, this.indexType, byteOffset, run.entries.length);
+                    this.stats.instancedDraws = (this.stats.instancedDraws | 0) + 1;
+                    this.stats.instancedObjects = (this.stats.instancedObjects | 0) + run.entries.length;
+                }
+            }
+            this._instMode(locs, false);
+        }
+        this._activeProgram = null;
 
         gl.bindVertexArray(null);
     }
@@ -1076,14 +1110,15 @@ class ObjectRenderer3D {
         if (!plan || !this._canInstanceProgram(shadowLocs)) return false;
         const gl = this.gl;
         this._instAttach(shadowLocs, plan.store, shadowProgram);
+        this._instMode(shadowLocs, true);
         for (const batch of plan.batches) {
             const mesh = this._meshLibrary.get(batch.meshId);
             if (!mesh) continue;
             gl.bindVertexArray(this.buildShadowVAO(mesh, shadowLocs, shadowProgram));
-            this._instBind(shadowLocs, batch.first);
+            gl.uniform1i(shadowLocs.instBase, batch.first);
             gl.drawElementsInstanced(gl.TRIANGLES, mesh.count, gl.UNSIGNED_INT, 0, batch.count);
-            this._instUnbind(shadowLocs);
         }
+        this._instMode(shadowLocs, false);
         gl.bindVertexArray(null);
         return true;
     }
@@ -1376,7 +1411,7 @@ class ObjectRenderer3D {
         }
 
         // Handle bone matrices for animated objects
-        const currentProgram = gl.getParameter(gl.CURRENT_PROGRAM);
+        const currentProgram = this._activeProgram || gl.getParameter(gl.CURRENT_PROGRAM);
 
         // Use object's TextureSet if available
         const textureSet = object && object._textureSet ? object._textureSet : null;
