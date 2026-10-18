@@ -11,10 +11,12 @@ class TextureSet {
          this.textureArray = null;          // TEXTURE_2D_ARRAY containing all textures
          this.materialPropertiesTexture = null; // 1D texture storing PBR properties
         this.textureArrayReady = false;
+        this.compressed = null;            // 'bc7' when the array holds pre-encoded BC7 layers (mips included), else null
         this.materialPropertiesReady = false;
         
         // CPU-side tracking
-        this.textures = [];                // Array of loaded image data
+        this.textures = [];                // Source image data while loading; released once the layers are on the GPU
+        this.textureCount = 0;             // Layer count (kept after the sources are released)
         this.textureMetadata = [];         // Metadata for each texture
         this.materialProperties = new Map(); // Properties indexed by texture index
         
@@ -29,6 +31,7 @@ class TextureSet {
      * @returns {Promise<void>}
      */
     async loadFromModel(model) {
+        if (model.compressed) return this._loadCompressed(model);
          if (!model.textures || model.textures.length === 0) {
              console.warn("TextureSet: Model has no textures");
              return;
@@ -36,6 +39,7 @@ class TextureSet {
 
         this.textures = [...model.textures];
         this.textureMetadata = [...model.textureMetadata];
+        this.textureCount = this.textures.length;
         
         // Extract material properties from model triangles (GLB extension data)
         if (model.triangles && model.triangles.length > 0) {
@@ -49,6 +53,51 @@ class TextureSet {
         await this._createTextureArray(loadedImages);
         
         // Create material properties texture
+        this._createMaterialPropertiesTexture();
+
+        // The texture array holds the pixels now. Drop the sources (and close any bitmaps) so they are not kept
+        // a second time: generated layers are full-size canvases that the browser often keeps in VRAM.
+        for (const img of loadedImages) if (typeof ImageBitmap !== 'undefined' && img instanceof ImageBitmap) img.close();
+        this.textures = [];
+    }
+
+    /** True when this GL context can sample BC7 (EXT_texture_compression_bptc): every desktop GPU of the last ~15 years. */
+    static supportsBC7(gl) {
+        return !!(gl && gl.getExtension('EXT_texture_compression_bptc'));
+    }
+
+    /**
+     * Load pre-encoded BC7 layers. model.compressed = { format: 'bc7', size, layers: [[level0, level1, ...], ...] }
+     * where every layer carries the same full mip chain (see ActionTextureCodec.encodeLayerBC7). The array is allocated
+     * once with texStorage3D at that format and each level is uploaded as-is, so there is no RGBA copy anywhere.
+     * @private
+     */
+    _loadCompressed(model) {
+        const gl = this.gl, C = model.compressed, ext = gl.getExtension('EXT_texture_compression_bptc');
+        if (C.format !== 'bc7' || !ext) throw new Error('TextureSet: compressed format not supported here: ' + C.format);
+        this.textureMetadata = [...(model.textureMetadata || [])];
+        this.textureCount = C.layers.length;
+        if (model.triangles && model.triangles.length > 0) this._extractMaterialPropertiesFromTriangles(model.triangles, this.textureMetadata);
+
+        const size = C.size, levels = C.layers[0].length, fmt = ext.COMPRESSED_RGBA_BPTC_UNORM_EXT;
+        this.textureWidth = this.textureHeight = size;
+        this.textureArray = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.textureArray);
+        gl.texStorage3D(gl.TEXTURE_2D_ARRAY, levels, fmt, size, size, this.textureCount);
+        for (let i = 0; i < this.textureCount; i++) {
+            const L = C.layers[i];
+            for (let lv = 0, d = size; lv < levels; lv++, d = Math.max(1, d >> 1)) {
+                gl.compressedTexSubImage3D(gl.TEXTURE_2D_ARRAY, lv, 0, 0, i, d, d, 1, fmt, L[lv]);
+            }
+        }
+        gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_S, gl.REPEAT);
+        gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_WRAP_T, gl.REPEAT);
+        gl.bindTexture(gl.TEXTURE_2D_ARRAY, null);
+        this.compressed = 'bc7';
+        this.textureArrayReady = true;
+        console.log(`[TextureSet] Array: ${this.textureCount} layers at ${size}x${size} BC7, ${levels} mips (${(this.textureCount * size * size * 4 / 3 / 1048576).toFixed(0)} MB)`);
         this._createMaterialPropertiesTexture();
     }
 
@@ -84,14 +133,9 @@ class TextureSet {
                      // encode/decode detour below exists only because a GLB ships its textures as embedded PNG bytes;
                      // for pixels we painted ourselves it was pure waste. That path is untouched.
                      if (metadata.bitmap) {
-                         createImageBitmap(textureData).then(
-                             (bmp) => { loadedImages[i] = bmp; loadedCount++; if (loadedCount === totalCount) resolve(loadedImages); },
-                             (e) => {
-                                 console.error(`Failed to decode texture: ${metadata.name} (index ${i})`, e);
-                                 loadedCount++;
-                                 if (loadedCount === totalCount) resolve(loadedImages);
-                             }
-                         );
+                         loadedImages[i] = textureData;
+                         loadedCount++;
+                         if (loadedCount === totalCount) resolve(loadedImages);
                          return;
                      }
                      const blob = new Blob([textureData], { type: metadata.mimeType });
@@ -165,9 +209,10 @@ class TextureSet {
         for (let i = 0; i < maxUpload; i++) {
             const img = images[i];
             if (!img) continue;
-            // An ImageBitmap (one of our generated layers) goes straight to the GPU with no scratch canvas. Anything
-            // that needs resizing - a GLB image, or a bitmap the driver made us shrink - still takes the canvas route.
-            if (typeof ImageBitmap !== 'undefined' && img instanceof ImageBitmap && img.width === width && img.height === height) {
+            // A generated layer (a canvas, or an ImageBitmap) already at the array's size goes straight to the GPU with no
+            // scratch canvas. Anything that needs resizing - a GLB image, or a layer the driver made us shrink - still takes the canvas route.
+            const direct = (typeof HTMLCanvasElement !== 'undefined' && img instanceof HTMLCanvasElement) || (typeof OffscreenCanvas !== 'undefined' && img instanceof OffscreenCanvas) || (typeof ImageBitmap !== 'undefined' && img instanceof ImageBitmap);
+            if (direct && img.width === width && img.height === height) {
                 gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, i, width, height, 1, gl.RGBA, gl.UNSIGNED_BYTE, img);
                 continue;
             }
@@ -254,7 +299,7 @@ class TextureSet {
      */
     _createMaterialPropertiesTexture() {
         const gl = this.gl;
-        const textureCount = this.textures.length;
+        const textureCount = this.textureCount;
 
         // Default PBR + transmission + volume properties
         const defaults = {
@@ -400,7 +445,7 @@ class TextureSet {
         if (!this.materialPropertiesReady || !this.materialPropertiesTexture) return;
 
         const gl = this.gl;
-        const textureCount = this.textures.length;
+        const textureCount = this.textureCount;
 
         // Default PBR + transmission + volume properties
         const defaults = {

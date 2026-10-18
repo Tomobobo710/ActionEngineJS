@@ -570,7 +570,7 @@ class LightManager {
             const pointLight = this.pointLights[i];
             const def = pointShadowDefs[i];
 
-            if (pointLight && pointLight.shadowTexture && def.enabledLoc !== null) {
+            if (pointLight && pointLight.castsShadows && pointLight.shadowTexture && def.enabledLoc !== null) {
                 glStateManager.bindTextureWithUniform(
                     def.logicalName,
                     pointLight.shadowTexture,

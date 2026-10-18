@@ -503,7 +503,7 @@ class ActionRenderer3D {
             }
         }
 
-        if (pointLight) {
+        if (pointLight && pointLight.castsShadows) {
             if (!pointLight.shadowTexture) {
                 pointLight.setupShadowMap();
             }

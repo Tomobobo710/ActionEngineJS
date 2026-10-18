@@ -48,11 +48,18 @@ class ActionOmnidirectionalShadowLight extends ActionLight {
         // For tracking position changes
         this._lastPosition = undefined;
 
-        // Initialize shadow map resources and shader program
-        if (this.castsShadows) {
-            this.setupShadowMap();
-            this.setupShadowShaderProgram();
-        }
+        // Shader program now; the cubemap (~96 MB at 2048) is created by the first shadow pass that
+        // needs it (beginShadowPass), so a light that never casts shadows never holds one.
+        if (this.castsShadows) this.setupShadowShaderProgram();
+    }
+
+    /** Turning shadows off frees the cubemap; turning them on lets the next shadow pass recreate it. */
+    setShadowsEnabled(enabled) {
+        this.castsShadows = enabled;
+        if (enabled) { if (!this.shadowProgram) this.setupShadowShaderProgram(); return; }
+        const gl = this.gl;
+        if (this.shadowFramebuffer) { gl.deleteFramebuffer(this.shadowFramebuffer); this.shadowFramebuffer = null; }
+        if (this.shadowTexture) { gl.deleteTexture(this.shadowTexture); this.shadowTexture = null; }
     }
 
     /**

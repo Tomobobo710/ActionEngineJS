@@ -74,6 +74,7 @@ const files = [
     // Rendering: Lighting & Textures
     'actionengine/rendering/texture/texturemanager.js',
     'actionengine/rendering/texture/textureset.js',
+    'actionengine/rendering/texture/actiontexturecodec.js',
     'actionengine/rendering/lighting/lightingconstants.js',
     'actionengine/rendering/lighting/actionlight.js',
     'actionengine/rendering/lighting/lightmanager.js',
