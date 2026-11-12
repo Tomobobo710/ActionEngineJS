@@ -121,9 +121,9 @@ class ActionSoundFont {
    * @param {number} velocity - Note velocity (0-127)
    * @param {number} channel - MIDI channel (0-15)
    */
-  noteOn(midiNumber, velocity = 127, channel) {
+  noteOn(midiNumber, velocity = 127, channel, when) {
     if (!this.synth) return;
-    this.synth.noteOn(channel !== undefined ? channel : this._channel, midiNumber, velocity);
+    this.synth.noteOn(channel !== undefined ? channel : this._channel, midiNumber, velocity, when);
   }
 
   /**
@@ -132,9 +132,9 @@ class ActionSoundFont {
    * @param {number} velocity - Release velocity (0-127)
    * @param {number} channel - MIDI channel (0-15)
    */
-  noteOff(midiNumber, velocity = 127, channel) {
+  noteOff(midiNumber, velocity = 127, channel, when) {
     if (!this.synth) return;
-    this.synth.noteOff(channel !== undefined ? channel : this._channel, midiNumber, velocity);
+    this.synth.noteOff(channel !== undefined ? channel : this._channel, midiNumber, when);
   }
 }
 
@@ -154,6 +154,15 @@ class ActionSynthesizer {
     // Audio nodes
     this.gainMaster = this.ctx.createGain();
     this.bufSrc = this.ctx.createBufferSource();
+
+    // Per-channel output gain: every note (including release tails and
+    // percussion ring-outs) routes through its channel's node, so muting a
+    // channel silences all of its sound, not just currently-held notes.
+    this.channelGain = Array.from({ length: 16 }, () => {
+      const g = this.ctx.createGain();
+      g.connect(this.gainMaster);
+      return g;
+    });
 
     // MIDI channel state (16 channels)
     this.channelInstrument = new Array(16).fill(0);
@@ -185,6 +194,7 @@ class ActionSynthesizer {
       false
     ];
     this.percussionVolume = new Array(128).fill(127);
+    this.percussionRing = new Array(16).fill(3);
 
     // Active notes
     this.currentNoteOn = Array.from({ length: 16 }, () => []);
@@ -193,11 +203,9 @@ class ActionSynthesizer {
     this.baseVolume = 1 / 0xffff;
     this.masterVolume = 16384;
 
-    // Shared reverb
-    if (!ActionSynthesizer.sharedReverb) {
-      ActionSynthesizer.sharedReverb = new ActionReverb(this.ctx, { mix: 0.315 });
-    }
-    this.reverb = new Array(16).fill(ActionSynthesizer.sharedReverb);
+    // Per-channel reverb (created on first use): a shared bus would keep a
+    // muted channel's wet signal audible through every other channel's output.
+    this.reverb = new Array(16).fill(null);
   }
 
   init(mode = "GM") {
@@ -267,8 +275,18 @@ class ActionSynthesizer {
       const bank = banks[bankNumber];
       bank[presetNumber] = { name: presetName };
 
-      for (let j = 0; j < instrument.info.length; j++) {
-        this.createNoteInfo(parser, instrument.info[j], bank[presetNumber]);
+      // A preset can have several zones, each pointing at a different
+      // instrument (drum kits spread their keys across many instruments).
+      for (let z = 0; z < preset.info.length; z++) {
+        const zone = preset.info[z];
+        const instRef = zone.generator.instrument;
+        if (instRef === undefined) continue;
+        const instrument = instruments[instRef.amount];
+        if (!instrument || instrument.name.replace(/\0*$/, "") === "EOI") continue;
+        const presetRange = zone.generator.keyRange || { lo: 0, hi: 127 };
+        for (let j = 0; j < instrument.info.length; j++) {
+          this.createNoteInfo(parser, instrument.info[j], bank[presetNumber], presetRange);
+        }
       }
 
       if (!programSet[bankNumber]) {
@@ -281,7 +299,7 @@ class ActionSynthesizer {
     return banks;
   }
 
-  createNoteInfo(parser, info, preset) {
+  createNoteInfo(parser, info, preset, presetRange = { lo: 0, hi: 127 }) {
     const generator = info.generator;
     if (generator.keyRange === undefined || generator.sampleID === undefined) return;
 
@@ -296,7 +314,9 @@ class ActionSynthesizer {
     const tune = getAmount(generator, "coarseTune") + getAmount(generator, "fineTune") / 100;
     const scale = getAmount(generator, "scaleTuning", 100) / 100;
 
-    for (let i = generator.keyRange.lo; i <= generator.keyRange.hi; i++) {
+    const lo = Math.max(generator.keyRange.lo, presetRange.lo);
+    const hi = Math.min(generator.keyRange.hi, presetRange.hi);
+    for (let i = lo; i <= hi; i++) {
       if (preset[i]) continue;
 
       const sampleId = getAmount(generator, "sampleID");
@@ -336,7 +356,11 @@ class ActionSynthesizer {
     }
   }
 
-  noteOn(channel, key, velocity) {
+  /**
+   * @param {number} [when] - AudioContext time to start at (default: now). Lets a
+   *   sequencer schedule soundfont notes on the audio clock like oscillators.
+   */
+  noteOn(channel, key, velocity, when) {
     const bankIndex = this.channelBank[channel];
     let bank = this.bankSet[bankIndex] || this.bankSet[0];
 
@@ -372,24 +396,31 @@ class ActionSynthesizer {
     instrumentKey.pitchBend = this.channelPitchBend[channel] - 8192;
     instrumentKey.expression = this.channelExpression[channel];
     instrumentKey.pitchBendSensitivity = Math.round(this.channelPitchBendSensitivity[channel]);
-    instrumentKey.reverb = this.reverb[channel];
+    instrumentKey.reverb = this.reverb[channel] || (this.reverb[channel] = new ActionReverb(this.ctx, { mix: 0.315 }));
+    instrumentKey.percussionOneShot = this.percussionPart[channel];
+    instrumentKey.ringTime = this.percussionRing[channel];
 
     // Play the note
-    const note = new ActionSynthesizerNote(this.ctx, this.gainMaster, instrumentKey);
-    note.noteOn();
+    const note = new ActionSynthesizerNote(this.ctx, this.channelGain[channel], instrumentKey);
+    note.noteOn(when);
     this.currentNoteOn[channel].push(note);
   }
 
-  noteOff(channel, key) {
+  /**
+   * @param {number} [when] - AudioContext time to release at (default: now). Only
+   *   notes that start at or before `when` are released, so a note queued later on
+   *   the same key is left alone.
+   */
+  noteOff(channel, key, when) {
     const currentNoteOn = this.currentNoteOn[channel];
     const hold = this.channelHold[channel];
 
     for (let i = currentNoteOn.length - 1; i >= 0; i--) {
       const note = currentNoteOn[i];
-      if (note.key === key) {
+      if (note.key === key && (when === undefined || note.startTime <= when + 1e-6)) {
         note.noteOff();
         if (!hold) {
-          note.release();
+          note.release(when);
           currentNoteOn.splice(i, 1);
         }
       }
@@ -419,13 +450,13 @@ class ActionSynthesizer {
     this.channelPanpot[channel] = panpot;
   }
 
-  pitchBend(channel, lowerByte, higherByte) {
+  pitchBend(channel, lowerByte, higherByte, when) {
     const bend = (lowerByte & 0x7f) | ((higherByte & 0x7f) << 7);
     const calculated = bend - 8192;
 
     const currentNoteOn = this.currentNoteOn[channel];
     for (let i = 0; i < currentNoteOn.length; i++) {
-      currentNoteOn[i].updatePitchBend(calculated);
+      currentNoteOn[i].updatePitchBend(calculated, when);
     }
 
     this.channelPitchBend[channel] = bend;
@@ -440,6 +471,18 @@ class ActionSynthesizer {
     this.percussionPart[channel] = sw;
   }
 
+  setPercussionRing(channel, seconds) {
+    this.percussionRing[channel] = Math.max(0.1, seconds);
+  }
+
+  setChannelGain(channel, value) {
+    const g = this.channelGain[channel].gain;
+    const now = this.ctx.currentTime;
+    g.cancelScheduledValues(now);
+    g.setValueAtTime(g.value, now);
+    g.linearRampToValueAtTime(Math.max(0, value), now + 0.02);
+  }
+
   getAudioContext() {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     ctx.createGain = ctx.createGain || ctx.createGainNode;
@@ -447,13 +490,29 @@ class ActionSynthesizer {
   }
 }
 
-ActionSynthesizer.sharedReverb = null;
-
 /**
  * ActionSynthesizerNote Class
  * Represents a single playing note
  */
 class ActionSynthesizerNote {
+  /** @type {WeakMap<Float32Array, Map<string, AudioBuffer>>} */
+  static #buffers = new WeakMap();
+
+  static bufferFor(ctx, instrument) {
+    const src = instrument.sample;
+    const key = `${instrument.end || 0}|${instrument.sampleRate}`;
+    let byKey = ActionSynthesizerNote.#buffers.get(src);
+    if (!byKey) ActionSynthesizerNote.#buffers.set(src, (byKey = new Map()));
+    let buffer = byKey.get(key);
+    if (!buffer) {
+      const sample = src.subarray(0, src.length + (instrument.end || 0));
+      buffer = ctx.createBuffer(1, sample.length, instrument.sampleRate);
+      buffer.getChannelData(0).set(sample);
+      byKey.set(key, buffer);
+    }
+    return buffer;
+  }
+
   constructor(ctx, destination, instrument) {
     this.ctx = ctx;
     this.destination = destination;
@@ -470,16 +529,16 @@ class ActionSynthesizerNote {
     this.filter = ctx.createBiquadFilter();
   }
 
-  noteOn() {
+  noteOn(when) {
     const ctx = this.ctx;
     const instrument = this.instrument;
-    const now = ctx.currentTime;
+    const now = Math.max(ctx.currentTime, when ?? 0);
+    this.startTime = now;
 
-    // Create audio buffer from sample
-    const sample = instrument.sample.subarray(0, instrument.sample.length + (instrument.end || 0));
-    const audioBuffer = ctx.createBuffer(1, sample.length, instrument.sampleRate);
-    const channelData = audioBuffer.getChannelData(0);
-    channelData.set(sample);
+    // Audio buffer for this sample: built once and reused. Copying the whole sample
+    // into a fresh buffer on every note stalled the main thread (and the garbage it
+    // left behind caused GC pauses), which made scheduled notes land late - clicks.
+    const audioBuffer = ActionSynthesizerNote.bufferFor(ctx, instrument);
 
     // Setup buffer source
     this.bufferSource.buffer = audioBuffer;
@@ -506,14 +565,26 @@ class ActionSynthesizerNote {
     volume = Math.max(0, volume);
 
     const outputGain = this.outputGainNode.gain;
+    const tau = instrument.volAttack || 0.01;
+    outputGain.value = 0;
     outputGain.setValueAtTime(0, now);
-    outputGain.setTargetAtTime(volume, now, instrument.volAttack || 0.01);
-    const attackEnd = now + (instrument.volAttack || 0.01) * 3;
+    outputGain.setTargetAtTime(volume, now, tau);
+    const attackEnd = now + tau * 3;
     outputGain.setValueAtTime(volume, attackEnd);
-    outputGain.linearRampToValueAtTime(
-      volume * (instrument.volSustain || 0.7),
-      attackEnd + (instrument.volDecay || 0.1)
-    );
+    // Envelope shape, kept so a release scheduled for a later time knows the level
+    // it starts from (see levelAt).
+    this.env = { t0: now, tau, attackEnd, volume, ring: null, decayEnd: 0, sustain: 0 };
+    if (instrument.percussionOneShot && (instrument.sampleModes & 1)) {
+      // Loop-mode drums (cymbals): ring out over ringTime, fading immediately.
+      const ring = instrument.ringTime ?? 3;
+      outputGain.linearRampToValueAtTime(0, now + ring);
+      this.ringStopTime = now + ring;
+      this.env.ring = now + ring;
+    } else {
+      this.env.decayEnd = attackEnd + (instrument.volDecay || 0.1);
+      this.env.sustain = volume * (instrument.volSustain || 0.7);
+      outputGain.linearRampToValueAtTime(this.env.sustain, this.env.decayEnd);
+    }
 
     // Connect nodes
     this.bufferSource.connect(this.filter);
@@ -526,7 +597,8 @@ class ActionSynthesizerNote {
 
     // Start playback
     const startTime = (instrument.start || 0) / instrument.sampleRate;
-    this.bufferSource.start(0, startTime);
+    this.bufferSource.start(now, startTime);
+    if (this.ringStopTime !== undefined) this.bufferSource.stop(this.ringStopTime);
   }
 
   connect() {
@@ -551,27 +623,55 @@ class ActionSynthesizerNote {
     return this.noteOffState;
   }
 
-  release() {
-    const now = this.ctx.currentTime;
+  // Envelope level at audio time t, from the shape scheduled in noteOn.
+  levelAt(t) {
+    const e = this.env;
+    if (!e || t <= e.t0) return 0;
+    if (t < e.attackEnd) return e.volume * (1 - Math.exp(-(t - e.t0) / e.tau));
+    if (e.ring !== null) return t >= e.ring ? 0 : e.volume * (1 - (t - e.attackEnd) / (e.ring - e.attackEnd));
+    if (t >= e.decayEnd) return e.sustain;
+    return e.volume + (e.sustain - e.volume) * ((t - e.attackEnd) / (e.decayEnd - e.attackEnd));
+  }
+
+  /** @param {number} [when] - AudioContext time to release at (default: now). */
+  release(when) {
+    const ctx = this.ctx;
+    const now = Math.max(ctx.currentTime, when ?? 0);
     const instrument = this.instrument;
     const releaseTime = instrument.volRelease || 0.3;
-
     const outputGain = this.outputGainNode.gain;
-    outputGain.cancelScheduledValues(now);
-    outputGain.setValueAtTime(outputGain.value, now);
+
+    // Released before it ever started (a queued note dropped by stop): never play it.
+    if (this.startTime !== undefined && now <= this.startTime && ctx.currentTime < this.startTime) {
+      outputGain.cancelScheduledValues(0);
+      outputGain.value = 0;
+      try { this.bufferSource.stop(this.startTime); } catch (e) {}
+      return;
+    }
+
+    // Fade from the level the envelope will actually be at `now`. cancelAndHold keeps
+    // an in-progress ramp's value; without it, compute the level from the envelope.
+    // Only for a release happening now: scheduled ahead, Chrome starts the following
+    // ramp from the previous event (end of decay), so the note fades from its attack.
+    if (outputGain.cancelAndHoldAtTime && now <= ctx.currentTime + 0.005) {
+      outputGain.cancelAndHoldAtTime(now);
+    } else {
+      outputGain.cancelScheduledValues(now);
+      outputGain.setValueAtTime(this.levelAt(now), now);
+    }
     outputGain.linearRampToValueAtTime(0, now + releaseTime);
 
     if (instrument.sampleModes === 1 || instrument.sampleModes === 3) {
       this.bufferSource.stop(now + releaseTime);
     } else {
-      this.bufferSource.loop = false;
+      this.bufferSource.stop(now + releaseTime + 0.05);
     }
   }
 
-  updatePitchBend(pitchBend) {
+  updatePitchBend(pitchBend, when) {
     const semitones = (pitchBend / (pitchBend < 0 ? 8192 : 8191)) * this.instrument.pitchBendSensitivity;
     const newRate = this.instrument.basePlaybackRate * Math.pow(2, semitones / 12);
-    this.bufferSource.playbackRate.setValueAtTime(newRate, this.ctx.currentTime);
+    this.bufferSource.playbackRate.setValueAtTime(newRate, Math.max(this.ctx.currentTime, when ?? 0));
   }
 
   amountToFreq(val) {
