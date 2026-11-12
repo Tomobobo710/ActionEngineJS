@@ -17,6 +17,66 @@ class ActionUIDropdown extends ActionUIComponent {
         this._kbActive  = false;
         this._kbHighlight = -1;
         this.zIndex     = 100;  // draw above everything
+        // maxVisible: show at most this many rows and scroll the rest (mouse wheel,
+        // keyboard). Unset = every option visible, as before.
+        this.maxVisible = props.maxVisible ?? Infinity;
+        this._scroll    = 0;    // index of the first visible option
+    }
+
+    _visibleCount() {
+        return Math.max(1, Math.min(this.options.length, this.maxVisible));
+    }
+
+    _maxScroll() {
+        return Math.max(0, this.options.length - this._visibleCount());
+    }
+
+    // Scroll just enough to bring option i into view.
+    _scrollTo(i) {
+        const n = this._visibleCount();
+        if (i < this._scroll) this._scroll = i;
+        else if (i >= this._scroll + n) this._scroll = i - n + 1;
+        this._scroll = Math.max(0, Math.min(this._maxScroll(), this._scroll));
+    }
+
+    _openList() {
+        this._open = true;
+        this._kbHighlight = this.selected;
+        // Open with the current choice roughly centred.
+        const n = this._visibleCount();
+        this._scroll = Math.max(0, Math.min(this._maxScroll(), this.selected - Math.floor(n / 2)));
+    }
+
+    // Scrollbar geometry (track + thumb) for the open list. The hit strip is wider than
+    // the 4 px bar so it is easy to grab.
+    _scrollbar() {
+        const lb = this._getListBounds();
+        const trackY = lb.y + 4, trackH = lb.height - 8;
+        const thumbH = Math.max(18, trackH * (this._visibleCount() / this.options.length));
+        const max = this._maxScroll();
+        const thumbY = trackY + (max ? (trackH - thumbH) * (this._scroll / max) : 0);
+        return { hitX: lb.x + lb.width - 12, barX: lb.x + lb.width - 7, trackY, trackH, thumbY, thumbH };
+    }
+
+    _inScrollbar(px, py) {
+        if (!this._open || this._maxScroll() === 0) return false;
+        const sb = this._scrollbar();
+        return px >= sb.hitX && px <= this.x + this.width && py >= sb.trackY && py <= sb.trackY + sb.trackH;
+    }
+
+    // Thumb top (y) -> scroll index.
+    _scrollFromThumb(thumbY) {
+        const sb = this._scrollbar();
+        const range = sb.trackH - sb.thumbH;
+        const f = range > 0 ? (thumbY - sb.trackY) / range : 0;
+        this._scroll = Math.max(0, Math.min(this._maxScroll(), Math.round(f * this._maxScroll())));
+    }
+
+    // Wheel over the open list scrolls it (ActionUI passes +1 = up, -1 = down).
+    onMouseWheel(dir) {
+        if (!this._open || this._maxScroll() === 0) return;
+        this._scroll = Math.max(0, Math.min(this._maxScroll(), this._scroll - dir));
+        this._hoverItem = -1;
     }
 
     _onUpdate(dt) {
@@ -26,7 +86,7 @@ class ActionUIDropdown extends ActionUIComponent {
     }
 
     _getListBounds() {
-        const listH = this.options.length * this._itemH;
+        const listH = this._visibleCount() * this._itemH;
         return {
             x: this.x,
             y: this.y + this.height + 2,
@@ -49,11 +109,23 @@ class ActionUIDropdown extends ActionUIComponent {
 
     onPointerDown(px, py) {
         if (!this.enabled) return;
+        // Scrollbar: grab the thumb (or jump to a track click) and drag. ActionUI routes
+        // every move/up to us while _pointerCaptured is set, even off the bar.
+        if (this._inScrollbar(px, py)) {
+            const sb = this._scrollbar();
+            const onThumb = py >= sb.thumbY && py <= sb.thumbY + sb.thumbH;
+            const grab = onThumb ? py - sb.thumbY : sb.thumbH / 2;
+            if (!onThumb) this._scrollFromThumb(py - grab);
+            this._drag = { grab };
+            this._pointerCaptured = true;
+            this._hoverItem = -1;
+            return;
+        }
         // If open and click in list, select item
         if (this._open && this._isInList(px, py)) {
             const lb = this._getListBounds();
             const relY = py - lb.y;
-            const idx = Math.floor(relY / this._itemH);
+            const idx = Math.floor(relY / this._itemH) + this._scroll;
             if (idx >= 0 && idx < this.options.length) {
                 this.selected = idx;
                 this._kbHighlight = idx;
@@ -70,20 +142,28 @@ class ActionUIDropdown extends ActionUIComponent {
             return;
         }
         // If closed and click on dropdown, open it
-        if (this.containsPoint(px, py)) {
-            this._open = true;
-            this._kbHighlight = this.selected;
-        }
+        if (this.containsPoint(px, py)) this._openList();
     }
 
     onPointerMove(px, py) {
+        if (this._drag) {
+            this._scrollFromThumb(py - this._drag.grab);
+            return;
+        }
         if (!this._open) return;
         if (this._isInList(px, py)) {
             const lb = this._getListBounds();
             const relY = py - lb.y;
-            this._hoverItem = Math.floor(relY / this._itemH);
+            this._hoverItem = Math.floor(relY / this._itemH) + this._scroll;
         } else {
             this._hoverItem = -1;
+        }
+    }
+
+    onPointerUp(px, py) {
+        if (this._drag) {
+            this._drag = null;
+            this._pointerCaptured = false;
         }
     }
 
@@ -91,14 +171,14 @@ class ActionUIDropdown extends ActionUIComponent {
         if (!this.enabled) return;
         if (!this._kbActive) return;
         if (key === 'DirUp' || key === 'DirDown') {
-            if (!this._open) { this._open = true; }
+            if (!this._open) this._openList();
             if (this._kbHighlight < 0) this._kbHighlight = this.selected;
             if (key === 'DirUp' && this._kbHighlight > 0) this._kbHighlight--;
             else if (key === 'DirDown' && this._kbHighlight < this.options.length - 1) this._kbHighlight++;
+            this._scrollTo(this._kbHighlight);
         } else if (key === 'Action1') {
             if (!this._open) {
-                this._open = true;
-                this._kbHighlight = this.selected;
+                this._openList();
             } else if (this._kbHighlight >= 0) {
                 this.selected = this._kbHighlight;
                 this.onChange && this.onChange(this.options[this.selected].value, this);
@@ -161,7 +241,7 @@ class ActionUIDropdown extends ActionUIComponent {
 
     _drawList(ctx, t, r) {
         const listY   = this.y + this.height + 2;
-        const listH   = this.options.length * this._itemH;
+        const listH   = this._visibleCount() * this._itemH;
         const visibleH = listH * ActionUIDrawUtils.easeOut(this._openT);
 
         ctx.save();
@@ -175,23 +255,27 @@ class ActionUIDropdown extends ActionUIComponent {
         ActionUIDrawUtils.roundRect(ctx, this.x, listY, this.width, visibleH, r);
         ctx.clip();
 
-        for (let i = 0; i < this.options.length; i++) {
-            const iy  = listY + i * this._itemH;
+        const first = this._scroll;
+        const last  = Math.min(this.options.length, first + this._visibleCount());
+        const overflow = this._maxScroll() > 0;
+        const textW = overflow ? this.width - 8 : this.width;   // leave room for the scrollbar
+        for (let i = first; i < last; i++) {
+            const iy  = listY + (i - first) * this._itemH;
             const opt = this.options[i];
 
             if (i === this.selected) {
-                ActionUIDrawUtils.fillRoundRect(ctx, this.x, iy, this.width, this._itemH, 0,
+                ActionUIDrawUtils.fillRoundRect(ctx, this.x, iy, textW, this._itemH, 0,
                     t.withAlpha(t.colorPrimary, 0.18)
                 );
             } else if (i === this._hoverItem) {
-                ActionUIDrawUtils.fillRoundRect(ctx, this.x, iy, this.width, this._itemH, 0,
+                ActionUIDrawUtils.fillRoundRect(ctx, this.x, iy, textW, this._itemH, 0,
                     t.withAlpha(t.colorText, 0.06)
                 );
             }
 
             // Keyboard highlight
             if (this._kbActive && i === this._kbHighlight) {
-                ActionUIDrawUtils.fillRoundRect(ctx, this.x, iy, this.width, this._itemH, 0,
+                ActionUIDrawUtils.fillRoundRect(ctx, this.x, iy, textW, this._itemH, 0,
                     t.withAlpha(t.colorKbFocusActive, 0.25)
                 );
             }
@@ -201,6 +285,15 @@ class ActionUIDropdown extends ActionUIComponent {
                 this.x + t.spacingMd, iy + this._itemH / 2,
                 t.font(t.fontSizeMd), col, 'left', 'middle'
             );
+        }
+
+        // Scrollbar: thumb size/position show how much of the list is in view.
+        if (overflow) {
+            const sb = this._scrollbar();
+            const trackTop = listY + 4;   // the list may still be animating open
+            const thumbY = trackTop + (sb.thumbY - sb.trackY);
+            ActionUIDrawUtils.fillRoundRect(ctx, sb.barX, trackTop, 4, sb.trackH, 2, t.withAlpha(t.colorText, 0.08));
+            ActionUIDrawUtils.fillRoundRect(ctx, sb.barX, thumbY, 4, sb.thumbH, 2, t.withAlpha(t.colorText, this._drag ? 0.75 : 0.45));
         }
 
         ctx.restore();

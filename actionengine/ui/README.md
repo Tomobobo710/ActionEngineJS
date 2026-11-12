@@ -244,11 +244,17 @@ new ActionUIDropdown({
     label: 'Theme',
     options: [{ label: 'Dark', value: 'dark' }, { label: 'Light', value: 'light' }],
     selected: 0,
+    maxVisible: 8,          // optional: show at most 8 rows, scroll the rest
     onChange: (value, index) => { ... }
 });
 ```
 
-**Properties:** `options`, `selected`, `label`
+**Properties:** `options`, `selected`, `label`, `maxVisible`
+
+With `maxVisible` set and more options than that, the open list scrolls with the
+mouse wheel and the keyboard (DirUp/DirDown keep the highlight in view), shows a
+thin scrollbar, and opens scrolled to the current selection. Leave it unset to show
+every option.
 
 ### ActionUITabBar
 Horizontal tab switcher with animated indicator.
