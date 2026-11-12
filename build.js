@@ -144,7 +144,9 @@ const files = [
     // dist/action-engine.min.js is self-contained. actionengine/ itself uses
     // timgm6mb/SF2Index.js instead, which chainloads these same chunks as separate
     // small HTTP requests - see sf2loader.js.
+    'actionengine/sound/actionaudioworklet.js',
     'actionengine/sound/audiomanager.js',
+    'actionengine/sound/actiontracker.js',
     'actionengine/sound/soundfont/sf2loader.js',
     'actionengine/sound/soundfont/timgm6mb/chunks/chunk_000.js',
     'actionengine/sound/soundfont/timgm6mb/chunks/chunk_001.js',
