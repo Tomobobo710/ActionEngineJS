@@ -1,19 +1,37 @@
 //actionengine/sound/audiomanager.js
 class ActionAudioManager {
+    /** AudioContext latencyHint ("interactive" | "balanced" | "playback" | seconds). Set before the first unlock(). */
+    static latencyHint = "interactive";
+
+    /**
+     * Which sound engine to use. Set before the first unlock().
+     *   "auto"    - the audio-thread engine (AudioWorklet) when it loads, else the node engine
+     *   "worklet" - same as auto (falls back if the worklet can't load)
+     *   "nodes"   - always the original Web Audio node engine
+     */
+    static engine = "auto";
+
     constructor() {
         this.context = null;
+        // The audio-thread engine (ActionAudioWorkletHost) once unlock() starts it.
+        this.worklet = null;
+        /** "nodes" | "worklet" - the engine actually in use (decided after unlock()). */
+        this.engine = "nodes";
+        /** Resolves once the sound engine is up (worklet loaded, or settled on nodes). */
+        this.ready = new Promise((resolve) => { this._resolveReady = resolve; });
         this.enabled = true;
         this.sounds = new Map();
         this.samples = new Map();
         this.sampleDefinitions = new Map();
         this.masterGain = null;
-        this.baseVolume = 0.2;
+        this.baseVolume = 1;      // setVolume(v) sets the master gain to v directly
         this.initializeAudioContext();
         // Add tracking for scheduled MIDI events
         this.scheduledMIDIEvents = new Set();
         // MIDI state tracking
         this.midiReady = false;
         this.sf2Player = null;
+        this.tracker = null;
         this.activeSounds = new Map();
         // Enhanced sound tracking for new features
         this.soundInstances = new Map(); // Track individual sound instances
@@ -194,39 +212,85 @@ class ActionAudioManager {
     }
 
     async initializeMIDI() {
+        if (this._midiLoading) return this._midiLoading;
         if (this.sf2Player) return;
-
-        try {
-            this.sf2Player = new SoundFont(this.context); // Pass the context
-            await this.sf2Player.loadSoundFontPackage("TimGM6mb");
-            this.midiReady = true;
-        } catch (error) {
-            console.error("[AudioManager] Failed to initialize SF2 player:", error);
+        // The soundfont needs an AudioContext, which only exists after a user
+        // gesture. If asked too early, remember the request; unlock() starts it.
+        if (!this.context) {
+            this._midiWanted = true;
+            return;
         }
+
+        this._midiLoading = (async () => {
+            try {
+                const player = new SoundFont(this.context); // Pass the context
+                await player.loadSoundFontPackage("TimGM6mb");
+                // The audio-thread engine plays MIDI-API notes itself: hand it the parsed
+                // samples and zones (the node synth keeps its copy for the tracker for now).
+                await this.ready;
+                if (this._useWorklet()) {
+                    this.worklet.loadSoundFont(player.synth);
+                    this._sfInWorklet = true;
+                }
+                this.sf2Player = player; // only expose it once it can actually play
+                this.midiReady = true;
+                this._attachSoundFontToTracker();
+            } catch (error) {
+                console.error("[AudioManager] Failed to initialize SF2 player:", error);
+            } finally {
+                this._midiLoading = null;
+            }
+        })();
+        return this._midiLoading;
+    }
+
+    // Hook the loaded soundfont into the tracker, including songs that started
+    // playing while it was still loading (their sf2 channels start sounding now).
+    _attachSoundFontToTracker() {
+        const tracker = this.tracker;
+        if (!tracker || !this.sf2Player || tracker.soundFont === this.sf2Player) return;
+        tracker.setSoundFont(this.sf2Player);
+        tracker._handles.forEach((h) => {
+            if (h.isPlaying && h._song && h.engine !== "worklet") tracker._allocSf2Channels(h._channels, h._song);
+        });
+    }
+
+    static songUsesSoundFont(song) {
+        return Object.values((song && song.instruments) || {}).some((inst) => inst && inst.sf2 !== undefined);
     }
 
     // MIDI Control Methods
-    programChange(channel, program) {
+    // MIDI API. With the audio-thread engine these go to its own SoundFont player;
+    // `when` (AudioContext time, optional) makes them sample-accurate.
+    _midiToWorklet() {
+        return this._sfInWorklet && this._useWorklet();
+    }
+
+    programChange(channel, program, when = 0) {
         if (!this.midiReady || !this.sf2Player) return;
         this.midiChannels[channel].program = program;
+        if (this._midiToWorklet()) return this.worklet.midi("program", channel, { value: program }, when);
         this.sf2Player.channel = channel;
         this.sf2Player.program = program;
     }
 
-    bankSelect(channel, bank) {
+    bankSelect(channel, bank, when = 0) {
         if (!this.midiReady || !this.sf2Player) return;
         this.midiChannels[channel].bank = bank;
+        if (this._midiToWorklet()) return this.worklet.midi("bank", channel, { value: bank }, when);
         this.sf2Player.channel = channel;
         this.sf2Player.bank = bank;
     }
 
-    noteOn(channel, note, velocity) {
+    noteOn(channel, note, velocity, when = 0) {
         if (!this.midiReady || !this.sf2Player) return;
+        if (this._midiToWorklet()) return this.worklet.midi("on", channel, { key: note, vel: velocity }, when);
         this.sf2Player.noteOn(note, velocity, channel);
     }
 
-    noteOff(channel, note) {
+    noteOff(channel, note, when = 0) {
         if (!this.midiReady || !this.sf2Player) return;
+        if (this._midiToWorklet()) return this.worklet.midi("off", channel, { key: note }, when);
         this.sf2Player.noteOff(note, 127, channel);
     }
 
@@ -250,6 +314,7 @@ class ActionAudioManager {
 
     allNotesOff(channel) {
         if (!this.midiReady) return;
+        if (this._midiToWorklet()) return this.worklet.midi("allOff", channel);
         // Send noteOff for all possible notes on this channel
         for (let note = 0; note < 128; note++) {
             this.noteOff(channel, note);
@@ -278,6 +343,15 @@ class ActionAudioManager {
         }
 
         switch (type) {
+            case "tracker": {
+                const song = options.song || options;
+                this.sounds.set(name, { type: "tracker", song });
+                // Songs with { sf2: ... } instruments need the soundfont: start
+                // loading it now (or right after the first user gesture).
+                if (ActionAudioManager.songUsesSoundFont(song)) this.initializeMIDI();
+                break;
+            }
+
             case "sonicpi":
                 const parsed = this.parseSonicPi(options.script, options.samples);
 
@@ -327,15 +401,7 @@ class ActionAudioManager {
 
     initializeAudioContext() {
         const enableAudio = () => {
-            if (!this.context) {
-                this.context = new (window.AudioContext || window.webkitAudioContext)();
-                this.masterGain = this.context.createGain();
-                this.masterGain.connect(this.context.destination);
-                this.setVolume(0.5);
-
-                // Create sample buffers once context is available
-                this.createSampleBuffers();
-            }
+            this.unlock();
             document.removeEventListener("click", enableAudio);
             document.removeEventListener("touchstart", enableAudio);
             document.removeEventListener("keydown", enableAudio);
@@ -343,6 +409,79 @@ class ActionAudioManager {
         document.addEventListener("click", enableAudio);
         document.addEventListener("touchstart", enableAudio);
         document.addEventListener("keydown", enableAudio);
+    }
+
+    // Create/resume the AudioContext on demand. Safe to call from a user-gesture
+    // handler; idempotent. Games that drive audio from canvas input call this first
+    // so they don't race the document-level gesture listeners.
+    unlock() {
+        if (!this.context) {
+            // Output buffer size. "interactive" (browser default, ~10 ms) gives the snappiest
+            // sound effects but can underrun - audible clicks - when a dense synth song keeps
+            // the audio thread busy. "balanced" / "playback" trade latency for headroom.
+            const Ctx = window.AudioContext || window.webkitAudioContext;
+            try { this.context = new Ctx({ latencyHint: ActionAudioManager.latencyHint }); }
+            catch (e) { this.context = new Ctx(); }
+            this.masterGain = this.context.createGain();
+            this.masterGain.connect(this.context.destination);
+            this.setVolume(0.6);   // default master level
+            this._startEngine();
+            this.createSampleBuffers();
+            if (this._midiWanted) {
+                this._midiWanted = false;
+                this.initializeMIDI();
+            }
+        }
+        if (this.context.state === "suspended") {
+            this.context.resume();
+        }
+        return this.context;
+    }
+
+    // Start the audio-thread engine if allowed and supported; otherwise stay on nodes.
+    _startEngine() {
+        const want = ActionAudioManager.engine;
+        if (want === "nodes" || !window.ActionAudioWorkletHost || !this.context.audioWorklet) {
+            this._resolveReady("nodes");
+            return;
+        }
+        const host = new ActionAudioWorkletHost(this.context, this.masterGain);
+        this.worklet = host;
+        host.onFailure = () => {                       // processor crashed mid-run
+            if (this.worklet === host) this.worklet = null;
+            this.engine = "nodes";
+        };
+        host.ready.then(
+            () => {
+                this.engine = "worklet";
+                if (this.tracker) this.tracker.attachWorklet(host);
+                this._resolveReady("worklet");
+            },
+            () => { if (this.worklet === host) this.worklet = null; this.engine = "nodes"; this._resolveReady("nodes"); }
+        );
+    }
+
+    // True when sounds should go to the audio-thread engine (it may still be loading -
+    // messages queue until it is ready).
+    _useWorklet() {
+        return !!(this.worklet && !this.worklet.failed);
+    }
+
+    // The node engine's applyEnvelope() as worklet breakpoints: 0 -> volume (attack) ->
+    // volume*sustain (attack+decay) -> 0 at `duration`. Sorted by time, like AudioParam events.
+    _envBreakpoints(envelope, duration, volume) {
+        const { attack, decay, sustain } = envelope;
+        return [[0, 0], [attack, volume], [attack + decay, volume * sustain], [duration, 0]].sort((a, b) => a[0] - b[0]);
+    }
+
+    // Control object for one or more worklet voices (stop / setVolume like the node ones).
+    _workletControl(ids, volume) {
+        const host = this.worklet;
+        return {
+            engine: "worklet", id: ids[0], ids, startVolume: volume,
+            stop: () => ids.forEach((id) => host.stop(id, 0.05)),
+            setVolume: (v) => ids.forEach((id, i) => host.setGain(id, (volume > 0 ? v / volume : 0) * (this._voiceGains?.get(id) ?? 1)))
+        };
     }
 
     createSampleBuffers() {
@@ -559,6 +698,7 @@ class ActionAudioManager {
         // Update any currently playing instances
         const instances = this.soundInstances.get(name) || [];
         instances.forEach((instance) => {
+            if (instance.engine === "worklet" && instance.setVolume) { instance.setVolume(volume); return; }
             if (instance.gainNode && instance.gainNode.gain) {
                 const currentTime = this.context.currentTime;
                 const masterVol = this.masterGain ? this.masterGain.gain.value / this.baseVolume : 1.0;
@@ -634,6 +774,9 @@ class ActionAudioManager {
             case "sonicpi":
                 controlObject = this.playSonicPi(sound, enhancedOptions);
                 break;
+            case "tracker":
+                controlObject = this.playTracker(sound, enhancedOptions);
+                break;
             default:
                 console.warn(`[AudioManager] Unknown sound type for ${name}`);
                 return;
@@ -663,6 +806,9 @@ class ActionAudioManager {
      * Set up sound end detection for callbacks and repeat functionality
      */
     setupSoundEndDetection(name, sound, instanceData) {
+        // The tracker schedules its own completion and fires onEnd from the audio clock.
+        if (sound.type === "tracker") return;
+
         // Calculate sound duration
         let duration = sound.duration || 1;
         if (sound.envelope) {
@@ -729,6 +875,11 @@ class ActionAudioManager {
      */
     stopSoundInstance(instanceData) {
         const now = this.context.currentTime;
+
+        // Self-managing sources (tracker, sonicpi) expose their own stop().
+        if (typeof instanceData.stop === "function") {
+            instanceData.stop();
+        }
 
         // Clear end timeout
         if (instanceData.endTimeout) {
@@ -813,6 +964,7 @@ class ActionAudioManager {
     }
 
     stopAllSounds() {
+        if (this.worklet) this.worklet.stopAll(0.05);
         // Stop all sound instances
         this.soundInstances.forEach((instances, name) => {
             instances.forEach((instance) => {
@@ -849,7 +1001,15 @@ class ActionAudioManager {
     }
 
     // Original simple oscillator playback (enhanced with volume support)
-    playSimple(sound, { pan = 0, volume = 1.0 } = {}) {
+    playSimple(sound, { pan = 0, volume = 1.0, when = 0 } = {}) {
+        if (this._useWorklet()) {
+            // Same envelope as the node path: 0 -> amp (attack) -> amp*sustain (decay) -> 0 (release).
+            const e = sound.envelope;
+            const amp = sound.amp * volume;
+            const env = [[0, 0], [e.attack, amp], [e.attack + e.decay, amp * e.sustain], [e.attack + e.decay + e.release, 0]];
+            const id = this.worklet.voice({ at: when, prio: 1, osc: sound.oscillatorType, freq: sound.frequency, env, pan, gain: 1 });
+            return this._workletControl([id], volume);
+        }
         const oscillator = this.context.createOscillator();
         oscillator.type = sound.oscillatorType;
         const gainNode = this.context.createGain();
@@ -889,7 +1049,15 @@ class ActionAudioManager {
     }
 
     // FM synthesis playback (enhanced with volume support)
-    playFM(sound, { pan = 0, volume = 1.0 } = {}) {
+    playFM(sound, { pan = 0, volume = 1.0, when = 0 } = {}) {
+        if (this._useWorklet()) {
+            const id = this.worklet.voice({
+                at: when, prio: 1, osc: sound.oscillatorType, freq: sound.carrierFreq,
+                fm: { freq: sound.modulatorFreq, index: sound.modulationIndex },
+                env: this._envBreakpoints(sound.envelope, sound.duration, volume), pan, gain: 1
+            });
+            return this._workletControl([id], volume);
+        }
         const carrier = this.context.createOscillator();
         const modulator = this.context.createOscillator();
         const modulatorGain = this.context.createGain();
@@ -926,7 +1094,20 @@ class ActionAudioManager {
     }
 
     // Multi-oscillator playback (enhanced with volume support)
-    playComplex(sound, { pan = 0, volume = 1.0 } = {}) {
+    playComplex(sound, { pan = 0, volume = 1.0, when = 0 } = {}) {
+        if (this._useWorklet()) {
+            // One voice per partial, all sharing the envelope - the same sum as the node graph.
+            const env = this._envBreakpoints(sound.envelope, sound.duration, volume);
+            this._voiceGains = this._voiceGains || new Map();
+            const ids = sound.frequencies.map((freq, i) => {
+                const mix = sound.mix[i] || 0.5;
+                const id = this.worklet.voice({ at: when, prio: 1, osc: sound.oscillatorTypes[i] || "sine", freq, env, pan, gain: mix },
+                    () => this._voiceGains.delete(id));
+                this._voiceGains.set(id, mix);
+                return id;
+            });
+            return this._workletControl(ids, volume);
+        }
         const stereoPanner = this.context.createStereoPanner();
         const masterGain = this.context.createGain();
         const oscillators = [];
@@ -963,7 +1144,17 @@ class ActionAudioManager {
     }
 
     // Noise generation and playback (enhanced with volume support)
-    playNoise(sound, { pan = 0, volume = 1.0 } = {}) {
+    playNoise(sound, { pan = 0, volume = 1.0, when = 0 } = {}) {
+        if (this._useWorklet()) {
+            const f = sound.filterOptions || {};
+            const id = this.worklet.voice({
+                at: when, prio: 1, osc: "noise", noise: sound.noiseType || "white",
+                filter: { type: f.type || "lowpass", frequency: f.frequency ?? 350, Q: f.Q ?? 1, gain: f.gain ?? 0 },
+                // The node version's buffer is exactly `duration` long, so nothing plays past it.
+                env: this._envBreakpoints(sound.envelope, sound.duration, volume), pan, gain: 1
+            });
+            return this._workletControl([id], volume);
+        }
         const bufferSize = this.context.sampleRate * sound.duration;
         const buffer = this.context.createBuffer(1, bufferSize, this.context.sampleRate);
         const data = buffer.getChannelData(0);
@@ -1034,7 +1225,15 @@ class ActionAudioManager {
     }
 
     // Frequency sweep playback (enhanced with volume support)
-    playSweep(sound, { pan = 0, volume = 1.0 } = {}) {
+    playSweep(sound, { pan = 0, volume = 1.0, when = 0 } = {}) {
+        if (this._useWorklet()) {
+            const id = this.worklet.voice({
+                at: when, prio: 1, osc: sound.oscillatorType, freq: sound.startFreq,
+                sweep: { to: sound.endFreq, dur: sound.duration },
+                env: this._envBreakpoints(sound.envelope, sound.duration, volume), pan, gain: 1
+            });
+            return this._workletControl([id], volume);
+        }
         const oscillator = this.context.createOscillator();
         const gainNode = this.context.createGain();
         const stereoPanner = this.context.createStereoPanner();
@@ -1061,13 +1260,239 @@ class ActionAudioManager {
         };
     }
 
+    // Tracker playback: a song authored as plain data, scheduled on the audio clock.
+    /**
+     * Render a tracker sound (its name) or a song object offline, much faster than real
+     * time, into an AudioBuffer: exactly one pass of the song, ending on its last tick.
+     * Same output as live playback through the tracker (before the master volume).
+     *
+     *   const buffer = await audio.render("song", { mute: [false, true], onProgress: (p) => ... });
+     *   const blob = ActionAudioManager.encodeWav(buffer);       // 16-bit stereo WAV
+     *
+     * options: startOrder, startRow, volume (1), sampleRate (the live one),
+     *          mute / solo (arrays of booleans by channel), onProgress(0..1)
+     */
+    async render(source, options = {}) {
+        const def = typeof source === "string" ? this.sounds.get(source) : null;
+        const song = def ? def.song : source;
+        if (!song || !song.patterns) throw new Error("[AudioManager] render(): not a tracker song: " + source);
+        const sampleRate = options.sampleRate || (this.context && this.context.sampleRate) || 48000;
+        const needsSf = ActionAudioManager.songUsesSoundFont(song);
+        if (needsSf) {
+            if (!this.sf2Player) await this.initializeMIDI();
+            if (this._midiLoading) await this._midiLoading;
+        }
+        const synth = this.sf2Player && this.sf2Player.synth;
+
+        const probe = new ActionTracker({ createGain: () => ({ gain: { value: 1 }, connect() {} }) }, null);
+        const length = probe.songDuration(song, options);
+        const ctx = new OfflineAudioContext(2, Math.ceil(length * sampleRate), sampleRate);
+        const tracker = new ActionTracker(ctx, ctx.destination);
+        const orderLen = song.order && song.order.length ? song.order.length : Object.keys(song.patterns).length;
+        const onRow = options.onProgress ? (o) => options.onProgress(Math.min(1, (o + 1) / orderLen)) : null;
+        const playOpts = { volume: options.volume ?? 1, loop: false, startOrder: options.startOrder, startRow: options.startRow, onRow };
+
+        let host = null;
+        if (window.ActionAudioWorkletHost && ctx.audioWorklet && ActionAudioManager.engine !== "nodes") {
+            host = new ActionAudioWorkletHost(ctx, ctx.destination);
+            try { await host.ready; } catch (e) { host = null; }
+        }
+        if (host) {
+            tracker.attachWorklet(host);
+            if (needsSf && synth) { host.loadSoundFont(synth); tracker.setSoundFont({ synth }); }
+            ctx.suspend(0).then(async () => {
+                const handle = tracker._playWorklet(song, { ...playOpts, at: 0 });
+                ActionAudioManager._applyMuteSolo(handle, options);
+                await host.sync();
+                ctx.resume();
+            });
+            const buffer = await ctx.startRendering();
+            if (options.onProgress) options.onProgress(1);
+            return buffer;
+        }
+
+        // Node fallback: queue the whole song up front (a lookahead longer than the song),
+        // then render. Slower, but the same sound as the node engine plays live.
+        if (needsSf && synth) {
+            const sf = new SoundFont(ctx);
+            await sf.bootSynth(synth.input.buffer.slice(0));
+            tracker.setSoundFont(sf);
+        }
+        const handle = tracker.play(song, { ...playOpts, lookahead: length + 1 });
+        ActionAudioManager._applyMuteSolo(handle, options);
+        const ticks = length * 200;                      // generous: 512 ticks per 25 ms pump
+        await new Promise((r) => setTimeout(r, Math.max(100, (ticks / 512) * 30)));
+        clearInterval(handle._timer);
+        const buffer = await ctx.startRendering();
+        if (options.onProgress) options.onProgress(1);
+        return buffer;
+    }
+
+    static _applyMuteSolo(handle, options) {
+        (options.mute || []).forEach((m, i) => { if (m) handle.setMute(i, true); });
+        (options.solo || []).forEach((s, i) => { if (s) handle.setSolo(i, true); });
+    }
+
+    /** 16-bit PCM WAV (stereo, or mono for a 1-channel buffer) from an AudioBuffer. */
+    static encodeWav(buffer) {
+        const chans = Math.min(2, buffer.numberOfChannels);
+        const data = Array.from({ length: chans }, (_, c) => buffer.getChannelData(c));
+        const frames = buffer.length, bytes = 44 + frames * chans * 2;
+        const v = new DataView(new ArrayBuffer(bytes));
+        const str = (off, s) => { for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)); };
+        str(0, "RIFF"); v.setUint32(4, bytes - 8, true); str(8, "WAVE");
+        str(12, "fmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, chans, true);
+        v.setUint32(24, buffer.sampleRate, true); v.setUint32(28, buffer.sampleRate * chans * 2, true);
+        v.setUint16(32, chans * 2, true); v.setUint16(34, 16, true);
+        str(36, "data"); v.setUint32(40, frames * chans * 2, true);
+        let off = 44;
+        for (let i = 0; i < frames; i++) {
+            for (let c = 0; c < chans; c++) { v.setInt16(off, Math.max(-1, Math.min(1, data[c][i])) * 32767, true); off += 2; }
+        }
+        return new Blob([v.buffer], { type: "audio/wav" });
+    }
+
+    // The shared tracker, on the audio-thread engine when that is running.
+    getTracker() {
+        if (!this.tracker) this.tracker = new ActionTracker(this.context, this.masterGain);
+        if (this.engine === "worklet" && this.worklet && !this.tracker.worklet) this.tracker.attachWorklet(this.worklet);
+        this._attachSoundFontToTracker();
+        return this.tracker;
+    }
+
+    playTracker(sound, options = {}) {
+        this.getTracker();
+        if (!this.sf2Player && ActionAudioManager.songUsesSoundFont(sound.song)) this.initializeMIDI();
+        const handle = this.tracker.play(sound.song, options);
+        return {
+            stop: () => handle.stop(),
+            pause: () => handle.pause(),
+            resume: () => handle.resume(),
+            setVolume: (v) => handle.setVolume(v),
+            isPlaying: () => handle.isPlaying,
+            nodes: [],
+            trackerHandle: handle
+        };
+    }
+
     parseSonicPi(script, samples) {
         const parser = new SonicPiParser(this);
         return parser.parseScript(script, samples);
     }
 
+    // SonicPi on the audio-thread engine: every event is scheduled up front on the audio
+    // clock (the node path fires each one from a setTimeout). Same sounds as the node path:
+    // `play` = sine at the note, `sample` = the synthetic buffer or a SoundFont note.
+    // Scripts using echo / reverb / wobble keep the node path (those effects live there).
+    _playSonicPiWorklet(sound, options) {
+        const host = this.worklet;
+        const t0 = this.context.currentTime + 0.02;
+        const volume = options.volume ?? 1;
+        const ids = [];
+        const midiNotes = [];
+        // Envelope through breakpoints in order (equal times = a jump), cut at `end` -
+        // the source stops there.
+        const cut = (pts, end) => {
+            const out = [];
+            for (let i = 0; i < pts.length; i++) {
+                const [t, v] = pts[i];
+                if (t >= end) {
+                    const [ta, va] = out.length ? out[out.length - 1] : [0, 0];
+                    out.push([end, t > ta ? va + (v - va) * ((end - ta) / (t - ta)) : v]);
+                    return out;
+                }
+                out.push([t, v]);
+            }
+            return out;
+        };
+        // The node path reaches the output twice: once from where the voice is built (a
+        // synth through a StereoPanner, a sample straight), once after its effects (panned if
+        // the event has a pan, else straight). Straight mono = both sides at full level, i.e.
+        // a centre voice at sqrt(2). Unfiltered paths with the same pan merge into one voice.
+        // StereoPannerNode laws, as [left, right] gains: a mono input is equal-power; a
+        // stereo input (the synthetic sample buffers, L = R) folds one side into the other.
+        const panMono = (p) => { const x = ((p + 1) / 2) * (Math.PI / 2); return [Math.cos(x), Math.sin(x)]; };
+        const panStereo = (p) => p <= 0
+            ? [1 + Math.cos(((p + 1) * Math.PI) / 2), Math.sin(((p + 1) * Math.PI) / 2)]
+            : [Math.cos((p * Math.PI) / 2), 1 + Math.sin((p * Math.PI) / 2)];
+        // The node path reaches the output twice: once from where the voice is built (a
+        // synth through a StereoPanner, a sample straight), once after its effects (panned if
+        // the event has a pan, else straight). Unfiltered paths merge into one voice; two
+        // straight paths are the same connection made twice, which Web Audio keeps as one.
+        const emit = (spec, filter, isSample) => {
+            const p = spec.pan || 0;
+            const first = isSample ? [1, 1] : panMono(p);
+            const second = p ? (isSample ? panStereo(p) : panMono(p)) : [1, 1];
+            const g = spec.gain;
+            if (!filter && isSample && !p) { ids.push(host.voice({ ...spec, lr: [g, g], gain: 1 })); return; }
+            if (!filter) { ids.push(host.voice({ ...spec, lr: [g * (first[0] + second[0]), g * (first[1] + second[1])], gain: 1 })); return; }
+            ids.push(host.voice({ ...spec, lr: [g * first[0], g * first[1]], gain: 1 }));
+            ids.push(host.voice({ ...spec, lr: [g * second[0], g * second[1]], gain: 1, filter }));
+        };
+        let lastEnd = 0;
+        for (const event of sound.parsedSequence) {
+            if (event.command !== "play" && event.command !== "sample") continue;
+            const at = t0 + event.time;
+            const attack = event.attack || 0.01;
+            const release = event.release || 1;
+            const amp = event.amp || 0.5;
+            const end = attack + release;
+            const outer = [[0, 0], [attack, amp], [end, 0]];
+            const lpf = (event.effects || []).find((e) => e.type === "lpf");
+            const filter = lpf ? { type: "lowpass", frequency: lpf.params.cutoff || 1000, Q: lpf.params.resonance || 1 } : null;
+
+            if (event.command === "sample") {
+                const definition = this.sampleDefinitions.get(event.sample);
+                if (definition?.soundType === "midi") {
+                    const note = event.note || 60;
+                    const vel = Math.floor(definition.amp * 127);
+                    this.programChange(0, this.midiProgramMap[definition.instrument], at);
+                    this.noteOn(0, note, vel, at);
+                    this.noteOff(0, note, at + (event.duration || 0.1));
+                    midiNotes.push(note);
+                    lastEnd = Math.max(lastEnd, event.time + (event.duration || 0.1));
+                    continue;
+                }
+                const buffer = this.samples.get(event.sample);
+                if (buffer) {
+                    emit({ at, prio: 0, pcm: host.pcm(buffer), rate: event.rate || 1, env: outer, pan: event.pan || 0, gain: volume }, filter, true);
+                    lastEnd = Math.max(lastEnd, event.time + end);
+                    continue;
+                }
+                console.warn(`[AudioManager] No synthetic sample found for ${event.sample}`);
+            }
+            // Synth note: the node path schedules two envelopes on the same gain - the event's
+            // 0 -> amp (attack) -> 0 (end) and, a moment later (from its setTimeout), the synth's
+            // own 0 -> 1 (10 ms) -> 0 (duration). They interleave on one timeline, so the
+            // synth's ramp to 1 lands last and the note peaks at 1 whatever `amp` says.
+            const inner = [[0.0001, 0], [0.0101, 1], [(event.duration || 1) + 0.0001, 0]];
+            const merged = [...outer, ...inner].map((pt, i) => [pt[0], pt[1], i]).sort((x, y) => x[0] - y[0] || x[2] - y[2]);
+            const env = cut(merged.map(([t, v]) => [t, v]), end);
+            const freq = event.command === "play" ? this.midiToFrequency(event.note) : 440;
+            emit({ at, prio: 0, osc: "sine", freq, env, pan: event.pan || 0, gain: volume }, filter, false);
+            lastEnd = Math.max(lastEnd, event.time + end);
+        }
+        let isPlaying = true;
+        const control = this._workletControl(ids, volume);
+        const timer = setTimeout(() => { isPlaying = false; }, (t0 - this.context.currentTime + lastEnd) * 1000);
+        return {
+            ...control,
+            stop: () => {
+                isPlaying = false;
+                clearTimeout(timer);
+                control.stop();
+                for (const note of midiNotes) this.noteOff(0, note);
+            },
+            nodes: [],
+            midiNotes,
+            isPlaying: () => isPlaying
+        };
+    }
+
     playSonicPi(sound, options = {}) {
         if (!this.enabled || !this.context) return;
+        const nodeOnlyFx = (e) => (e.effects || []).some((fx) => fx.type !== "lpf");
+        if (this._useWorklet() && !sound.parsedSequence.some(nodeOnlyFx)) return this._playSonicPiWorklet(sound, options);
 
         const startTime = this.context.currentTime;
         const allNodes = [];
