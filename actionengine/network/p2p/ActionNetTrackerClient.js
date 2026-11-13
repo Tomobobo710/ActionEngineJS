@@ -28,6 +28,7 @@ class ActionNetTrackerClient {
         this.outgoingPeers = new Map(); // Track SimplePeer instances we created: offerId -> peer
         this.pendingOffers = new Set(); // offerId of offers waiting for answers
         this.connectedPeerIds = new Set(); // peerId of peers we've successfully connected to
+        this.connectingPeerIds = new Set(); // peerId of peers a connection is being set up with (one at a time per pair)
         this.discoveredCount = 0; // Total peers from tracker (seeders + leechers)
         this.announceCount = 0; // Track total announces for backoff
     }
@@ -293,6 +294,57 @@ class ActionNetTrackerClient {
     /**
      * Send announce request to tracker(s) with offers
      */
+    // A connection being set up with a peer blocks a second one, but not forever: one that never finished (no connect, no error) is let go after this long.
+    _markConnecting(peerId) {
+        this.connectingPeerIds.add(peerId);
+        setTimeout(() => { if (!this.connectedPeerIds.has(peerId)) this.connectingPeerIds.delete(peerId); }, ActionNetTrackerClient.CONNECTING_MS);
+    }
+    static CONNECTING_MS = 15000;
+
+    // ---- wire ids --------------------------------------------------------------------------------------------------------------
+    // WebTorrent trackers take info_hash, peer_id and offer_id as exactly 20 bytes (a 20-character binary string in the JSON) and reject anything else
+    // ("info_hash field is missing or wrong", "Invalid request"). Inside the engine they stay as they always were (40-hex hashes, "peer_xxxxxxxxx"
+    // ids); only what crosses the socket is converted, both ways.
+    static WIRE_PAD = '~';
+    static _hexToWire(hex) {
+        if (typeof hex !== 'string' || !/^[0-9a-f]{40}$/i.test(hex)) return hex;
+        let s = '';
+        for (let i = 0; i < 40; i += 2) s += String.fromCharCode(parseInt(hex.substr(i, 2), 16));
+        return s;
+    }
+    static _wireToHex(s) {
+        if (typeof s !== 'string' || s.length !== 20) return s;
+        let hex = '';
+        for (let i = 0; i < 20; i++) hex += s.charCodeAt(i).toString(16).padStart(2, '0');
+        return hex;
+    }
+    static _peerToWire(id) {
+        return typeof id === 'string' && id.length < 20 ? id + ActionNetTrackerClient.WIRE_PAD.repeat(20 - id.length) : id;
+    }
+    static _wireToPeer(id) {
+        if (typeof id !== 'string') return id;
+        let n = id.length;
+        while (n > 0 && id[n - 1] === ActionNetTrackerClient.WIRE_PAD) n--;
+        return id.slice(0, n);
+    }
+    _toWire(msg) {
+        const C = ActionNetTrackerClient, out = { ...msg };
+        if (out.info_hash) out.info_hash = C._hexToWire(out.info_hash);
+        if (out.peer_id) out.peer_id = C._peerToWire(out.peer_id);
+        if (out.to_peer_id) out.to_peer_id = C._peerToWire(out.to_peer_id);
+        if (out.offer_id) out.offer_id = C._hexToWire(out.offer_id);
+        if (Array.isArray(out.offers)) out.offers = out.offers.map((o) => ({ ...o, offer_id: C._hexToWire(o.offer_id) }));
+        return out;
+    }
+    _fromWire(msg) {
+        const C = ActionNetTrackerClient;
+        if (msg.info_hash) msg.info_hash = C._wireToHex(msg.info_hash);
+        if (msg.peer_id) msg.peer_id = C._wireToPeer(msg.peer_id);
+        if (msg.to_peer_id) msg.to_peer_id = C._wireToPeer(msg.to_peer_id);
+        if (msg.offer_id) msg.offer_id = C._wireToHex(msg.offer_id);
+        return msg;
+    }
+
     announce(offers = [], targetWs = null) {
         // Build announce message
         const request = {
@@ -307,8 +359,8 @@ class ActionNetTrackerClient {
             request.offers = offers;
         }
 
-        const msgStr = JSON.stringify(request);
-        this.log(`Announcing: ${msgStr}`);
+        const msgStr = JSON.stringify(this._toWire(request));
+        this.log(`Announcing: ${JSON.stringify(request)}`);
         this.log(`Announcing with ${offers.length} offers`);
 
         // Send to specific tracker or all
@@ -341,6 +393,7 @@ class ActionNetTrackerClient {
                 message = JSON.parse(str);
             }
 
+            this._fromWire(message);
             this.log(`MESSAGE #${this.messageCount}: ${JSON.stringify(message)}`);
 
             // Check for peer offer/answer FIRST before general announce response
@@ -402,6 +455,12 @@ class ActionNetTrackerClient {
             this.log(`Already connected to peer: ${peerId} - ignoring offer`);
             return;
         }
+        // Every working tracker relays the same offer: answer it once. And one connection per pair: the peer with the lower id answers, the higher one
+        // waits for answers to its own offers (both answering each other made two connections that tore each other down).
+        if (this.outgoingPeers.has(offerId)) return;
+        if (!(String(this.peerId) < String(peerId))) return;
+        if (this.connectingPeerIds.has(peerId)) return;
+        this._markConnecting(peerId);
 
         // Create responder Peer to handle this offer
         const peer = new ActionNetPeer({
@@ -449,6 +508,7 @@ class ActionNetTrackerClient {
             this.log(`Responder peer error: ${err.message}`, 'warn');
             this.outgoingPeers.delete(offerId);
             this.connectedPeerIds.delete(peerId);
+            this.connectingPeerIds.delete(peerId);
             this.emit('peer-failed', {
                 id: peerId,
                 error: err
@@ -458,6 +518,7 @@ class ActionNetTrackerClient {
         peer.on('close', () => {
             this.outgoingPeers.delete(offerId);
             this.connectedPeerIds.delete(peerId);
+            this.connectingPeerIds.delete(peerId);
             this.emit('peer-disconnected', {
                 id: peerId
             });
@@ -477,9 +538,13 @@ class ActionNetTrackerClient {
 
         this.log(`Received answer from peer: ${peerId}`);
 
-        // Check if we have the SimplePeer for this offer
+        // Check if we have the SimplePeer for this offer. Each tracker relays the answer too: only the first is used (signalling an answer twice
+        // fails the connection).
         const peer = this.outgoingPeers.get(offerId);
+        if (peer && !this.pendingOffers.has(offerId)) return;
+        if (peer && this.connectingPeerIds.has(peerId)) return;
         if (peer && !peer.destroyed) {
+            this._markConnecting(peerId);
             // Mark offer as answered (no longer pending)
             this.pendingOffers.delete(offerId);
             
@@ -518,6 +583,8 @@ class ActionNetTrackerClient {
                 this.log(`Peer error: ${err.message}`, 'warn');
                 this.outgoingPeers.delete(offerId);
                 this.connectedPeerIds.delete(peerId);
+                this.connectingPeerIds.delete(peerId);
+            this.connectingPeerIds.delete(peerId);
                 this.emit('peer-failed', {
                     id: peerId,
                     error: err
@@ -527,6 +594,8 @@ class ActionNetTrackerClient {
             peer.on('close', () => {
                 this.outgoingPeers.delete(offerId);
                 this.connectedPeerIds.delete(peerId);
+                this.connectingPeerIds.delete(peerId);
+            this.connectingPeerIds.delete(peerId);
                 this.emit('peer-disconnected', {
                     id: peerId
                 });
@@ -549,8 +618,8 @@ class ActionNetTrackerClient {
             answer: answer
         };
 
-        const msgStr = JSON.stringify(response);
-        this.log(`Sending answer: ${msgStr}`);
+        const msgStr = JSON.stringify(this._toWire(response));
+        this.log(`Sending answer: ${JSON.stringify(response)}`);
 
         // Send to all connected trackers
         for (const [, trackerData] of this.trackers) {
