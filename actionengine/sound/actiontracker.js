@@ -74,6 +74,10 @@
 //   Pxy  pan slide: +x right / -y left per tick (64 units = full scale)
 //   Rxy  retrigger every y ticks with volume slide x (0 none, 1-8 down, 9-F up)
 //   Txy  tremor: x+1 ticks on, y+1 ticks off, repeating
+//   9xx  sample offset: soundfont notes start xx*256 samples in (900 = last)
+//   E3x  glissando (tone porta in semitones)   E4x / E7x  vibrato / tremolo waveform
+//   E5x  finetune (1/8 semitones)             Gxx / Hxy  global volume / global volume slide
+//   X1x / X2x  extra-fine portamento up / down (x/64 semitone)
 //
 // Instruments are where the character lives. Beyond wave/duty/adsr/gain/filter/pan:
 //   sf2:      0..127 | "drums"             // play via the attached ActionSoundFont
@@ -91,6 +95,8 @@
 //   arp:      { notes: [0,4,7], speed: 1 } // auto arpeggio, speed = rows per step
 //   tremolo:  { rate: 8, depth: 0.4 }     // amplitude wobble
 //   glide:    0.08                        // portamento seconds from the channel's last note
+//   nna:      "cut"|"continue"|"off"|"fade" // New Note Action: what the old note does when a new one starts
+//   send:     0..1                        // into song.delay (also per channel: { inst, send })
 //   volumeEnv:{ points:[[tick,level],...], sustain, loop:[a,b], fadeout } // XM-style,
 //             level 0..1, ticks relative to note start; overrides adsr when present
 //   panEnv:   { points:[[tick,pan],...], sustain, loop:[a,b] } // panning envelope,
@@ -358,8 +364,126 @@ class ActionTracker {
             channels,
             patterns: song.patterns || {},
             order: song.order && song.order.length ? song.order : Object.keys(song.patterns || {}),
-            loop: song.loop === undefined ? false : song.loop
+            loop: song.loop === undefined ? false : song.loop,
+            swing: ActionTracker._normalizeSwing(song.swing),
+            delay: ActionTracker._normalizeDelay(song.delay),
+            delay2: ActionTracker._normalizeDelay(song.delay2)
         };
+    }
+
+    // song.delay: a real tempo-synced echo that channels send into.
+    //   time      delay in rows (follows the tempo, Fxx included)        default 3 (dotted 8th)
+    //   feedback  0..0.9, how much of each repeat comes back                default 0.35
+    //   tone      lowpass (Hz) on every pass, so repeats darken like tape   default 3000
+    //   pingpong  repeats alternate left / right: true or "left" (first repeat on
+    //             the left), "right" (first on the right), false (each side echoes itself)
+    //   level     wet level                                                  default 1
+    // Channels choose how much they send: channel { send: 0..1 } (default 0), or an
+    // instrument's own `send`, which wins for its notes. Mute/solo apply to the send.
+    // song.delay2: an optional second echo (same fields, its own time) for a part that
+    // wants a different echo than the rest - e.g. a tight slapback. Sends: `send2`.
+    // Wxx re-times only the first echo.
+    static _normalizeDelay(d) {
+        if (!d) return null;
+        const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+        return {
+            time: clamp(d.time ?? 3, 0.25, 64),
+            feedback: clamp(d.feedback ?? 0.35, 0, 0.9),
+            tone: clamp(d.tone ?? 3000, 200, 16000),
+            pingpong: d.pingpong === false ? false : d.pingpong === "right" ? "right" : "left",
+            level: Math.max(0, d.level ?? 1)
+        };
+    }
+
+    _delaySeconds(song, state, which = 1) {
+        const rows = which === 2 ? song.delay2.time : (state.delayRows ?? song.delay.time);
+        return Math.min(3.9, (rows * 60) / state.tempo / song.rowsPerBeat);
+    }
+
+    _sendFor(c, inst, which = 1) {
+        const k = which === 2 ? "send2" : "send";
+        return Math.max(0, Math.min(1, (inst && inst[k]) ?? c.cfg[k] ?? 0));
+    }
+
+    // How long the echo keeps ringing after the last note (until repeats fall ~60 dB).
+    _delayTail(song) {
+        const tail = (d, which) => {
+            if (!d) return 0;
+            const repeats = Math.log(0.001) / Math.log(Math.max(0.01, d.feedback));
+            return Math.min(6, repeats * this._delaySeconds(song, { tempo: song.bpm }, which));
+        };
+        return Math.max(tail(song.delay, 1), tail(song.delay2, 2));
+    }
+
+    // Node engine: ping-pong delay graph. input -> delay -> tone lowpass -> out, and back
+    // round through `feedback` (to the other side when ping-ponging). Mirrors the
+    // audio-thread delay in actionaudioworklet.js.
+    _makeNodeDelay(song, dest, d = song.delay) {
+        const ctx = this.context;
+        const side = () => {
+            const dl = ctx.createDelay(4);
+            const lp = ctx.createBiquadFilter();
+            lp.type = "lowpass";
+            lp.frequency.value = d.tone;
+            lp.Q.value = -3.01;                      // no resonance bump (Butterworth)
+            const fb = ctx.createGain();
+            fb.gain.value = d.feedback;
+            dl.connect(lp);
+            lp.connect(fb);
+            return { dl, lp, fb };
+        };
+        const input = ctx.createGain();
+        const L = side(), R = side();
+        const merger = ctx.createChannelMerger(2);
+        const wet = ctx.createGain();
+        wet.gain.value = d.level;
+        const nodes = [input, L.dl, L.lp, L.fb, R.dl, R.lp, R.fb, merger, wet];
+        if (d.pingpong) {
+            const mono = ctx.createGain();           // (L + R) / 2 into the left line
+            mono.channelCount = 1;
+            mono.channelCountMode = "explicit";
+            input.connect(mono);
+            mono.connect(d.pingpong === "right" ? R.dl : L.dl);      // first repeat on that side
+            L.fb.connect(R.dl);
+            R.fb.connect(L.dl);
+            nodes.push(mono);
+        } else {
+            const split = ctx.createChannelSplitter(2);
+            input.connect(split);
+            split.connect(L.dl, 0);
+            split.connect(R.dl, 1);
+            L.fb.connect(L.dl);
+            R.fb.connect(R.dl);
+            nodes.push(split);
+        }
+        L.lp.connect(merger, 0, 0);
+        R.lp.connect(merger, 0, 1);
+        merger.connect(wet);
+        wet.connect(dest);
+        return {
+            input,
+            setTime: (sec, at) => [L.dl, R.dl].forEach((dl) => dl.delayTime.setTargetAtTime(sec, at, 0.05)),
+            disconnect: () => nodes.forEach((n) => { try { n.disconnect(); } catch (e) {} })
+        };
+    }
+
+    _setDelayTime(handle, time) {
+        const first = !handle._delayTimed;
+        const at = first ? Math.max(0, time - 0.2) : time;        // settle before the first note
+        if (handle._delay) handle._delay.setTime(this._delaySeconds(handle._song, handle._state), at);
+        if (handle._delay2) handle._delay2.setTime(this._delaySeconds(handle._song, handle._state, 2), at);
+        handle._delayTimed = true;
+    }
+
+    // song.swing: a number (rows of delay on the off-16ths) or { amount, unit }, where
+    // unit is the swung step in rows (1 = 16ths, 2 = 8ths at rowsPerBeat 4) and amount
+    // is how late the off-beat lands, in rows (0.5 = half a row; 0 = straight).
+    static _normalizeSwing(swing) {
+        if (!swing) return null;
+        const s = typeof swing === "number" ? { amount: swing, unit: 1 } : swing;
+        const unit = Math.max(1, Math.round(s.unit || 1));
+        const amount = Math.max(0, Math.min(0.95, s.amount || 0));   // one row absorbs it, so < 1 row
+        return amount > 0 ? { amount, unit } : null;
     }
 
     _createHandle(song, options) {
@@ -409,11 +533,27 @@ class ActionTracker {
             handle._gain.connect(tracker.output);
             // Each channel gets its own bus so mute/solo act instantly, even on notes the
             // scheduler has already queued ahead of the audio clock.
+            // song.delay: one echo per playback, after the handle gain's input so stop and
+            // setVolume act on the tails too.
+            handle._delay = song.delay ? tracker._makeNodeDelay(song, handle._gain) : null;
+            handle._delay2 = song.delay2 ? tracker._makeNodeDelay(song, handle._gain, song.delay2) : null;
             handle._channels.forEach((c) => {
                 c.bus = ctx.createGain();
                 c.bus.connect(handle._gain);
                 c.dest = c.bus;
                 c.handle = handle;
+                if (handle._delay) {
+                    c.send = ctx.createGain();
+                    c.send.gain.value = tracker._sendFor(c, song.instruments[c.cfg.inst]);
+                    c.bus.connect(c.send);
+                    c.send.connect(handle._delay.input);
+                }
+                if (handle._delay2) {
+                    c.send2 = ctx.createGain();
+                    c.send2.gain.value = tracker._sendFor(c, song.instruments[c.cfg.inst], 2);
+                    c.bus.connect(c.send2);
+                    c.send2.connect(handle._delay2.input);
+                }
             });
             tracker._allocSf2Channels(handle._channels, song);
             syncAudibility();
@@ -465,13 +605,20 @@ class ActionTracker {
                 if (c.voice && c.voice.sf2) tracker._sf2NoteOff(c, endTime);
                 else if (c.voice) tracker._stopVoice(c.voice, endTime, 0.15);
                 c.voice = null;
+                tracker._stopBackground(c, endTime, 0.15);
             });
             handle.isPlaying = false;
             clearInterval(handle._timer);
             handle._timer = null;
             const g = handle._gain;
-            if (g) g.gain.setTargetAtTime(0, endTime + 0.4, 0.1);
+            const tail = tracker._delayTail(song);                 // let the echo ring out
+            if (g) g.gain.setTargetAtTime(0, endTime + 0.4 + tail, 0.1);
             tracker._handles.delete(handle);
+            if (handle._sf2Sends) {
+                const sends = handle._sf2Sends;
+                setTimeout(() => sends.forEach((s) => { try { s.disconnect(); } catch (e) {} }),
+                    Math.max(0, endTime - ctx.currentTime + tail + 1) * 1000);
+            }
             if (handle.onEnd) {
                 const ms = Math.max(0, endTime - ctx.currentTime) * 1000 + 500;
                 setTimeout(() => handle.onEnd(), ms);
@@ -488,12 +635,15 @@ class ActionTracker {
             handle._channels.forEach((c) => {
                 if (c.voice && !c.voice.sf2) tracker._stopVoice(c.voice, t, 0.03);
                 c.voice = null;
+                tracker._stopBackground(c, t, 0.03);
             });
             handle.isPlaying = false;
             handle.isPaused = false;
             clearInterval(handle._timer);
             handle._timer = null;
             if (handle._gain) handle._gain.gain.setTargetAtTime(0, t, 0.02);
+            // The soundfont synth outlives this playback: unhook its channels from our echo.
+            if (handle._sf2Sends) handle._sf2Sends.forEach((s) => { try { s.disconnect(); } catch (e) {} });
             tracker._handles.delete(handle);
         };
 
@@ -510,6 +660,7 @@ class ActionTracker {
             handle._channels.forEach((c) => {
                 if (c.voice && !c.voice.sf2) tracker._stopVoice(c.voice, t, 0.03);
                 c.voice = null;
+                tracker._stopBackground(c, t, 0.03);
             });
             if (handle._gain) handle._gain.gain.setTargetAtTime(0, t, 0.02);
         };
@@ -568,7 +719,19 @@ class ActionTracker {
     // ---- sequencing (shared with the audio-thread tracker) ----
 
     _tickDur(song, state) {
-        return 60 / state.tempo / song.rowsPerBeat / state.speed;
+        const base = 60 / state.tempo / song.rowsPerBeat / state.speed;
+        return song.swing ? base * this._swingFactor(song.swing, state.row) : base;
+    }
+
+    // Swing: in every pair of `unit`-row steps, the last row of the first step is
+    // stretched and the last row of the second shortened by the same amount, so the
+    // off-beat lands `amount` rows late and each pair keeps its length (bar lines and
+    // song length don't move). Counted from the start of the pattern.
+    _swingFactor(swing, row) {
+        const u = swing.unit, pos = row % (2 * u);
+        if (pos === u - 1) return 1 + swing.amount;
+        if (pos === 2 * u - 1) return 1 - swing.amount;
+        return 1;
     }
 
     // Transport state; options.startOrder / startRow begin mid-song, with the tempo and
@@ -586,7 +749,10 @@ class ActionTracker {
             loopCount: {},
             loopJump: null,
             jumpTo: null,
-            breakTo: null
+            breakTo: null,
+            globalVol: 1,            // Gxx (0..1)
+            gvSlide: 0,              // Hxy, per tick
+            delayRows: null          // Wxx: echo time in rows (null = song.delay.time)
         };
         const startOrder = Math.max(0, Math.min(song.order.length - 1, options.startOrder | 0));
         const startRow = Math.max(0, options.startRow | 0);
@@ -599,6 +765,8 @@ class ActionTracker {
                         const parsed = cell ? this._parseCell(cell, cfgs[i] || {}, song.instruments) : null;
                         if (!parsed) return;
                         parsed.fx.forEach((fx) => {
+                            if (fx.cmd === "G") { state.globalVol = Math.min(64, fx.val) / 64; return; }
+                            if (fx.cmd === "W") { if (fx.val) state.delayRows = fx.val; return; }
                             if (fx.cmd !== "F" || fx.val === 0) return;
                             if (fx.val < 0x20) state.speed = fx.val; else state.tempo = fx.val;
                         });
@@ -619,6 +787,12 @@ class ActionTracker {
         const key = song.order[state.orderIndex];
         const pattern = song.patterns[key] || [];
         const cells = pattern[state.row] || [];
+        // The echo follows the tempo (first tick, after every Fxx tempo change) and Wxx.
+        const delayKey = state.tempo + "/" + state.delayRows;
+        if ((handle._delay || handle._delay2) && handle._delayTempo !== delayKey) {
+            handle._delayTempo = delayKey;
+            this._setDelayTime(handle, time);
+        }
         if (state.tick === 0) {
             handle._posQueue.push({ time, order: state.orderIndex, row: state.row, pattern: key, td: tickDur() });
             handle.onRow && handle.onRow(state.orderIndex, state.row, time);
@@ -631,6 +805,7 @@ class ActionTracker {
                 handle._channels.forEach((c, i) => this._rowTick(c, parsed[i], time, song, state));
             }
         }
+        if (state.gvSlide) state.globalVol = Math.max(0, Math.min(1, state.globalVol + state.gvSlide));
         handle._channels.forEach((c) => this._tickChannel(c, time, song, state, tickDur, handle._channels));
     }
 
@@ -727,6 +902,13 @@ class ActionTracker {
             tremorOff: 0,
             tremorPos: 0,
             glideFreq: null,
+            vibWave: 0,              // E4x: 0 sine, 1 ramp down, 2 square, 3 random (+4: keep phase on new notes)
+            tremWave: 0,             // E7x: same values
+            gliss: false,            // E3x: tone portamento in whole semitones
+            lastOffset: 0,           // 9xx memory (900 reuses it)
+            noteOffset: 0,           // sample offset for the note being triggered (soundfont notes)
+            bg: [],                  // NNA: earlier synth notes still sounding on this channel
+            sfBgKeys: [],            // NNA "continue": earlier soundfont keys left ringing
             muted: false,
             solo: false
         };
@@ -816,10 +998,20 @@ class ActionTracker {
     // ---- sequencer-level effects (B/D/F/E6/EE), processed once per row ----
 
     _sequencerFx(parsed, state) {
+        state.gvSlide = 0;                        // Hxy lasts one row, like the other slides
         parsed.forEach((cell) => {
             if (!cell) return;
             cell.fx.forEach((fx) => {
                 switch (fx.cmd) {
+                    case "G":                             // global volume 00..40
+                        state.globalVol = Math.min(64, fx.val) / 64;
+                        break;
+                    case "H":                             // global volume slide: x up, y down, per tick
+                        state.gvSlide = fx.x ? fx.x / 64 : -fx.y / 64;
+                        break;
+                    case "W":                             // echo time: xx rows from here on
+                        if (fx.val) state.delayRows = fx.val;
+                        break;
                     case "B":
                         state.jumpTo = fx.val;
                         break;
@@ -903,7 +1095,15 @@ class ActionTracker {
         const inst = song.instruments[cell.inst] || song.instruments[c.inst] || {};
         if (cell.inst) c.inst = cell.inst;
         const prevFreq = c.voice ? c.curFreq : c.glideFreq;
-        const freq = ActionTracker.midiToFreq(ActionTracker.topMidi(cell.midi));
+        const noteFreq = ActionTracker.midiToFreq(ActionTracker.topMidi(cell.midi));
+        // E5x finetune for this note: 0..7 up, 8..F down, in 1/8 semitones.
+        const ft = cell.fx.find((f) => f.cmd === "E" && f.x === 5);
+        const fine = ft ? (ft.y < 8 ? ft.y : ft.y - 16) / 8 : 0;
+        const freq = fine ? noteFreq * Math.pow(2, fine / 12) : noteFreq;
+        // 9xx sample offset (soundfont notes): xx * 256 samples into the sample; 900 = last one.
+        const so = cell.fx.find((f) => f.cmd === "9");
+        if (so && so.val) c.lastOffset = so.val;
+        c.noteOffset = so ? (c.lastOffset || 0) * 256 : 0;
 
         const tonePorta = cell.fx.find((f) => f.cmd === "3" || f.cmd === "5");
         if (tonePorta && (c.voice || (inst.sf2 !== undefined && c.sf2))) {
@@ -919,10 +1119,12 @@ class ActionTracker {
 
         if (inst.sf2 !== undefined) {
             if (!this.soundFont || !this.soundFont.synth || !c.sf2) return;
-            if (c.voice && c.voice.sf2) this._sf2NoteOff(c, time);   // at the new note's time, not now: the old note may still be queued
+            // The old note gets its instrument's New Note Action, whatever kind it is.
+            if (c.voice && c.voice.sf2) this._sf2HandOff(c, time);
+            else if (c.voice) this._handOff(c, time);      // a synth note: was left sounding before
             c.voice = null;
             c.midi = cell.midi;
-            c.baseFreq = freq;
+            c.baseFreq = noteFreq;                // pitch bend is measured from the key, so finetune shows as bend
             c.curFreq = freq;
             c.glideFreq = freq;
             c.noteTick = 0;
@@ -933,8 +1135,8 @@ class ActionTracker {
             this._sf2NoteOn(c, inst, time);
             c.voice = { sf2: true, inst, level: 1, lastGain: null, vol0: Math.max(c.vol, 1 / 127), releasing: false, stopped: false };
         } else {
-            if (c.voice && c.voice.sf2) this._sf2NoteOff(c, time);
-            else if (c.voice) this._stopVoice(c.voice, time, 0.02);
+            if (c.voice && c.voice.sf2) this._sf2HandOff(c, time);
+            else if (c.voice) this._handOff(c, time);
             c.midi = cell.midi;
             c.baseFreq = freq;
             c.curFreq = freq;
@@ -966,11 +1168,11 @@ class ActionTracker {
             c.vibRate = vib.rate || 6;
             c.vibDepth = vib.depth || 25;
             const tickDur = (60 / state.tempo / song.rowsPerBeat) / state.speed;
-            c.vibPos = -(vib.delay || 0) / tickDur;
+            if (!(c.vibWave & 4)) c.vibPos = -(vib.delay || 0) / tickDur;    // E4x +4 keeps the phase
         } else if (!cell.fx.some((f) => f.cmd === "4" || f.cmd === "6")) {
             c.vibRate = 0;
             c.vibDepth = 0;
-            c.vibPos = 0;
+            if (!(c.vibWave & 4)) c.vibPos = 0;
         }
 
         // Instrument auto-arpeggio (cell arp / 0xx override), speed in rows.
@@ -1045,6 +1247,10 @@ class ActionTracker {
                 c.tremorOn = x + 1;
                 c.tremorOff = y + 1;
                 break;
+            case "X":                                     // FT2 extra-fine portamento, once
+                if (x === 1 && y) c.curFreq *= Math.pow(2, y / 64 / 12);
+                else if (x === 2 && y) c.curFreq /= Math.pow(2, y / 64 / 12);
+                break;
             case "E":
                 this._applyExtendedFx(c, cell, fx, time, song, state);
                 break;
@@ -1083,6 +1289,17 @@ class ActionTracker {
             case 2:
                 if (y) c.curFreq /= Math.pow(2, y / 16 / 12);
                 break;
+            case 3:                                       // glissando on/off
+                c.gliss = y > 0;
+                break;
+            case 4:                                       // vibrato waveform
+                c.vibWave = y & 7;
+                break;
+            case 5:                                       // finetune: applied when the note triggers
+                break;
+            case 7:                                       // tremolo waveform
+                c.tremWave = y & 7;
+                break;
             case 9:
                 c.retrigger = Math.max(1, y);
                 c.retrigVol = 0;
@@ -1118,6 +1335,7 @@ class ActionTracker {
             this._triggerNote(c, cell, time, song, state);
         }
 
+        if (c.bg.length) this._tickBackground(c, time, state, dt);
         if (!c.voice) return;
         if (c.voice.sf2) {
             this._tickSf2Channel(c, time, song, state, tickDur, channels);
@@ -1152,6 +1370,7 @@ class ActionTracker {
 
         // ---- pitch ----
         let freq = c.curFreq;
+        const porting = c.portaTarget !== null;
         if (c.portaTarget !== null) {
             const diff = Math.log2(c.portaTarget / freq) * 12;
             const step = c.portaSpeed || Math.abs(diff);
@@ -1167,6 +1386,7 @@ class ActionTracker {
             if (c.slideDown) c.curFreq /= Math.pow(2, c.slideDown / 12);
             freq = c.curFreq;
         }
+        if (porting && c.gliss) freq = ActionTracker._snapSemitone(freq);      // E3x
         freq = Math.max(20, Math.min(12000, freq));
 
         // Arpeggio: 0xx / cell arp cycle per tick; instrument arp every N ticks.
@@ -1189,7 +1409,7 @@ class ActionTracker {
         let vibOffset = 0;
         if (c.vibDepth > 0 && c.vibRate > 0) {
             c.vibPos += dt;
-            if (c.vibPos >= 0) vibOffset = (c.vibDepth / 100) * Math.sin(2 * Math.PI * c.vibRate * c.vibPos);
+            if (c.vibPos >= 0) vibOffset = (c.vibDepth / 100) * ActionTracker._wave(c.vibWave, c.vibRate, c.vibPos);
         }
 
         const finalFreq = freq * Math.pow(2, (arpOffset + envOffset + vibOffset) / 12);
@@ -1231,7 +1451,7 @@ class ActionTracker {
         const tremDepth = c.tremDepth || inst.tremolo?.depth;
         if (tremRate && tremDepth) {
             c.tremPos += dt;
-            trem = 1 - tremDepth / 2 + (tremDepth / 2) * Math.sin(2 * Math.PI * tremRate * c.tremPos);
+            trem = 1 - tremDepth / 2 + (tremDepth / 2) * ActionTracker._wave(c.tremWave, tremRate, c.tremPos);
         }
         // Tremor (Txy): hard on/off gating.
         if (c.tremorOn || c.tremorOff) {
@@ -1241,7 +1461,7 @@ class ActionTracker {
             c.tremorPos++;
         }
 
-        const gainVal = Math.max(0, level * c.vol * trem);
+        const gainVal = Math.max(0, level * c.vol * trem * state.globalVol);
         // Mute/solo is the channel bus (see syncAudibility), so queued notes obey it too.
         const outGain = c.bus ? gainVal : (!c.muted && (!channels.some((ch) => ch.solo) || c.solo) ? gainVal : 0);
         const fromGain = v.lastGain ?? 0;
@@ -1376,6 +1596,9 @@ class ActionTracker {
     }
 
     _keyOff(c, time) {
+        // An OFF also releases notes an NNA left sounding on this channel.
+        for (const b of c.bg) this._keyOffVoice(b, time, b.bgTick);
+        if (c.sfBgKeys.length) { this._sf2KeysOff(c, c.sfBgKeys, time); c.sfBgKeys = []; }
         const v = c.voice;
         if (!v || v.releasing) return;
         v.releasing = true;
@@ -1385,6 +1608,100 @@ class ActionTracker {
         if (v.sf2) this._sf2NoteOff(c, time);
     }
 
+    // ---- effect helpers ----
+
+    // Vibrato / tremolo LFO (E4x / E7x waveform), -1..1. Sine stays exactly the old formula.
+    static _wave(type, rate, pos) {
+        const t = type & 3;
+        if (t === 0) return Math.sin(2 * Math.PI * rate * pos);
+        const x = rate * pos, ph = x - Math.floor(x);
+        if (t === 1) return 1 - 2 * ph;                   // ramp down
+        if (t === 2) return ph < 0.5 ? 1 : -1;           // square
+        return Math.random() * 2 - 1;                     // random
+    }
+
+    static _snapSemitone(freq) {
+        return 440 * Math.pow(2, Math.round(12 * Math.log2(freq / 440)) / 12);
+    }
+
+    // ---- New Note Actions (instrument `nna`) ----
+    // What happens to a synth channel's sounding note when a new one starts:
+    //   "cut" (default) stop it, "continue" let it play on, "off" release it,
+    //   "fade" release it (XM volume envelopes run their fadeout).
+    // Notes left sounding play out their own envelope (no channel effects reach them),
+    // honour their `len`, release on the channel's next OFF, and at most MAX_BACKGROUND
+    // per channel are kept (the oldest is cut).
+    static MAX_BACKGROUND = 4;
+
+    _handOff(c, time) {
+        const v = c.voice;
+        const nna = (v.inst && v.inst.nna) || "cut";
+        if (nna === "cut" || v.releasing && v.level <= 0.001) { this._stopVoice(v, time, 0.02); return; }
+        v.bgVol = c.vol;
+        v.bgTick = c.noteTick;
+        v.gateLeft = c.gateTicks !== null ? c.gateTicks - c.noteTick : null;
+        if (nna === "off" || nna === "fade") this._keyOffVoice(v, time, c.noteTick);
+        c.bg.push(v);
+        while (c.bg.length > ActionTracker.MAX_BACKGROUND) this._stopVoice(c.bg.shift(), time, 0.02);
+    }
+
+    // The soundfont version: "continue" leaves the old keys ringing (the channel's next
+    // OFF releases them); anything else releases them - their own release - at the new
+    // note's time (not now: with a lookahead the old note may still be queued).
+    _sf2HandOff(c, time) {
+        const oldInst = c.voice.inst || {};
+        if (oldInst.nna === "continue" && c.midi !== null) {
+            c.sfBgKeys.push(...(Array.isArray(c.midi) ? c.midi : [c.midi]));
+            while (c.sfBgKeys.length > ActionTracker.MAX_BACKGROUND * 4) this._sf2KeysOff(c, [c.sfBgKeys.shift()], time);
+        } else this._sf2NoteOff(c, time);
+    }
+
+    _keyOffVoice(v, time, tick) {
+        if (!v || v.releasing) return;
+        v.releasing = true;
+        v.releaseAt = time;
+        v.releaseTick = tick;
+        v.releaseFrom = v.level || 0;
+    }
+
+    // Envelope level for a background voice (same rules as the foreground voice).
+    _voiceAmp(v, time, tick) {
+        let level = v.volumeEnv ? this._volumeEnvLevel(v, tick) * v.peak : this._ampEnv(v, time);
+        if (v.volumeEnv && v.envDone && !v.releasing) this._keyOffVoice(v, time, tick);
+        if (v.releasing) {
+            if (v.volumeEnv && v.volumeEnv.fadeout) {
+                if (level <= 0.001) return -1;
+            } else {
+                const rel = Math.max(0.01, v.release);
+                const elapsed = time - v.releaseAt;
+                if (elapsed >= rel) return -1;
+                level = Math.max(0, v.releaseFrom * (1 - elapsed / rel));
+            }
+        }
+        return level;
+    }
+
+    _tickBackground(c, time, state, dt) {
+        for (let i = c.bg.length - 1; i >= 0; i--) {
+            const v = c.bg[i];
+            v.bgTick++;
+            if (v.gateLeft !== null && !v.releasing && --v.gateLeft <= 0) this._keyOffVoice(v, time, v.bgTick);
+            const level = this._voiceAmp(v, time, v.bgTick - 1);
+            if (level < 0) { this._stopVoice(v, time, 0); c.bg.splice(i, 1); continue; }
+            v.level = level;
+            const out = Math.max(0, level * v.bgVol * state.globalVol);
+            this._rampGain(v, v.lastGain ?? 0, out, time, dt);
+            v.lastGain = out;
+        }
+    }
+
+    // Stop / pause / end of song: silence notes an NNA left sounding.
+    _stopBackground(c, time, quick) {
+        for (const v of c.bg) this._stopVoice(v, time, quick);
+        c.bg = [];
+        if (c.sfBgKeys.length) { this._sf2KeysOff(c, c.sfBgKeys, time); c.sfBgKeys = []; }
+    }
+
     // ---- soundfont (SF2) channels ----
     // Instruments with { sf2: program } play through the attached ActionSoundFont
     // instead of the oscillator synth. Each gets a dedicated MIDI channel;
@@ -1392,13 +1709,51 @@ class ActionTracker {
     // (porta/slides/arp/vibrato) rides the MIDI pitch bend, volume/mute rides the
     // per-note expression gain, and the soundfont's own ADSR shapes the note.
 
+    // The soundfont instrument a tracker channel needs a MIDI channel for: its own, or
+    // else the first soundfont instrument any of its notes switches to (a channel can
+    // start on a synth and change to a soundfont instrument mid-song).
+    _sf2InstFor(c, i, song) {
+        const own = song.instruments[c.cfg.inst];
+        if (own && own.sf2 !== undefined) return own;
+        const names = Object.keys(song.instruments).filter((k) => song.instruments[k] && song.instruments[k].sf2 !== undefined);
+        if (!names.length) return null;
+        const isSf2 = new Set(names);
+        for (const k of song.order) {
+            for (const row of song.patterns[k] || []) {
+                const cell = row && row[i];
+                if (!cell) continue;
+                const name = typeof cell === "object" ? cell.inst
+                    : String(cell).trim().split(/\s+/).find((t) => isSf2.has(t));
+                if (name && isSf2.has(name)) return song.instruments[name];
+            }
+        }
+        return null;
+    }
+
+    // A note whose soundfont instrument isn't the program its MIDI channel is set to
+    // (the channel switched instruments): change program / bank at that note.
+    _sf2Program(c, inst, at) {
+        if (!c.sf2 || c.sf2.ch === 9 || inst.sf2 === "drums" || inst.percussion) return;
+        const bank = inst.bank ?? 0;
+        if (c.sf2.prog === inst.sf2 && c.sf2.bank === bank) return;
+        this._sf2SetProgram(c.sf2.ch, inst.sf2, bank, at);
+        c.sf2.prog = inst.sf2;
+        c.sf2.bank = bank;
+    }
+
+    _sf2SetProgram(ch, program, bank) {
+        const synth = this.soundFont.synth;
+        synth.bankChange(ch, bank);
+        synth.programChange(ch, program);
+    }
+
     _allocSf2Channels(channels, song) {
         const sf = this.soundFont;
         if (!sf || !sf.synth) return;
         let next = 0;
-        channels.forEach((c) => {
-            const inst = song.instruments[c.cfg.inst];
-            if (!inst || inst.sf2 === undefined) return;
+        channels.forEach((c, i) => {
+            const inst = this._sf2InstFor(c, i, song);
+            if (!inst) return;
             let ch;
             if (inst.sf2 === "drums" || inst.percussion) {
                 ch = 9;
@@ -1421,7 +1776,28 @@ class ActionTracker {
             // soundfont samples recorded much quieter or louder than their neighbours.
             const level = inst.level ?? 1;
             sf.synth.setChannelGain(ch, level);
-            c.sf2 = { ch, level };
+            c.sf2 = { ch, level, prog: inst.sf2, bank: inst.bank ?? 0 };
+            // Echo sends from the soundfont channel (one per MIDI channel; drums share 9).
+            const h = c.handle;
+            [[h && h._delay, 1, "_sf2SendByCh"], [h && h._delay2, 2, "_sf2Send2ByCh"]].forEach(([dl, which, byCh]) => {
+                const amount = dl ? this._sendFor(c, inst, which) : 0;
+                if (!(amount > 0 && sf.synth.channelGain && sf.synth.channelGain[ch])) return;
+                h._sf2Sends = h._sf2Sends || [];
+                h[byCh] = h[byCh] || {};
+                let g = h[byCh][ch];
+                if (!g) {
+                    g = this.context.createGain();
+                    g.gain.value = 0;
+                    sf.synth.channelGain[ch].connect(g);
+                    g.connect(dl.input);
+                    h[byCh][ch] = g;
+                    h._sf2Sends.push(g);
+                }
+                // The synth's channels still carry raw 16-bit sample values; its master gain
+                // scales them (1/65535). Tapping before it, the send has to apply that too.
+                const scale = sf.synth.gainMaster ? sf.synth.gainMaster.gain.value : 1;
+                g.gain.value = Math.max(g.gain.value, amount * scale);
+            });
         });
     }
 
@@ -1443,8 +1819,17 @@ class ActionTracker {
         // Scheduled on the audio clock, sample-accurate like oscillator voices.
         // (Timers used to fire these; they drifted by milliseconds per note.)
         const at = Math.max(time ?? this.context.currentTime, this.context.currentTime);
+        this._sf2Program(c, inst, at);
         sf.synth.pitchBend(ch, 0, 0x40, at);
-        notes.forEach((m) => sf.noteOn(m, vel, ch, at));
+        notes.forEach((m) => sf.noteOn(m, vel, ch, at, c.noteOffset || 0));
+    }
+
+    // Release specific keys on a channel's MIDI channel (NNA background keys).
+    _sf2KeysOff(c, keys, time) {
+        const sf = this.soundFont;
+        if (!sf || !sf.synth || !c.sf2) return;
+        const at = time === undefined ? undefined : Math.max(time, this.context.currentTime);
+        keys.forEach((m) => sf.noteOff(m, 127, c.sf2.ch, at));
     }
 
     // Stop/pause: release every note actually sounding on the handle's MIDI channels.
@@ -1492,6 +1877,7 @@ class ActionTracker {
         // Pitch: same modulation math as the synth path, applied as pitch bend
         // relative to the triggered note.
         let freq = c.curFreq;
+        const porting = c.portaTarget !== null;
         if (c.portaTarget !== null) {
             const diff = Math.log2(c.portaTarget / freq) * 12;
             const step = c.portaSpeed || Math.abs(diff);
@@ -1507,6 +1893,7 @@ class ActionTracker {
             if (c.slideDown) c.curFreq /= Math.pow(2, c.slideDown / 12);
             freq = c.curFreq;
         }
+        if (porting && c.gliss) freq = ActionTracker._snapSemitone(freq);      // E3x
         let arpOffset = 0;
         if (c.arpNotes && c.arpNotes.length) {
             const every = c.arpTickEvery || 1;
@@ -1516,7 +1903,7 @@ class ActionTracker {
         let vibOffset = 0;
         if (c.vibDepth > 0 && c.vibRate > 0) {
             c.vibPos += dt;
-            if (c.vibPos >= 0) vibOffset = (c.vibDepth / 100) * Math.sin(2 * Math.PI * c.vibRate * c.vibPos);
+            if (c.vibPos >= 0) vibOffset = (c.vibDepth / 100) * ActionTracker._wave(c.vibWave, c.vibRate, c.vibPos);
         }
         const finalFreq = freq * Math.pow(2, (arpOffset + vibOffset) / 12);
         const semis = Math.max(-12, Math.min(12, 12 * Math.log2(finalFreq / c.baseFreq)));
@@ -1536,7 +1923,7 @@ class ActionTracker {
         const tremDepth = c.tremDepth || inst.tremolo?.depth;
         if (tremRate && tremDepth) {
             c.tremPos += dt;
-            trem = 1 - tremDepth / 2 + (tremDepth / 2) * Math.sin(2 * Math.PI * tremRate * c.tremPos);
+            trem = 1 - tremDepth / 2 + (tremDepth / 2) * ActionTracker._wave(c.tremWave, tremRate, c.tremPos);
         }
         if (c.tremorOn || c.tremorOff) {
             const period = c.tremorOn + c.tremorOff;
@@ -1550,7 +1937,7 @@ class ActionTracker {
         // gain only carries changes since note-on (slides, tremolo, mute). Applying c.vol
         // here again stepped every note down a few ticks after its attack - the click
         // between notes - and made soundfont parts quieter than written.
-        const outGain = audible ? Math.max(0, (c.vol / (v.vol0 || 1)) * trem) : 0;
+        const outGain = audible ? Math.max(0, (c.vol / (v.vol0 || 1)) * trem * state.globalVol) : 0;
         // A new note's expression gain starts at the soundfont default (1).
         const fromGain = v.lastGain ?? (audible ? 1 : 0);
         this._sf2Expr(c, fromGain, outGain, Math.max(-1, Math.min(1, c.pan)), time, dt);
@@ -1687,6 +2074,9 @@ class ActionTracker {
         gain.gain.setValueAtTime(0, time);
         head.connect(gain);
         head = gain;
+        // Echo send level for this note's instrument (the channel's send bus).
+        if (c.send) c.send.gain.setValueAtTime(this._sendFor(c, inst), time);
+        if (c.send2) c.send2.gain.setValueAtTime(this._sendFor(c, inst, 2), time);
 
         const panner = ctx.createStereoPanner();
         panner.pan.value = c.pan;
