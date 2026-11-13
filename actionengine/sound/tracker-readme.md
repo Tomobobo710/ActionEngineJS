@@ -82,9 +82,61 @@ Patterns can be any length (16 rows = one 4/4 bar at rowsPerBeat 4).
 | `patterns`    | map of key → array of rows; each row = one cell per channel    | `{}`    |
 | `order`       | playlist of pattern keys                                       | all keys|
 | `loop`        | order index to loop back to; `false` = play once and stop      | `false` |
+| `swing`       | groove: see [Swing](#swing)                                    | none    |
+| `delay`       | a real echo the channels send into: see [Delay](#delay-echo-send) | none |
 
-`pan` is −1..1. Channel `gain` scales the instrument. Extra/missing cells in a row
-are treated as empty.
+`pan` is −1..1. Channel `gain` scales the instrument; channel `send` (0..1) is how much
+of it goes into the song's delay. Extra/missing cells in a row are treated as empty.
+
+### Swing
+
+```js
+swing: 0.5                          // off-16ths land half a row late
+swing: { amount: 0.5, unit: 2 }     // swung 8ths: the off-8th lands half a row late
+```
+
+Applied by the sequencer to every channel at once (notes, effects, echo), so the whole
+band swings together. In each pair of `unit`-row steps the off-beat step lands `amount`
+rows late (0 = straight, up to 0.95); the beats stay put and each pair keeps its total
+length, so bar lines and the song length don't move. Counted from the start of each
+pattern. Prefer it to delaying individual notes with `EDx`: everything stays in the
+same groove.
+
+### Delay (echo send)
+
+```js
+delay: { time: 3, feedback: 0.35, tone: 3000, pingpong: "right", level: 1 },
+channels: [{ inst: "lead", send: 0.4 }, "bass", ...],
+instruments: { lead: { ..., send: 0.5 } },     // an instrument's send wins for its notes
+```
+
+A real tempo-synced echo, like a delay on a send track in Renoise. Channels choose how
+much they send (`send` 0..1, default 0 = dry); everything a channel plays goes in, synth
+and soundfont alike, with mute/solo applied.
+
+| field      | meaning                                                                   | default |
+|------------|---------------------------------------------------------------------------|---------|
+| `time`     | delay in rows (3 = dotted 8th at rowsPerBeat 4, 4 = quarter); follows the tempo, `Fxx` included | 3 |
+| `feedback` | 0..0.9: how much of each repeat comes back                                | 0.35    |
+| `tone`     | lowpass (Hz) on every pass, so repeats darken like tape                   | 3000    |
+| `pingpong` | `"left"` / `true`: repeats alternate, first one on the left; `"right"`: first one on the right; `false`: each side echoes itself | `"left"` |
+| `level`    | wet level                                                                 | 1       |
+
+**A second echo** (`delay2`, same fields, its own `time`) is for a part that wants a
+different echo from the rest, e.g. a tight slapback on an arp while the lead keeps a long
+echo. Channels and instruments feed it with `send2` (0..1, default 0), the same way
+`send` feeds `delay`. `Wxx` re-times only the first echo.
+
+```js
+delay:  { time: 4, feedback: 0.5 },                 // the lead's echo
+delay2: { time: 1, feedback: 0.2, tone: 4000 },     // a tight slapback
+channels: [{ inst: "lead", send: 0.45 }, { inst: "arp", send2: 0.5 }, ...],
+```
+
+The echo runs after the playback's volume, so `stop()` and `setVolume()` act on the
+tails, and a song that ends lets its echo ring out before the handle fades. With a
+swung groove, a quarter-note `time` (4) keeps every repeat on the same spot in the beat
+as its note.
 
 ---
 
@@ -143,13 +195,18 @@ Three chars: command + two hex digits. `x` = first digit, `y` = second, `val` = 
 | `6xy`  | vibrato + volume slide |
 | `7xy`  | tremolo: rate x·2 Hz, depth y/16 |
 | `8xx`  | set pan: 00 = hard left, 80 = center, FF = hard right |
+| `9xx`  | sample offset: start a **soundfont** note xx·256 samples into its sample (`900` = the last offset). No effect on synth waves |
 | `Axy`  | volume slide per tick: **x/64 up, y/64 down** (A04 = slide DOWN, A40 = up) |
 | `Bxx`  | position jump to order index xx (**hex**) |
 | `Cxx`  | set volume xx/64 |
 | `Dxy`  | pattern break: next order entry, row x·10+y (**decimal digits**, max 99) |
 | `E1x`  | fine porta up x/16 semitone, once |
 | `E2x`  | fine porta down, once |
+| `E3x`  | glissando: x>0 makes tone portamento (`3xx`/`5xy`) step in whole semitones; `E30` = smooth |
+| `E4x`  | vibrato waveform: 0 sine, 1 ramp down, 2 square, 3 random; +4 (`E44`–`E47`) keeps the wave's phase on new notes |
+| `E5x`  | finetune for the note on this row: 0–7 = +0..7/8 semitone, 8–F = −8..−1/8 |
 | `E6x`  | pattern loop: y=0 marks loop start at this row; y>0 jumps back y times |
+| `E7x`  | tremolo waveform (same values as `E4x`) |
 | `E9x`  | retrigger note every x ticks (**resets each row** — repeat it on every row you want it) |
 | `EAx`  | fine volume up x/64, once |
 | `EBx`  | fine volume down, once |
@@ -157,10 +214,15 @@ Three chars: command + two hex digits. `x` = first digit, `y` = second, `val` = 
 | `EDx`  | note delay: trigger the note x ticks into the row |
 | `EEx`  | pattern delay: hold this row for x extra rows (notes do NOT retrigger during the hold) |
 | `Fxx`  | xx < 0x20 → speed (ticks/row); xx ≥ 0x20 → tempo in **decimal** BPM (F7D = 125) |
+| `Gxx`  | global volume xx/64 (00–40), whole song |
+| `Hxy`  | global volume slide per tick: x/64 up or y/64 down (lasts the row) |
 | `Kxx`  | key off (same as OFF) |
 | `Pxy`  | pan slide per tick: (x−y)/64 |
 | `Rxy`  | retrigger every y ticks with volume slide x (0 none, 1–8 down, 9–F up) |
+| `Wxx`  | echo time: the song's [delay](#delay-echo-send) repeats every xx rows (**hex**, `W03` = dotted 8th, `W06` = dotted quarter) from this row on. Repeats still ringing glide to the new time (a short tape-speed bend), so switch where the echo has died down |
 | `Txy`  | tremor: x+1 ticks on, y+1 ticks off, repeating (hard gate) |
+| `X1x`  | extra-fine porta up x/64 semitone, once (FT2) |
+| `X2x`  | extra-fine porta down, once |
 
 Multiple effects per cell: `fx: ["432", "A04"]` or string `"C-5 432 A04"`.
 Command letters are case-insensitive; digits are hex.
@@ -220,6 +282,8 @@ Expressive features (all optional, all code-only):
 | `glide` | `0.05` | auto portamento (seconds) from the channel's previous note |
 | `volumeEnv` | `{points: [[tick, level], ...], sustain: idx, loop: [a,b], fadeout: ticks}` | XM-style envelope, overrides ADSR while active. Levels 0..1, ticks from note start |
 | `panEnv` | `{points: [[tick, pan], ...], sustain: idx, loop: [a,b]}` | panning envelope, pan −1..1, adds to channel pan |
+| `nna` | `"cut"` \| `"continue"` \| `"off"` \| `"fade"` | New Note Action (Impulse Tracker): what this instrument's note does when the channel plays a new one. `cut` (default) stops it; `continue` lets it play on; `off` releases it; `fade` releases it with the XM fadeout. Left-over notes play out their own envelope (channel effects no longer reach them), honour their `len`, release on the channel's next `OFF`, max 4 per channel. On soundfont instruments `continue` leaves the old keys ringing; anything else releases them |
+| `send` | `0..1` | how much of this instrument goes into the song's [delay](#delay-echo-send) (overrides the channel's `send`) |
 
 Cell-level `slide`/`vib`/`arp`/`fx` override the instrument's behavior for that note.
 Instrument recipes worth stealing:
@@ -263,7 +327,12 @@ await audio.initializeMIDI();                 // loads the bundled TimGM6mb soun
 audio.tracker.setSoundFont(audio.sf2Player);
 ```
 
-Each sf2 instrument gets its own MIDI channel (15 melodic + drums). Pitch effects
+Each tracker channel that plays sf2 instruments gets its own MIDI channel (15 melodic
++ drums) — including a channel that starts on a synth instrument and switches to an sf2
+one mid-song. A channel can switch between sf2 instruments freely: the program (and
+bank) changes right at the note. Switching between melodic sf2 instruments and the
+`"drums"` kit on one channel isn't supported (drums live on MIDI channel 9). When a
+channel changes instrument, the old note gets its instrument's `nna`. Pitch effects
 (porta, slides, arp, vibrato) ride pitch bend (±12 semitones), volume/tremolo/mute
 ride per-note expression, and the soundfont's own envelope shapes the note — synth
 fields like `adsr`, `filter`, `unison` don't apply. On synth channels a chord array
