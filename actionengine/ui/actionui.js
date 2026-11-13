@@ -193,7 +193,11 @@ class ActionUI {
     _handleMouseWheel(e) {
         // Find the component under the pointer that can handle mouse wheel
         const pointerPos = this.input.getPointerPosition();
-        
+        // Wheel over the UI belongs to the UI: drop it from the game's wheel input so a game
+        // reading input.consumeWheel() (zoom, scroll) doesn't also act on it. The input
+        // handler's canvas listener has already counted this event; this runs after it.
+        if (this.capturesPointer(pointerPos.x, pointerPos.y) && this.input.consumeWheel) this.input.consumeWheel();
+
         // Iterate components in reverse order (top-to-bottom) to find the topmost hittable component
         for (let i = this._components.length - 1; i >= 0; i--) {
             const comp = this._components[i];
@@ -303,6 +307,35 @@ class ActionUI {
         this._activeContextMenus.push(menu);
     }
 
+    // ── Pointer ownership — for game code that also reacts to clicks / wheel ─
+
+    /**
+     * True when the UI owns the pointer, so the game should ignore this click / wheel:
+     *   - a modal, an open dropdown or context menu, or the on-screen keyboard is showing
+     *     (they take every click, including the one that closes them), or
+     *   - the pointer is over a visible, enabled, interactive component, or
+     *   - the UI already handled a click this frame (e.g. the click that picked a dropdown
+     *     item and closed it), so it works whether you check before or after ui.update().
+     *
+     *   if (input.isPointerJustDown() && !ui.capturesPointer()) game.handleClick();
+     *
+     * @param {number} [x] canvas x (defaults to the pointer)  @param {number} [y]
+     */
+    capturesPointer(x, y) {
+        if (this._pointerConsumed) return true;
+        if (this._components.some((c) => c instanceof ActionUIModal && c._showing)) return true;
+        if (this._components.some((c) => c instanceof ActionUIDropdown && c._open && c._isEffectivelyVisible())) return true;
+        if (this._activeContextMenus.some((m) => m.visible && m._open)) return true;
+        if (this._osk && this._osk._showing) return true;
+        if (x === undefined || y === undefined) {
+            const p = this.input.getPointerPosition();
+            if (!p) return false;
+            x = p.x; y = p.y;
+        }
+        return this._components.some((c) =>
+            c.isInteractive === true && c.enabled && c._isEffectivelyVisible() && c.containsPoint(x, y));
+    }
+
     // ── Core update — call from action_update ───────────────────────────────
 
     /**
@@ -357,6 +390,10 @@ class ActionUI {
         }
 
         // Pointer down events
+        // capturesPointer(): remember whether the UI takes this click (checked before the
+        // handlers below, which may close the dropdown/menu that took it).
+        this._pointerConsumed = false;
+        if (justD) this._pointerConsumed = this.capturesPointer(ptr.x, ptr.y);
         if (justD) {
             this._dropdownWasOpen = false;
             // If a dropdown is open, it intercepts all pointer events (prevents click-through)

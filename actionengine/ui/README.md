@@ -45,6 +45,11 @@ const ui = new ActionUI(canvases, input, theme);
 - `openModal(props)` — Open a modal dialog.
 - `showContextMenu(menu, x, y)` — Show a context menu at position.
 - `sendChar(char)` — Forward character input to the focused text input.
+- `capturesPointer(x?, y?)` — `true` when the UI owns the pointer: a modal, open dropdown/context menu or the on-screen keyboard is showing, the pointer is over an interactive component, or the UI already took a click this frame (e.g. the click that picked a dropdown item and closed it). Works before or after `update()`. Check it before reacting to clicks in game code, so a click on the UI doesn't also reach the game underneath:
+  ```js
+  if (input.isPointerJustDown() && !ui.capturesPointer()) game.handleClick();
+  ```
+  The wheel works the same way automatically: wheel input over the UI is removed from `input.consumeWheel()`.
 
 ### Factory Methods
 
