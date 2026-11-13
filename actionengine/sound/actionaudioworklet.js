@@ -168,6 +168,40 @@ function ActionAudioWorkletModule() {
     // block at tick boundaries. Only the voice layer is replaced - voices render straight
     // to samples instead of building node graphs - so every effect, envelope and
     // sequencing rule is literally the same code as the node tracker.
+    // Tracker echo (song.delay): stereo delay line with the tone lowpass on every pass and
+    // ping-pong feedback - the same routing as ActionTracker._makeNodeDelay (node engine).
+    function makeDelay(cfg) {
+        const max = Math.ceil(sampleRate * 4);
+        const d = { cfg, L: new Float32Array(max), R: new Float32Array(max), w: 0, max, frames: 0, target: 0, timed: false,
+                    fL: { fb0: 1, fb1: 0, fb2: 0, fa1: 0, fa2: 0, fx1: 0, fx2: 0, fy1: 0, fy2: 0 } };
+        biquad(d.fL, "lowpass", cfg.tone, -3.01, 0);
+        d.fR = { ...d.fL };
+        return d;
+    }
+    function bqStep(f, x) {
+        const y = f.fb0 * x + f.fb1 * f.fx1 + f.fb2 * f.fx2 - f.fa1 * f.fy1 - f.fa2 * f.fy2;
+        f.fx2 = f.fx1; f.fx1 = x; f.fy2 = f.fy1; f.fy1 = y;
+        return y;
+    }
+    const DELAY_GLIDE = 1 - Math.exp(-1 / (0.05 * sampleRate));        // retime like setTargetAtTime(.., 0.05)
+    function runDelay(d, inL, inR, TL, TR, hg, r0, r1) {
+        const fb = d.cfg.feedback, lvl = d.cfg.level, pp = d.cfg.pingpong, L = d.L, R = d.R, max = d.max;
+        for (let i = r0; i < r1; i++) {
+            d.frames += (d.target - d.frames) * DELAY_GLIDE;
+            let rp = d.w - d.frames;
+            if (rp < 0) rp += max;
+            const k = rp | 0, f = rp - k, k1 = k + 1 < max ? k + 1 : 0;
+            const yl = bqStep(d.fL, L[k] + (L[k1] - L[k]) * f);
+            const yr = bqStep(d.fR, R[k] + (R[k1] - R[k]) * f);
+            if (pp === "right") { R[d.w] = (inL[i] + inR[i]) * 0.5 + yl * fb; L[d.w] = yr * fb; }
+            else if (pp) { L[d.w] = (inL[i] + inR[i]) * 0.5 + yr * fb; R[d.w] = yl * fb; }
+            else { L[d.w] = inL[i] + yl * fb; R[d.w] = inR[i] + yr * fb; }
+            if (++d.w >= max) d.w = 0;
+            TL[i] += yl * lvl * hg[i];
+            TR[i] += yr * lvl * hg[i];
+        }
+    }
+
     const HAS_TRACKER = typeof ActionTracker !== "undefined";
     const PULSE = new Map();
     const BUS_K = Math.exp(-1 / (0.004 * sampleRate));               // mute/solo bus: setTargetAtTime 4 ms
@@ -204,6 +238,7 @@ function ActionAudioWorkletModule() {
                     h._channels.forEach((c) => {
                         if (c.voice && !c.voice.sf2) this._stopVoice(c.voice, now, 0.03);
                         c.voice = null;
+                        this._stopBackground(c, now, 0.03);
                     });
                     this._target(h, 0, now, 0.02);
                     if (m.op === "stop") { h.isPlaying = false; h.isPaused = false; this.handles.delete(h.hid); }
@@ -245,6 +280,16 @@ function ActionAudioWorkletModule() {
                 c.dest = c.bus;
                 c.handle = h;
             });
+            if (song.delay) {                       // the echo, fed by sends into dL / dR
+                h._delay = makeDelay(song.delay);
+                h.dL = new Float32Array(128);
+                h.dR = new Float32Array(128);
+            }
+            if (song.delay2) {                      // the second echo, fed into dL2 / dR2
+                h._delay2 = makeDelay(song.delay2);
+                h.dL2 = new Float32Array(128);
+                h.dR2 = new Float32Array(128);
+            }
             h._endOfOrder = () => {
                 const st = h._state;
                 if (songLoop !== false && songLoop !== null && songLoop !== undefined) {
@@ -260,9 +305,10 @@ function ActionAudioWorkletModule() {
                     if (c.voice && c.voice.sf2) tracker._sf2NoteOff(c, endTime);
                     else if (c.voice) tracker._stopVoice(c.voice, endTime, 0.15);
                     c.voice = null;
+                    tracker._stopBackground(c, endTime, 0.15);
                 });
                 h.isPlaying = false;
-                tracker._target(h, 0, endTime + 0.4, 0.1);
+                tracker._target(h, 0, endTime + 0.4 + tracker._delayTail(song), 0.1);   // let the echo ring out
                 tracker.handles.delete(hid);
                 E.port.postMessage({ t: "trkEnd", hid, endTime });
             };
@@ -270,6 +316,22 @@ function ActionAudioWorkletModule() {
             this.live.add(h);
             this._allocSf2Channels(h._channels, song);
             this._sync(h);
+        }
+
+        _setDelayTime(h) {
+            [[h._delay, 1], [h._delay2, 2]].forEach(([d, which]) => {
+                if (!d) return;
+                d.target = this._delaySeconds(h._song, h._state, which) * sampleRate;
+                if (!d.timed) { d.frames = d.target; d.timed = true; }
+            });
+        }
+
+        // New block: clear the echo inputs the sends add into.
+        beginBlock() {
+            for (const h of this.live) {
+                if (h._delay) { h.dL.fill(0); h.dR.fill(0); }
+                if (h._delay2) { h.dL2.fill(0); h.dR2.fill(0); }
+            }
         }
 
         // GainNode.setTargetAtTime on the handle gain (one pending event, like the node path uses).
@@ -316,7 +378,10 @@ function ActionAudioWorkletModule() {
             if (!this.live.size) return;
             for (const h of this.live) {
                 if (h.isPlaying || h.isPaused) continue;
-                if (!this.engine.tvoices.some((v) => v.handle === h)) this.live.delete(h);
+                if (this.engine.tvoices.some((v) => v.handle === h)) continue;
+                if ((h._delay || h._delay2) && (h.g > 1e-5 || h.pend)) continue;   // echo still ringing
+                for (const c of this.engine.channels) if (c.sendH === h) c.sendH = null;
+                this.live.delete(h);
             }
         }
 
@@ -339,6 +404,10 @@ function ActionAudioWorkletModule() {
                 const v = list[k];
                 this.renderVoice(v, TL, TR, r0, r1, blockStart);
                 if (!v.active) { list[k] = list[list.length - 1]; list.pop(); }
+            }
+            for (const h of this.live) {
+                if (h._delay) runDelay(h._delay, h.dL, h.dR, TL, TR, h.hg, r0, r1);
+                if (h._delay2) runDelay(h._delay2, h.dL2, h.dR2, TL, TR, h.hg, r0, r1);
             }
         }
 
@@ -408,6 +477,8 @@ function ActionAudioWorkletModule() {
                 gR: { T: time, dt: 0, from: 0, to: 0 },
                 cR: fl ? { T: time, dt: 0, from: base, to: base } : null,
                 pan: c.pan,
+                send: c.handle && c.handle._delay ? this._sendFor(c, inst) : 0,
+                send2: c.handle && c.handle._delay2 ? this._sendFor(c, inst, 2) : 0,
                 // fields the shared tracker logic reads and writes
                 filter: !!fl, filterEnv, inst, isNoise, peak,
                 attack: a, decay: d, sustain: s, release: r,
@@ -450,6 +521,8 @@ function ActionAudioWorkletModule() {
             if (start >= r1) return;
             const srcs = v.srcs, ns = srcs.length, stereo = v.stereo;
             const hg = v.handle.hg, bg = v.owner.bus.arr;
+            const send = v.send, dL = v.handle.dL, dR = v.handle.dR;
+            const send2 = v.send2, dL2 = v.handle.dL2, dR2 = v.handle.dR2;
             // StereoPannerNode: equal-power for a mono input; a stereo input folds one side in.
             const p = Math.max(-1, Math.min(1, v.pan));
             const x = !stereo ? ((p + 1) / 2) * (Math.PI / 2) : p <= 0 ? ((p + 1) * Math.PI) / 2 : (p * Math.PI) / 2;
@@ -506,11 +579,15 @@ function ActionAudioWorkletModule() {
                         fr.fx2 = fr.fx1; fr.fx1 = b; fr.fy2 = fr.fy1; fr.fy1 = y; b = y;
                     }
                 }
-                const amp = rampAt(v.gR, t) * hg[i] * bg[i];
-                a *= amp; b *= amp;
-                if (!stereo) { TL[i] += a * pmL; TR[i] += a * pmR; }
-                else if (p <= 0) { TL[i] += a + b * pmL; TR[i] += b * pmR; }
-                else { TL[i] += a * pmL; TR[i] += b + a * pmR; }
+                const pre = rampAt(v.gR, t) * bg[i];                 // mute/solo applies to the send too
+                a *= pre; b *= pre;
+                let oL, oR;
+                if (!stereo) { oL = a * pmL; oR = a * pmR; }
+                else if (p <= 0) { oL = a + b * pmL; oR = b * pmR; }
+                else { oL = a * pmL; oR = b + a * pmR; }
+                TL[i] += oL * hg[i]; TR[i] += oR * hg[i];
+                if (send) { dL[i] += oL * send; dR[i] += oR * send; }
+                if (send2) { dL2[i] += oL * send2; dR2[i] += oR * send2; }
             }
         }
 
@@ -520,9 +597,9 @@ function ActionAudioWorkletModule() {
             const E = this.engine, F = E.clockFrame;
             const set = (ch, op, value) => E.midi({ op, ch, value }, F);
             let next = 0;
-            channels.forEach((c) => {
-                const inst = song.instruments[c.cfg.inst];
-                if (!inst || inst.sf2 === undefined) return;
+            channels.forEach((c, i) => {
+                const inst = this._sf2InstFor(c, i, song);
+                if (!inst) return;
                 let ch;
                 if (inst.sf2 === "drums" || inst.percussion) {
                     ch = 9;
@@ -543,7 +620,14 @@ function ActionAudioWorkletModule() {
                 set(ch, "pan", 64);
                 const level = inst.level ?? 1;
                 set(ch, "gain", level);
-                c.sf2 = { ch, level };
+                c.sf2 = { ch, level, prog: inst.sf2, bank: inst.bank ?? 0 };
+                const ec = E.channels[ch], h = c.handle;      // echo send (one per MIDI channel)
+                if (h && (h._delay || h._delay2)) {
+                    const amount = h._delay ? this._sendFor(c, inst) : 0;
+                    const amount2 = h._delay2 ? this._sendFor(c, inst, 2) : 0;
+                    if (ec.sendH !== h) { ec.sendH = h; ec.sendAmt = amount; ec.send2Amt = amount2; }
+                    else { ec.sendAmt = Math.max(ec.sendAmt, amount); ec.send2Amt = Math.max(ec.send2Amt || 0, amount2); }
+                } else if (ec.sendH === h) ec.sendH = null;
             });
         }
 
@@ -561,8 +645,20 @@ function ActionAudioWorkletModule() {
             const vel = Math.max(1, Math.min(127, Math.round(c.vol * (inst.gain ?? 1) * 127)));
             const notes = Array.isArray(c.midi) ? c.midi : [c.midi];
             const f = this.frameOf(time ?? this.context.currentTime);
+            this._sf2Program(c, inst, f);
             this._bend(c.sf2.ch, 8192, f);
-            notes.forEach((m) => E.startSample(c.sf2.ch, m, vel, f));
+            notes.forEach((m) => E.startSample(c.sf2.ch, m, vel, f, c.noteOffset || 0));
+        }
+
+        _sf2SetProgram(ch, program, bank, frame) {
+            this.engine.midi({ op: "bank", ch, value: bank }, frame);
+            this.engine.midi({ op: "program", ch, value: program }, frame);
+        }
+
+        _sf2KeysOff(c, keys, time) {
+            if (!this.soundFont || !c.sf2) return;
+            const f = this.frameOf(time ?? this.context.currentTime);
+            keys.forEach((m) => this.engine.releaseKey(c.sf2.ch, m, f));
         }
 
         _sf2NoteOff(c, time) {
@@ -782,7 +878,7 @@ function ActionAudioWorkletModule() {
         }
 
         // A SoundFont note: zone lookup, envelope and filter as ActionSynthesizerNote.
-        startSample(ch, key, vel, frame) {
+        startSample(ch, key, vel, frame, offset = 0) {
             if (!this.sf) return;
             const c = this.channels[ch];
             const banks = this.sf.banks;
@@ -799,7 +895,7 @@ function ActionAudioWorkletModule() {
             v.ch = ch; v.key = key;
             v.smp = this.sf.samples[z.s];
             v.smpEnd = Math.min(v.smp.length, v.smp.length + (z.end || 0));
-            v.pos = z.start || 0;
+            v.pos = Math.min((z.start || 0) + (offset || 0), Math.max(0, v.smpEnd - 2));   // 9xx sample offset
             v.inc = (z.base * z.rate) / sampleRate;
             v.bendMul = 1;
             v.loop = (z.modes & 1) !== 0;
@@ -827,6 +923,8 @@ function ActionAudioWorkletModule() {
             const smp = v.smp, end = v.smpEnd;
             const g0 = c.g0, gd = (c.g1 - c.g0) / (bn || n);
             const exR = v.exprR;
+            const sh = c.sendH && c.sendH._delay && c.sendAmt > 0 ? c.sendH : null, sAmt = c.sendAmt;
+            const sh2 = c.sendH && c.sendH._delay2 && c.send2Amt > 0 ? c.sendH : null, sAmt2 = c.send2Amt;
             for (; i < n; i++) {
                 const g = blockStart + i, t = g - v.startFrame;
                 let level;
@@ -851,6 +949,8 @@ function ActionAudioWorkletModule() {
                 const oL = out * v.panL, oR = out * v.panR;
                 L[i] += oL; R[i] += oR;
                 rin[i] += (oL + oR) * 0.5;
+                if (sh) { sh.dL[i] += oL * sAmt; sh.dR[i] += oR * sAmt; }
+                if (sh2) { sh2.dL2[i] += oL * sAmt2; sh2.dR2[i] += oR * sAmt2; }
             }
         }
 
@@ -932,6 +1032,7 @@ function ActionAudioWorkletModule() {
             if (TL !== L) { TL.fill(0); if (TR !== TL) TR.fill(0); }
             const blockStart = currentFrame;
             this.clockFrame = blockStart;
+            if (this.trk) this.trk.beginBlock();
             // Future-timed MIDI events that fall in this block.
             while (this.pending.length && this.pending[0].frame < blockStart + n) { const e = this.pending.shift(); this.midi(e.m, Math.max(e.frame, blockStart)); }
             // Channel gain ramps (20 ms, like setChannelGain), interpolated across the block.
