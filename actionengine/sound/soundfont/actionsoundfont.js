@@ -121,9 +121,9 @@ class ActionSoundFont {
    * @param {number} velocity - Note velocity (0-127)
    * @param {number} channel - MIDI channel (0-15)
    */
-  noteOn(midiNumber, velocity = 127, channel, when) {
+  noteOn(midiNumber, velocity = 127, channel, when, offset = 0) {
     if (!this.synth) return;
-    this.synth.noteOn(channel !== undefined ? channel : this._channel, midiNumber, velocity, when);
+    this.synth.noteOn(channel !== undefined ? channel : this._channel, midiNumber, velocity, when, offset);
   }
 
   /**
@@ -360,7 +360,7 @@ class ActionSynthesizer {
    * @param {number} [when] - AudioContext time to start at (default: now). Lets a
    *   sequencer schedule soundfont notes on the audio clock like oscillators.
    */
-  noteOn(channel, key, velocity, when) {
+  noteOn(channel, key, velocity, when, offset = 0) {
     const bankIndex = this.channelBank[channel];
     let bank = this.bankSet[bankIndex] || this.bankSet[0];
 
@@ -402,7 +402,7 @@ class ActionSynthesizer {
 
     // Play the note
     const note = new ActionSynthesizerNote(this.ctx, this.channelGain[channel], instrumentKey);
-    note.noteOn(when);
+    note.noteOn(when, offset);
     this.currentNoteOn[channel].push(note);
   }
 
@@ -529,7 +529,8 @@ class ActionSynthesizerNote {
     this.filter = ctx.createBiquadFilter();
   }
 
-  noteOn(when) {
+  // offset: samples to skip into the sample (tracker 9xx sample offset)
+  noteOn(when, offset = 0) {
     const ctx = this.ctx;
     const instrument = this.instrument;
     const now = Math.max(ctx.currentTime, when ?? 0);
@@ -596,7 +597,7 @@ class ActionSynthesizerNote {
     this.connect();
 
     // Start playback
-    const startTime = (instrument.start || 0) / instrument.sampleRate;
+    const startTime = ((instrument.start || 0) + (offset || 0)) / instrument.sampleRate;
     this.bufferSource.start(now, startTime);
     if (this.ringStopTime !== undefined) this.bufferSource.stop(this.ringStopTime);
   }
